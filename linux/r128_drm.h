@@ -58,6 +58,14 @@
 #define R128_BACK			0x2
 #define R128_DEPTH			0x4
 
+/* Vertex/indirect buffer size
+ */
+#define R128_BUFFER_SIZE		16384
+
+/* 2048x2048 @ 32bpp texture requires this many indirect buffers
+ */
+#define R128_MAX_BLIT_BUFFERS		256
+
 /* Keep these small for testing.
  */
 #define R128_NR_SAREA_CLIPRECTS		12
@@ -195,10 +203,25 @@ typedef struct drm_r128_clear {
 } drm_r128_clear_t;
 
 typedef struct drm_r128_vertex {
-	int index;			/* Index of vertex buffer */
+	int idx;			/* Index of vertex buffer */
 	int used;			/* Amount of buffer used */
 	int discard;			/* Client finished with buffer? */
 } drm_r128_vertex_t;
+
+typedef struct drm_r128_blit_rect {
+	int index;
+	unsigned short x, y;
+	unsigned short width, height;
+	int padding;
+} drm_r128_blit_rect_t;
+
+typedef struct drm_r128_blit {
+	int pitch;
+	int offset;
+	int format;
+	drm_r128_blit_rect_t *rects;
+	int count;
+} drm_r128_blit_t;
 
 typedef struct drm_r128_packet {
 	unsigned int *buffer;

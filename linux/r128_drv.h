@@ -100,6 +100,20 @@ typedef struct drm_r128_buf_priv {
    	drm_r128_freelist_t *list_entry;
 } drm_r128_buf_priv_t;
 
+#define R128_BLIT_PACKET_DATA_SIZE ((R128_BUFFER_SIZE / sizeof(u32)) - 8)
+
+typedef struct drm_r128_blit_packet {
+	u32 header;
+	u32 gui_master_cntl;
+	u32 dst_pitch_offset;
+	u32 fg_color;
+	u32 bg_color;
+	u16 x, y;		/* HACK: endian specific */
+	u16 width, height;
+	u32 dwords;
+	u32 data[R128_BLIT_PACKET_DATA_SIZE];
+} drm_r128_blit_packet_t;
+
 				/* r128_drv.c */
 extern int  r128_version( struct inode *inode, struct file *filp,
 			  unsigned int cmd, unsigned long arg );
@@ -143,6 +157,8 @@ extern int r128_cce_swap( struct inode *inode, struct file *filp,
 			  unsigned int cmd, unsigned long arg );
 extern int r128_cce_vertex( struct inode *inode, struct file *filp,
 			    unsigned int cmd, unsigned long arg );
+extern int r128_cce_blit( struct inode *inode, struct file *filp,
+			  unsigned int cmd, unsigned long arg );
 
 				/* r128_bufs.c */
 extern int r128_addbufs(struct inode *inode, struct file *filp,
@@ -207,11 +223,14 @@ extern int  r128_context_switch_complete(drm_device_t *dev, int new);
 #define R128_CONSTANT_COLOR_C		0x1d34
 
 #define R128_DP_GUI_MASTER_CNTL		0x146c
+#       define R128_GMC_SRC_PITCH_OFFSET_CNTL	(1    <<  0)
+#       define R128_GMC_DST_PITCH_OFFSET_CNTL	(1    <<  1)
 #	define R128_GMC_BRUSH_SOLID_COLOR	(13   <<  4)
 #	define R128_GMC_BRUSH_NONE		(15   <<  4)
 #	define R128_GMC_DST_16BPP		(4    <<  8)
 #	define R128_GMC_DST_24BPP		(5    <<  8)
 #	define R128_GMC_DST_32BPP		(6    <<  8)
+#       define R128_GMC_DST_DATATYPE_SHIFT	8
 #	define R128_GMC_SRC_DATATYPE_COLOR	(3    << 12)
 #	define R128_DP_SRC_SOURCE_MEMORY	(2    << 24)
 #	define R128_DP_SRC_SOURCE_HOST_DATA	(3    << 24)
@@ -242,7 +261,10 @@ extern int  r128_context_switch_complete(drm_device_t *dev, int new);
 #	define R128_FORCE_PIPE3D_CP		(1 << 17)
 #	define R128_FORCE_RCP			(1 << 18)
 
+#define R128_PC_GUI_CTLSTAT		0x1748
 #define R128_PC_NGUI_CTLSTAT		0x0184
+#	define R128_PC_FLUSH_GUI		(3 << 0)
+#	define R128_PC_RI_GUI			(1 << 2)
 #	define R128_PC_FLUSH_ALL		0x00ff
 #	define R128_PC_BUSY			(1 << 31)
 
@@ -288,6 +310,9 @@ extern int  r128_context_switch_complete(drm_device_t *dev, int new);
 #	define R128_PM4_BUFFER_DL_DONE		(1 << 31)
 
 #define R128_PM4_VC_FPU_SETUP		0x071c
+
+#define R128_PM4_IW_INDOFF		0x0738
+#define R128_PM4_IW_INDSIZE		0x073c
 
 #define R128_PM4_STAT			0x07b8
 #	define R128_PM4_FIFOCNT_MASK		0x0fff
@@ -337,6 +362,15 @@ extern int  r128_context_switch_complete(drm_device_t *dev, int new);
 #define R128_CCE_VC_CNTL_PRIM_WALK_RING		0x00000030
 #define R128_CCE_VC_CNTL_NUM_SHIFT		16
 
+#define R128_DATATYPE_CI8		2
+#define R128_DATATYPE_ARGB1555		3
+#define R128_DATATYPE_RGB565		4
+#define R128_DATATYPE_RGB888		5
+#define R128_DATATYPE_ARGB8888		6
+#define R128_DATATYPE_RGB332		7
+#define R128_DATATYPE_RGB8		9
+#define R128_DATATYPE_ARGB4444		15
+
 /* Constants */
 #define R128_AGP_OFFSET			0x02000000
 
@@ -348,7 +382,7 @@ extern int  r128_context_switch_complete(drm_device_t *dev, int new);
 #define R128_MAX_USEC_TIMEOUT	100000	/* 100 ms */
 
 #define R128_LAST_FRAME_REG		R128_GUI_SCRATCH_REG0
-#define R128_LAST_VB_REG		R128_GUI_SCRATCH_REG1
+#define R128_LAST_DISPATCH_REG		R128_GUI_SCRATCH_REG1
 #define R128_MAX_VB_AGE			0xffffffff
 
 

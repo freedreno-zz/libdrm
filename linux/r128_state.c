@@ -558,19 +558,18 @@ static void r128_cce_dispatch_vertex( drm_device_t *dev,
 	}
 
 	if ( buf_priv->discard ) {
+		buf_priv->age = dev_priv->sarea_priv->last_dispatch;
+
 		/* Emit the vertex buffer age */
 		BEGIN_RING( 2 );
-
-		OUT_RING( CCE_PACKET0( R128_LAST_VB_REG, 0 ) );
-		OUT_RING( dev_priv->sarea_priv->last_dispatch );
-
+		OUT_RING( CCE_PACKET0( R128_LAST_DISPATCH_REG, 0 ) );
+		OUT_RING( buf_priv->age );
 		ADVANCE_RING();
 
 		buf->pending = 1;
 
 		/* FIXME: Check dispatched field */
 		buf_priv->dispatched = 0;
-		buf_priv->age = dev_priv->sarea_priv->last_dispatch;
 	}
 
 	dev_priv->sarea_priv->last_dispatch++;
@@ -583,6 +582,175 @@ static void r128_cce_dispatch_vertex( drm_device_t *dev,
 		r128_freelist_reset( dev );
 	}
 #endif
+}
+
+
+
+
+static void r128_cce_dispatch_indirect( drm_device_t *dev, drm_buf_t *buf )
+{
+	drm_r128_private_t *dev_priv = dev->dev_private;
+	drm_r128_buf_priv_t *buf_priv = buf->dev_private;
+	int offset = dev_priv->buffers->offset + buf->offset - dev->agp->base;
+	int size = ((buf->used / sizeof(u32)) + 1) & ~0x1;
+	RING_LOCALS;
+	DRM_DEBUG( "%s\n", __FUNCTION__ );
+
+	r128_update_ring_snapshot( dev_priv );
+
+	if ( buf->used ) {
+		DRM_DEBUG( "%s: offset=0x%x size=%d used=%d\n",
+			   __FUNCTION__, offset, size, buf->used );
+		buf_priv->dispatched = 1;
+
+		/* Fire off the indirect buffer */
+		BEGIN_RING( 3 );
+
+		OUT_RING( CCE_PACKET0( R128_PM4_IW_INDOFF, 1 ) );
+		OUT_RING( offset );
+		OUT_RING( size );
+
+		ADVANCE_RING();
+	}
+
+	if ( buf_priv->discard ) {
+		buf_priv->age = dev_priv->sarea_priv->last_dispatch;
+
+		/* Emit the indirect buffer age */
+		BEGIN_RING( 2 );
+
+		OUT_RING( CCE_PACKET0( R128_LAST_DISPATCH_REG, 0 ) );
+		OUT_RING( buf_priv->age );
+
+		ADVANCE_RING();
+
+		buf->pending = 1;
+
+		/* FIXME: Check dispatched field */
+		buf_priv->dispatched = 0;
+	}
+
+	dev_priv->sarea_priv->last_dispatch++;
+
+#if 0
+	if ( dev_priv->submit_age == R128_MAX_VB_AGE ) {
+		ret = r128_do_cce_idle( dev_priv );
+		if ( ret < 0 ) return ret;
+		dev_priv->submit_age = 0;
+		r128_freelist_reset( dev );
+	}
+#endif
+}
+
+static int r128_cce_dispatch_blit( drm_device_t *dev,
+				   int offset, int pitch, int format,
+				   drm_r128_blit_rect_t *rects, int count )
+{
+	drm_r128_private_t *dev_priv = dev->dev_private;
+	drm_device_dma_t *dma = dev->dma;
+	drm_buf_t *buf;
+	drm_r128_buf_priv_t *buf_priv;
+	drm_r128_blit_rect_t *rect;
+	drm_r128_blit_packet_t *blit;
+	int dword_shift, dwords;
+	int i;
+	RING_LOCALS;
+	DRM_DEBUG( "%s\n", __FUNCTION__ );
+
+	switch ( format ) {
+	case R128_DATATYPE_ARGB1555:
+	case R128_DATATYPE_RGB565:
+	case R128_DATATYPE_ARGB4444:
+		dword_shift = 1;
+		break;
+	case R128_DATATYPE_ARGB8888:
+		dword_shift = 0;
+		break;
+	default:
+		DRM_ERROR( "invalid blit format %d\n", format );
+		return -EINVAL;
+	}
+
+	/* Flush the pixel cache, and mark the contents as Read Invalid.
+	 * This ensures no pixel data gets mixed up with the texture
+	 * data from the host data blit, otherwise part of the texture
+	 * image may be corrupted.
+	 */
+	BEGIN_RING( 2 );
+
+	OUT_RING( CCE_PACKET0( R128_PC_GUI_CTLSTAT, 0 ) );
+	OUT_RING( R128_PC_RI_GUI | R128_PC_FLUSH_GUI );
+
+	ADVANCE_RING();
+
+	/* Dispatch each of the indirect buffers.
+	 */
+	for ( i = 0 ; i < count ; i++ ) {
+		rect = &rects[i];
+		buf = dma->buflist[rect->index];
+		buf_priv = buf->dev_private;
+
+		if ( buf->pid != current->pid ) {
+			DRM_ERROR( "process %d using buffer owned by %d\n",
+				   current->pid, buf->pid );
+			return -EINVAL;
+		}
+		if ( buf->pending ) {
+			DRM_ERROR( "sending pending buffer %d\n",
+				   rect->index );
+			return -EINVAL;
+		}
+
+		buf_priv->discard = 1;
+
+		dwords = (rect->width * rect->height) >> dword_shift;
+
+		blit = (drm_r128_blit_packet_t *)
+			((char *)dev_priv->buffers->handle + buf->offset);
+
+		blit->header = CCE_PACKET3( R128_CNTL_HOSTDATA_BLT,
+					    dwords + 6 );
+		blit->gui_master_cntl = ( R128_GMC_DST_PITCH_OFFSET_CNTL
+					  | R128_GMC_BRUSH_NONE
+					  | (format << 8)
+					  | R128_GMC_SRC_DATATYPE_COLOR
+					  | R128_ROP3_S
+					  | R128_DP_SRC_SOURCE_HOST_DATA
+					  | R128_GMC_CLR_CMP_CNTL_DIS
+					  | R128_GMC_AUX_CLIP_DIS
+					  | R128_GMC_WR_MSK_DIS );
+
+		blit->dst_pitch_offset = (pitch << 21) | (offset >> 5);
+		blit->fg_color = 0xffffffff;
+		blit->bg_color = 0xffffffff;
+		blit->x = rect->x;
+		blit->y = rect->y;
+		blit->width = rect->width;
+		blit->height = rect->height;
+		blit->dwords = dwords;
+
+		/* FIXME: This should really go in the function call...
+		 */
+		if ( dwords & 1 ) {
+			blit->data[dwords++] = R128_CCE_PACKET2;
+		}
+		buf->used = (dwords + 8) * sizeof(u32);
+
+		r128_cce_dispatch_indirect( dev, buf );
+	}
+
+	/* Flush the pixel cache after the blit completes.  This ensures
+	 * the texture data is written out to memory before rendering
+	 * continues.
+	 */
+	BEGIN_RING( 2 );
+
+	OUT_RING( CCE_PACKET0( R128_PC_GUI_CTLSTAT, 0 ) );
+	OUT_RING( R128_PC_FLUSH_GUI );
+
+	ADVANCE_RING();
+
+	return 0;
 }
 
 
@@ -679,15 +847,15 @@ int r128_cce_vertex( struct inode *inode, struct file *filp,
 
 	DRM_DEBUG( "%s: pid=%d index=%d used=%d discard=%d\n",
 		   __FUNCTION__, current->pid,
-		   vertex.index, vertex.used, vertex.discard );
+		   vertex.idx, vertex.used, vertex.discard );
 
-	if ( vertex.index < 0 || vertex.index >= dma->buf_count ) {
+	if ( vertex.idx < 0 || vertex.idx >= dma->buf_count ) {
 		DRM_ERROR( "buffer index %d (of %d max)\n",
-			   vertex.index, dma->buf_count - 1 );
+			   vertex.idx, dma->buf_count - 1 );
 		return -EINVAL;
 	}
 
-	buf = dma->buflist[vertex.index];
+	buf = dma->buflist[vertex.idx];
 	buf_priv = buf->dev_private;
 
 	if ( buf->pid != current->pid ) {
@@ -696,7 +864,7 @@ int r128_cce_vertex( struct inode *inode, struct file *filp,
 		return -EINVAL;
 	}
 	if ( buf->pending ) {
-		DRM_ERROR( "sending pending buffer %d\n", vertex.index );
+		DRM_ERROR( "sending pending buffer %d\n", vertex.idx );
 		return -EINVAL;
 	}
 
@@ -706,4 +874,40 @@ int r128_cce_vertex( struct inode *inode, struct file *filp,
 	r128_cce_dispatch_vertex( dev, buf );
 
 	return 0;
+}
+
+int r128_cce_blit( struct inode *inode, struct file *filp,
+		   unsigned int cmd, unsigned long arg )
+{
+	drm_file_t *priv = filp->private_data;
+	drm_device_t *dev = priv->dev;
+	drm_device_dma_t *dma = dev->dma;
+	drm_r128_blit_t blit;
+	drm_r128_blit_rect_t rects[R128_MAX_BLIT_BUFFERS];
+
+	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||
+	     dev->lock.pid != current->pid ) {
+		DRM_ERROR( "%s called without lock held\n", __FUNCTION__ );
+		return -EINVAL;
+	}
+
+	if ( copy_from_user( &blit, (drm_r128_blit_t *)arg,
+			     sizeof(blit) ) )
+		return -EFAULT;
+
+	DRM_DEBUG( "%s: pid=%d count=%d\n",
+		   __FUNCTION__, current->pid, blit.count );
+
+	if ( blit.count < 0 || blit.count > dma->buf_count ) {
+		DRM_ERROR( "sending %d buffers (of %d max)\n",
+			   blit.count, dma->buf_count );
+		return -EINVAL;
+	}
+
+	if ( copy_from_user( &rects, blit.rects,
+			     blit.count * sizeof(drm_r128_blit_rect_t) ) )
+		return -EFAULT;
+
+	return r128_cce_dispatch_blit( dev, blit.offset, blit.pitch,
+				       blit.format, rects, blit.count );
 }

@@ -491,7 +491,8 @@ static int r128_do_init_cce( drm_device_t *dev, drm_r128_init_t *init )
 	R128_WRITE( R128_LAST_FRAME_REG, dev_priv->sarea_priv->last_frame );
 
 	dev_priv->sarea_priv->last_dispatch = 0;
-	R128_WRITE( R128_LAST_VB_REG, dev_priv->sarea_priv->last_dispatch );
+	R128_WRITE( R128_LAST_DISPATCH_REG,
+		    dev_priv->sarea_priv->last_dispatch );
 
 	r128_cce_init_ring_buffer( dev );
 	r128_cce_load_microcode( dev_priv );
@@ -732,11 +733,12 @@ drm_buf_t *r128_freelist_get( drm_device_t *dev )
 	for ( i = 0 ; i < dma->buf_count ; i++ ) {
 		buf = dma->buflist[i];
 		buf_priv = buf->dev_private;
-		if ( buf->pid == 0 ) return buf;
+		if ( buf->pid == 0 )
+			return buf;
 	}
 
 	for ( t = 0 ; t < dev_priv->usec_timeout ; t++ ) {
-		u32 done_age = R128_READ( R128_LAST_VB_REG );
+		u32 done_age = R128_READ( R128_LAST_DISPATCH_REG );
 
 		for ( i = 0 ; i < dma->buf_count ; i++ ) {
 			buf = dma->buflist[i];
@@ -752,7 +754,7 @@ drm_buf_t *r128_freelist_get( drm_device_t *dev )
 		udelay( 1 );
 	}
 
-	DRM_ERROR( "%s: returning NULL!\n", __FUNCTION__ );
+	DRM_ERROR( "returning NULL!\n" );
 	return NULL;
 }
 
@@ -1152,7 +1154,7 @@ static int r128_cce_get_buffers( drm_device_t *dev, drm_dma_t *d )
 
 	for ( i = d->granted_count ; i < d->request_count ; i++ ) {
 		buf = r128_freelist_get( dev );
-		if ( !buf ) break;
+		if ( !buf ) return -EAGAIN;
 
 		buf->pid = current->pid;
 

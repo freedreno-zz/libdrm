@@ -371,6 +371,7 @@ typedef struct drm_agp_info {
 #define DRM_IOCTL_R128_SWAP	 DRM_IO(  0x46)
 #define DRM_IOCTL_R128_CLEAR	 DRM_IOW( 0x47, drm_r128_clear_t)
 #define DRM_IOCTL_R128_VERTEX	 DRM_IOW( 0x48, drm_r128_vertex_t)
-#define DRM_IOCTL_R128_PACKET	 DRM_IOWR(0x49, drm_r128_packet_t)
+#define DRM_IOCTL_R128_BLIT	 DRM_IOW( 0x49, drm_r128_blit_t)
+#define DRM_IOCTL_R128_PACKET	 DRM_IOWR(0x50, drm_r128_packet_t)
 
 #endif
