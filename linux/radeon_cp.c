@@ -667,13 +667,29 @@ static int radeon_do_init_cp( drm_device_t *dev, drm_radeon_init_t *init )
 		return -EINVAL;
 	}
 
-	dev_priv->fb_bpp	= init->fb_bpp;
+	switch ( init->fb_bpp ) {
+	case 16:
+		dev_priv->color_fmt = RADEON_COLOR_FORMAT_RGB565;
+		break;
+	case 32:
+	default:
+		dev_priv->color_fmt = RADEON_COLOR_FORMAT_ARGB8888;
+		break;
+	}
 	dev_priv->front_offset	= init->front_offset;
 	dev_priv->front_pitch	= init->front_pitch;
 	dev_priv->back_offset	= init->back_offset;
 	dev_priv->back_pitch	= init->back_pitch;
 
-	dev_priv->depth_bpp	= init->depth_bpp;
+	switch ( init->depth_bpp ) {
+	case 16:
+		dev_priv->depth_fmt = RADEON_DEPTH_FORMAT_16BIT_INT_Z;
+		break;
+	case 32:
+	default:
+		dev_priv->depth_fmt = RADEON_DEPTH_FORMAT_24BIT_INT_Z;
+		break;
+	}
 	dev_priv->depth_offset	= init->depth_offset;
 	dev_priv->depth_pitch	= init->depth_pitch;
 
@@ -683,6 +699,38 @@ static int radeon_do_init_cp( drm_device_t *dev, drm_radeon_init_t *init )
 				       (dev_priv->back_offset >> 10));
 	dev_priv->depth_pitch_offset = (((dev_priv->depth_pitch/64) << 22) |
 					(dev_priv->depth_offset >> 10));
+
+	/* Hardware state for depth clears.  Remove this if/when we no
+	 * longer clear the depth buffer with a 3D rectangle.  Hard-code
+	 * all values to prevent unwanted 3D state from slipping through
+	 * and screwing with the clear operation.
+	 */
+	dev_priv->depth_clear.rb3d_cntl = (RADEON_PLANE_MASK_ENABLE |
+					   RADEON_Z_ENABLE |
+					   (dev_priv->color_fmt << 10) |
+					   RADEON_ZBLOCK16);
+
+	dev_priv->depth_clear.rb3d_zstencilcntl = (dev_priv->depth_fmt |
+						   RADEON_Z_TEST_ALWAYS |
+						   RADEON_STENCIL_TEST_ALWAYS |
+						   RADEON_STENCIL_S_FAIL_KEEP |
+						   RADEON_STENCIL_ZPASS_KEEP |
+						   RADEON_STENCIL_ZFAIL_KEEP |
+						   RADEON_Z_WRITE_ENABLE);
+
+	dev_priv->depth_clear.se_cntl = (RADEON_FFACE_CULL_CW |
+					 RADEON_BFACE_SOLID |
+					 RADEON_FFACE_SOLID |
+					 RADEON_FLAT_SHADE_VTX_LAST |
+
+					 RADEON_DIFFUSE_SHADE_FLAT |
+					 RADEON_ALPHA_SHADE_FLAT |
+					 RADEON_SPECULAR_SHADE_FLAT |
+					 RADEON_FOG_SHADE_FLAT |
+
+					 RADEON_VTX_PIX_CENTER_OGL |
+					 RADEON_ROUND_MODE_TRUNC |
+					 RADEON_ROUND_PREC_8TH_PIX);
 
 	/* FIXME: We want multiple shared areas, including one shared
 	 * only by the X Server and kernel module.

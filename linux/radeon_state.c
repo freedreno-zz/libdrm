@@ -411,19 +411,17 @@ static void radeon_clear_box( drm_radeon_private_t *dev_priv,
 			      int r, int g, int b )
 {
 	u32 pitch, offset;
-	u32 fb_bpp, color;
+	u32 color;
 	RING_LOCALS;
 
-	switch ( dev_priv->fb_bpp ) {
-	case 16:
-		fb_bpp = RADEON_GMC_DST_16BPP;
+	switch ( dev_priv->color_fmt ) {
+	case RADEON_COLOR_FORMAT_RGB565:
 		color = (((r & 0xf8) << 8) |
 			 ((g & 0xfc) << 3) |
 			 ((b & 0xf8) >> 3));
 		break;
-	case 32:
+	case RADEON_COLOR_FORMAT_ARGB8888:
 	default:
-		fb_bpp = RADEON_GMC_DST_32BPP;
 		color = (((0xff) << 24) | (r << 16) | (g <<  8) | b);
 		break;
 	}
@@ -436,7 +434,7 @@ static void radeon_clear_box( drm_radeon_private_t *dev_priv,
 	OUT_RING( CP_PACKET3( RADEON_CNTL_PAINT_MULTI, 4 ) );
 	OUT_RING( RADEON_GMC_DST_PITCH_OFFSET_CNTL |
 		  RADEON_GMC_BRUSH_SOLID_COLOR |
-		  fb_bpp |
+		  (dev_priv->color_fmt << 8) |
 		  RADEON_GMC_SRC_DATATYPE_COLOR |
 		  RADEON_ROP3_P |
 		  RADEON_GMC_CLR_CMP_CNTL_DIS );
@@ -495,32 +493,11 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 	int nbox = sarea_priv->nbox;
 	drm_clip_rect_t *pbox = sarea_priv->boxes;
 	unsigned int flags = clear->flags;
-	u32 fb_bpp, depth_bpp;
 	int i;
 	RING_LOCALS;
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
 	radeon_update_ring_snapshot( dev_priv );
-
-	switch ( dev_priv->fb_bpp ) {
-	case 16:
-		fb_bpp = RADEON_GMC_DST_16BPP;
-		break;
-	case 32:
-	default:
-		fb_bpp = RADEON_GMC_DST_32BPP;
-		break;
-	}
-	switch ( dev_priv->depth_bpp ) {
-	case 16:
-		depth_bpp = RADEON_GMC_DST_16BPP;
-		break;
-	case 32:
-		depth_bpp = RADEON_GMC_DST_32BPP;
-		break;
-	default:
-		return;
-	}
 
 	if ( dev_priv->page_flipping && dev_priv->current_page == 1 ) {
 		unsigned int tmp = flags;
@@ -537,8 +514,7 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 		int h = pbox[i].y2 - y;
 
 		DRM_DEBUG( "dispatch clear %d,%d-%d,%d flags 0x%x\n",
-			   pbox[i].x1, pbox[i].y1, pbox[i].x2,
-			   pbox[i].y2, flags );
+			   x, y, w, h, flags );
 
 		if ( flags & (RADEON_FRONT | RADEON_BACK) ) {
 			BEGIN_RING( 4 );
@@ -565,7 +541,7 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 			OUT_RING( CP_PACKET3( RADEON_CNTL_PAINT_MULTI, 4 ) );
 			OUT_RING( RADEON_GMC_DST_PITCH_OFFSET_CNTL |
 				  RADEON_GMC_BRUSH_SOLID_COLOR |
-				  fb_bpp |
+				  (dev_priv->color_fmt << 8) |
 				  RADEON_GMC_SRC_DATATYPE_COLOR |
 				  RADEON_ROP3_P |
 				  RADEON_GMC_CLR_CMP_CNTL_DIS );
@@ -585,7 +561,7 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 			OUT_RING( CP_PACKET3( RADEON_CNTL_PAINT_MULTI, 4 ) );
 			OUT_RING( RADEON_GMC_DST_PITCH_OFFSET_CNTL |
 				  RADEON_GMC_BRUSH_SOLID_COLOR |
-				  fb_bpp |
+				  (dev_priv->color_fmt << 8) |
 				  RADEON_GMC_SRC_DATATYPE_COLOR |
 				  RADEON_ROP3_P |
 				  RADEON_GMC_CLR_CMP_CNTL_DIS );
@@ -597,49 +573,33 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 			OUT_RING( (w << 16) | h );
 
 			ADVANCE_RING();
+
 		}
 
 		if ( flags & RADEON_DEPTH ) {
-			drm_radeon_context_regs_t *ctx =
-			   &sarea_priv->context_state;
-			u32 rb3d_cntl = ctx->rb3d_cntl;
-			u32 rb3d_zstencilcntl = ctx->rb3d_zstencilcntl;
-			u32 se_cntl = ctx->se_cntl;
+			drm_radeon_depth_clear_t *depth_clear =
+			   &dev_priv->depth_clear;
 
 			if ( sarea_priv->dirty & ~RADEON_UPLOAD_CLIPRECTS ) {
 				radeon_emit_state( dev_priv );
 			}
 
-			/* FIXME: Do re really need to do this?  Why
-			 * not just precalculate all the values?
-			 */
-			rb3d_cntl |= (RADEON_PLANE_MASK_ENABLE |
-				      RADEON_Z_ENABLE);
-
-			rb3d_zstencilcntl |= (RADEON_Z_TEST_ALWAYS |
-					      RADEON_Z_WRITE_ENABLE);
-
-			se_cntl &= ~(RADEON_VPORT_XY_XFORM_ENABLE |
-				     RADEON_VPORT_Z_XFORM_ENABLE);
-			se_cntl |= (RADEON_FFACE_SOLID |
-				    RADEON_BFACE_SOLID);
-
 			/* FIXME: Render a rectangle to clear the depth
 			 * buffer.  So much for those "fast Z clears"...
 			 */
-			BEGIN_RING( 22 );
+			BEGIN_RING( 23 );
 
 			RADEON_WAIT_UNTIL_2D_IDLE();
 
 			OUT_RING( CP_PACKET0( RADEON_PP_CNTL, 1 ) );
 			OUT_RING( 0x00000000 );
-			OUT_RING( rb3d_cntl );
+			OUT_RING( depth_clear->rb3d_cntl );
 			OUT_RING( CP_PACKET0( RADEON_RB3D_ZSTENCILCNTL, 0 ) );
-			OUT_RING( rb3d_zstencilcntl );
+			OUT_RING( depth_clear->rb3d_zstencilcntl );
 			OUT_RING( CP_PACKET0( RADEON_RB3D_PLANEMASK, 0 ) );
 			OUT_RING( 0x00000000 );
 			OUT_RING( CP_PACKET0( RADEON_SE_CNTL, 0 ) );
-			OUT_RING( se_cntl );
+			OUT_RING( depth_clear->se_cntl );
 
 			OUT_RING( CP_PACKET3( RADEON_3D_DRAW_IMMD, 10 ) );
 			OUT_RING( RADEON_VTX_Z_PRESENT );
@@ -691,7 +651,6 @@ static void radeon_cp_dispatch_swap( drm_device_t *dev )
 	drm_radeon_sarea_t *sarea_priv = dev_priv->sarea_priv;
 	int nbox = sarea_priv->nbox;
 	drm_clip_rect_t *pbox = sarea_priv->boxes;
-	u32 fb_bpp;
 	int i;
 	RING_LOCALS;
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
@@ -703,19 +662,6 @@ static void radeon_cp_dispatch_swap( drm_device_t *dev )
 	 */
 	radeon_cp_performance_boxes( dev_priv );
 #endif
-
-	switch ( dev_priv->fb_bpp ) {
-	case 16:
-		fb_bpp = RADEON_GMC_DST_16BPP;
-		break;
-	case 24:
-		fb_bpp = RADEON_GMC_DST_24BPP;
-		break;
-	case 32:
-	default:
-		fb_bpp = RADEON_GMC_DST_32BPP;
-		break;
-	}
 
 	/* Wait for the 3D stream to idle before dispatching the bitblt.
 	 * This will prevent data corruption between the two streams.
@@ -732,13 +678,16 @@ static void radeon_cp_dispatch_swap( drm_device_t *dev )
 		int w = pbox[i].x2 - x;
 		int h = pbox[i].y2 - y;
 
+		DRM_DEBUG( "dispatch swap %d,%d-%d,%d\n",
+			   x, y, w, h );
+
 		BEGIN_RING( 7 );
 
 		OUT_RING( CP_PACKET3( RADEON_CNTL_BITBLT_MULTI, 5 ) );
 		OUT_RING( RADEON_GMC_SRC_PITCH_OFFSET_CNTL |
 			  RADEON_GMC_DST_PITCH_OFFSET_CNTL |
 			  RADEON_GMC_BRUSH_NONE |
-			  fb_bpp |
+			  (dev_priv->color_fmt << 8) |
 			  RADEON_GMC_SRC_DATATYPE_COLOR |
 			  RADEON_ROP3_S |
 			  RADEON_DP_SRC_SOURCE_MEMORY |
@@ -1139,7 +1088,7 @@ static void radeon_cp_dispatch_stipple( drm_device_t *dev, u32 *stipple )
 	drm_radeon_private_t *dev_priv = dev->dev_private;
 	int i;
 	RING_LOCALS;
-	DRM_INFO( "%s\n", __FUNCTION__ );
+	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
 	radeon_update_ring_snapshot( dev_priv );
 

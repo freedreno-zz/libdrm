@@ -52,6 +52,12 @@ typedef struct drm_radeon_ring_buffer {
 	int space;
 } drm_radeon_ring_buffer_t;
 
+typedef struct drm_radeon_depth_clear_t {
+	u32 rb3d_cntl;
+	u32 rb3d_zstencilcntl;
+	u32 se_cntl;
+} drm_radeon_depth_clear_t;
+
 typedef struct drm_radeon_private {
 	drm_radeon_ring_buffer_t ring;
 	drm_radeon_sarea_t *sarea_priv;
@@ -85,19 +91,21 @@ typedef struct drm_radeon_private {
 	u32 crtc_offset;
 	u32 crtc_offset_cntl;
 
-	unsigned int fb_bpp;
+	unsigned int color_fmt;
 	unsigned int front_offset;
 	unsigned int front_pitch;
 	unsigned int back_offset;
 	unsigned int back_pitch;
 
-	unsigned int depth_bpp;
+	unsigned int depth_fmt;
 	unsigned int depth_offset;
 	unsigned int depth_pitch;
 
 	u32 front_pitch_offset;
 	u32 back_pitch_offset;
 	u32 depth_pitch_offset;
+
+	drm_radeon_depth_clear_t depth_clear;
 
 	drm_map_t *sarea;
 	drm_map_t *fb;
@@ -353,9 +361,13 @@ extern int  radeon_context_switch_complete(drm_device_t *dev, int new);
 #	define RADEON_BFACE_SOLID		(3 << 1)
 #	define RADEON_FFACE_SOLID		(3 << 3)
 #	define RADEON_FLAT_SHADE_VTX_LAST	(3 << 6)
+#	define RADEON_DIFFUSE_SHADE_FLAT	(1 << 8)
 #	define RADEON_DIFFUSE_SHADE_GOURAUD	(2 << 8)
+#	define RADEON_ALPHA_SHADE_FLAT		(1 << 10)
 #	define RADEON_ALPHA_SHADE_GOURAUD	(2 << 10)
+#	define RADEON_SPECULAR_SHADE_FLAT	(1 << 12)
 #	define RADEON_SPECULAR_SHADE_GOURAUD	(2 << 12)
+#	define RADEON_FOG_SHADE_FLAT		(1 << 14)
 #	define RADEON_FOG_SHADE_GOURAUD		(2 << 14)
 #	define RADEON_VPORT_XY_XFORM_ENABLE	(1 << 24)
 #	define RADEON_VPORT_Z_XFORM_ENABLE	(1 << 25)
