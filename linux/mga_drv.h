@@ -74,6 +74,7 @@ typedef struct drm_mga_primary_buffer {
 	u32 high_mark;
 
 	unsigned long state;
+	spinlock_t lock;
 } drm_mga_primary_buffer_t;
 
 
@@ -135,9 +136,6 @@ typedef struct drm_mga_private {
 
 
 	drm_mga_primary_buffer_t prim;
-
-	volatile long interrupt_flag;	/* Interruption handler flag	   */
-	volatile long dma_flag;		/* DMA dispatch flag		   */
 
 	unsigned int warp_pipe;
 	unsigned long warp_pipe_phys[MGA_MAX_WARP_PIPES];
@@ -202,7 +200,7 @@ extern int mga_do_dma_reset( drm_mga_private_t *dev_priv );
 extern int mga_do_engine_reset( drm_mga_private_t *dev_priv );
 extern int mga_do_cleanup_dma( drm_device_t *dev );
 
-extern int mga_dma_schedule( drm_device_t *dev, int locked );
+extern int mga_dma_schedule( drm_device_t *dev );
 extern void mga_dma_wrap_or_wait( drm_mga_private_t *dev_priv, int n );
 extern int mga_irq_uninstall( drm_device_t *dev );
 
@@ -408,7 +406,7 @@ do {									\
 	if ( MGA_VERBOSE ) {						\
 		DRM_INFO( "BEGIN_DMA( %d ) in %s\n",			\
 			  (n), __FUNCTION__ );				\
-		DRM_INFO( "   space=0x%x req=0x%x\n",			\
+		DRM_DEBUG( "   space=0x%x req=0x%x\n",			\
 			  dev_priv->prim.space, (n) * DMA_BLOCK_SIZE );	\
 	}								\
 	if ( dev_priv->prim.space < (int)((n) * DMA_BLOCK_SIZE) ) {	\
@@ -436,7 +434,6 @@ do {									\
 		DRM_INFO( "MAYBE_FLUSH_DMA() wrap at 0x%x\n",		\
 			  dev_priv->prim.wrap );			\
 		mga_do_dma_wrap( dev_priv );				\
-		mga_update_primary_snapshot( dev_priv );		\
 	} else if ( dev_priv->prim.tail - dev_priv->prim.last_flush >=	\
 		    dev_priv->prim.mid_mark &&				\
 		    MGA_DMA_IS_IDLE( dev_priv ) ) {			\
@@ -445,7 +442,17 @@ do {									\
 			  dev_priv->prim.last_flush,			\
 			  dev_priv->prim.mid_mark );			\
 		mga_do_dma_flush( dev_priv );				\
-		mga_update_primary_snapshot( dev_priv );		\
+	}								\
+} while (0)
+
+#define FLUSH_DMA()							\
+do {									\
+	if ( MGA_DMA_IS_IDLE( dev_priv ) ) {				\
+		if ( dev_priv->prim.wrap ) {				\
+			mga_do_dma_wrap( dev_priv );			\
+		} else {						\
+			mga_do_dma_flush( dev_priv );			\
+		}							\
 	}								\
 } while (0)
 

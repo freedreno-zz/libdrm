@@ -38,6 +38,7 @@
 #include "mga_drv.h"
 #include "drm.h"
 
+#include <linux/interrupt.h>	/* For task queue support */
 
 
 /* If you change the functions to set state, PLEASE
@@ -68,6 +69,8 @@ static void mga_emit_clip_rect( drm_mga_private_t *dev_priv,
 	drm_mga_context_regs_t *ctx = &sarea_priv->context_state;
 	unsigned int pitch = dev_priv->front_pitch / dev_priv->fb_cpp;
 	DMA_LOCALS;
+
+	return;
 
 	BEGIN_DMA( 2 );
 
@@ -505,12 +508,9 @@ static int mga_verify_tex_blit( drm_mga_private_t *dev_priv,
 }
 
 
-
-
-
-
-
-
+/* ================================================================
+ *
+ */
 
 static void mga_dma_dispatch_clear( drm_device_t *dev,
 				    drm_mga_clear_t *clear )
@@ -522,7 +522,10 @@ static void mga_dma_dispatch_clear( drm_device_t *dev,
 	int nbox = sarea_priv->nbox;
 	int i;
 	DMA_LOCALS;
-	DRM_DEBUG( "%s\n", __FUNCTION__ );
+	DRM_INFO( "%s\n", __FUNCTION__ );
+
+	spin_lock_bh( &dev_priv->prim.lock );
+	DRM_INFO( "spin_lock_bh() in %s\n", __FUNCTION__ );
 
 	for ( i = 0 ; i < nbox ; i++ ) {
 		unsigned int height = pbox[i].y2 - pbox[i].y1;
@@ -579,6 +582,9 @@ static void mga_dma_dispatch_clear( drm_device_t *dev,
 		   MGA_DWGCTL,	ctx->dwgctl );
 
 	ADVANCE_DMA();
+
+	DRM_INFO( "spin_unlock_bh() in %s\n", __FUNCTION__ );
+	spin_unlock_bh( &dev_priv->prim.lock );
 }
 
 static void mga_dma_dispatch_swap( drm_device_t *dev )
@@ -591,7 +597,10 @@ static void mga_dma_dispatch_swap( drm_device_t *dev )
 	u32 pitch = dev_priv->front_pitch / dev_priv->fb_cpp;
 	int i;
 	DMA_LOCALS;
-	DRM_DEBUG( "%s\n", __FUNCTION__ );
+	DRM_INFO( "%s\n", __FUNCTION__ );
+
+	spin_lock_bh( &dev_priv->prim.lock );
+	DRM_INFO( "spin_lock_bh() in %s\n", __FUNCTION__ );
 
 	BEGIN_DMA( 4 + nbox );
 
@@ -627,6 +636,9 @@ static void mga_dma_dispatch_swap( drm_device_t *dev )
 		   MGA_DWGCTL,	ctx->dwgctl );
 
 	ADVANCE_DMA();
+
+	DRM_INFO( "spin_unlock_bh() in %s\n", __FUNCTION__ );
+	spin_unlock_bh( &dev_priv->prim.lock );
 }
 
 
@@ -637,12 +649,14 @@ static void mga_dma_dispatch_vertex( drm_device_t *dev, drm_buf_t *buf )
 	drm_mga_sarea_t *sarea_priv = dev_priv->sarea_priv;
 	u32 address = (u32) buf->bus_address;
 	u32 length = (u32) buf->used;
-	int use_agp = PDEA_pagpxfer_enable;
 	int i = 0;
 	DMA_LOCALS;
 
-	DRM_DEBUG( "%s: buf=%d used=%d\n",
+	DRM_INFO( "%s: buf=%d used=%d\n",
 		  __FUNCTION__, buf->idx, buf->used );
+
+	spin_lock_bh( &dev_priv->prim.lock );
+	DRM_INFO( "spin_lock_bh() in %s\n", __FUNCTION__ );
 
 	if ( buf->used ) {
 		buf_priv->dispatched = 1;
@@ -650,13 +664,11 @@ static void mga_dma_dispatch_vertex( drm_device_t *dev, drm_buf_t *buf )
 		MGA_EMIT_STATE( dev_priv, sarea_priv->dirty );
 
 		do {
-#if 0
 			if ( i < sarea_priv->nbox ) {
 				mga_emit_clip_rect( dev_priv,
 						    &sarea_priv->boxes[i] );
 			}
-#endif
-#if 1
+
 			BEGIN_DMA( 1 );
 
 			DMA_BLOCK( MGA_DMAPAD,		0x00000000,
@@ -667,7 +679,6 @@ static void mga_dma_dispatch_vertex( drm_device_t *dev, drm_buf_t *buf )
 							 MGA_PAGPXFER) );
 
 			ADVANCE_DMA();
-#endif
 		} while ( ++i < sarea_priv->nbox );
 	}
 
@@ -695,6 +706,9 @@ static void mga_dma_dispatch_vertex( drm_device_t *dev, drm_buf_t *buf )
 
 		mga_freelist_put( dev, buf );
 	}
+
+	DRM_INFO( "spin_unlock_bh() in %s\n", __FUNCTION__ );
+	spin_unlock_bh( &dev_priv->prim.lock );
 }
 
 
@@ -822,7 +836,6 @@ int mga_dma_clear( struct inode *inode, struct file *filp,
 	 */
 	dev_priv->sarea_priv->dirty |= MGA_UPLOAD_CONTEXT;
 
-	MAYBE_FLUSH_DMA();
 	return 0;
 }
 
@@ -845,7 +858,16 @@ int mga_dma_swap( struct inode *inode, struct file *filp,
 	 */
 	dev_priv->sarea_priv->dirty |= MGA_UPLOAD_CONTEXT;
 
-	MAYBE_FLUSH_DMA();
+	/* If we're idle, flush the primary DMA stream...
+	 */
+	spin_lock_bh( &dev_priv->prim.lock );
+	DRM_INFO( "spin_lock_bh() in %s\n", __FUNCTION__ );
+
+	FLUSH_DMA();
+
+	DRM_INFO( "spin_unlock_bh() in %s\n", __FUNCTION__ );
+	spin_unlock_bh( &dev_priv->prim.lock );
+
 	return 0;
 }
 
@@ -892,7 +914,6 @@ int mga_dma_vertex( struct inode *inode, struct file *filp,
 
 	mga_dma_dispatch_vertex( dev, buf );
 
-	MAYBE_FLUSH_DMA();
 	return 0;
 }
 
