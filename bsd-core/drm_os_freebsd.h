@@ -140,6 +140,7 @@ typedef struct drm_chipinfo
 	char *name;
 } drm_chipinfo_t;
 
+typedef u_int32_t dma_addr_t;
 typedef u_int32_t atomic_t;
 typedef u_int32_t cycles_t;
 typedef u_int32_t spinlock_t;

@@ -374,6 +374,7 @@ typedef struct drm_sg_mem {
 	void            *virtual;
 	int             pages;
 	struct page     **pagelist;
+	dma_addr_t	*busaddr;
 } drm_sg_mem_t;
 
 typedef struct drm_sigdata {
