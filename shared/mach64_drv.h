@@ -33,15 +33,6 @@
 #ifndef __MACH64_DRV_H__
 #define __MACH64_DRV_H__
 
-#include <linux/delay.h>
-#include <linux/list.h>
-
-/* Some early 2.4.x kernels need this */
-#ifndef list_for_each_safe
-#define list_for_each_safe(pos, n, head) \
-	for (pos = (head)->next, n = pos->next; pos != (head); \
-		pos = n, n = pos->next)
-#endif
 
 /* FIXME: remove these when not needed */
 /* Development driver options */
@@ -586,10 +577,10 @@ mach64_update_ring_snapshot( drm_mach64_private_t *dev_priv )
 #define LOCK_TEST_WITH_RETURN( dev )					\
 do {									\
 	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||		\
-	     dev->lock.pid != current->pid ) {				\
+	     dev->lock.pid != DRM_CURRENTPID ) {			\
 		DRM_ERROR( "%s called without lock held\n",		\
 			   __FUNCTION__ );				\
-		return -EINVAL;						\
+		return DRM_ERR(EINVAL);					\
 	}								\
 } while (0)
 
@@ -605,12 +596,12 @@ do {											\
 			mach64_update_ring_snapshot( dev_priv );			\
 			if ( ring->space >= ring->high_mark )				\
 				goto __ring_space_done;					\
-			udelay( 1 );							\
+			DRM_UDELAY( 1 );							\
 		}									\
 		DRM_ERROR( "ring space check failed!\n" );				\
 		DRM_INFO( "ring: head addr: 0x%08x head: %d tail: %d space: %d\n", 	\
 			ring->head_addr, ring->head, ring->tail, ring->space );		\
-		return -EBUSY;								\
+		return DRM_ERR(EBUSY);							\
 	}										\
  __ring_space_done:									\
 } while (0)
@@ -638,8 +629,6 @@ do {											\
 /* ================================================================
  * DMA descriptor ring macros
  */
-
-#define mach64_flush_write_combine()	mb()
 
 #define RING_LOCALS									\
 	int _ring_tail, _ring_write; unsigned int _ring_mask; volatile u32 *_ring
@@ -729,9 +718,9 @@ do {									\
 		DRM_INFO( "ADVANCE_RING() wr=0x%06x tail=0x%06x\n",	\
 			  _ring_write, _ring_tail );			\
 	}								\
-	mach64_flush_write_combine();					\
+	DRM_READMEMORYBARRIER();					\
 	mach64_clear_dma_eol( &_ring[(_ring_tail - 2) & _ring_mask] );	\
-	mach64_flush_write_combine();					\
+	DRM_READMEMORYBARRIER();					\
 	dev_priv->ring.tail = _ring_write;				\
 	mach64_ring_tick( dev_priv, &(dev_priv)->ring );		\
 } while (0)
@@ -766,14 +755,14 @@ static inline int mach64_find_pending_buf_entry ( drm_mach64_private_t *dev_priv
 #if MACH64_EXTRA_CHECKING
 	if (list_empty(&dev_priv->pending)) {
 		DRM_ERROR("Empty pending list in %s\n", __FUNCTION__);
-		return -EINVAL;
+		return DRM_ERR(EINVAL);
 	}
 #endif
 	ptr = dev_priv->pending.prev;
 	*entry = list_entry(ptr, drm_mach64_freelist_t, list);
 	while ((*entry)->buf != buf) {
 		if (ptr == &dev_priv->pending) {
-			return -EFAULT;
+			return DRM_ERR(EFAULT);
 		}
 		ptr = ptr->prev;
 		*entry = list_entry(ptr, drm_mach64_freelist_t, list);
@@ -799,14 +788,14 @@ do {									\
 	if (_buf == NULL) {						\
 		DRM_ERROR("%s: couldn't get buffer in DMAGETPTR\n",	\
 			   __FUNCTION__ );				\
-		return -EAGAIN;						\
+		return DRM_ERR(EAGAIN);					\
 	}								\
 	if (_buf->pending) {						\
 	        DRM_ERROR("%s: pending buf in DMAGETPTR\n",		\
 			   __FUNCTION__ );				\
-		return -EFAULT;						\
+		return DRM_ERR(EFAULT);					\
 	}								\
-	_buf->pid = current->pid;					\
+	_buf->pid = DRM_CURRENTPID;					\
 	_outcount = 0;							\
 									\
         _buf_wptr = GETBUFPTR( _buf );					\
@@ -835,7 +824,7 @@ do {											     \
 	if (_buf->used <= 0) {								     \
 		DRM_ERROR( "DMAADVANCE() in %s: sending empty buf %d\n",		     \
 				   __FUNCTION__, _buf->idx );				     \
-		return -EFAULT;								     \
+		return DRM_ERR(EFAULT);							     \
 	}										     \
 	if (_buf->pending) {								     \
                 /* This is a resued buffer, so we need to find it in the pending list */     \
@@ -848,13 +837,13 @@ do {											     \
 		if (_entry->discard) {							     \
 			DRM_ERROR( "DMAADVANCE() in %s: sending discarded pending buf %d\n", \
 				   __FUNCTION__, _buf->idx );				     \
-			return -EFAULT;							     \
+			return DRM_ERR(EFAULT);						     \
 		}									     \
      	} else {									     \
 		if (list_empty(&dev_priv->placeholders)) {				     \
 			DRM_ERROR( "DMAADVANCE() in %s: empty placeholder list\n",	     \
 			   	__FUNCTION__ );						     \
-			return -EFAULT;							     \
+			return DRM_ERR(EFAULT);						     \
 		}									     \
 		ptr = dev_priv->placeholders.next;					     \
 		list_del(ptr);								     \
@@ -930,12 +919,12 @@ do {											\
 	if (_buf->used <= 0) {								\
 		DRM_ERROR( "DMAADVANCEHOSTDATA() in %s: sending empty buf %d\n",	\
 				   __FUNCTION__, _buf->idx );				\
-		return -EFAULT;								\
+		return DRM_ERR(EFAULT);							\
 	}										\
 	if (list_empty(&dev_priv->placeholders)) {					\
 		DRM_ERROR( "%s: empty placeholder list in DMAADVANCEHOSTDATA()\n",	\
 			   __FUNCTION__ );						\
-		return -EFAULT;								\
+		return DRM_ERR(EFAULT);							\
 	}										\
 											\
         ptr = dev_priv->placeholders.next;						\

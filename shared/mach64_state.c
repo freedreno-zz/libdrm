@@ -34,7 +34,6 @@
 #include "drm.h"
 #include "mach64_drm.h"
 #include "mach64_drv.h"
-#include "drm.h"
 
 
 /* ================================================================
@@ -212,7 +211,7 @@ static int mach64_dma_dispatch_clear( drm_device_t *dev,
 		fb_bpp = MACH64_DATATYPE_ARGB8888;
 		break;
 	default:
-		return -EINVAL;
+		return DRM_ERR(EINVAL);
 	}
 	switch ( dev_priv->depth_bpp ) {
 	case 16:
@@ -223,7 +222,7 @@ static int mach64_dma_dispatch_clear( drm_device_t *dev,
 		depth_bpp = MACH64_DATATYPE_ARGB8888;
 		break;
 	default:
-		return -EINVAL;
+		return DRM_ERR(EINVAL);
 	}
 
 	if ( !nbox ) 
@@ -465,48 +464,63 @@ static int mach64_do_get_frames_queued( drm_mach64_private_t *dev_priv )
 /* Copy and verify a client submited buffer.
  * FIXME: Make an assembly optimized version
  */
-static unsigned long copy_and_verify_from_user( u32 *to, const u32 *from, unsigned long n )
+static inline int copy_and_verify_from_user( u32 *to, const u32 *from, unsigned long bytes )
 {
-	unsigned long copied = 0;
+	unsigned long n = bytes; /* dwords remaining in buffer */
 
-	if ( access_ok( VERIFY_READ, from, n ) ) {
-		n >>= 2;
-	
-		while ( n ) {
-			u32 data, reg, count;
-
-			if ( __get_user( data, from++ ) )
-				break;
-			n--;
-		
-			reg = le32_to_cpu(data);
-			count = (reg >> 16) + 1;
-			if( count <= n ) {
-				n -= count;
-				reg &= 0xffff;
-
-				/* This is an exact match of Mach64's Setup Engine registers,
-				 * excluding SETUP_CNTL (1_C1).
-				 */
-				if( (reg >= 0x0190 && reg < 0x01c1) || (reg >= 0x01ca && reg <= 0x01cf) ) {
-					*to++ = data;
-					__copy_from_user( to, from, count << 2 );
-					to += count;
-					copied += 1 + count;
-				} else {
-					return 0;
-				}
-
-				from += count;
-			} else {
-				return 0;
-			}
-		}
-
-		copied <<= 2;
+	if ( DRM_VERIFYAREA_READ( from, n ) ) {
+		DRM_ERROR( "%s: verify_area\n", __FUNCTION__ );
+		return DRM_ERR(EFAULT);
 	}
 
-	return copied;
+	n >>= 2;
+
+	while ( n > 1 ) {
+		u32 data, reg, count;
+
+		if ( DRM_GET_USER_UNCHECKED( data, from++ ) ) {
+			DRM_ERROR( "%s: get_user\n", __FUNCTION__ );
+			return DRM_ERR(EFAULT);
+		}
+
+		n--;
+
+		reg = le32_to_cpu(data);
+		count = (reg >> 16) + 1;
+		if( count <= n ) {
+			n -= count;
+			reg &= 0xffff;
+
+			/* This is an exact match of Mach64's Setup Engine registers,
+			 * excluding SETUP_CNTL (1_C1).
+			 */
+			if( (reg >= 0x0190 && reg <  0x01c1) || 
+			    (reg >= 0x01ca && reg <= 0x01cf) ) {
+				*to++ = data;
+				if ( DRM_COPY_FROM_USER_UNCHECKED( to, from, count << 2 ) ) {
+					DRM_ERROR( "%s: copy_from_user\n", __FUNCTION__ );
+					return DRM_ERR(EFAULT);
+				}
+				to += count;
+			} else {
+				DRM_ERROR( "%s: Got bad command: 0x%04x\n", __FUNCTION__, reg );
+				return DRM_ERR(EACCES);
+			}
+
+			from += count;
+		} else {
+			DRM_ERROR( "%s: Got bad command count(=%u) dwords remaining=%lu\n", 
+				   __FUNCTION__, count, n );
+			return DRM_ERR(EINVAL);
+		}
+	}
+
+	if (n == 0)
+		return 0;
+	else {
+		DRM_ERROR( "%s: Bad buf->used(=%lu)\n", __FUNCTION__, bytes );
+		return DRM_ERR(EINVAL);
+	}
 }
 
 static int mach64_dma_dispatch_vertex( drm_device_t *dev, int prim, void *buf, 
@@ -516,7 +530,7 @@ static int mach64_dma_dispatch_vertex( drm_device_t *dev, int prim, void *buf,
 	drm_mach64_sarea_t *sarea_priv = dev_priv->sarea_priv;
 	drm_buf_t *copy_buf;
 	int done = 0;
-	int verify_failed = 0;
+	int verify_ret = 0;
 	DMALOCALS;
 
 	DRM_DEBUG( "%s: buf=%p used=%lu nbox=%d\n",
@@ -530,12 +544,13 @@ static int mach64_dma_dispatch_vertex( drm_device_t *dev, int prim, void *buf,
 		if (copy_buf == NULL) {
 			DRM_ERROR("%s: couldn't get buffer in DMAGETPTR\n",
 				   __FUNCTION__ );
-			return -EAGAIN;
+			return DRM_ERR(EAGAIN);
 		}
 
-		if ((copy_buf->used = copy_and_verify_from_user( GETBUFPTR( copy_buf ), buf, used )) == 0) {
-			verify_failed = 1;
-		} else {
+		if ( (verify_ret = copy_and_verify_from_user( GETBUFPTR( copy_buf ), buf, used )) == 0 ) {
+
+			copy_buf->used = used;
+
 			DMASETPTR( copy_buf );
 
 			if ( sarea_priv->dirty & ~MACH64_UPLOAD_CLIPRECTS ) {
@@ -578,7 +593,7 @@ static int mach64_dma_dispatch_vertex( drm_device_t *dev, int prim, void *buf,
 				if (copy_buf == entry->buf) {
 					DRM_ERROR( "%s: Trying to release a pending buf\n",
 						   __FUNCTION__ );
-					return -EFAULT;
+					return DRM_ERR(EFAULT);
 				}
 			}
 #endif
@@ -596,12 +611,7 @@ static int mach64_dma_dispatch_vertex( drm_device_t *dev, int prim, void *buf,
 	sarea_priv->dirty &= ~MACH64_UPLOAD_CLIPRECTS;
 	sarea_priv->nbox = 0;
 
-	if (verify_failed) {
-		DRM_ERROR( "%s: Vertex buffer verification failed\n", __FUNCTION__ );
-		return -EINVAL;
-	} else {
-		return 0;
-	}
+	return verify_ret;
 }
 
 
@@ -633,22 +643,22 @@ static int mach64_dma_dispatch_blit( drm_device_t *dev,
 		break;
 	default:
 		DRM_ERROR( "invalid blit format %d\n", blit->format );
-		return -EINVAL;
+		return DRM_ERR(EINVAL);
 	}
 
 	/* Dispatch the blit buffer.
 	 */
 	buf = dma->buflist[blit->idx];
 	
-	if ( buf->pid != current->pid ) {
+	if ( buf->pid != DRM_CURRENTPID ) {
 		DRM_ERROR( "process %d using buffer owned by %d\n",
-			   current->pid, buf->pid );
-		return -EINVAL;
+			   DRM_CURRENTPID, buf->pid );
+		return DRM_ERR(EINVAL);
 	}
 
 	if ( buf->pending ) {
 		DRM_ERROR( "sending pending buffer %d\n", blit->idx );
-		return -EINVAL;
+		return DRM_ERR(EINVAL);
 	}
 
 	/* Set buf->used to the bytes of blit data based on the blit dimensions 
@@ -661,7 +671,7 @@ static int mach64_dma_dispatch_blit( drm_device_t *dev,
 	if ( buf->used <= 0 || 
 	     buf->used > MACH64_BUFFER_SIZE - MACH64_HOSTDATA_BLIT_OFFSET ) {
 		DRM_ERROR( "Invalid blit size: %d bytes\n", buf->used );
-		return -EINVAL;
+		return DRM_ERR(EINVAL);
 	}
 
 	/* FIXME: Use a last buffer flag and reduce the state emitted for subsequent,
@@ -726,7 +736,7 @@ int mach64_dma_clear( DRM_IOCTL_ARGS )
 	drm_mach64_clear_t clear;
 	int ret;
 
-	DRM_DEBUG( "%s: pid=%d\n", __FUNCTION__, current->pid  );
+	DRM_DEBUG( "%s: pid=%d\n", __FUNCTION__, DRM_CURRENTPID  );
 
 	LOCK_TEST_WITH_RETURN( dev );
 	
@@ -756,7 +766,7 @@ int mach64_dma_swap( DRM_IOCTL_ARGS )
 	drm_mach64_sarea_t *sarea_priv = dev_priv->sarea_priv;
 	int ret;
 
-	DRM_DEBUG( "%s: pid=%d\n", __FUNCTION__, current->pid );
+	DRM_DEBUG( "%s: pid=%d\n", __FUNCTION__, DRM_CURRENTPID );
 
 	LOCK_TEST_WITH_RETURN( dev );
 
@@ -785,25 +795,25 @@ int mach64_dma_vertex( DRM_IOCTL_ARGS )
 
 	if ( !dev_priv ) {
 		DRM_ERROR( "%s called with no initialization\n", __FUNCTION__ );
-		return -EINVAL;
+		return DRM_ERR(EINVAL);
 	}
 
 	DRM_COPY_FROM_USER_IOCTL( vertex, (drm_mach64_vertex_t *)data,
 			     sizeof(vertex) );
 
 	DRM_DEBUG( "%s: pid=%d buf=%p used=%lu discard=%d\n",
-		   __FUNCTION__, current->pid,
+		   __FUNCTION__, DRM_CURRENTPID,
 		   vertex.buf, vertex.used, vertex.discard );
 
 	if ( vertex.prim < 0 ||
 	     vertex.prim > MACH64_PRIM_POLYGON ) {
 		DRM_ERROR( "buffer prim %d\n", vertex.prim );
-		return -EINVAL;
+		return DRM_ERR(EINVAL);
 	}
 
-	if ( vertex.used > MACH64_BUFFER_SIZE ) {
+	if ( vertex.used > MACH64_BUFFER_SIZE || (vertex.used & 3) != 0) {
 		DRM_ERROR( "Invalid vertex buffer size: %lu bytes\n", vertex.used );
-		return -EINVAL;
+		return DRM_ERR(EINVAL);
 	}
 
 	RING_SPACE_TEST_WITH_RETURN( dev_priv );
@@ -830,12 +840,12 @@ int mach64_dma_blit( DRM_IOCTL_ARGS )
 			     sizeof(blit) );
 
 	DRM_DEBUG( "%s: pid=%d index=%d\n",
-		   __FUNCTION__, current->pid, blit.idx );
+		   __FUNCTION__, DRM_CURRENTPID, blit.idx );
 
 	if ( blit.idx < 0 || blit.idx >= dma->buf_count ) {
 		DRM_ERROR( "buffer index %d (of %d max)\n",
 			   blit.idx, dma->buf_count - 1 );
-		return -EINVAL;
+		return DRM_ERR(EINVAL);
 	}
 
 	RING_SPACE_TEST_WITH_RETURN( dev_priv );
@@ -870,11 +880,13 @@ int mach64_get_param( DRM_IOCTL_ARGS )
 		value = mach64_do_get_frames_queued( dev_priv );
 		break;
 	default:
-		return -EINVAL;
+		return DRM_ERR(EINVAL);
 	}
 
-	if ( copy_to_user( param.value, &value, sizeof(int) ) )
-		return -EFAULT;
+	if ( DRM_COPY_TO_USER( param.value, &value, sizeof(int) ) ) {
+		DRM_ERROR( "copy_to_user\n" );
+		return DRM_ERR(EFAULT);
+	}
 
 	return 0;
 }
