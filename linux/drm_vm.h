@@ -33,27 +33,27 @@
 #include "drmP.h"
 
 struct vm_operations_struct   DRM(vm_ops) = {
-	nopage:	 DRM(vm_nopage),
-	open:	 DRM(vm_open),
-	close:	 DRM(vm_close),
+	.nopage = DRM(vm_nopage),
+	.open	= DRM(vm_open),
+	.close	= DRM(vm_close),
 };
 
 struct vm_operations_struct   DRM(vm_shm_ops) = {
-	nopage:	 DRM(vm_shm_nopage),
-	open:	 DRM(vm_open),
-	close:	 DRM(vm_shm_close),
+	.nopage = DRM(vm_shm_nopage),
+	.open	= DRM(vm_open),
+	.close	= DRM(vm_shm_close),
 };
 
 struct vm_operations_struct   DRM(vm_dma_ops) = {
-	nopage:	 DRM(vm_dma_nopage),
-	open:	 DRM(vm_open),
-	close:	 DRM(vm_close),
+	.nopage = DRM(vm_dma_nopage),
+	.open	= DRM(vm_open),
+	.close	= DRM(vm_close),
 };
 
 struct vm_operations_struct   DRM(vm_sg_ops) = {
-	nopage:  DRM(vm_sg_nopage),
-	open:    DRM(vm_open),
-	close:   DRM(vm_close),
+	.nopage = DRM(vm_sg_nopage),
+	.open   = DRM(vm_open),
+	.close  = DRM(vm_close),
 };
 
 struct page *DRM(vm_nopage)(struct vm_area_struct *vma,
@@ -130,9 +130,6 @@ struct page *DRM(vm_shm_nopage)(struct vm_area_struct *vma,
 	drm_map_t	 *map	 = (drm_map_t *)vma->vm_private_data;
 	unsigned long	 offset;
 	unsigned long	 i;
-	pgd_t		 *pgd;
-	pmd_t		 *pmd;
-	pte_t		 *pte;
 	struct page	 *page;
 
 	if (address > vma->vm_end) return NOPAGE_SIGBUS; /* Disallow mremap */
@@ -140,17 +137,9 @@ struct page *DRM(vm_shm_nopage)(struct vm_area_struct *vma,
 
 	offset	 = address - vma->vm_start;
 	i = (unsigned long)map->handle + offset;
-	/* We have to walk page tables here because we need large SAREA's, and
-	 * they need to be virtually contiguous in kernel space.
-	 */
-	pgd = pgd_offset_k( i );
-	if( !pgd_present( *pgd ) ) return NOPAGE_OOM;
-	pmd = pmd_offset( pgd, i );
-	if( !pmd_present( *pmd ) ) return NOPAGE_OOM;
-	pte = pte_offset( pmd, i );
-	if( !pte_present( *pte ) ) return NOPAGE_OOM;
-
-	page = pte_page(*pte);
+	page = vmalloc_to_page((void *)i);
+	if (!page)
+		return NOPAGE_OOM;
 	get_page(page);
 
 	DRM_DEBUG("shm_nopage 0x%lx\n", address);
@@ -354,7 +343,7 @@ int DRM(mmap_dma)(struct file *filp, struct vm_area_struct *vma)
 
 	vma->vm_ops   = &DRM(vm_dma_ops);
 
-#if LINUX_VERSION_CODE <= 0x020414
+#if LINUX_VERSION_CODE <= 0x02040e /* KERNEL_VERSION(2,4,14) */
 	vma->vm_flags |= VM_LOCKED | VM_SHM; /* Don't swap */
 #else
 	vma->vm_flags |= VM_RESERVED; /* Don't swap */
@@ -462,12 +451,12 @@ int DRM(mmap)(struct file *filp, struct vm_area_struct *vma)
 		}
 		offset = DRIVER_GET_REG_OFS();
 #ifdef __sparc__
-		if (io_remap_page_range(vma->vm_start,
+		if (io_remap_page_range(DRM_RPR_ARG(vma) vma->vm_start,
 					VM_OFFSET(vma) + offset,
 					vma->vm_end - vma->vm_start,
 					vma->vm_page_prot, 0))
 #else
-		if (remap_page_range(vma->vm_start,
+		if (remap_page_range(DRM_RPR_ARG(vma) vma->vm_start,
 				     VM_OFFSET(vma) + offset,
 				     vma->vm_end - vma->vm_start,
 				     vma->vm_page_prot))
@@ -484,7 +473,7 @@ int DRM(mmap)(struct file *filp, struct vm_area_struct *vma)
 		vma->vm_private_data = (void *)map;
 				/* Don't let this area swap.  Change when
 				   DRM_KERNEL advisory is supported. */
-#if LINUX_VERSION_CODE <= 0x020414
+#if LINUX_VERSION_CODE <= 0x02040e /* KERNEL_VERSION(2,4,14) */
 		vma->vm_flags |= VM_LOCKED;
 #else
 		vma->vm_flags |= VM_RESERVED;
@@ -493,7 +482,7 @@ int DRM(mmap)(struct file *filp, struct vm_area_struct *vma)
 	case _DRM_SCATTER_GATHER:
 		vma->vm_ops = &DRM(vm_sg_ops);
 		vma->vm_private_data = (void *)map;
-#if LINUX_VERSION_CODE <= 0x020414
+#if LINUX_VERSION_CODE <= 0x02040e /* KERNEL_VERSION(2,4,14) */
 		vma->vm_flags |= VM_LOCKED;
 #else
 		vma->vm_flags |= VM_RESERVED;
@@ -502,7 +491,7 @@ int DRM(mmap)(struct file *filp, struct vm_area_struct *vma)
 	default:
 		return -EINVAL;	/* This should never happen. */
 	}
-#if LINUX_VERSION_CODE <= 0x020414
+#if LINUX_VERSION_CODE <= 0x02040e /* KERNEL_VERSION(2,4,14) */
 	vma->vm_flags |= VM_LOCKED | VM_SHM; /* Don't swap */
 #else
 	vma->vm_flags |= VM_RESERVED; /* Don't swap */

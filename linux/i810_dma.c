@@ -26,15 +26,25 @@
  *
  * Authors: Rickard E. (Rik) Faith <faith@valinux.com>
  *	    Jeff Hartmann <jhartmann@valinux.com>
- *          Keith Whitwell <keith_whitwell@yahoo.com>
+ *          Keith Whitwell <keith@tungstengraphics.com>
  *
  */
 
 #define __NO_VERSION__
 #include "i810.h"
 #include "drmP.h"
+#include "drm.h"
+#include "i810_drm.h"
 #include "i810_drv.h"
 #include <linux/interrupt.h>	/* For task queue support */
+#include <linux/delay.h>
+#include <linux/pagemap.h>
+
+#ifdef DO_MUNMAP_4_ARGS
+#define DO_MUNMAP(m, a, l)	do_munmap(m, a, l, 1)
+#else
+#define DO_MUNMAP(m, a, l)	do_munmap(m, a, l)
+#endif
 
 #define I810_BUF_FREE		2
 #define I810_BUF_CLIENT		1
@@ -43,30 +53,10 @@
 #define I810_BUF_UNMAPPED 0
 #define I810_BUF_MAPPED   1
 
-#define RING_LOCALS	unsigned int outring, ringmask; volatile char *virt;
-
-#define BEGIN_LP_RING(n) do {						\
-	if (0) DRM_DEBUG("BEGIN_LP_RING(%d) in %s\n", n, __FUNCTION__);	\
-	if (dev_priv->ring.space < n*4)					\
-		i810_wait_ring(dev, n*4);				\
-	dev_priv->ring.space -= n*4;					\
-	outring = dev_priv->ring.tail;					\
-	ringmask = dev_priv->ring.tail_mask;				\
-	virt = dev_priv->ring.virtual_start;				\
-} while (0)
-
-#define ADVANCE_LP_RING() do {				\
-	if (0) DRM_DEBUG("ADVANCE_LP_RING\n");			\
-	dev_priv->ring.tail = outring;			\
-	I810_WRITE(LP_RING + RING_TAIL, outring);	\
-} while(0)
-
-#define OUT_RING(n) do {				\
-	if (0) DRM_DEBUG("   OUT_RING %x\n", (int)(n));	\
-	*(volatile unsigned int *)(virt + outring) = n;	\
-	outring += 4;					\
-	outring &= ringmask;				\
-} while (0)
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,4,2)
+#define down_write down
+#define up_write up
+#endif
 
 static inline void i810_print_status_page(drm_device_t *dev)
 {
@@ -127,14 +117,14 @@ static int i810_freelist_put(drm_device_t *dev, drm_buf_t *buf)
 }
 
 static struct file_operations i810_buffer_fops = {
-	open:	 DRM(open),
-	flush:	 DRM(flush),
-	release: DRM(release),
-	ioctl:	 DRM(ioctl),
-	mmap:	 i810_mmap_buffers,
-	read:	 DRM(read),
-	fasync:	 DRM(fasync),
-      	poll:	 DRM(poll),
+	.open	 = DRM(open),
+	.flush	 = DRM(flush),
+	.release = DRM(release),
+	.ioctl	 = DRM(ioctl),
+	.mmap	 = i810_mmap_buffers,
+	.read	 = DRM(read),
+	.fasync  = DRM(fasync),
+      	.poll	 = DRM(poll),
 };
 
 int i810_mmap_buffers(struct file *filp, struct vm_area_struct *vma)
@@ -157,7 +147,7 @@ int i810_mmap_buffers(struct file *filp, struct vm_area_struct *vma)
    	buf_priv->currently_mapped = I810_BUF_MAPPED;
 	unlock_kernel();
 
-	if (remap_page_range(vma->vm_start,
+	if (remap_page_range(DRM_RPR_ARG(vma) vma->vm_start,
 			     VM_OFFSET(vma),
 			     vma->vm_end - vma->vm_start,
 			     vma->vm_page_prot)) return -EAGAIN;
@@ -175,11 +165,7 @@ static int i810_map_buffer(drm_buf_t *buf, struct file *filp)
 
 	if(buf_priv->currently_mapped == I810_BUF_MAPPED) return -EINVAL;
 
-#if LINUX_VERSION_CODE <= 0x020402
-	down( &current->mm->mmap_sem );
-#else
 	down_write( &current->mm->mmap_sem );
-#endif
 	old_fops = filp->f_op;
 	filp->f_op = &i810_buffer_fops;
 	dev_priv->mmap_buffer = buf;
@@ -191,15 +177,12 @@ static int i810_map_buffer(drm_buf_t *buf, struct file *filp)
 	filp->f_op = old_fops;
 	if ((unsigned long)buf_priv->virtual > -1024UL) {
 		/* Real error */
-		DRM_DEBUG("mmap error\n");
+		DRM_ERROR("mmap error\n");
 		retcode = (signed int)buf_priv->virtual;
 		buf_priv->virtual = 0;
 	}
-#if LINUX_VERSION_CODE <= 0x020402
-	up( &current->mm->mmap_sem );
-#else
 	up_write( &current->mm->mmap_sem );
-#endif
+
 	return retcode;
 }
 
@@ -210,19 +193,13 @@ static int i810_unmap_buffer(drm_buf_t *buf)
 
 	if(buf_priv->currently_mapped != I810_BUF_MAPPED)
 		return -EINVAL;
-#if LINUX_VERSION_CODE <= 0x020402
-	down( &current->mm->mmap_sem );
-#else
-	down_write( &current->mm->mmap_sem );
-#endif
-	retcode = do_munmap(current->mm,
+
+	down_write(&current->mm->mmap_sem);
+	retcode = DO_MUNMAP(current->mm,
 			    (unsigned long)buf_priv->virtual,
 			    (size_t) buf->total);
-#if LINUX_VERSION_CODE <= 0x020402
-	up( &current->mm->mmap_sem );
-#else
-	up_write( &current->mm->mmap_sem );
-#endif
+	up_write(&current->mm->mmap_sem);
+
    	buf_priv->currently_mapped = I810_BUF_UNMAPPED;
    	buf_priv->virtual = 0;
 
@@ -247,7 +224,7 @@ static int i810_dma_get_buffer(drm_device_t *dev, drm_i810_dma_t *d,
 	retcode = i810_map_buffer(buf, filp);
 	if(retcode) {
 		i810_freelist_put(dev, buf);
-	   	DRM_DEBUG("mapbuf failed, retcode %d\n", retcode);
+	   	DRM_ERROR("mapbuf failed, retcode %d\n", retcode);
 		return retcode;
 	}
 	buf->pid     = priv->pid;
@@ -303,8 +280,6 @@ static int i810_wait_ring(drm_device_t *dev, int n)
 
 	end = jiffies + (HZ*3);
    	while (ring->space < n) {
-	   	int i;
-
 	   	ring->head = I810_READ(LP_RING + RING_HEAD) & HEAD_ADDR;
 	   	ring->space = ring->head - (ring->tail+8);
 		if (ring->space < 0) ring->space += ring->Size;
@@ -313,13 +288,12 @@ static int i810_wait_ring(drm_device_t *dev, int n)
 		   end = jiffies + (HZ*3);
 
 	   	iters++;
-		if((signed)(end - jiffies) <= 0) {
+		if(time_before(end, jiffies)) {
 		   	DRM_ERROR("space: %d wanted %d\n", ring->space, n);
 		   	DRM_ERROR("lockup\n");
 		   	goto out_wait_ring;
 		}
-
-	   	for (i = 0 ; i < 2000 ; i++) ;
+		udelay(1);
 	}
 
 out_wait_ring:
@@ -1178,7 +1152,8 @@ int i810_ov0_info(struct inode *inode, struct file *filp,
 
 	data.offset = dev_priv->overlay_offset;
 	data.physical = dev_priv->overlay_physical;
-	copy_to_user((drm_i810_overlay_t *)arg,&data,sizeof(data));
+	if (copy_to_user((drm_i810_overlay_t *)arg,&data,sizeof(data)))
+		return -EFAULT;
 	return 0;
 }
 

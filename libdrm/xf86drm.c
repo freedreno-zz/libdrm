@@ -27,7 +27,7 @@
  * Authors: Rickard E. (Rik) Faith <faith@valinux.com>
  *	    Kevin E. Martin <martin@valinux.com>
  *
- * $XFree86: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/xf86drm.c,v 1.28 2002/10/16 01:26:49 dawes Exp $
+ * $XFree86: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/xf86drm.c,v 1.31 2003/02/04 03:01:59 dawes Exp $
  *
  */
 
@@ -222,7 +222,7 @@ static int drmOpenDevice(long dev, int minor)
 
     sprintf(buf, DRM_DEV_NAME, DRM_DIR_NAME, minor);
     drmMsg("drmOpenDevice: node name is %s\n", buf);
-    if (stat(buf, &st) || st.st_rdev != dev) {
+    if (stat(buf, &st)) {
 	if (!isroot) return DRM_ERR_NOT_ROOT;
 	remove(buf);
 	mknod(buf, S_IFCHR | devmode, dev);
@@ -236,6 +236,17 @@ static int drmOpenDevice(long dev, int minor)
     drmMsg("drmOpenDevice: open result is %d, (%s)\n",
 		fd, fd < 0 ? strerror(errno) : "OK");
     if (fd >= 0) return fd;
+
+    if (st.st_rdev != dev) {
+	if (!isroot) return DRM_ERR_NOT_ROOT;
+	remove(buf);
+	mknod(buf, S_IFCHR | devmode, dev);
+    }
+    fd = open(buf, O_RDWR, 0);
+    drmMsg("drmOpenDevice: open result is %d, (%s)\n",
+		fd, fd < 0 ? strerror(errno) : "OK");
+    if (fd >= 0) return fd;
+
     drmMsg("drmOpenDevice: Open failed\n");
     remove(buf);
     return -errno;
@@ -427,7 +438,7 @@ static void drmCopyVersion(drmVersionPtr d, const drm_version_t *s)
     d->desc               = drmStrdup(s->desc);
 }
 
-/* drmVersion obtains the version information via an ioctl.  Similar
+/* drmGet Version obtains the driver version information via an ioctl.  Similar
  * information is available via /proc/dri. */
 
 drmVersionPtr drmGetVersion(int fd)
@@ -474,6 +485,26 @@ drmVersionPtr drmGetVersion(int fd)
     drmCopyVersion(retval, version);
     drmFreeKernelVersion(version);
     return retval;
+}
+
+/* drmGetLibVersion set version information for the drm user space library.
+ * this version number is driver indepedent */
+
+drmVersionPtr drmGetLibVersion(int fd)
+{
+    drm_version_t *version = drmMalloc(sizeof(*version));
+
+    /* Version history:
+     *   revision 1.0.x = original DRM interface with no drmGetLibVersion
+     *                    entry point and many drm<Device> extensions
+     *   revision 1.1.x = added drmCommand entry points for device extensions
+     *                    added drmGetLibVersion to identify libdrm.a version
+     */
+    version->version_major      = 1;
+    version->version_minor      = 1;
+    version->version_patchlevel = 0;
+
+    return (drmVersionPtr)version;
 }
 
 void drmFreeBusid(const char *busid)
@@ -1068,6 +1099,18 @@ int drmScatterGatherFree(int fd, unsigned long handle)
     return 0;
 }
 
+int drmWaitVBlank(int fd, drmVBlankPtr vbl)
+{
+    int ret;
+
+    do {
+       ret = ioctl(fd, DRM_IOCTL_WAIT_VBLANK, vbl);
+       vbl->request.type &= ~DRM_VBLANK_RELATIVE;
+    } while (ret && errno == EINTR);
+
+    return ret;
+}
+
 int drmError(int err, const char *label)
 {
     switch (err) {
@@ -1332,6 +1375,61 @@ int drmGetStats(int fd, drmStatsT *stats)
 	    SET_COUNT;
 	    break;
 	}
+    }
+    return 0;
+}
+
+int drmCommandNone(int fd, unsigned long drmCommandIndex)
+{
+    void *data = NULL; /* dummy */
+    unsigned long request;
+
+    request = DRM_IO( DRM_COMMAND_BASE + drmCommandIndex);
+
+    if (ioctl(fd, request, data)) {
+	return -errno;
+    }
+    return 0;
+}
+
+int drmCommandRead(int fd, unsigned long drmCommandIndex,
+                   void *data, unsigned long size )
+{
+    unsigned long request;
+
+    request = DRM_IOC( DRM_IOC_READ, DRM_IOCTL_BASE, 
+	DRM_COMMAND_BASE + drmCommandIndex, size);
+
+    if (ioctl(fd, request, data)) {
+	return -errno;
+    }
+    return 0;
+}
+
+int drmCommandWrite(int fd, unsigned long drmCommandIndex,
+                   void *data, unsigned long size )
+{
+    unsigned long request;
+
+    request = DRM_IOC( DRM_IOC_WRITE, DRM_IOCTL_BASE, 
+	DRM_COMMAND_BASE + drmCommandIndex, size);
+
+    if (ioctl(fd, request, data)) {
+	return -errno;
+    }
+    return 0;
+}
+
+int drmCommandWriteRead(int fd, unsigned long drmCommandIndex,
+                   void *data, unsigned long size )
+{
+    unsigned long request;
+
+    request = DRM_IOC( DRM_IOC_READ|DRM_IOC_WRITE, DRM_IOCTL_BASE, 
+	DRM_COMMAND_BASE + drmCommandIndex, size);
+
+    if (ioctl(fd, request, data)) {
+	return -errno;
     }
     return 0;
 }

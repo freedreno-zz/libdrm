@@ -53,6 +53,7 @@
 #include <linux/sched.h>
 #include <linux/smp_lock.h>	/* For (un)lock_kernel */
 #include <linux/mm.h>
+#include <linux/pagemap.h>
 #if defined(__alpha__) || defined(__powerpc__)
 #include <asm/pgtable.h> /* For pte_wrprotect */
 #endif
@@ -70,6 +71,8 @@
 #include <linux/poll.h>
 #include <asm/pgalloc.h>
 #include "drm.h"
+
+#include "drm_os_linux.h"
 
 /* DRM template customization defaults
  */
@@ -101,7 +104,7 @@
 #define __REALLY_HAVE_AGP	(__HAVE_AGP && (defined(CONFIG_AGP) || \
 						defined(CONFIG_AGP_MODULE)))
 #define __REALLY_HAVE_MTRR	(__HAVE_MTRR && defined(CONFIG_MTRR))
-
+#define __REALLY_HAVE_SG	(__HAVE_SG)
 
 /* Begin the DRM...
  */
@@ -163,6 +166,12 @@
 #define pte_unmap(pte)
 #endif
 
+#ifndef list_for_each_safe
+#define list_for_each_safe(pos, n, head)				\
+	for (pos = (head)->next, n = pos->next; pos != (head);		\
+		pos = n, n = pos->next)
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,4,19)
 static inline struct page * vmalloc_to_page(void * vmalloc_addr)
 {
@@ -194,6 +203,7 @@ static inline struct page * vmalloc_to_page(void * vmalloc_addr)
 #define DRM_RPR_ARG(vma) vma,
 #endif
 
+
 #define VM_OFFSET(vma) ((vma)->vm_pgoff << PAGE_SHIFT)
 
 				/* Macros to make printk easier */
@@ -209,7 +219,7 @@ static inline struct page * vmalloc_to_page(void * vmalloc_addr)
 	do {								\
 		if ( DRM(flags) & DRM_FLAG_DEBUG )			\
 			printk(KERN_DEBUG				\
-			       "[" DRM_NAME ":%s] " fmt ,		\
+			       "[" DRM_NAME ":%s] " fmt ,	\
 			       __FUNCTION__ , ##arg);			\
 	} while (0)
 #else
@@ -484,7 +494,6 @@ typedef struct drm_agp_mem {
 
 typedef struct drm_agp_head {
 	agp_kern_info      agp_info;
-	const char         *chipset;
 	drm_agp_mem_t      *memory;
 	unsigned long      mode;
 	int                enabled;
@@ -513,6 +522,17 @@ typedef struct drm_map_list {
 	struct list_head	head;
 	drm_map_t		*map;
 } drm_map_list_t;
+
+#if __HAVE_VBL_IRQ
+
+typedef struct drm_vbl_sig {
+	struct list_head	head;
+	unsigned int		sequence;
+	struct siginfo		info;
+	struct task_struct	*task;
+} drm_vbl_sig_t;
+
+#endif
 
 typedef struct drm_device {
 	const char	  *name;	/* Simple driver name		   */
@@ -573,6 +593,13 @@ typedef struct drm_device {
 	int		  last_context;	/* Last current context		   */
 	unsigned long	  last_switch;	/* jiffies at last context switch  */
 	struct tq_struct  tq;
+#if __HAVE_VBL_IRQ
+   	wait_queue_head_t vbl_queue;
+   	atomic_t          vbl_received;
+	spinlock_t        vbl_lock;
+	drm_vbl_sig_t     vbl_sigs;
+	unsigned int      vbl_pending;
+#endif
 	cycles_t	  ctx_start;
 	cycles_t	  lck_start;
 #if __HAVE_DMA_HISTOGRAM
@@ -805,6 +832,15 @@ extern int           DRM(irq_install)( drm_device_t *dev, int irq );
 extern int           DRM(irq_uninstall)( drm_device_t *dev );
 extern void          DRM(dma_service)( int irq, void *device,
 				       struct pt_regs *regs );
+extern void          DRM(driver_irq_preinstall)( drm_device_t *dev );
+extern void          DRM(driver_irq_postinstall)( drm_device_t *dev );
+extern void          DRM(driver_irq_uninstall)( drm_device_t *dev );
+#if __HAVE_VBL_IRQ
+extern int           DRM(wait_vblank)(struct inode *inode, struct file *filp,
+				      unsigned int cmd, unsigned long arg);
+extern int           DRM(vblank_wait)(drm_device_t *dev, unsigned int *vbl_seq);
+extern void          DRM(vbl_send_signals)( drm_device_t *dev );
+#endif
 #if __HAVE_DMA_IRQ_BH
 extern void          DRM(dma_immediate_bh)( void *dev );
 #endif
