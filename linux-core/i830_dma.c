@@ -1337,51 +1337,27 @@ static int i830_dma_dispatch_vertex2(drm_device_t *dev,
 
 void i830_dma_quiescent(drm_device_t *dev)
 {
-      	drm_i830_private_t *dev_priv = dev->dev_private;
+   	drm_i830_private_t *dev_priv = dev->dev_private;
+	drm_device_dma_t *dma = dev->dma;
+   	int i;
    	RING_LOCALS;
 
   	i830_kernel_lost_context(dev);
 
-   	BEGIN_LP_RING(4);
-   	OUT_RING( INST_PARSER_CLIENT | INST_OP_FLUSH | INST_FLUSH_MAP_CACHE );
-   	OUT_RING( CMD_REPORT_HEAD );
-      	OUT_RING( 0 );
+   	BEGIN_LP_RING(2);
+    	OUT_RING( INST_PARSER_CLIENT | INST_OP_FLUSH | INST_FLUSH_MAP_CACHE ); 
+     	OUT_RING( CMD_REPORT_HEAD );  
+       	OUT_RING( 0 ); 
       	OUT_RING( 0 );
    	ADVANCE_LP_RING();
-
-	i830_wait_ring( dev, dev_priv->ring.Size - 8, __FUNCTION__ );
-}
-
-static int i830_flush_queue(drm_device_t *dev)
-{
-   	drm_i830_private_t *dev_priv = dev->dev_private;
-	drm_device_dma_t *dma = dev->dma;
-   	int i, ret = 0;
-   	RING_LOCALS;
-	
-   	i830_kernel_lost_context(dev);
-
-   	BEGIN_LP_RING(2);
-      	OUT_RING( CMD_REPORT_HEAD );
-      	OUT_RING( 0 );
-      	ADVANCE_LP_RING();
 
 	i830_wait_ring( dev, dev_priv->ring.Size - 8, __FUNCTION__ );
 
    	for (i = 0; i < dma->buf_count; i++) {
 	   	drm_buf_t *buf = dma->buflist[ i ];
-	   	drm_i830_buf_priv_t *buf_priv = buf->dev_private;
-	   
-		int used = cmpxchg(buf_priv->in_use, I830_BUF_HARDWARE, 
-				   I830_BUF_FREE);
-
-		if (used == I830_BUF_HARDWARE)
-			DRM_DEBUG("reclaimed from HARDWARE\n");
-		if (used == I830_BUF_CLIENT)
-			DRM_DEBUG("still on client\n");
+	   	drm_i830_buf_priv_t *buf_priv = buf->dev_private;	   
+		cmpxchg(buf_priv->in_use, I830_BUF_HARDWARE, I830_BUF_FREE);
 	}
-
-   	return ret;
 }
 
 /* Must be called with the lock held */
@@ -1396,7 +1372,7 @@ void i830_reclaim_buffers( struct file *filp )
       	if (!dev->dev_private) return;
 	if (!dma->buflist) return;
 
-        i830_flush_queue(dev);
+        i830_dma_quiescent(dev);
 
 	for (i = 0; i < dma->buf_count; i++) {
 	   	drm_buf_t *buf = dma->buflist[ i ];
@@ -1424,7 +1400,7 @@ int i830_flush_ioctl( DRM_IOCTL_ARGS )
 		return DRM_ERR(EINVAL);
 	}
 
-   	i830_flush_queue(dev);
+   	i830_dma_quiescent(dev);
    	return 0;
 }
 
