@@ -29,8 +29,4 @@
  */
 #define DRM(x) savage_##x
 
-/* General customization:
- */
-#define __HAVE_CTX_BITMAP	1
-
 #endif

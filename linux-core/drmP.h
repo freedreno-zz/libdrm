@@ -98,11 +98,8 @@
 #define DRIVER_HAVE_DMA    0x10
 #define DRIVER_HAVE_IRQ    0x20
 #define DRIVER_HAVE_SG     0x40
-#define DRIVER_HAVE_PCI_DMA 0x80
+#define DRIVER_PCI_DMA 0x80
 
-#ifndef __HAVE_CTX_BITMAP
-#define __HAVE_CTX_BITMAP	0
-#endif
 #ifndef __HAVE_DMA
 #define __HAVE_DMA		0
 #endif
@@ -788,10 +785,8 @@ extern int	     DRM(rmctx)( struct inode *inode, struct file *filp,
 extern int	     DRM(context_switch)(drm_device_t *dev, int old, int new);
 extern int	     DRM(context_switch_complete)(drm_device_t *dev, int new);
 
-#if __HAVE_CTX_BITMAP
 extern int	     DRM(ctxbitmap_init)( drm_device_t *dev );
 extern void	     DRM(ctxbitmap_cleanup)( drm_device_t *dev );
-#endif
 
 extern int	     DRM(setsareactx)( struct inode *inode, struct file *filp,
 				       unsigned int cmd, unsigned long arg );

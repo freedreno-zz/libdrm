@@ -34,6 +34,7 @@
 #include "tdfx.h"
 #include "drmP.h"
 
+#include "drm_agpsupport.h"
 #include "drm_auth.h"
 #include "drm_bufs.h"
 #include "drm_context.h"

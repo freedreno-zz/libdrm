@@ -37,7 +37,6 @@
 
 /* General customization:
  */
-#define __HAVE_CTX_BITMAP	1
 
 #define DRIVER_AUTHOR		"SIS"
 #define DRIVER_NAME		"sis"

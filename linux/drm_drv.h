@@ -53,9 +53,6 @@
  */
 
 
-#ifndef __HAVE_CTX_BITMAP
-#define __HAVE_CTX_BITMAP		0
-#endif
 #ifndef __HAVE_IRQ
 #define __HAVE_IRQ			0
 #endif
@@ -144,11 +141,6 @@ drm_ioctl_desc_t		  DRM(ioctls)[] = {
 
 	[DRM_IOCTL_NR(DRM_IOCTL_ADD_MAP)]       = { DRM(addmap),      1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_RM_MAP)]        = { DRM(rmmap),       1, 0 },
-
-#if __HAVE_CTX_BITMAP
-	[DRM_IOCTL_NR(DRM_IOCTL_SET_SAREA_CTX)] = { DRM(setsareactx), 1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_GET_SAREA_CTX)] = { DRM(getsareactx), 1, 0 },
-#endif
 
 	[DRM_IOCTL_NR(DRM_IOCTL_ADD_CTX)]       = { DRM(addctx),      1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_RM_CTX)]        = { DRM(rmctx),       1, 1 },
@@ -380,7 +372,7 @@ static int DRM(takedown)( drm_device_t *dev )
 
 #if __OS_HAS_AGP
 				/* Clear AGP information */
-	if ( (dev->device_features & DRIVER_USE_AGP) && dev->agp ) {
+	if ( (dev->driver_features & DRIVER_USE_AGP) && dev->agp ) {
 		drm_agp_mem_t *entry;
 		drm_agp_mem_t *nexte;
 
@@ -540,39 +532,42 @@ static int drm_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	/* dev_priv_size can be changed by a driver in driver_register_fns */
 	dev->dev_priv_size = sizeof(u32);
 	DRM(driver_register_fns)(dev);
-
+	
+	/* if we have CTX_BITMAP add the ioctls */
+	if (dev->driver_features & DRIVER_CTX_BITMAP)
+		DRM(context_add_ioctls)();
+	
 	if (dev->fn_tbl.preinit)
 		if ((retcode = dev->fn_tbl.preinit(dev, ent->driver_data)))
 			goto error_out_unreg;
 
 #if __OS_HAS_AGP
-	if (dev->driver_features & DRIVER_USE_AGP)
-	{
+	if (dev->driver_features & DRIVER_USE_AGP) {
 		dev->agp = DRM(agp_init)();
-		if ( dev->driver_features & DRIVER_REQUIRE_AGP) && dev->agp == NULL ) {
-		DRM_ERROR( "Cannot initialize the agpgart module.\n" );
-		retcode = -EINVAL;
-		goto error_out_unreg;
-	}
-#endif
+		if ( (dev->driver_features & DRIVER_REQUIRE_AGP) && dev->agp == NULL ) {
+			DRM_ERROR( "Cannot initialize the agpgart module.\n" );
+			retcode = -EINVAL;
+			goto error_out_unreg;
+		}
+		
 #if __OS_HAS_MTRR
-	if (dev->driver_features & DRIVER_USE_MTRR) {
-		if (dev->agp)
-			dev->agp->agp_mtrr = mtrr_add( dev->agp->agp_info.aper_base,
-						       dev->agp->agp_info.aper_size*1024*1024,
-						       MTRR_TYPE_WRCOMB,
-						       1 );
+		if (dev->driver_features & DRIVER_USE_MTRR) {
+			if (dev->agp)
+				dev->agp->agp_mtrr = mtrr_add( dev->agp->agp_info.aper_base,
+							       dev->agp->agp_info.aper_size*1024*1024,
+							       MTRR_TYPE_WRCOMB,
+							       1 );
+		}
 	}
 #endif
 #endif
-
-#if __HAVE_CTX_BITMAP
-	retcode = DRM(ctxbitmap_init)( dev );
-	if( retcode ) {
-		DRM_ERROR( "Cannot allocate memory for context bitmap.\n" );
-		goto error_out_unreg;
- 	}
-#endif
+	if (dev->driver_features & DRIVER_CTX_BITMAP) {
+		retcode = DRM(ctxbitmap_init)( dev );
+		if( retcode ) {
+			DRM_ERROR( "Cannot allocate memory for context bitmap.\n" );
+			goto error_out_unreg;
+		}
+	}
 	if ((dev->minor = DRM(stub_register)(DRIVER_NAME, &DRM(fops),dev)) < 0)
 	{
 		retcode = -EPERM;
@@ -697,9 +692,10 @@ static void __exit drm_cleanup( drm_device_t *dev )
 	} else {
 		DRM_DEBUG( "minor %d unregistered\n", dev->minor);
 	}
-#if __HAVE_CTX_BITMAP
-	DRM(ctxbitmap_cleanup)( dev );
-#endif
+
+	if ( dev->driver_features & DRIVER_CTX_BITMAP)
+		DRM(ctxbitmap_cleanup)( dev );
+
 #if __OS_HAS_AGP
 #if __OS_HAS_MTRR
 	if ( (dev->driver_features & DRIVER_USE_MTRR) && dev->agp && dev->agp->agp_mtrr >= 0 ) {
@@ -932,9 +928,10 @@ int DRM(release)( struct inode *inode, struct file *filp )
 			     pos->handle != DRM_KERNEL_CONTEXT ) {
 				if (dev->fn_tbl.context_dtor)
 					dev->fn_tbl.context_dtor(dev, pos->handle);
-#if __HAVE_CTX_BITMAP
-				DRM(ctxbitmap_free)( dev, pos->handle );
-#endif
+
+				if (dev->driver_features & DRIVER_CTX_BITMAP)
+					DRM(ctxbitmap_free)( dev, pos->handle );
+
 				list_del( &pos->head );
 				DRM(free)( pos, sizeof(*pos), DRM_MEM_CTXLIST );
 			}
