@@ -55,6 +55,7 @@
 # include <sys/ioctl.h>
 # include <sys/mman.h>
 # include <sys/time.h>
+# include <stdarg.h>
 # ifdef DRM_USE_MALLOC
 #  define _DRM_MALLOC malloc
 #  define _DRM_FREE   free
