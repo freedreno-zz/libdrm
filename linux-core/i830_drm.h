@@ -270,6 +270,7 @@ typedef struct _drm_i830_sarea {
 #define DRM_IOCTL_I830_ALLOC            DRM_IOWR(0x50, drm_i830_mem_alloc_t)
 #define DRM_IOCTL_I830_FREE             DRM_IOW( 0x51, drm_i830_mem_free_t)
 #define DRM_IOCTL_I830_INIT_HEAP        DRM_IOW( 0x52, drm_i830_mem_init_heap_t)
+#define DRM_IOCTL_I830_COPY_BLIT        DRM_IOW( 0x53, drm_i830_copy_blit_t)
 
 typedef struct _drm_i830_clear {
 	int clear_color;
@@ -359,6 +360,20 @@ typedef struct drm_i830_mem_init_heap {
 	int size;
 	int start;	
 } drm_i830_mem_init_heap_t;
+
+
+/* 1.4: Generalized copyblit:
+ */
+typedef struct drm_i830_copy_blit {
+	int cpp;
+	int src_offset;
+	int dst_offset;
+	short src_pitch;
+	short dst_pitch;
+	short src_x, src_y;
+	short dst_x, dst_y;
+	short w, h;
+} drm_i830_copy_blit_t;
 
 
 #endif /* _I830_DRM_H_ */

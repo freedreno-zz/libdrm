@@ -81,7 +81,8 @@
 	[DRM_IOCTL_NR(DRM_IOCTL_I830_VERTEX2)] = { i830_dma_vertex2, 1, 0 }, \
         [DRM_IOCTL_NR(DRM_IOCTL_I830_ALLOC)]   = { i830_mem_alloc,  1, 0 }, \
         [DRM_IOCTL_NR(DRM_IOCTL_I830_FREE)]    = { i830_mem_free,    1, 0 }, \
-        [DRM_IOCTL_NR(DRM_IOCTL_I830_INIT_HEAP)] = { i830_mem_init_heap, 1, 1 },
+        [DRM_IOCTL_NR(DRM_IOCTL_I830_INIT_HEAP)] = { i830_mem_init_heap, 1, 1 },\
+        [DRM_IOCTL_NR(DRM_IOCTL_I830_COPY_BLIT)] = { i830_dma_copy_blit,  1, 0 }, 
 
 
 #define __HAVE_COUNTERS         4

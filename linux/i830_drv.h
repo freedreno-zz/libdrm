@@ -122,6 +122,7 @@ extern int i830_clear_bufs( DRM_IOCTL_ARGS );
 extern int i830_flip_bufs( DRM_IOCTL_ARGS );
 extern int i830_getparam(  DRM_IOCTL_ARGS );
 extern int i830_setparam(  DRM_IOCTL_ARGS );
+extern int i830_dma_copy_blit( DRM_IOCTL_ARGS );
 
 /* i830_irq.c */
 extern int i830_irq_emit(  DRM_IOCTL_ARGS );

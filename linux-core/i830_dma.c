@@ -868,6 +868,67 @@ static void i830_dma_dispatch_clear( drm_device_t *dev, int flags,
 	}
 }
 
+static int i830_dma_dispatch_blit( drm_device_t *dev,
+				    drm_i830_copy_blit_t *blit )
+{
+   	drm_i830_private_t *dev_priv = dev->dev_private;
+	unsigned int CMD, BR13;
+	int desty2 = blit->dst_y + blit->h;
+	int destx2 = blit->dst_x + blit->w;
+	int srcpitch = blit->src_pitch * blit->cpp;
+	int dstpitch = blit->dst_pitch * blit->cpp;
+	RING_LOCALS;
+
+  	i830_kernel_lost_context(dev);
+
+
+	switch(blit->cpp) {
+	case 1: 
+	case 2: 
+	case 3: 
+		BR13 = dstpitch | (0xCC << 16) | (1<<24);
+		CMD = XY_SRC_COPY_BLT_CMD;
+		break;
+	case 4:
+		BR13 = dstpitch | (0xCC << 16) | (1<<24) | (1<<25);
+		CMD = (XY_SRC_COPY_BLT_CMD | XY_SRC_COPY_BLT_WRITE_ALPHA |
+		       XY_SRC_COPY_BLT_WRITE_RGB);
+		break;
+	default:
+		DRM_ERROR("Bad cpp\n");
+		return DRM_ERR(EINVAL);
+	}
+
+
+	if (desty2 < blit->dst_y ||
+	    destx2 < blit->dst_x) {
+		DRM_ERROR("Bad extents\n");
+		return DRM_ERR(EINVAL);
+	}
+
+
+#if 0
+	if (intersect_regions( blit->dest_offset, desty2*dstpitch,
+			       ring, ringsize ))
+		return DRM_ERR(EINVAL);
+#endif	
+
+
+	BEGIN_LP_RING( 8 );
+	OUT_RING( CMD );
+	OUT_RING( BR13 );
+	OUT_RING( (blit->dst_y << 16) | blit->dst_x );
+	OUT_RING( (desty2 << 16) | destx2 );
+	OUT_RING( blit->dst_offset );	
+	OUT_RING( (blit->src_y << 16) | blit->src_x );
+	OUT_RING( srcpitch );
+	OUT_RING( blit->src_offset ); 
+	ADVANCE_LP_RING();
+
+	return 0;
+}
+
+
 static void i830_dma_dispatch_swap( drm_device_t *dev )
 {
    	drm_i830_private_t *dev_priv = dev->dev_private;
@@ -1402,6 +1463,27 @@ int i830_dma_vertex2( DRM_IOCTL_ARGS )
 	return 0;
 }
 
+int i830_dma_copy_blit( DRM_IOCTL_ARGS )
+{
+	drm_file_t *priv = filp->private_data;
+	drm_device_t *dev = priv->dev;
+   	drm_i830_private_t *dev_priv = (drm_i830_private_t *)dev->dev_private;
+	drm_i830_copy_blit_t blit;
+
+	DRM_COPY_FROM_USER_IOCTL( blit, (drm_i830_copy_blit_t *)data, 
+				  sizeof(blit) );
+
+	DRM_DEBUG("i830 copy blit\n");
+
+   	if(!_DRM_LOCK_IS_HELD(dev->lock.hw_lock->lock)) {
+		DRM_ERROR("i830_dma_copy_blit called without lock held\n");
+		return DRM_ERR(EINVAL);
+	}
+
+	i830_dma_dispatch_blit( dev, &blit ); 
+	return 0;
+}
+
 int i830_clear_bufs( DRM_IOCTL_ARGS )
 {
 	drm_file_t *priv = filp->private_data;
@@ -1601,6 +1683,9 @@ int i830_setparam( DRM_IOCTL_ARGS )
 	switch( param.param ) {
 	case I830_SETPARAM_USE_MI_BATCHBUFFER_START:
 		dev_priv->use_mi_batchbuffer_start = param.value;
+		break;
+	case I830_SETPARAM_PERF_BOXES:
+		dev_priv->do_boxes = param.value;
 		break;
 	case I830_SETPARAM_TEX_LRU_LOG_GRANULARITY:
 		dev_priv->tex_lru_log_granularity = param.value;
