@@ -30,11 +30,11 @@
  * 
  */
 
-#include <linux/sched.h>
 
 #define __NO_VERSION__
 #include "drmP.h"
 #include "tdfx_drv.h"
+#include <linux/sched.h>
 
 extern drm_ctx_t tdfx_res_ctx;
 

@@ -28,11 +28,11 @@
  *
  */
 
-#include <linux/sched.h>
 
 #define __NO_VERSION__
 #include "drmP.h"
 #include "r128_drv.h"
+#include <linux/sched.h>
 
 extern drm_ctx_t r128_res_ctx;
 

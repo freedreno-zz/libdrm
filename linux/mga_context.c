@@ -29,11 +29,11 @@
  *
  */
 
-#include <linux/sched.h>
 
 #define __NO_VERSION__
 #include "drmP.h"
 #include "mga_drv.h"
+#include <linux/sched.h>
 
 static int mga_alloc_queue(drm_device_t *dev)
 {
