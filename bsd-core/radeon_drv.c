@@ -74,6 +74,15 @@ drm_chipinfo_t DRM(devicelist)[] = {
 	{0x1002, 0x516A, 1, "ATI Radeon Qj R200"},
 	{0x1002, 0x516B, 1, "ATI Radeon Qk R200"},
 	{0x1002, 0x516C, 1, "ATI Radeon Ql R200"},
+	{0x1002, 0x5960, 1, "ATI Radeon RV280 (5960)"},
+	{0x1002, 0x5961, 1, "ATI Radeon RV280 (5961)"},
+	{0x1002, 0x5962, 1, "ATI Radeon RV280 (5962)"},
+	{0x1002, 0x5963, 1, "ATI Radeon RV280 (5963)"},
+	{0x1002, 0x5968, 1, "ATI Radeon RV280 (5968)"},
+	{0x1002, 0x5969, 1, "ATI Radeon RV280 (5969)"},
+	{0x1002, 0x596A, 1, "ATI Radeon RV280 (596A)"},
+	{0x1002, 0x596B, 1, "ATI Radeon RV280 (596B)"},
+
 	{0, 0, 0, NULL}
 };
 
