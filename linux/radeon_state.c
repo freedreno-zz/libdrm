@@ -1585,19 +1585,37 @@ static int radeon_emit_packets(
 	drm_radeon_cmd_header_t header,
 	drm_radeon_cmd_buffer_t *cmdbuf )
 {
-	int sz = packet[(int)header.packet.packet_id].len;
-	int reg = packet[(int)header.packet.packet_id].start;
+	int id = (int)header.packet.packet_id;
+	int sz = packet[id].len;
+	int reg = packet[id].start;
 	int *data = (int *)cmdbuf->buf;
 	RING_LOCALS;
    
 	if (sz * sizeof(int) > cmdbuf->bufsz) 
 		return -EINVAL;
 
-
-	BEGIN_RING(sz+1);
-	OUT_RING( CP_PACKET0( reg, (sz-1) ) );
-	OUT_RING_USER_TABLE( data, sz );
-	ADVANCE_RING();
+	/* Embarrassing dyslexia problem, fixed up here rather than
+	 * changing the interface.
+	 */
+	if (id == RADEON_EMIT_SE_CNTL) {
+		int tmp;
+		BEGIN_RING(4);
+		OUT_RING( CP_PACKET0( RADEON_SE_CNTL, 0 ) );
+		if (__get_user( tmp, &data[0]))
+			return -EFAULT;
+		OUT_RING( tmp );
+		OUT_RING( CP_PACKET0( RADEON_SE_COORD_FMT, 0 ) );
+		if (__get_user( tmp, &data[1]))
+			return -EFAULT;
+		OUT_RING( tmp );
+		ADVANCE_RING();
+	}
+	else {
+		BEGIN_RING(sz+1);
+		OUT_RING( CP_PACKET0( reg, (sz-1) ) );
+		OUT_RING_USER_TABLE( data, sz );
+		ADVANCE_RING();
+	}
 
 	cmdbuf->buf += sz * sizeof(int);
 	cmdbuf->bufsz -= sz * sizeof(int);
