@@ -75,46 +75,46 @@
 
 typedef struct {
 	/* Context state - can be written in one large chunk */
-	u32 dst_pitch_offset_c;
-	u32 dp_gui_master_cntl_c;
-	u32 sc_top_left_c;
-	u32 sc_bottom_right_c;
-	u32 z_offset_c;
-	u32 z_pitch_c;
-	u32 z_sten_cntl_c;
-	u32 tex_cntl_c;
-	u32 misc_3d_state_cntl_reg;
-	u32 texture_clr_cmp_clr_c;
-	u32 texture_clr_cmp_msk_c;
-	u32 fog_color_c;
+	unsigned int dst_pitch_offset_c;
+	unsigned int dp_gui_master_cntl_c;
+	unsigned int sc_top_left_c;
+	unsigned int sc_bottom_right_c;
+	unsigned int z_offset_c;
+	unsigned int z_pitch_c;
+	unsigned int z_sten_cntl_c;
+	unsigned int tex_cntl_c;
+	unsigned int misc_3d_state_cntl_reg;
+	unsigned int texture_clr_cmp_clr_c;
+	unsigned int texture_clr_cmp_msk_c;
+	unsigned int fog_color_c;
 
 	/* Texture state */
-	u32 tex_size_pitch_c;
-	u32 constant_color_c;
+	unsigned int tex_size_pitch_c;
+	unsigned int constant_color_c;
 
 	/* Setup state */
-	u32 pm4_vc_fpu_setup;
-	u32 setup_cntl;
+	unsigned int pm4_vc_fpu_setup;
+	unsigned int setup_cntl;
 
 	/* Mask state */
-	u32 dp_write_mask;
-	u32 sten_ref_mask_c;
-	u32 plane_3d_mask_c;
+	unsigned int dp_write_mask;
+	unsigned int sten_ref_mask_c;
+	unsigned int plane_3d_mask_c;
 
 	/* Window state */
-	u32 window_xy_offset;
+	unsigned int window_xy_offset;
 
 	/* Core state */
-	u32 scale_3d_cntl;
+	unsigned int scale_3d_cntl;
 } drm_r128_context_regs_t;
 
 /* Setup registers for each texture unit */
 typedef struct {
-	u32 tex_cntl;
-	u32 tex_combine_cntl;
-	u32 tex_size_pitch;
-	u32 tex_offset[R128_TEX_MAXLEVELS];
-	u32 tex_border_color;
+	unsigned int tex_cntl;
+	unsigned int tex_combine_cntl;
+	unsigned int tex_size_pitch;
+	unsigned int tex_offset[R128_TEX_MAXLEVELS];
+	unsigned int tex_border_color;
 } drm_r128_texture_regs_t;
 
 
@@ -185,7 +185,7 @@ typedef struct drm_r128_vertex {
 } drm_r128_vertex_t;
 
 typedef struct drm_r128_packet {
-	u32 *buffer;
+	unsigned int *buffer;
 	int count;
 	int flags;
 } drm_r128_packet_t;
