@@ -306,9 +306,14 @@ do {									\
 #define AGE_BUFFER( buf_priv )						\
 do {									\
 	drm_mga_freelist_t *entry = (buf_priv)->list_entry;		\
-	entry->age.head = (dev_priv->prim.tail +			\
-			   dev_priv->primary->offset);			\
-	entry->age.wrap = dev_priv->sarea_priv->last_wrap;		\
+	if ( (buf_priv)->dispatched ) {					\
+		entry->age.head = (dev_priv->prim.tail +		\
+				   dev_priv->primary->offset);		\
+		entry->age.wrap = dev_priv->sarea_priv->last_wrap;	\
+	} else {							\
+		entry->age.head = 0;					\
+		entry->age.wrap = 0;					\
+	}								\
 } while (0)
 
 
