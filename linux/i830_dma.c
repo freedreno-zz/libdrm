@@ -62,7 +62,7 @@ do {								\
    do { 							\
       _head = I830_READ(LP_RING + RING_HEAD) & HEAD_ADDR;	\
       _tail = I830_READ(LP_RING + RING_TAIL) & TAIL_ADDR;	\
-      for(_i = 0; _i < 65535; _i++);				\
+      udelay(10);						\
    } while(_head != _tail);					\
 } while(0)
 
@@ -183,7 +183,7 @@ int i830_mmap_buffers(struct file *filp, struct vm_area_struct *vma)
    	buf_priv->currently_mapped = I830_BUF_MAPPED;
 	unlock_kernel();
 
-	if (remap_page_range(vma->vm_start,
+	if (remap_page_range(DRM_RPR_ARG(vma) vma->vm_start,
 			     VM_OFFSET(vma),
 			     vma->vm_end - vma->vm_start,
 			     vma->vm_page_prot)) return -EAGAIN;
@@ -247,14 +247,11 @@ static int i830_unmap_buffer(drm_buf_t *buf)
 #else
 		down_write( &current->mm->mmap_sem );
 #endif
-#if LINUX_VERSION_CODE < 0x020399
-        	retcode = do_munmap((unsigned long)buf_priv->virtual, 
-				    (size_t) buf->total);
-#else
+
         	retcode = do_munmap(current->mm, 
 				    (unsigned long)buf_priv->virtual, 
 				    (size_t) buf->total);
-#endif
+
 #if LINUX_VERSION_CODE <= 0x020402
 		up( &current->mm->mmap_sem );
 #else
@@ -306,22 +303,30 @@ static unsigned long i830_alloc_page(drm_device_t *dev)
 	if(address == 0UL) 
 		return 0;
 	
+#if LINUX_VERSION_CODE < 0x020500
 	atomic_inc(&virt_to_page(address)->count);
 	set_bit(PG_locked, &virt_to_page(address)->flags);
-   
+#else
+	get_page(virt_to_page(address));
+	SetPageLocked(virt_to_page(address));
+#endif
 	return address;
 }
 
 static void i830_free_page(drm_device_t *dev, unsigned long page)
 {
-	if(page == 0UL) 
-		return;
-	
-	atomic_dec(&virt_to_page(page)->count);
-	clear_bit(PG_locked, &virt_to_page(page)->flags);
-	wake_up(&virt_to_page(page)->wait);
-	free_page(page);
-	return;
+	if (page) {
+#if LINUX_VERSION_CODE < 0x020500
+		atomic_dec(&virt_to_page(page)->count);
+		clear_bit(PG_locked, &virt_to_page(page)->flags);
+		wake_up(&virt_to_page(page)->wait);
+#else
+		struct page *p = virt_to_page(page);
+		put_page(p);
+		unlock_page(p);
+#endif
+		free_page(page);
+	}
 }
 
 static int i830_dma_cleanup(drm_device_t *dev)
@@ -382,8 +387,7 @@ static int i830_wait_ring(drm_device_t *dev, int n)
 		   	DRM_ERROR("lockup\n");
 		   	goto out_wait_ring;
 		}
-
-	   	for (i = 0 ; i < 2000 ; i++) ;
+		udelay(1);
 	}
 
 out_wait_ring:   
