@@ -342,60 +342,53 @@ static void radeon_clear_box( drm_radeon_private_t *dev_priv,
 
 static void radeon_cp_performance_boxes( drm_radeon_private_t *dev_priv )
 {
-	if (dev_priv->stats.requested_bufs) {
-		int i = dev_priv->stats.freelist_loops / 
-			dev_priv->stats.requested_bufs;
+	/* Collapse various things into a wait flag -- trying to
+	 * guess if userspase slept -- better just to have them tell us.
+	 */
+	if (dev_priv->stats.last_frame_reads > 1 ||
+	    dev_priv->stats.last_clear_reads > dev_priv->stats.clears) {
+		dev_priv->stats.boxes |= RADEON_BOX_WAIT_IDLE;
+	}
 
+	if (dev_priv->stats.freelist_loops) {
+		dev_priv->stats.boxes |= RADEON_BOX_WAIT_IDLE;
+	}
+
+	/* Purple box for page flipping
+	 */
+	if ( dev_priv->stats.boxes & RADEON_BOX_FLIP ) 
+		radeon_clear_box( dev_priv, 4, 4, 8, 8, 255, 0, 255 );
+
+	/* Red box if we have to wait for idle at any point
+	 */
+	if ( dev_priv->stats.boxes & RADEON_BOX_WAIT_IDLE ) 
+		radeon_clear_box( dev_priv, 16, 4, 8, 8, 255, 0, 0 );
+
+	/* Blue box: lost context?
+	 */
+
+	/* Yellow box for texture swaps
+	 */
+	if ( dev_priv->stats.boxes & RADEON_BOX_TEXTURE_LOAD ) 
+		radeon_clear_box( dev_priv, 40, 4, 8, 8, 255, 255, 0 );
+
+	/* Green box if hardware never idles (as far as we can tell)
+	 */
+	if ( !(dev_priv->stats.boxes & RADEON_BOX_DMA_IDLE) ) 
+		radeon_clear_box( dev_priv, 64, 4, 8, 8, 0, 255, 0 );
+
+
+	/* Draw bars indicating number of buffers allocated 
+	 * (not a great measure, easily confused)
+	 */
+	if (dev_priv->stats.requested_bufs) {
 		if (dev_priv->stats.requested_bufs > 100)
 			dev_priv->stats.requested_bufs = 100;
 
-		radeon_clear_box( dev_priv, 16, 4, 8, 
-				  dev_priv->stats.requested_bufs,
-				  255, 255, 255 );
-
-		if (i)
-			radeon_clear_box( dev_priv, 32, 4, 8, 8, 0, 64, 0 );
-
-		if (i > 10)
-			radeon_clear_box( dev_priv, 32, 13, 8, 8, 0, 128, 0 );
-
-		if (i > 100)
-			radeon_clear_box( dev_priv, 32, 22, 8, 8, 0, 255, 0 );
+		radeon_clear_box( dev_priv, 4, 16,  
+				  dev_priv->stats.requested_bufs, 4,
+				  196, 128, 128 );
 	}
-
-	if ( dev_priv->stats.freelist_timeouts ) 
-		radeon_clear_box( dev_priv, 48, 4, 8, 8, 255, 0, 0 );
-
-	if ( dev_priv->stats.boxes & RADEON_BOX_DMA_IDLE ) 
-		radeon_clear_box( dev_priv, 64, 4, 8, 8, 128, 64, 0 );
-
-	if ( dev_priv->stats.boxes & RADEON_BOX_WAIT_IDLE ) 
-		radeon_clear_box( dev_priv, 64, 13, 8, 8, 255, 128, 0 );
-
-	if ( dev_priv->stats.boxes & RADEON_BOX_RING_FULL ) 
-		radeon_clear_box( dev_priv, 80, 4, 8, 8, 0, 0, 255 );
-
-	if ( dev_priv->stats.boxes & RADEON_BOX_FLIP ) 
-		radeon_clear_box( dev_priv, 96, 4, 8, 8, 255, 255, 0 );
-
-	if (dev_priv->stats.last_frame_reads > 1) 
-		radeon_clear_box( dev_priv, 112, 4, 8, 8, 0, 64, 32 );
-
-	if (dev_priv->stats.last_frame_reads > 100) 
-		radeon_clear_box( dev_priv, 112, 13, 8, 8, 0, 128, 64 );
-	
-	if (dev_priv->stats.last_frame_reads > 1000) 
-		radeon_clear_box( dev_priv, 112, 22, 8, 8, 0, 255, 128 );
-
-	if (dev_priv->stats.last_clear_reads > 1)
-		radeon_clear_box( dev_priv, 128, 4, 8, 8, 32, 64, 0 );
-	
-	if (dev_priv->stats.last_clear_reads > 100)
-		radeon_clear_box( dev_priv, 128, 13, 8, 8, 64, 128, 0 );
-	
-	if (dev_priv->stats.last_clear_reads > 1000)
-		radeon_clear_box( dev_priv, 128, 22, 8, 8, 128, 255, 0 );
-
 
 	memset( &dev_priv->stats, 0, sizeof(dev_priv->stats) );
 
@@ -418,6 +411,9 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 	int i;
 	RING_LOCALS;
 	DRM_DEBUG( "flags = 0x%x\n", flags );
+
+
+	dev_priv->stats.clears++;
 
 	if ( dev_priv->page_flipping && dev_priv->current_page == 1 ) {
 		unsigned int tmp = flags;
@@ -1070,6 +1066,8 @@ static int radeon_cp_dispatch_texture( drm_device_t *dev,
 	u32 y, height;
 	int ret = 0, i;
 	RING_LOCALS;
+
+	dev_priv->stats.boxes |= RADEON_BOX_TEXTURE_LOAD;
 
 	/* FIXME: Be smarter about this...
 	 */
@@ -1844,7 +1842,7 @@ static __inline__ int radeon_emit_scalars2(
 {
 	int sz = header.scalars.count;
 	int *data = (int *)cmdbuf->buf;
-	int start = header.scalars.offset + 0x100;
+	int start = ((unsigned int)header.scalars.offset) + 0x100;
 	int stride = header.scalars.stride;
 	RING_LOCALS;
 
