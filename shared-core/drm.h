@@ -257,6 +257,7 @@ typedef struct drm_agp_buffer {
 	unsigned long size;	/* In bytes -- will round to page boundary */
 	unsigned long handle;	/* Used for BIND/UNBIND ioctls */
 	unsigned long type;     /* Type of memory to allocate  */
+        unsigned long physical; /* Physical used by i810       */
 } drm_agp_buffer_t;
 
 				/* For drm_agp_bind */

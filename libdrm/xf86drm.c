@@ -769,7 +769,8 @@ int drmAgpEnable(int fd, unsigned long mode)
     return 0;
 }
 
-unsigned long drmAgpAlloc(int fd, unsigned long size, unsigned long type)
+unsigned long drmAgpAlloc(int fd, unsigned long size, unsigned long type,
+			  unsigned long *address)
 {
     drm_agp_buffer_t b;
 
@@ -777,6 +778,7 @@ unsigned long drmAgpAlloc(int fd, unsigned long size, unsigned long type)
     b.handle = 0;
     b.type   = type;
     if (ioctl(fd, DRM_IOCTL_AGP_ALLOC, &b)) return 0;
+    if (address != 0UL) *address = b.physical;
     return b.handle;
 }
 

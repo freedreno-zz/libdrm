@@ -178,6 +178,8 @@ int drm_agp_alloc(struct inode *inode, struct file *filp, unsigned int cmd,
 	dev->agp->memory = entry;
 
 	request.handle   = entry->handle;
+        request.physical = memory->physical;
+
 	if (copy_to_user((drm_agp_buffer_t *)arg, &request, sizeof(request))) {
 		dev->agp->memory       = entry->next;
 		dev->agp->memory->prev = NULL;
