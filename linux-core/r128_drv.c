@@ -37,10 +37,10 @@
 
 #define R128_NAME		"r128"
 #define R128_DESC		"ATI Rage 128"
-#define R128_DATE		"20001121"
+#define R128_DATE		"20001129"
 #define R128_MAJOR		2
 #define R128_MINOR		0
-#define R128_PATCHLEVEL		0
+#define R128_PATCHLEVEL		1
 
 static drm_device_t	r128_device;
 drm_ctx_t		r128_res_ctx;
@@ -358,12 +358,12 @@ static int __init r128_init(void)
 
 #if defined(CONFIG_AGP) || defined(CONFIG_AGP_MODULE)
 	dev->agp    = drm_agp_init();
-      	if (dev->agp == NULL) {
-	   	DRM_ERROR("Cannot initialize agpgart module.\n");
-	   	drm_proc_cleanup();
-	   	misc_deregister(&r128_misc);
-	   	r128_takedown(dev);
-	   	return -ENOMEM;
+	if (dev->agp == NULL) {
+		DRM_ERROR("Cannot initialize agpgart module.\n");
+		drm_proc_cleanup();
+		misc_deregister(&r128_misc);
+		r128_takedown(dev);
+		return -ENOMEM;
 	}
 
 #ifdef CONFIG_MTRR
@@ -422,8 +422,8 @@ module_init(r128_init);
 module_exit(r128_cleanup);
 
 
-int r128_version(struct inode *inode, struct file *filp, unsigned int cmd,
-		  unsigned long arg)
+int r128_version(struct inode *inode, struct file *filp,
+		 unsigned int cmd, unsigned long arg)
 {
 	drm_version_t version;
 	int	      len;
@@ -515,8 +515,8 @@ int r128_release(struct inode *inode, struct file *filp)
 }
 
 /* r128_ioctl is called whenever a process performs an ioctl on /dev/drm. */
-int r128_ioctl(struct inode *inode, struct file *filp, unsigned int cmd,
-		unsigned long arg)
+int r128_ioctl(struct inode *inode, struct file *filp,
+	       unsigned int cmd, unsigned long arg)
 {
 	int		 nr	 = DRM_IOCTL_NR(cmd);
 	drm_file_t	 *priv	 = filp->private_data;
@@ -542,7 +542,7 @@ int r128_ioctl(struct inode *inode, struct file *filp, unsigned int cmd,
 			DRM_DEBUG("no function\n");
 			retcode = -EINVAL;
 		} else if ((ioctl->root_only && !capable(CAP_SYS_ADMIN))
-			    || (ioctl->auth_needed && !priv->authenticated)) {
+			   || (ioctl->auth_needed && !priv->authenticated)) {
 			retcode = -EACCES;
 		} else {
 			retcode = (func)(inode, filp, cmd, arg);
@@ -559,8 +559,8 @@ int r128_ioctl(struct inode *inode, struct file *filp, unsigned int cmd,
 	return retcode;
 }
 
-int r128_lock(struct inode *inode, struct file *filp, unsigned int cmd,
-	      unsigned long arg)
+int r128_lock(struct inode *inode, struct file *filp,
+	      unsigned int cmd, unsigned long arg)
 {
         drm_file_t        *priv   = filp->private_data;
         drm_device_t      *dev    = priv->dev;
@@ -655,8 +655,8 @@ int r128_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 }
 
 
-int r128_unlock(struct inode *inode, struct file *filp, unsigned int cmd,
-		 unsigned long arg)
+int r128_unlock(struct inode *inode, struct file *filp,
+		unsigned int cmd, unsigned long arg)
 {
 	drm_file_t	  *priv	  = filp->private_data;
 	drm_device_t	  *dev	  = priv->dev;

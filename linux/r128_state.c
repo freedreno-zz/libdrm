@@ -35,8 +35,6 @@
 
 #define USE_OLD_BLITS	1
 
-static drm_r128_blit_rect_t rects[R128_MAX_BLIT_BUFFERS];
-
 
 /* ================================================================
  * CCE hardware state programming functions
@@ -45,7 +43,7 @@ static drm_r128_blit_rect_t rects[R128_MAX_BLIT_BUFFERS];
 static void r128_emit_clip_rects( drm_r128_private_t *dev_priv,
 				  drm_clip_rect_t *boxes, int count )
 {
-	unsigned int aux_sc_cntl = 0x00000000;
+	u32 aux_sc_cntl = 0x00000000;
 	RING_LOCALS;
 	DRM_DEBUG( "    %s\n", __FUNCTION__ );
 
@@ -935,17 +933,14 @@ static void r128_cce_dispatch_indices( drm_device_t *dev,
 }
 
 static int r128_cce_dispatch_blit( drm_device_t *dev,
-				   int offset, int pitch, int format,
-				   drm_r128_blit_rect_t *rects, int count )
+				   drm_r128_blit_t *blit )
 {
 	drm_r128_private_t *dev_priv = dev->dev_private;
 	drm_device_dma_t *dma = dev->dma;
 	drm_buf_t *buf;
 	drm_r128_buf_priv_t *buf_priv;
-	drm_r128_blit_rect_t *rect;
 	u32 *data;
 	int dword_shift, dwords;
-	int i;
 	RING_LOCALS;
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
@@ -955,7 +950,7 @@ static int r128_cce_dispatch_blit( drm_device_t *dev,
 	 * even if the only legal values are powers of two.  Thus, we'll
 	 * use a shift instead.
 	 */
-	switch ( format ) {
+	switch ( blit->format ) {
 	case R128_DATATYPE_ARGB1555:
 	case R128_DATATYPE_RGB565:
 	case R128_DATATYPE_ARGB4444:
@@ -965,7 +960,7 @@ static int r128_cce_dispatch_blit( drm_device_t *dev,
 		dword_shift = 0;
 		break;
 	default:
-		DRM_ERROR( "invalid blit format %d\n", format );
+		DRM_ERROR( "invalid blit format %d\n", blit->format );
 		return -EINVAL;
 	}
 
@@ -981,53 +976,48 @@ static int r128_cce_dispatch_blit( drm_device_t *dev,
 
 	ADVANCE_RING();
 
-	/* Dispatch each of the indirect buffers.
+	/* Dispatch the indirect buffer.
 	 */
-	for ( i = 0 ; i < count ; i++ ) {
-		rect = &rects[i];
-		buf = dma->buflist[rect->index];
-		buf_priv = buf->dev_private;
+	buf = dma->buflist[blit->idx];
+	buf_priv = buf->dev_private;
 
-		if ( buf->pid != current->pid ) {
-			DRM_ERROR( "process %d using buffer owned by %d\n",
-				   current->pid, buf->pid );
-			return -EINVAL;
-		}
-		if ( buf->pending ) {
-			DRM_ERROR( "sending pending buffer %d\n",
-				   rect->index );
-			return -EINVAL;
-		}
-
-		buf_priv->discard = 1;
-
-		dwords = (rect->width * rect->height) >> dword_shift;
-
-		data = (u32 *)((char *)dev_priv->buffers->handle
-			       + buf->offset);
-
-		data[0] = CCE_PACKET3( R128_CNTL_HOSTDATA_BLT, dwords + 6 );
-		data[1] = ( R128_GMC_DST_PITCH_OFFSET_CNTL
-			    | R128_GMC_BRUSH_NONE
-			    | (format << 8)
-			    | R128_GMC_SRC_DATATYPE_COLOR
-			    | R128_ROP3_S
-			    | R128_DP_SRC_SOURCE_HOST_DATA
-			    | R128_GMC_CLR_CMP_CNTL_DIS
-			    | R128_GMC_AUX_CLIP_DIS
-			    | R128_GMC_WR_MSK_DIS );
-
-		data[2] = (pitch << 21) | (offset >> 5);
-		data[3] = 0xffffffff;
-		data[4] = 0xffffffff;
-		data[5] = (rect->y << 16) | rect->x;
-		data[6] = (rect->height << 16) | rect->width;
-		data[7] = dwords;
-
-		buf->used = (dwords + 8) * sizeof(u32);
-
-		r128_cce_dispatch_indirect( dev, buf, 0, buf->used );
+	if ( buf->pid != current->pid ) {
+		DRM_ERROR( "process %d using buffer owned by %d\n",
+			   current->pid, buf->pid );
+		return -EINVAL;
 	}
+	if ( buf->pending ) {
+		DRM_ERROR( "sending pending buffer %d\n", blit->idx );
+		return -EINVAL;
+	}
+
+	buf_priv->discard = 1;
+
+	dwords = (blit->width * blit->height) >> dword_shift;
+
+	data = (u32 *)((char *)dev_priv->buffers->handle + buf->offset);
+
+	data[0] = CCE_PACKET3( R128_CNTL_HOSTDATA_BLT, dwords + 6 );
+	data[1] = ( R128_GMC_DST_PITCH_OFFSET_CNTL
+		    | R128_GMC_BRUSH_NONE
+		    | (blit->format << 8)
+		    | R128_GMC_SRC_DATATYPE_COLOR
+		    | R128_ROP3_S
+		    | R128_DP_SRC_SOURCE_HOST_DATA
+		    | R128_GMC_CLR_CMP_CNTL_DIS
+		    | R128_GMC_AUX_CLIP_DIS
+		    | R128_GMC_WR_MSK_DIS );
+
+	data[2] = (blit->pitch << 21) | (blit->offset >> 5);
+	data[3] = 0xffffffff;
+	data[4] = 0xffffffff;
+	data[5] = (blit->y << 16) | blit->x;
+	data[6] = (blit->height << 16) | blit->width;
+	data[7] = dwords;
+
+	buf->used = (dwords + 8) * sizeof(u32);
+
+	r128_cce_dispatch_indirect( dev, buf, 0, buf->used );
 
 	/* Flush the pixel cache after the blit completes.  This ensures
 	 * the texture data is written out to memory before rendering
@@ -1265,19 +1255,14 @@ int r128_cce_blit( struct inode *inode, struct file *filp,
 			     sizeof(blit) ) )
 		return -EFAULT;
 
-	DRM_DEBUG( "%s: pid=%d count=%d\n",
-		   __FUNCTION__, current->pid, blit.count );
+	DRM_DEBUG( "%s: pid=%d index=%d\n",
+		   __FUNCTION__, current->pid, blit.idx );
 
-	if ( blit.count < 0 || blit.count > dma->buf_count ) {
-		DRM_ERROR( "sending %d buffers (of %d max)\n",
-			   blit.count, dma->buf_count );
+	if ( blit.idx < 0 || blit.idx >= dma->buf_count ) {
+		DRM_ERROR( "buffer index %d (of %d max)\n",
+			   blit.idx, dma->buf_count - 1 );
 		return -EINVAL;
 	}
 
-	if ( copy_from_user( &rects, blit.rects,
-			     blit.count * sizeof(drm_r128_blit_rect_t) ) )
-		return -EFAULT;
-
-	return r128_cce_dispatch_blit( dev, blit.offset, blit.pitch,
-				       blit.format, rects, blit.count );
+	return r128_cce_dispatch_blit( dev, &blit );
 }

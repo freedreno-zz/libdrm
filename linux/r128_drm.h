@@ -240,19 +240,13 @@ typedef struct drm_r128_indices {
 	int discard;			/* Client finished with buffer? */
 } drm_r128_indices_t;
 
-typedef struct drm_r128_blit_rect {
-	int index;
-	unsigned short x, y;
-	unsigned short width, height;
-	int padding;
-} drm_r128_blit_rect_t;
-
 typedef struct drm_r128_blit {
+	int idx;
 	int pitch;
 	int offset;
 	int format;
-	drm_r128_blit_rect_t *rects;
-	int count;
+	unsigned short x, y;
+	unsigned short width, height;
 } drm_r128_blit_t;
 
 typedef struct drm_r128_packet {
