@@ -71,7 +71,7 @@ typedef struct drm_clip_rect {
            unsigned short y2;
 } drm_clip_rect_t;
 
-/* Seperate include files for the i810/mga specific structures */
+/* Seperate include files for the i810/mga/r128 specific structures */
 #include "mga_drm.h"
 #include "i810_drm.h"
 #include "r128_drm.h"

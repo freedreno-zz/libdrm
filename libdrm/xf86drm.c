@@ -218,6 +218,20 @@ static int drmOpenByName(const char *name)
     group = xf86ConfigDRI.group ? xf86ConfigDRI.group : DRM_DEV_GID;
 #endif
 
+#if defined(XFree86Server)
+    if (!drmAvailable()) {
+        /* try to load the kernel module now */
+        if (!xf86LoadKernelModule(name)) {
+            ErrorF("[drm] failed to load kernel module \"%s\"\n",
+		   name);
+            return -1;
+        }
+    }
+#else
+    if (!drmAvailable())
+       return -1;
+#endif
+
     if (!geteuid()) {
 	dirmode = mode;
 	if (dirmode & S_IRUSR) dirmode |= S_IXUSR;
@@ -773,13 +787,13 @@ int drmAgpAlloc(int fd, unsigned long size, unsigned long type,
 		unsigned long *address, unsigned long *handle)
 {
     drm_agp_buffer_t b;
-    *handle  = 0;
+    *handle = 0;
     b.size   = size;
     b.handle = 0;
     b.type   = type;
     if (ioctl(fd, DRM_IOCTL_AGP_ALLOC, &b)) return -errno;
     if (address != 0UL) *address = b.physical;
-    *handle  = b.handle;
+    *handle = b.handle;
     return 0;
 }
 
