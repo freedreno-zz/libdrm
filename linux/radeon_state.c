@@ -23,8 +23,8 @@
  * DEALINGS IN THE SOFTWARE.
  *
  * Authors:
- *    Kevin E. Martin <martin@valinux.com>
  *    Gareth Hughes <gareth@valinux.com>
+ *    Kevin E. Martin <martin@valinux.com>
  *
  */
 
@@ -32,11 +32,10 @@
 #include "drmP.h"
 #include "radeon_drv.h"
 #include "drm.h"
+#include <linux/delay.h>
 
 /* This must be defined to 1 for now */
-#define USE_OLD_BLITS	1
-
-static drm_radeon_blit_rect_t rects[RADEON_MAX_BLIT_BUFFERS];
+#define USE_OLD_BLITS	0
 
 
 /* ================================================================
@@ -47,42 +46,39 @@ static void radeon_emit_clip_rects( drm_radeon_private_t *dev_priv,
 				    drm_clip_rect_t *boxes, int count )
 {
 #if 0
-	unsigned int aux_sc_cntl = 0x00000000;
+	u32 aux_scissor_cntl = 0x00000000;
 	RING_LOCALS;
-	DRM_DEBUG( "    %s\n", __FUNCTION__ );
+	DRM_INFO( "    %s: count=%d\n", __FUNCTION__, count );
 
 	BEGIN_RING( 17 );
 
 	if ( count >= 1 ) {
-		OUT_RING( CP_PACKET0( RADEON_AUX1_SC_LEFT, 3 ) );
-		OUT_RING( boxes[0].x1 );
-		OUT_RING( boxes[0].x2 - 1 );
-		OUT_RING( boxes[0].y1 );
-		OUT_RING( boxes[0].y2 - 1 );
+		OUT_RING( CP_PACKET0( RADEON_SCISSOR_TL_0, 3 ) );
+		OUT_RING( (boxes[0].y1 << 16) | boxes[0].x1 );
+		OUT_RING( ((boxes[0].y2 - 1) << 16) | (boxes[0].x2 - 1) );
 
-		aux_sc_cntl |= (RADEON_AUX1_SC_EN | RADEON_AUX1_SC_MODE_OR);
+		aux_scissor_cntl |= (RADEON_SCISSOR_0_ENABLE |
+				     0 /* RADEON_AUX1_SC_MODE_OR */);
 	}
 	if ( count >= 2 ) {
-		OUT_RING( CP_PACKET0( RADEON_AUX2_SC_LEFT, 3 ) );
-		OUT_RING( boxes[1].x1 );
-		OUT_RING( boxes[1].x2 - 1 );
-		OUT_RING( boxes[1].y1 );
-		OUT_RING( boxes[1].y2 - 1 );
+		OUT_RING( CP_PACKET0( RADEON_SCISSOR_TL_1, 3 ) );
+		OUT_RING( (boxes[1].y1 << 16) | boxes[1].x1 );
+		OUT_RING( ((boxes[1].y2 - 1) << 16) | (boxes[1].x2 - 1) );
 
-		aux_sc_cntl |= (RADEON_AUX2_SC_EN | RADEON_AUX2_SC_MODE_OR);
+		aux_scissor_cntl |= (RADEON_SCISSOR_1_ENABLE |
+				     0 /* RADEON_AUX2_SC_MODE_OR */);
 	}
 	if ( count >= 3 ) {
-		OUT_RING( CP_PACKET0( RADEON_AUX3_SC_LEFT, 3 ) );
-		OUT_RING( boxes[2].x1 );
-		OUT_RING( boxes[2].x2 - 1 );
-		OUT_RING( boxes[2].y1 );
-		OUT_RING( boxes[2].y2 - 1 );
+		OUT_RING( CP_PACKET0( RADEON_SCISSOR_TL_2, 3 ) );
+		OUT_RING( (boxes[2].y1 << 16) | boxes[2].x1 );
+		OUT_RING( ((boxes[2].y2 - 1) << 16) | (boxes[2].x2 - 1) );
 
-		aux_sc_cntl |= (RADEON_AUX3_SC_EN | RADEON_AUX3_SC_MODE_OR);
+		aux_scissor_cntl |= (RADEON_SCISSOR_2_ENABLE |
+				     0 /* RADEON_AUX3_SC_MODE_OR */);
 	}
 
-	OUT_RING( CP_PACKET0( RADEON_AUX_SC_CNTL, 0 ) );
-	OUT_RING( aux_sc_cntl );
+	OUT_RING( CP_PACKET0( RADEON_AUX_SCISSOR_CNTL, 0 ) );
+	OUT_RING( aux_scissor_cntl );
 
 	ADVANCE_RING();
 #endif
@@ -215,11 +211,11 @@ static inline void radeon_emit_setup( drm_radeon_private_t *dev_priv )
 	DRM_DEBUG( "    %s\n", __FUNCTION__ );
 
 	/* Note this duplicates the uploading of se_cntl, which is part
-           of the context, but adding it here optimizes the reduced
-           primitive change since we currently render points and lines
-           with triangles.  In the future, we probably won't need this
-           optimization. */
-
+	 * of the context, but adding it here optimizes the reduced
+	 * primitive change since we currently render points and lines
+	 * with triangles.  In the future, we probably won't need this
+	 * optimization.
+	 */
 #if 0
 	/* Why doesn't CP_PACKET1 work? */
 	BEGIN_RING( 3 );
@@ -274,8 +270,9 @@ static inline void radeon_emit_tcl( drm_radeon_private_t *dev_priv )
 	OUT_RING( ctx->se_tcl_ucp_vert_blend_ctl );
 	OUT_RING( ctx->se_tcl_texture_proc_ctl );
 	OUT_RING( ctx->se_tcl_light_model_ctl );
-	for (i = 0; i < 4; i++)
+	for ( i = 0 ; i < 4 ; i++ ) {
 		OUT_RING( ctx->se_tcl_per_light_ctl[i] );
+	}
 
 	ADVANCE_RING();
 }
@@ -300,9 +297,10 @@ static inline void radeon_emit_misc( drm_radeon_private_t *dev_priv )
 static inline void radeon_emit_tex0( drm_radeon_private_t *dev_priv )
 {
 	drm_radeon_sarea_t *sarea_priv = dev_priv->sarea_priv;
+	drm_radeon_context_regs_t *ctx = &sarea_priv->context_state;
 	drm_radeon_texture_regs_t *tex = &sarea_priv->tex_state[0];
 	RING_LOCALS;
-	DRM_DEBUG( "    %s\n", __FUNCTION__ );
+	DRM_DEBUG( "    %s: offset=0x%x\n", __FUNCTION__, tex->pp_txoffset );
 
 	BEGIN_RING( 9 );
 
@@ -312,7 +310,7 @@ static inline void radeon_emit_tex0( drm_radeon_private_t *dev_priv )
 	OUT_RING( tex->pp_txoffset );
 	OUT_RING( tex->pp_txcblend );
 	OUT_RING( tex->pp_txablend );
-	OUT_RING( tex->pp_tfactor );
+	OUT_RING( ctx->pp_tfactor );
 
 	OUT_RING( CP_PACKET0( RADEON_PP_BORDER_COLOR_0, 0 ) );
 	OUT_RING( tex->pp_border_color );
@@ -323,9 +321,10 @@ static inline void radeon_emit_tex0( drm_radeon_private_t *dev_priv )
 static inline void radeon_emit_tex1( drm_radeon_private_t *dev_priv )
 {
 	drm_radeon_sarea_t *sarea_priv = dev_priv->sarea_priv;
+	drm_radeon_context_regs_t *ctx = &sarea_priv->context_state;
 	drm_radeon_texture_regs_t *tex = &sarea_priv->tex_state[1];
 	RING_LOCALS;
-	DRM_DEBUG( "    %s\n", __FUNCTION__ );
+	DRM_DEBUG( "    %s: offset=0x%x\n", __FUNCTION__, tex->pp_txoffset );
 
 	BEGIN_RING( 9 );
 
@@ -335,7 +334,7 @@ static inline void radeon_emit_tex1( drm_radeon_private_t *dev_priv )
 	OUT_RING( tex->pp_txoffset );
 	OUT_RING( tex->pp_txcblend );
 	OUT_RING( tex->pp_txablend );
-	OUT_RING( tex->pp_tfactor );
+	OUT_RING( ctx->pp_tfactor );
 
 	OUT_RING( CP_PACKET0( RADEON_PP_BORDER_COLOR_1, 0 ) );
 	OUT_RING( tex->pp_border_color );
@@ -346,6 +345,7 @@ static inline void radeon_emit_tex1( drm_radeon_private_t *dev_priv )
 static inline void radeon_emit_tex2( drm_radeon_private_t *dev_priv )
 {
 	drm_radeon_sarea_t *sarea_priv = dev_priv->sarea_priv;
+	drm_radeon_context_regs_t *ctx = &sarea_priv->context_state;
 	drm_radeon_texture_regs_t *tex = &sarea_priv->tex_state[2];
 	RING_LOCALS;
 	DRM_DEBUG( "    %s\n", __FUNCTION__ );
@@ -358,7 +358,7 @@ static inline void radeon_emit_tex2( drm_radeon_private_t *dev_priv )
 	OUT_RING( tex->pp_txoffset );
 	OUT_RING( tex->pp_txcblend );
 	OUT_RING( tex->pp_txablend );
-	OUT_RING( tex->pp_tfactor );
+	OUT_RING( ctx->pp_tfactor );
 
 	OUT_RING( CP_PACKET0( RADEON_PP_BORDER_COLOR_2, 0 ) );
 	OUT_RING( tex->pp_border_color );
@@ -431,8 +431,10 @@ static inline void radeon_emit_state( drm_radeon_private_t *dev_priv )
 	}
 
 	if ( dirty & RADEON_UPLOAD_TEX2 ) {
-		radeon_emit_tex1( dev_priv );
-		sarea_priv->dirty &= ~RADEON_UPLOAD_TEX1;
+#if 0
+		radeon_emit_tex2( dev_priv );
+#endif
+		sarea_priv->dirty &= ~RADEON_UPLOAD_TEX2;
 	}
 
 #if 0
@@ -480,12 +482,12 @@ static void radeon_clear_box( drm_radeon_private_t *dev_priv,
 	BEGIN_RING( 6 );
 
 	OUT_RING( CP_PACKET3( RADEON_CNTL_PAINT_MULTI, 4 ) );
-	OUT_RING( RADEON_GMC_DST_PITCH_OFFSET_CNTL
-		  | RADEON_GMC_BRUSH_SOLID_COLOR
-		  | fb_bpp
-		  | RADEON_GMC_SRC_DATATYPE_COLOR
-		  | RADEON_ROP3_P
-		  | RADEON_GMC_CLR_CMP_CNTL_DIS );
+	OUT_RING( RADEON_GMC_DST_PITCH_OFFSET_CNTL |
+		  RADEON_GMC_BRUSH_SOLID_COLOR |
+		  fb_bpp |
+		  RADEON_GMC_SRC_DATATYPE_COLOR |
+		  RADEON_ROP3_P |
+		  RADEON_GMC_CLR_CMP_CNTL_DIS );
 
 	OUT_RING( (pitch << 22) | (offset >> 5) );
 	OUT_RING( color );
@@ -537,9 +539,7 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 				      unsigned int flags,
 				      int cx, int cy, int cw, int ch,
 				      unsigned int clear_color,
-				      unsigned int clear_depth,
-				      unsigned int color_mask,
-				      unsigned int depth_mask )
+				      unsigned int clear_depth )
 {
 	drm_radeon_private_t *dev_priv = dev->dev_private;
 	drm_radeon_sarea_t *sarea_priv = dev_priv->sarea_priv;
@@ -572,6 +572,21 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 		return;
 	}
 
+	if ( dev_priv->page_flipping && dev_priv->current_page == 1) {
+		unsigned int tmp = flags;
+
+		flags &= ~(RADEON_FRONT | RADEON_BACK);
+		if ( tmp & RADEON_FRONT )
+			flags |= RADEON_BACK;
+		if ( tmp & RADEON_BACK )
+			flags |= RADEON_FRONT;
+	}
+
+	RADEON_WAIT_UNTIL_IDLE();
+#if 0
+	RADEON_FLUSH_CACHE();
+#endif
+
 	for ( i = 0 ; i < nbox ; i++ ) {
 		int x = pbox[i].x1;
 		int y = pbox[i].y1;
@@ -586,55 +601,72 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 			BEGIN_RING( 2 );
 
 			OUT_RING( CP_PACKET0( RADEON_DP_WRITE_MASK, 0 ) );
-			OUT_RING( color_mask );
+			OUT_RING( sarea_priv->context_state.rb3d_planemask );
 
 			ADVANCE_RING();
 		}
 
-#if USE_OLD_BLITS
 		if ( flags & RADEON_FRONT ) {
-			int fx = x + dev_priv->front_x;
-			int fy = y + dev_priv->front_y;
+			BEGIN_RING( 6 );
 
-			DRM_DEBUG( "clear front: x=%d y=%d\n",
-				   dev_priv->front_x, dev_priv->front_y );
-			BEGIN_RING( 5 );
+			OUT_RING( CP_PACKET3( RADEON_CNTL_PAINT_MULTI, 4 ) );
+			OUT_RING( RADEON_GMC_DST_PITCH_OFFSET_CNTL |
+				  RADEON_GMC_BRUSH_SOLID_COLOR |
+				  fb_bpp |
+				  RADEON_GMC_SRC_DATATYPE_COLOR |
+				  RADEON_ROP3_P |
+				  RADEON_GMC_CLR_CMP_CNTL_DIS );
 
-			OUT_RING( CP_PACKET3( RADEON_CNTL_PAINT_MULTI, 3 ) );
-			OUT_RING( RADEON_GMC_BRUSH_SOLID_COLOR
-				  | fb_bpp
-				  | RADEON_GMC_SRC_DATATYPE_COLOR
-				  | RADEON_ROP3_P
-				  | RADEON_GMC_CLR_CMP_CNTL_DIS );
+			OUT_RING( dev_priv->front_pitch_offset );
 			OUT_RING( clear_color );
-			OUT_RING( (fx << 16) | fy );
+
+			OUT_RING( (x << 16) | y );
 			OUT_RING( (w << 16) | h );
 
 			ADVANCE_RING();
 		}
 
 		if ( flags & RADEON_BACK ) {
-			int bx = x + dev_priv->back_x;
-			int by = y + dev_priv->back_y;
+			BEGIN_RING( 6 );
 
-			DRM_DEBUG( "clear back: x=%d y=%d\n",
-				   dev_priv->back_x, dev_priv->back_y );
-			BEGIN_RING( 5 );
+			OUT_RING( CP_PACKET3( RADEON_CNTL_PAINT_MULTI, 4 ) );
+			OUT_RING( RADEON_GMC_DST_PITCH_OFFSET_CNTL |
+				  RADEON_GMC_BRUSH_SOLID_COLOR |
+				  fb_bpp |
+				  RADEON_GMC_SRC_DATATYPE_COLOR |
+				  RADEON_ROP3_P |
+				  RADEON_GMC_CLR_CMP_CNTL_DIS );
 
-			OUT_RING( CP_PACKET3( RADEON_CNTL_PAINT_MULTI, 3 ) );
-			OUT_RING( RADEON_GMC_BRUSH_SOLID_COLOR
-				  | fb_bpp
-				  | RADEON_GMC_SRC_DATATYPE_COLOR
-				  | RADEON_ROP3_P
-				  | RADEON_GMC_CLR_CMP_CNTL_DIS );
+			OUT_RING( dev_priv->back_pitch_offset );
 			OUT_RING( clear_color );
-			OUT_RING( (bx << 16) | by );
+
+			OUT_RING( (x << 16) | y );
 			OUT_RING( (w << 16) | h );
 
 			ADVANCE_RING();
 		}
 
 		if ( flags & RADEON_DEPTH ) {
+#if 0
+			BEGIN_RING( 6 );
+
+			OUT_RING( CP_PACKET3( RADEON_CNTL_PAINT_MULTI, 4 ) );
+			OUT_RING( RADEON_GMC_DST_PITCH_OFFSET_CNTL |
+				  RADEON_GMC_BRUSH_SOLID_COLOR |
+				  depth_bpp |
+				  RADEON_GMC_SRC_DATATYPE_COLOR |
+				  RADEON_ROP3_P |
+				  RADEON_GMC_CLR_CMP_CNTL_DIS |
+				  RADEON_GMC_WR_MSK_DIS );
+
+			OUT_RING( dev_priv->depth_pitch_offset );
+			OUT_RING( clear_depth );
+
+			OUT_RING( (x << 16) | y );
+			OUT_RING( (w << 16) | h );
+
+			ADVANCE_RING();
+#else
 			int dx = x;
 			int dy = y;
 			drm_radeon_context_regs_t *ctx =
@@ -643,22 +675,19 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 			u32 rb3d_zstencilcntl = ctx->rb3d_zstencilcntl;
 			u32 se_cntl = ctx->se_cntl;
 
-			DRM_DEBUG( "clear depth: x=%d y=%d\n",
-				   dev_priv->depth_x, dev_priv->depth_y );
-
-			rb3d_cntl |= ( RADEON_PLANE_MASK_ENABLE
-				       | RADEON_Z_ENABLE );
+			rb3d_cntl |= ( RADEON_PLANE_MASK_ENABLE |
+				       RADEON_Z_ENABLE );
 
 			rb3d_zstencilcntl &= ~RADEON_Z_TEST_MASK;
-			rb3d_zstencilcntl |= ( RADEON_Z_TEST_ALWAYS
-					       | RADEON_Z_WRITE_ENABLE );
+			rb3d_zstencilcntl |= ( RADEON_Z_TEST_ALWAYS |
+					       RADEON_Z_WRITE_ENABLE );
 
-			se_cntl &= ~( RADEON_VPORT_XY_XFORM_ENABLE
-				      | RADEON_VPORT_Z_XFORM_ENABLE
-				      | RADEON_FFACE_CULL_MASK
-				      | RADEON_BFACE_CULL_MASK );
-			se_cntl |= ( RADEON_FFACE_SOLID
-				     | RADEON_BFACE_SOLID );
+			se_cntl &= ~( RADEON_VPORT_XY_XFORM_ENABLE |
+				      RADEON_VPORT_Z_XFORM_ENABLE |
+				      RADEON_FFACE_CULL_MASK |
+				      RADEON_BFACE_CULL_MASK );
+			se_cntl |= ( RADEON_FFACE_SOLID |
+				     RADEON_BFACE_SOLID );
 
 			BEGIN_RING( 28 );
 
@@ -676,18 +705,31 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 
 			/* Draw rectangle */
 			OUT_RING( CP_PACKET3( RADEON_3D_DRAW_IMMD, 10 ) );
-			OUT_RING( RADEON_CP_VC_FRMT_XY
-				  | RADEON_CP_VC_FRMT_Z);
-			OUT_RING( RADEON_CP_VC_CNTL_VTX_FMT_RADEON_MODE
-				  | RADEON_CP_VC_CNTL_MAOS_ENABLE
-				  | RADEON_CP_VC_CNTL_PRIM_WALK_RING
-				  | RADEON_CP_VC_CNTL_PRIM_TYPE_RECT_LIST
-				  | ( 3 << RADEON_CP_VC_CNTL_NUM_SHIFT ) );
+			OUT_RING( RADEON_CP_VC_FRMT_XY |
+				  RADEON_CP_VC_FRMT_Z );
+			OUT_RING( RADEON_CP_VC_CNTL_VTX_FMT_RADEON_MODE |
+				  RADEON_CP_VC_CNTL_MAOS_ENABLE |
+				  RADEON_CP_VC_CNTL_PRIM_WALK_RING |
+				  RADEON_CP_VC_CNTL_PRIM_TYPE_RECT_LIST |
+				  ( 3 << RADEON_CP_VC_CNTL_NUM_SHIFT ) );
 			{
 				union {
 					float f;
 					u32 u;
 				} val;
+
+
+
+	/*
+	 * *************************************************************
+	 *
+	 * FIXME: GET RID OF THIS!!!  WE MUST NOT USE THE FPU IN THE
+	 * KERNEL, EVER!!!
+	 *
+	 * *************************************************************
+	 */
+
+
 
 				val.f = dx;          OUT_RING( val.u );
 				val.f = dy;          OUT_RING( val.u );
@@ -715,75 +757,11 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 			OUT_RING( ctx->se_cntl );
 
 			ADVANCE_RING();
-		}
-#else
-		if ( flags & RADEON_FRONT ) {
-			BEGIN_RING( 6 );
-
-			OUT_RING( CP_PACKET3( RADEON_CNTL_PAINT_MULTI, 4 ) );
-			OUT_RING( RADEON_GMC_DST_PITCH_OFFSET_CNTL
-				  | RADEON_GMC_BRUSH_SOLID_COLOR
-				  | fb_bpp
-				  | RADEON_GMC_SRC_DATATYPE_COLOR
-				  | RADEON_ROP3_P
-				  | RADEON_GMC_CLR_CMP_CNTL_DIS );
-
-			OUT_RING( ((dev_priv->front_pitch/8) << 21) |
-				  (dev_priv->front_offset >> 5) );
-			OUT_RING( clear_color );
-
-			OUT_RING( (x << 16) | y );
-			OUT_RING( (w << 16) | h );
-
-			ADVANCE_RING();
-		}
-
-		if ( flags & RADEON_BACK ) {
-			BEGIN_RING( 6 );
-
-			OUT_RING( CP_PACKET3( RADEON_CNTL_PAINT_MULTI, 4 ) );
-			OUT_RING( RADEON_GMC_DST_PITCH_OFFSET_CNTL
-				  | RADEON_GMC_BRUSH_SOLID_COLOR
-				  | fb_bpp
-				  | RADEON_GMC_SRC_DATATYPE_COLOR
-				  | RADEON_ROP3_P
-				  | RADEON_GMC_CLR_CMP_CNTL_DIS );
-
-			OUT_RING( ((dev_priv->back_pitch/8) << 21) |
-				  (dev_priv->back_offset >> 5) );
-			OUT_RING( clear_color );
-
-			OUT_RING( (x << 16) | y );
-			OUT_RING( (w << 16) | h );
-
-			ADVANCE_RING();
-		}
-
-		if ( flags & RADEON_DEPTH ) {
-			BEGIN_RING( 8 );
-
-			OUT_RING( CP_PACKET0( RADEON_DP_WRITE_MASK, 0 ) );
-			OUT_RING( depth_mask );
-
-			OUT_RING( CP_PACKET3( RADEON_CNTL_PAINT_MULTI, 4 ) );
-			OUT_RING( RADEON_GMC_DST_PITCH_OFFSET_CNTL
-				  | RADEON_GMC_BRUSH_SOLID_COLOR
-				  | depth_bpp
-				  | RADEON_GMC_SRC_DATATYPE_COLOR
-				  | RADEON_ROP3_P
-				  | RADEON_GMC_CLR_CMP_CNTL_DIS );
-
-			OUT_RING( ((dev_priv->depth_pitch/8) << 21) |
-				  (dev_priv->depth_offset >> 5) );
-			OUT_RING( clear_depth );
-
-			OUT_RING( (x << 16) | y );
-			OUT_RING( (w << 16) | h );
-
-			ADVANCE_RING();
-		}
 #endif
+		}
 	}
+
+	RADEON_WAIT_UNTIL_IDLE();
 }
 
 static void radeon_cp_dispatch_swap( drm_device_t *dev )
@@ -818,60 +796,92 @@ static void radeon_cp_dispatch_swap( drm_device_t *dev )
 		break;
 	}
 
+	RADEON_WAIT_UNTIL_IDLE();
+
 	for ( i = 0 ; i < nbox ; i++ ) {
-		int fx = pbox[i].x1;
-		int fy = pbox[i].y1;
-		int fw = pbox[i].x2 - fx;
-		int fh = pbox[i].y2 - fy;
-#if USE_OLD_BLITS
-		int bx = fx + dev_priv->back_x;
-		int by = fy + dev_priv->back_y;
+		int x = pbox[i].x1;
+		int y = pbox[i].y1;
+		int w = pbox[i].x2 - x;
+		int h = pbox[i].y2 - y;
 
-		fx += dev_priv->front_x;
-		fy += dev_priv->front_x;
-
-		BEGIN_RING( 5 );
-
-		OUT_RING( CP_PACKET3( RADEON_CNTL_BITBLT_MULTI, 3 ) );
-		OUT_RING( RADEON_GMC_BRUSH_NONE
-			  | RADEON_GMC_SRC_DATATYPE_COLOR
-			  | RADEON_DP_SRC_SOURCE_MEMORY
-			  | fb_bpp
-			  | RADEON_ROP3_S
-			  | RADEON_GMC_CLR_CMP_CNTL_DIS
-			  | RADEON_GMC_WR_MSK_DIS );
-
-		OUT_RING( (bx << 16) | by );
-		OUT_RING( (fx << 16) | fy );
-		OUT_RING( (fw << 16) | fh );
-
-		ADVANCE_RING();
-#else
 		BEGIN_RING( 7 );
 
 		OUT_RING( CP_PACKET3( RADEON_CNTL_BITBLT_MULTI, 5 ) );
-		OUT_RING( RADEON_GMC_SRC_PITCH_OFFSET_CNTL
-			  | RADEON_GMC_DST_PITCH_OFFSET_CNTL
-			  | RADEON_GMC_BRUSH_NONE
-			  | RADEON_GMC_SRC_DATATYPE_COLOR
-			  | RADEON_DP_SRC_SOURCE_MEMORY
-			  | fb_bpp
-			  | RADEON_ROP3_S
-			  | RADEON_GMC_CLR_CMP_CNTL_DIS
-			  | RADEON_GMC_WR_MSK_DIS );
+		OUT_RING( RADEON_GMC_SRC_PITCH_OFFSET_CNTL |
+			  RADEON_GMC_DST_PITCH_OFFSET_CNTL |
+			  RADEON_GMC_BRUSH_NONE |
+			  fb_bpp |
+			  RADEON_GMC_SRC_DATATYPE_COLOR |
+			  RADEON_ROP3_S |
+			  RADEON_DP_SRC_SOURCE_MEMORY |
+			  RADEON_GMC_CLR_CMP_CNTL_DIS |
+			  RADEON_GMC_WR_MSK_DIS );
 
-		OUT_RING( ((dev_priv->back_pitch/8) << 21) |
-			  (dev_priv->back_offset >> 5) );
-		OUT_RING( ((dev_priv->front_pitch/8) << 21) |
-			  (dev_priv->front_offset >> 5) );
+#if 0
+		OUT_RING( dev_priv->back_pitch_offset );
+		OUT_RING( dev_priv->front_pitch_offset );
 
-		OUT_RING( (fx << 16) | fy );
-		OUT_RING( (fx << 16) | fy );
-		OUT_RING( (fw << 16) | fh );
+		OUT_RING( (x << 16) | y );
+		OUT_RING( (x << 16) | y );
+		OUT_RING( (w << 16) | h );
+#else
+		OUT_RING( dev_priv->depth_pitch_offset );
+		OUT_RING( dev_priv->front_pitch_offset );
+
+		OUT_RING( (0 << 16) | 0 );
+		OUT_RING( (0 << 16) | 0 );
+		OUT_RING( (832 << 16) | 600 );
+#endif
 
 		ADVANCE_RING();
-#endif
 	}
+
+	/* Increment the frame counter.  The client-side 3D driver must
+	 * throttle the framerate by waiting for this value before
+	 * performing the swapbuffer ioctl.
+	 */
+	dev_priv->sarea_priv->last_frame++;
+
+	BEGIN_RING( 2 );
+
+	OUT_RING( CP_PACKET0( RADEON_LAST_FRAME_REG, 0 ) );
+	OUT_RING( dev_priv->sarea_priv->last_frame );
+
+	ADVANCE_RING();
+
+	RADEON_WAIT_UNTIL_IDLE();
+}
+
+static void radeon_cp_dispatch_flip( drm_device_t *dev )
+{
+	drm_radeon_private_t *dev_priv = dev->dev_private;
+	RING_LOCALS;
+	DRM_DEBUG( "%s: page=%d\n", __FUNCTION__, dev_priv->current_page );
+
+	radeon_update_ring_snapshot( dev_priv );
+
+#if RADEON_PERFORMANCE_BOXES
+	/* Do some trivial performance monitoring...
+	 */
+	radeon_cp_performance_boxes( dev_priv );
+#endif
+
+	RADEON_WAIT_UNTIL_IDLE();
+	RADEON_WAIT_UNTIL_PAGE_FLIPPED();
+
+	BEGIN_RING( 2 );
+
+	OUT_RING( CP_PACKET0( RADEON_CRTC_OFFSET, 0 ) );
+
+	if ( dev_priv->current_page == 0 ) {
+		OUT_RING( dev_priv->back_offset );
+		dev_priv->current_page = 1;
+	} else {
+		OUT_RING( dev_priv->front_offset );
+		dev_priv->current_page = 0;
+	}
+
+	ADVANCE_RING();
 
 	/* Increment the frame counter.  The client-side 3D driver must
 	 * throttle the framerate by waiting for this value before
@@ -893,21 +903,13 @@ static void radeon_cp_dispatch_vertex( drm_device_t *dev,
 	drm_radeon_private_t *dev_priv = dev->dev_private;
 	drm_radeon_buf_priv_t *buf_priv = buf->dev_private;
 	drm_radeon_sarea_t *sarea_priv = dev_priv->sarea_priv;
-	int vertsize = sarea_priv->vertsize;
 	int format = sarea_priv->vc_format;
-	int index = buf->idx;
-	int offset = dev_priv->buffers->offset + buf->offset - dev->agp->base;
+	int offset = dev_priv->agp_buffers_offset + buf->offset;
 	int size = buf->used;
 	int prim = buf_priv->prim;
 	int i = 0;
 	RING_LOCALS;
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
-
-	DRM_DEBUG( "vertex buffer index = %d\n", index );
-	DRM_DEBUG( "vertex buffer offset = 0x%x\n", offset );
-	DRM_DEBUG( "vertex buffer size = %d vertices\n", size );
-	DRM_DEBUG( "vertex size = %d\n", vertsize );
-	DRM_DEBUG( "vertex format = 0x%x\n", format );
 
 	radeon_update_ring_snapshot( dev_priv );
 
@@ -925,19 +927,20 @@ static void radeon_cp_dispatch_vertex( drm_device_t *dev,
 			/* Emit the next set of up to three cliprects */
 			if ( i < sarea_priv->nbox ) {
 				radeon_emit_clip_rects( dev_priv,
-						      &sarea_priv->boxes[i],
-						      sarea_priv->nbox - i );
+							&sarea_priv->boxes[i],
+							sarea_priv->nbox - i );
 			}
 
 			/* Emit the vertex buffer rendering commands */
 			BEGIN_RING( 5 );
 
-			OUT_RING( CP_PACKET3( RADEON_3D_RNDR_GEN_INDX_PRIM,
-					      3 ) );
-			OUT_RING( offset + dev_priv->agp_vm_start );
+			OUT_RING( CP_PACKET3( RADEON_3D_RNDR_GEN_INDX_PRIM, 3 ) );
+			OUT_RING( offset );
 			OUT_RING( size );
 			OUT_RING( format );
 			OUT_RING( prim | RADEON_CP_VC_CNTL_PRIM_WALK_LIST |
+				  RADEON_CP_VC_CNTL_COLOR_ORDER_RGBA |
+				  RADEON_CP_VC_CNTL_VTX_FMT_RADEON_MODE |
 				  (size << RADEON_CP_VC_CNTL_NUM_SHIFT) );
 
 			ADVANCE_RING();
@@ -958,7 +961,7 @@ static void radeon_cp_dispatch_vertex( drm_device_t *dev,
 		ADVANCE_RING();
 
 		buf->pending = 1;
-
+		buf->used = 0;
 		/* FIXME: Check dispatched field */
 		buf_priv->dispatched = 0;
 	}
@@ -979,8 +982,6 @@ static void radeon_cp_dispatch_vertex( drm_device_t *dev,
 }
 
 
-
-
 static void radeon_cp_dispatch_indirect( drm_device_t *dev,
 					 drm_buf_t *buf,
 					 int start, int end )
@@ -994,7 +995,7 @@ static void radeon_cp_dispatch_indirect( drm_device_t *dev,
 	radeon_update_ring_snapshot( dev_priv );
 
 	if ( start != end ) {
-		int offset = (dev_priv->buffers->offset - dev->agp->base
+		int offset = (dev_priv->agp_buffers_offset
 			      + buf->offset + start);
 		int dwords = (end - start + 3) / sizeof(u32);
 
@@ -1007,21 +1008,6 @@ static void radeon_cp_dispatch_indirect( drm_device_t *dev,
 				((char *)dev_priv->buffers->handle
 				 + buf->offset + start);
 			data[dwords++] = RADEON_CP_PACKET2;
-		}
-
-		DRM_DEBUG( "indirect: offset=0x%x dwords=%d\n",
-			   offset, dwords );
-
-		if ( 0 ) {
-			u32 *data = (u32 *)
-				((char *)dev_priv->buffers->handle
-				 + buf->offset + start);
-			int i;
-			DRM_INFO( "data = %p\n", data );
-			for ( i = 0 ; i < dwords ; i++ ) {
-				DRM_INFO( "data[0x%x] = 0x%08x\n",
-					  i, data[i] );
-			}
 		}
 
 		buf_priv->dispatched = 1;
@@ -1048,6 +1034,7 @@ static void radeon_cp_dispatch_indirect( drm_device_t *dev,
 		ADVANCE_RING();
 
 		buf->pending = 1;
+		buf->used = 0;
 		/* FIXME: Check dispatched field */
 		buf_priv->dispatched = 0;
 	}
@@ -1066,21 +1053,20 @@ static void radeon_cp_dispatch_indirect( drm_device_t *dev,
 
 static void radeon_cp_dispatch_indices( drm_device_t *dev,
 					drm_buf_t *buf,
-					int start, int end )
+					int start, int end,
+					int count )
 {
 	drm_radeon_private_t *dev_priv = dev->dev_private;
 	drm_radeon_buf_priv_t *buf_priv = buf->dev_private;
 	drm_radeon_sarea_t *sarea_priv = dev_priv->sarea_priv;
 	int format = sarea_priv->vc_format;
-	int offset = dev_priv->buffers->offset - dev->agp->base;
+	int offset = dev_priv->agp_buffers_offset;
 	int prim = buf_priv->prim;
-
 	u32 *data;
-
 	int dwords;
 	int i = 0;
 	RING_LOCALS;
-	DRM_DEBUG( "%s: start=%d end=%d\n", __FUNCTION__, start, end );
+	DRM_DEBUG( "indices: s=%d e=%d c=%d\n", start, end, count );
 
 	radeon_update_ring_snapshot( dev_priv );
 
@@ -1094,9 +1080,6 @@ static void radeon_cp_dispatch_indices( drm_device_t *dev,
 			radeon_emit_state( dev_priv );
 		}
 
-		/* Adjust start offset to include packet header
-		 */
-		start -= RADEON_INDEX_PRIM_OFFSET;
 		dwords = (end - start + 3) / sizeof(u32);
 
 		data = (u32 *)((char *)dev_priv->buffers->handle
@@ -1104,31 +1087,24 @@ static void radeon_cp_dispatch_indices( drm_device_t *dev,
 
 		data[0] = CP_PACKET3( RADEON_3D_RNDR_GEN_INDX_PRIM, dwords-2 );
 
-		data[1] = offset + dev_priv->agp_vm_start;
+		data[1] = offset;
 		data[2] = RADEON_MAX_VB_VERTS;
 		data[3] = format;
 		data[4] = (prim | RADEON_CP_VC_CNTL_PRIM_WALK_IND |
-			   (RADEON_MAX_VB_VERTS << 16));
+			   RADEON_CP_VC_CNTL_COLOR_ORDER_RGBA |
+			   RADEON_CP_VC_CNTL_VTX_FMT_RADEON_MODE |
+			   (count << RADEON_CP_VC_CNTL_NUM_SHIFT) );
 
-		if ( (end - start) & 0x3 ) {
+		if ( count & 0x1 ) {
 			data[dwords-1] &= 0x0000ffff;
-		}
-
-		if ( 0 ) {
-			int i;
-			DRM_INFO( "data = %p\n", data );
-			for ( i = 0 ; i < dwords ; i++ ) {
-				DRM_INFO( "data[0x%x] = 0x%08x\n",
-					  i, data[i] );
-			}
 		}
 
 		do {
 			/* Emit the next set of up to three cliprects */
 			if ( i < sarea_priv->nbox ) {
 				radeon_emit_clip_rects( dev_priv,
-						      &sarea_priv->boxes[i],
-						      sarea_priv->nbox - i );
+							&sarea_priv->boxes[i],
+							sarea_priv->nbox - i );
 			}
 
 			radeon_cp_dispatch_indirect( dev, buf, start, end );
@@ -1169,20 +1145,19 @@ static void radeon_cp_dispatch_indices( drm_device_t *dev,
 }
 
 static int radeon_cp_dispatch_blit( drm_device_t *dev,
-				    int offset, int pitch, int format,
-				    drm_radeon_blit_rect_t *rects, int count )
+				    drm_radeon_blit_t *blit )
 {
-#if 0
 	drm_radeon_private_t *dev_priv = dev->dev_private;
 	drm_device_dma_t *dma = dev->dma;
 	drm_buf_t *buf;
 	drm_radeon_buf_priv_t *buf_priv;
-	drm_radeon_blit_rect_t *rect;
+	u32 format;
 	u32 *data;
 	int dword_shift, dwords;
-	int i;
 	RING_LOCALS;
-	DRM_DEBUG( "%s\n", __FUNCTION__ );
+	DRM_DEBUG( "blit: ofs=0x%x p=%d f=%d x=%hd y=%hd w=%hd h=%hd\n",
+		   blit->offset >> 10, blit->pitch, blit->format,
+		   blit->x, blit->y, blit->width, blit->height );
 
 	radeon_update_ring_snapshot( dev_priv );
 
@@ -1190,90 +1165,85 @@ static int radeon_cp_dispatch_blit( drm_device_t *dev,
 	 * even if the only legal values are powers of two.  Thus, we'll
 	 * use a shift instead.
 	 */
-	switch ( format ) {
-	case RADEON_DATATYPE_ARGB1555:
-	case RADEON_DATATYPE_RGB565:
-	case RADEON_DATATYPE_ARGB4444:
-		dword_shift = 1;
-		break;
-	case RADEON_DATATYPE_ARGB8888:
+	switch ( blit->format ) {
+	case RADEON_TXF_32BPP_ARGB8888:
+	case RADEON_TXF_32BPP_RGBA8888:
+		format = RADEON_COLOR_FORMAT_ARGB8888;
 		dword_shift = 0;
 		break;
+	case RADEON_TXF_16BPP_AI88:
+	case RADEON_TXF_16BPP_ARGB1555:
+	case RADEON_TXF_16BPP_RGB565:
+	case RADEON_TXF_16BPP_ARGB4444:
+		format = RADEON_COLOR_FORMAT_RGB565;
+		dword_shift = 1;
+		break;
+	case RADEON_TXF_8BPP_I:
+	case RADEON_TXF_8BPP_RGB332:
+		format = RADEON_COLOR_FORMAT_CI8;
+		dword_shift = 2;
+		break;
 	default:
-		DRM_ERROR( "invalid blit format %d\n", format );
+		DRM_ERROR( "invalid blit format %d\n", blit->format );
 		return -EINVAL;
 	}
 
-	/* Flush the pixel cache, and mark the contents as Read Invalid.
-	 * This ensures no pixel data gets mixed up with the texture
-	 * data from the host data blit, otherwise part of the texture
-	 * image may be corrupted.
+	/* Flush the pixel cache.  This ensures no pixel data gets mixed
+	 * up with the texture data from the host data blit, otherwise
+	 * part of the texture image may be corrupted.
 	 */
-	BEGIN_RING( 2 );
+	RADEON_WAIT_UNTIL_IDLE();
+	RADEON_FLUSH_CACHE();
 
-	OUT_RING( CP_PACKET0( RADEON_PC_GUI_CTLSTAT, 0 ) );
-	OUT_RING( RADEON_PC_RI_GUI | RADEON_PC_FLUSH_GUI );
-
-	ADVANCE_RING();
-
-	/* Dispatch each of the indirect buffers.
+	/* Dispatch the indirect buffer.
 	 */
-	for ( i = 0 ; i < count ; i++ ) {
-		rect = &rects[i];
-		buf = dma->buflist[rect->index];
-		buf_priv = buf->dev_private;
+	buf = dma->buflist[blit->idx];
+	buf_priv = buf->dev_private;
 
-		if ( buf->pid != current->pid ) {
-			DRM_ERROR( "process %d using buffer owned by %d\n",
-				   current->pid, buf->pid );
-			return -EINVAL;
-		}
-		if ( buf->pending ) {
-			DRM_ERROR( "sending pending buffer %d\n",
-				   rect->index );
-			return -EINVAL;
-		}
-
-		buf_priv->discard = 1;
-
-		dwords = (rect->width * rect->height) >> dword_shift;
-
-		data = (u32 *)((char *)dev_priv->buffers->handle
-			       + buf->offset);
-
-		data[0] = CP_PACKET3( RADEON_CNTL_HOSTDATA_BLT, dwords + 6 );
-		data[1] = ( RADEON_GMC_DST_PITCH_OFFSET_CNTL
-			    | RADEON_GMC_BRUSH_NONE
-			    | (format << 8)
-			    | RADEON_GMC_SRC_DATATYPE_COLOR
-			    | RADEON_ROP3_S
-			    | RADEON_DP_SRC_SOURCE_HOST_DATA
-			    | RADEON_GMC_CLR_CMP_CNTL_DIS
-			    | RADEON_GMC_WR_MSK_DIS );
-
-		data[2] = (pitch << 21) | (offset >> 5);
-		data[3] = 0xffffffff;
-		data[4] = 0xffffffff;
-		data[5] = (rect->y << 16) | rect->x;
-		data[6] = (rect->height << 16) | rect->width;
-		data[7] = dwords;
-
-		buf->used = (dwords + 8) * sizeof(u32);
-
-		radeon_cp_dispatch_indirect( dev, buf, 0, buf->used );
+	if ( buf->pid != current->pid ) {
+		DRM_ERROR( "process %d using buffer owned by %d\n",
+			   current->pid, buf->pid );
+		return -EINVAL;
 	}
+	if ( buf->pending ) {
+		DRM_ERROR( "sending pending buffer %d\n", blit->idx );
+		return -EINVAL;
+	}
+
+	buf_priv->discard = 1;
+
+	dwords = (blit->width * blit->height) >> dword_shift;
+	if ( !dwords ) dwords = 1;
+
+	data = (u32 *)((char *)dev_priv->buffers->handle + buf->offset);
+
+	data[0] = CP_PACKET3( RADEON_CNTL_HOSTDATA_BLT, dwords + 6 );
+	data[1] = (RADEON_GMC_DST_PITCH_OFFSET_CNTL |
+		   RADEON_GMC_BRUSH_NONE |
+		   (format << 8) |
+		   RADEON_GMC_SRC_DATATYPE_COLOR |
+		   RADEON_ROP3_S |
+		   RADEON_DP_SRC_SOURCE_HOST_DATA |
+		   RADEON_GMC_CLR_CMP_CNTL_DIS |
+		   RADEON_GMC_WR_MSK_DIS);
+
+	data[2] = (blit->pitch << 22) | (blit->offset >> 10);
+	data[3] = 0xffffffff;
+	data[4] = 0xffffffff;
+	data[5] = (blit->y << 16) | blit->x;
+	data[6] = (blit->height << 16) | blit->width;
+	data[7] = dwords;
+
+	buf->used = (dwords + 8) * sizeof(u32);
+
+	radeon_cp_dispatch_indirect( dev, buf, 0, buf->used );
 
 	/* Flush the pixel cache after the blit completes.  This ensures
 	 * the texture data is written out to memory before rendering
 	 * continues.
 	 */
-	BEGIN_RING( 2 );
-
-	OUT_RING( CP_PACKET0( RADEON_PC_GUI_CTLSTAT, 0 ) );
-	OUT_RING( RADEON_PC_FLUSH_GUI );
-
-	ADVANCE_RING();
-#endif
+	RADEON_WAIT_UNTIL_IDLE();
+	RADEON_FLUSH_CACHE();
 
 	return 0;
 }
@@ -1295,7 +1265,7 @@ int radeon_cp_clear( struct inode *inode, struct file *filp,
 
 	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||
 	     dev->lock.pid != current->pid ) {
-		DRM_ERROR( "radeon_cp_clear called without lock held\n" );
+		DRM_ERROR( "%s called without lock held\n", __FUNCTION__ );
 		return -EINVAL;
 	}
 
@@ -1307,14 +1277,13 @@ int radeon_cp_clear( struct inode *inode, struct file *filp,
 		sarea_priv->nbox = RADEON_NR_SAREA_CLIPRECTS;
 
 	radeon_cp_dispatch_clear( dev, clear.flags,
-				 clear.x, clear.y, clear.w, clear.h,
-				 clear.clear_color, clear.clear_depth,
-				 clear.color_mask, clear.depth_mask );
+				  clear.x, clear.y, clear.w, clear.h,
+				  clear.clear_color, clear.clear_depth );
 
 	/* Make sure we restore the 3D state next time.
 	 */
-	dev_priv->sarea_priv->dirty |= ( RADEON_UPLOAD_CONTEXT
-					 | RADEON_UPLOAD_MASKS );
+	dev_priv->sarea_priv->dirty |= (RADEON_UPLOAD_CONTEXT |
+					RADEON_UPLOAD_MASKS);
 
 	return 0;
 }
@@ -1330,19 +1299,20 @@ int radeon_cp_swap( struct inode *inode, struct file *filp,
 
 	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||
 	     dev->lock.pid != current->pid ) {
-		DRM_ERROR( "radeon_cp_swap called without lock held\n" );
+		DRM_ERROR( "%s called without lock held\n", __FUNCTION__ );
 		return -EINVAL;
 	}
 
 	if ( sarea_priv->nbox > RADEON_NR_SAREA_CLIPRECTS )
 		sarea_priv->nbox = RADEON_NR_SAREA_CLIPRECTS;
 
-	radeon_cp_dispatch_swap( dev );
-
-	/* Make sure we restore the 3D state next time.
-	 */
-	dev_priv->sarea_priv->dirty |= ( RADEON_UPLOAD_CONTEXT
-					 | RADEON_UPLOAD_MASKS );
+	if ( !dev_priv->page_flipping ) {
+		radeon_cp_dispatch_swap( dev );
+		dev_priv->sarea_priv->dirty |= (RADEON_UPLOAD_CONTEXT |
+						RADEON_UPLOAD_MASKS);
+	} else {
+		radeon_cp_dispatch_flip( dev );
+	}
 
 	return 0;
 }
@@ -1419,6 +1389,7 @@ int radeon_cp_indices( struct inode *inode, struct file *filp,
 	drm_buf_t *buf;
 	drm_radeon_buf_priv_t *buf_priv;
 	drm_radeon_indices_t elts;
+	int count;
 
 	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||
 	     dev->lock.pid != current->pid ) {
@@ -1461,16 +1432,24 @@ int radeon_cp_indices( struct inode *inode, struct file *filp,
 		DRM_ERROR( "sending pending buffer %d\n", elts.idx );
 		return -EINVAL;
 	}
-	if ( (buf->offset + elts.start) & 0x3 ) {
-		DRM_ERROR( "buffer start 0x%x\n",
-			   (u32)(buf->offset + elts.start) );
+
+	count = (elts.end - elts.start) / sizeof(u16);
+	elts.start -= RADEON_INDEX_PRIM_OFFSET;
+
+	if ( elts.start & 0x7 ) {
+		DRM_ERROR( "misaligned buffer 0x%x\n", elts.start );
+		return -EINVAL;
+	}
+	if ( elts.start < buf->used ) {
+		DRM_ERROR( "no header 0x%x - 0x%x\n", elts.start, buf->used );
 		return -EINVAL;
 	}
 
+	buf->used = elts.end;
 	buf_priv->prim = elts.prim;
 	buf_priv->discard = elts.discard;
 
-	radeon_cp_dispatch_indices( dev, buf, elts.start, elts.end );
+	radeon_cp_dispatch_indices( dev, buf, elts.start, elts.end, count );
 
 	return 0;
 }
@@ -1493,19 +1472,30 @@ int radeon_cp_blit( struct inode *inode, struct file *filp,
 			     sizeof(blit) ) )
 		return -EFAULT;
 
-	DRM_DEBUG( "%s: pid=%d count=%d\n",
-		   __FUNCTION__, current->pid, blit.count );
+	DRM_DEBUG( "%s: pid=%d index=%d\n",
+		   __FUNCTION__, current->pid, blit.idx );
 
-	if ( blit.count < 0 || blit.count > dma->buf_count ) {
+	if ( blit.idx < 0 || blit.idx > dma->buf_count ) {
 		DRM_ERROR( "sending %d buffers (of %d max)\n",
-			   blit.count, dma->buf_count );
+			   blit.idx, dma->buf_count );
 		return -EINVAL;
 	}
 
-	if ( copy_from_user( &rects, blit.rects,
-			     blit.count * sizeof(drm_radeon_blit_rect_t) ) )
-		return -EFAULT;
+	return radeon_cp_dispatch_blit( dev, &blit );
+}
 
-	return radeon_cp_dispatch_blit( dev, blit.offset, blit.pitch,
-					blit.format, rects, blit.count );
+int radeon_cp_stipple( struct inode *inode, struct file *filp,
+		       unsigned int cmd, unsigned long arg )
+{
+	drm_file_t *priv = filp->private_data;
+	drm_device_t *dev = priv->dev;
+	DRM_DEBUG( "%s\n", __FUNCTION__ );
+
+	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||
+	     dev->lock.pid != current->pid ) {
+		DRM_ERROR( "%s called without lock held\n", __FUNCTION__ );
+		return -EINVAL;
+	}
+
+	return -EINVAL;
 }

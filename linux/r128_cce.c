@@ -86,23 +86,23 @@ static u32 r128_cce_microcode[] = {
 };
 
 
-#define DO_REMAP(_m) (_m)->handle = drm_ioremap((_m)->offset, (_m)->size)
+#define DO_IOREMAP(_m) (_m)->handle = drm_ioremap((_m)->offset, (_m)->size)
 
-#define DO_REMAPFREE(_m)                                                    \
-	do {                                                                \
-		if ((_m)->handle && (_m)->size)                             \
-			drm_ioremapfree((_m)->handle, (_m)->size);          \
+#define DO_IOREMAPFREE(_m)						\
+	do {								\
+		if ((_m)->handle && (_m)->size)				\
+			drm_ioremapfree((_m)->handle, (_m)->size);	\
 	} while (0)
 
-#define DO_FIND_MAP(_m, _o)                                                 \
-	do {                                                                \
-		int _i;                                                     \
-		for (_i = 0; _i < dev->map_count; _i++) {                   \
-			if (dev->maplist[_i]->offset == _o) {               \
-				_m = dev->maplist[_i];                      \
-				break;                                      \
-			}                                                   \
-		}                                                           \
+#define DO_FIND_MAP(_m, _o)						\
+	do {								\
+		int _i;							\
+		for (_i = 0; _i < dev->map_count; _i++) {		\
+			if (dev->maplist[_i]->offset == _o) {		\
+				_m = dev->maplist[_i];			\
+				break;					\
+			}						\
+		}							\
 	} while (0)
 
 
@@ -481,12 +481,12 @@ static int r128_do_init_cce( drm_device_t *dev, drm_r128_init_t *init )
 		(drm_r128_sarea_t *)((u8 *)dev_priv->sarea->handle +
 				     init->sarea_priv_offset);
 
-	DO_REMAP( dev_priv->cce_ring );
-	DO_REMAP( dev_priv->ring_rptr );
-	DO_REMAP( dev_priv->buffers );
+	DO_IOREMAP( dev_priv->cce_ring );
+	DO_IOREMAP( dev_priv->ring_rptr );
+	DO_IOREMAP( dev_priv->buffers );
 #if 0
 	if ( !dev_priv->is_pci ) {
-		DO_REMAP( dev_priv->agp_textures );
+		DO_IOREMAP( dev_priv->agp_textures );
 	}
 #endif
 
@@ -521,12 +521,12 @@ static int r128_do_cleanup_cce( drm_device_t *dev )
 	if ( dev->dev_private ) {
 		drm_r128_private_t *dev_priv = dev->dev_private;
 
-		DO_REMAPFREE( dev_priv->cce_ring );
-		DO_REMAPFREE( dev_priv->ring_rptr );
-		DO_REMAPFREE( dev_priv->buffers );
+		DO_IOREMAPFREE( dev_priv->cce_ring );
+		DO_IOREMAPFREE( dev_priv->ring_rptr );
+		DO_IOREMAPFREE( dev_priv->buffers );
 #if 0
 		if ( !dev_priv->is_pci ) {
-			DO_REMAPFREE( dev_priv->agp_textures );
+			DO_IOREMAPFREE( dev_priv->agp_textures );
 		}
 #endif
 

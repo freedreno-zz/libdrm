@@ -34,7 +34,7 @@
 
 #define RADEON_NAME		"radeon"
 #define RADEON_DESC		"ATI Radeon"
-#define RADEON_DATE		"20001223"
+#define RADEON_DATE		"20001228"
 #define RADEON_MAJOR		1
 #define RADEON_MINOR		0
 #define RADEON_PATCHLEVEL	0
@@ -105,18 +105,20 @@ static drm_ioctl_desc_t	      radeon_ioctls[] = {
 	[DRM_IOCTL_NR(DRM_IOCTL_AGP_UNBIND)]    = { drm_agp_unbind,	1, 1 },
 #endif
 
-	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_RESET)]      = { radeon_engine_reset, 1, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_CP_INIT)]    = { radeon_cp_init,      1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_CP_START)]   = { radeon_cp_start,     1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_CP_STOP)]    = { radeon_cp_stop,      1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_CP_RESET)]   = { radeon_cp_reset,     1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_CP_IDLE)]    = { radeon_cp_idle,      1, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_CP_SWAP)]    = { radeon_cp_swap,      1, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_CP_CLEAR)]   = { radeon_cp_clear,     1, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_CP_VERTEX)]  = { radeon_cp_vertex,    1, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_CP_INDICES)] = { radeon_cp_indices,   1, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_CP_BLIT)]    = { radeon_cp_blit,      1, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_CP_PACKET)]  = { radeon_cp_packet,    1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_CP_INIT)] = { radeon_cp_init,    1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_CP_START)]= { radeon_cp_start,   1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_CP_STOP)] = { radeon_cp_stop,    1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_CP_RESET)]= { radeon_cp_reset,   1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_CP_IDLE)] = { radeon_cp_idle,    1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_RESET)]   = { radeon_engine_reset,1,0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_PAGEFLIP)]= { radeon_cp_pageflip,1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_SWAP)]    = { radeon_cp_swap,    1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_CLEAR)]   = { radeon_cp_clear,   1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_VERTEX)]  = { radeon_cp_vertex,  1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_INDICES)] = { radeon_cp_indices, 1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_BLIT)]    = { radeon_cp_blit,    1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_STIPPLE)] = { radeon_cp_stipple, 1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_PACKET)]  = { radeon_cp_packet,  1, 0 },
 };
 #define RADEON_IOCTL_COUNT DRM_ARRAY_SIZE(radeon_ioctls)
 
@@ -328,7 +330,7 @@ static int radeon_takedown(drm_device_t *dev)
 /* radeon_init is called via init_module at module load time, or via
  * linux/init/main.c (this is not currently supported). */
 
-static int radeon_init(void)
+static int __init radeon_init(void)
 {
 	int		      retcode;
 	drm_device_t	      *dev = &radeon_device;
@@ -392,7 +394,7 @@ static int radeon_init(void)
 
 /* radeon_cleanup is called via cleanup_module at module unload time. */
 
-static void radeon_cleanup(void)
+static void __exit radeon_cleanup(void)
 {
 	drm_device_t	      *dev = &radeon_device;
 
@@ -484,7 +486,17 @@ int radeon_release(struct inode *inode, struct file *filp)
 
 	lock_kernel();
 	dev = priv->dev;
+
 	DRM_DEBUG("open_count = %d\n", dev->open_count);
+
+	/* Force the cleanup of page flipping when required */
+	if ( dev->dev_private ) {
+		drm_radeon_private_t *dev_priv = dev->dev_private;
+		if ( dev_priv->page_flipping ) {
+			radeon_do_cleanup_pageflip( dev );
+		}
+	}
+
 	if (!(retcode = drm_release(inode, filp))) {
 #if LINUX_VERSION_CODE < 0x020333
 		MOD_DEC_USE_COUNT; /* Needed before Linux 2.3.51 */

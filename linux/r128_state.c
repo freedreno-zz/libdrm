@@ -181,14 +181,14 @@ static inline void r128_emit_tex0( drm_r128_private_t *dev_priv )
 	RING_LOCALS;
 	DRM_DEBUG( "    %s\n", __FUNCTION__ );
 
-	BEGIN_RING( 7 + R128_TEX_MAXLEVELS );
+	BEGIN_RING( 7 + R128_MAX_TEXTURE_LEVELS );
 
 	OUT_RING( CCE_PACKET0( R128_PRIM_TEX_CNTL_C,
-			       2 + R128_TEX_MAXLEVELS ) );
+			       2 + R128_MAX_TEXTURE_LEVELS ) );
 	OUT_RING( tex->tex_cntl );
 	OUT_RING( tex->tex_combine_cntl );
 	OUT_RING( ctx->tex_size_pitch_c );
-	for ( i = 0 ; i < R128_TEX_MAXLEVELS ; i++ ) {
+	for ( i = 0 ; i < R128_MAX_TEXTURE_LEVELS ; i++ ) {
 		OUT_RING( tex->tex_offset[i] );
 	}
 
@@ -207,13 +207,13 @@ static inline void r128_emit_tex1( drm_r128_private_t *dev_priv )
 	RING_LOCALS;
 	DRM_DEBUG( "    %s\n", __FUNCTION__ );
 
-	BEGIN_RING( 5 + R128_TEX_MAXLEVELS );
+	BEGIN_RING( 5 + R128_MAX_TEXTURE_LEVELS );
 
 	OUT_RING( CCE_PACKET0( R128_SEC_TEX_CNTL_C,
-			       1 + R128_TEX_MAXLEVELS ) );
+			       1 + R128_MAX_TEXTURE_LEVELS ) );
 	OUT_RING( tex->tex_cntl );
 	OUT_RING( tex->tex_combine_cntl );
-	for ( i = 0 ; i < R128_TEX_MAXLEVELS ; i++ ) {
+	for ( i = 0 ; i < R128_MAX_TEXTURE_LEVELS ; i++ ) {
 		OUT_RING( tex->tex_offset[i] );
 	}
 

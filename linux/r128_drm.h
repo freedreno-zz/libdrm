@@ -98,7 +98,9 @@
 #define R128_LOG_TEX_GRANULARITY	16
 
 #define R128_NR_CONTEXT_REGS		12
-#define R128_TEX_MAXLEVELS		11
+
+#define R128_MAX_TEXTURE_LEVELS		11
+#define R128_MAX_TEXTURE_UNITS		2
 
 #endif /* __R128_SAREA_DEFINES__ */
 
@@ -142,7 +144,7 @@ typedef struct {
 	unsigned int tex_cntl;
 	unsigned int tex_combine_cntl;
 	unsigned int tex_size_pitch;
-	unsigned int tex_offset[R128_TEX_MAXLEVELS];
+	unsigned int tex_offset[R128_MAX_TEXTURE_LEVELS];
 	unsigned int tex_border_color;
 } drm_r128_texture_regs_t;
 
@@ -158,7 +160,7 @@ typedef struct drm_r128_sarea {
 	 * on firing a vertex buffer.
 	 */
 	drm_r128_context_regs_t context_state;
-	drm_r128_texture_regs_t tex_state[R128_NR_TEX_HEAPS];
+	drm_r128_texture_regs_t tex_state[R128_MAX_TEXTURE_UNITS];
 	unsigned int dirty;
 	unsigned int vertsize;
 	unsigned int vc_format;
