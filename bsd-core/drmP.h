@@ -493,7 +493,6 @@ struct drm_device {
 #if __REALLY_HAVE_AGP
 	drm_agp_head_t    *agp;
 #endif
-	struct pci_dev *pdev;
 	drm_sg_mem_t      *sg;  /* Scatter gather memory */
 	atomic_t          *ctx_bitmap;
 	void		  *dev_private;

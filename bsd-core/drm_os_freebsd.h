@@ -43,8 +43,8 @@
 #define __REALLY_HAVE_AGP	__HAVE_AGP
 #endif
 
-#define __REALLY_HAVE_MTRR	1
-#define __REALLY_HAVE_SG	0
+#define __REALLY_HAVE_MTRR	(__HAVE_MTRR)
+#define __REALLY_HAVE_SG	(__HAVE_SG)
 
 #if __REALLY_HAVE_AGP
 #include <pci/agpvar.h>

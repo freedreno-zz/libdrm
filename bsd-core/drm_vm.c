@@ -74,6 +74,7 @@ paddr_t DRM(mmap)(dev_t kdev, off_t offset, int prot)
 	case _DRM_REGISTERS:
 	case _DRM_AGP:
 		return atop(offset);
+	case _DRM_SCATTER_GATHER:
 	case _DRM_SHM:
 		return atop(vtophys(offset));
 	default:

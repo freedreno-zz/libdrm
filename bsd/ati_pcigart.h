@@ -46,17 +46,17 @@ static unsigned long DRM(ati_alloc_pcigart_table)( void )
 {
 	unsigned long address;
 
-	DRM_DEBUG( "%s\n", __FUNCTION__ );
+	DRM_DEBUG( "\n" );
 
 	address = (unsigned long) malloc( (1 << ATI_PCIGART_TABLE_ORDER) * PAGE_SIZE, DRM(M_DRM), M_WAITOK );
 
-	DRM_DEBUG( "%s: returning 0x%08lx\n", __FUNCTION__, address );
+	DRM_DEBUG( "returning 0x%08lx\n", address );
 	return address;
 }
 
 static void DRM(ati_free_pcigart_table)( unsigned long address )
 {
-	DRM_DEBUG( "%s\n", __FUNCTION__ );
+	DRM_DEBUG( "\n" );
 
 	free( (void *)address, DRM(M_DRM));
 }
@@ -81,11 +81,6 @@ int DRM(ati_pcigart_init)( drm_device_t *dev,
 		goto done;
 	}
 
-	if ( !dev->pdev ) {
-		DRM_ERROR( "PCI device unknown!\n" );
-		goto done;
-	}
-
 	/* FIXME non-vtophys==bustophys-arches */
 	bus_address = vtophys( pci_gart );
 	/*pci_map_single(dev->pdev, (void *)address,
@@ -105,7 +100,7 @@ int DRM(ati_pcigart_init)( drm_device_t *dev,
 
 	for ( i = 0 ; i < pages ; i++ ) {
 		/* we need to support large memory configurations */
-		/* FIXME non-vtophys==bustophys-arches */		entry->busaddr[i] = vtophys( entry->handle + (i*PAGE_SIZE) );
+		/* FIXME non-vtophys==vtobus-arches */		entry->busaddr[i] = vtophys( entry->handle + (i*PAGE_SIZE) );
 		if (entry->busaddr[i] == 0) {
 			DRM_ERROR( "unable to map PCIGART pages!\n" );
 			DRM(ati_pcigart_cleanup)( dev, (unsigned long)pci_gart, bus_address );
@@ -123,7 +118,7 @@ int DRM(ati_pcigart_init)( drm_device_t *dev,
 
 	ret = 1;
 
-	DRM_OS_READMEMORYBARRIER;
+	DRM_OS_READMEMORYBARRIER();
 
 done:
 	*addr = (unsigned long)pci_gart;

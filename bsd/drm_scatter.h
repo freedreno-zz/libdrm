@@ -69,7 +69,7 @@ int DRM(sg_alloc)( DRM_OS_IOCTL )
 
    	bzero( entry, sizeof(*entry) );
 
-	pages = (request.size + PAGE_SIZE - 1) / PAGE_SIZE;
+	pages = round_page(request.size) / PAGE_SIZE;
 	DRM_DEBUG( "sg size=%ld pages=%ld\n", request.size, pages );
 
 	entry->pages = pages;
