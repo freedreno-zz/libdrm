@@ -43,6 +43,34 @@
 #define __HAVE_CTX_BITMAP	1
 #define __HAVE_PCI_DMA		1
 
+#define DRIVER_AUTHOR		"Gareth Hughes, Leif Delgass, José Fonseca"
+
+#define DRIVER_NAME		"mach64"
+#define DRIVER_DESC		"DRM module for the ATI Rage Pro"
+#define DRIVER_DATE		"20020904"
+
+#define DRIVER_MAJOR		1
+#define DRIVER_MINOR		0
+#define DRIVER_PATCHLEVEL	0
+
+/* Interface history:
+ *
+ * 1.0 - Initial mach64 DRM
+ *
+ */
+#define DRIVER_IOCTLS									\
+	[DRM_IOCTL_NR(DRM_IOCTL_DMA)]	          = { mach64_dma_buffers,    1, 0 },	\
+   	[DRM_IOCTL_NR(DRM_IOCTL_MACH64_INIT)]     = { mach64_dma_init,       1, 1 },	\
+   	[DRM_IOCTL_NR(DRM_IOCTL_MACH64_CLEAR)]    = { mach64_dma_clear,      1, 0 },	\
+   	[DRM_IOCTL_NR(DRM_IOCTL_MACH64_SWAP)]     = { mach64_dma_swap,       1, 0 },	\
+   	[DRM_IOCTL_NR(DRM_IOCTL_MACH64_IDLE)]     = { mach64_dma_idle,       1, 0 },	\
+   	[DRM_IOCTL_NR(DRM_IOCTL_MACH64_RESET)]    = { mach64_engine_reset,   1, 0 },	\
+   	[DRM_IOCTL_NR(DRM_IOCTL_MACH64_VERTEX)]   = { mach64_dma_vertex,     1, 0 },	\
+   	[DRM_IOCTL_NR(DRM_IOCTL_MACH64_BLIT)]     = { mach64_dma_blit,       1, 0 },	\
+   	[DRM_IOCTL_NR(DRM_IOCTL_MACH64_FLUSH)]    = { mach64_dma_flush,      1, 0 },    \
+   	[DRM_IOCTL_NR(DRM_IOCTL_MACH64_GETPARAM)] = { mach64_get_param,      1, 0 }
+
+
 /* DMA customization:
  */
 #define __HAVE_DMA		1
@@ -129,6 +157,7 @@ do {										\
 } while(0)
 
 #endif /* MACH64_INTERRUPTS */
+
 
 /* Buffer customization:
  */
