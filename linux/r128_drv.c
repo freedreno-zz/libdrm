@@ -24,8 +24,10 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
  *
- * Authors: Rickard E. (Rik) Faith <faith@valinux.com>
- *          Kevin E. Martin <martin@valinux.com>
+ * Authors:
+ *    Rickard E. (Rik) Faith <faith@valinux.com>
+ *    Kevin E. Martin <martin@valinux.com>
+ *    Gareth Hughes <gareth@valinux.com>
  *
  */
 
@@ -35,7 +37,7 @@
 
 #define R128_NAME		"r128"
 #define R128_DESC		"ATI Rage 128"
-#define R128_DATE		"20001015"
+#define R128_DATE		"20001016"
 #define R128_MAJOR		1
 #define R128_MINOR		1
 #define R128_PATCHLEVEL		0

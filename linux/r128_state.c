@@ -23,7 +23,8 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
  *
- * Authors: Gareth Hughes <gareth@valinux.com>
+ * Authors:
+ *    Gareth Hughes <gareth@valinux.com>
  *
  */
 
@@ -504,8 +505,7 @@ static void r128_cce_dispatch_vertex( drm_device_t *dev,
 	int vertsize = sarea_priv->vertsize;
 	int format = sarea_priv->vc_format;
 	int index = buf->idx;
-	int offset = dev_priv->vertex_buffers->offset
-		+ buf->offset - dev->agp->base;
+	int offset = dev_priv->buffers->offset + buf->offset - dev->agp->base;
 	int size = buf->used / (vertsize * sizeof(u32));
 	int prim;
 	int i = 0;

@@ -24,8 +24,10 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
  *
- * Authors: Rickard E. (Rik) Faith <faith@valinux.com>
- *          Kevin E. Martin <martin@valinux.com>
+ * Authors:
+ *   Rickard E. (Rik) Faith <faith@valinux.com>
+ *   Kevin E. Martin <martin@valinux.com>
+ *   Gareth Hughes <gareth@valinux.com>
  *
  */
 
@@ -87,8 +89,7 @@ typedef struct drm_r128_private {
 	drm_map_t *mmio;
 	drm_map_t *cce_ring;
 	drm_map_t *ring_rptr;
-	drm_map_t *vertex_buffers;
-	drm_map_t *indirect_buffers;
+	drm_map_t *buffers;
 	drm_map_t *agp_textures;
 } drm_r128_private_t;
 

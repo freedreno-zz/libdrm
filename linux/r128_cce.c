@@ -24,7 +24,8 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
  *
- * Authors: Kevin E. Martin <martin@valinux.com>
+ * Authors:
+ *   Gareth Hughes <gareth@valinux.com>
  *
  */
 
@@ -127,12 +128,6 @@ static void r128_status(drm_device_t *dev)
 	printk("PM4_BUFFER_DL_RPTR = 0x%08x\n",
 	       (unsigned int)R128_READ(R128_PM4_BUFFER_DL_RPTR));
 }
-
-
-/* ================================================================
- * GH: Done from here down
- */
-
 
 
 /* ================================================================
@@ -458,14 +453,9 @@ static int r128_do_init_cce( drm_device_t *dev, drm_r128_init_t *init )
 
 	DO_FIND_MAP( dev_priv->fb, init->fb_offset );
 	DO_FIND_MAP( dev_priv->mmio, init->mmio_offset );
-
 	DO_FIND_MAP( dev_priv->cce_ring, init->ring_offset );
 	DO_FIND_MAP( dev_priv->ring_rptr, init->ring_rptr_offset );
-
-	DO_FIND_MAP( dev_priv->vertex_buffers,
-		     init->vertex_buffers_offset );
-	DO_FIND_MAP( dev_priv->indirect_buffers,
-		     init->indirect_buffers_offset );
+	DO_FIND_MAP( dev_priv->buffers, init->buffers_offset );
 
 	if ( !dev_priv->is_pci ) {
 		DO_FIND_MAP( dev_priv->agp_textures,
@@ -478,8 +468,7 @@ static int r128_do_init_cce( drm_device_t *dev, drm_r128_init_t *init )
 
 	DO_REMAP( dev_priv->cce_ring );
 	DO_REMAP( dev_priv->ring_rptr );
-	DO_REMAP( dev_priv->vertex_buffers );
-	DO_REMAP( dev_priv->indirect_buffers );
+	DO_REMAP( dev_priv->buffers );
 #if 0
 	if ( !dev_priv->is_pci ) {
 		DO_REMAP( dev_priv->agp_textures );
@@ -518,8 +507,7 @@ static int r128_do_cleanup_cce( drm_device_t *dev )
 
 		DO_REMAPFREE( dev_priv->cce_ring );
 		DO_REMAPFREE( dev_priv->ring_rptr );
-		DO_REMAPFREE( dev_priv->vertex_buffers );
-		DO_REMAPFREE( dev_priv->indirect_buffers );
+		DO_REMAPFREE( dev_priv->buffers );
 #if 0
 		if ( !dev_priv->is_pci ) {
 			DO_REMAPFREE( dev_priv->agp_textures );
@@ -682,7 +670,6 @@ int r128_engine_reset( struct inode *inode, struct file *filp,
 /* ================================================================
  * Freelist management
  */
-#if 0
 #define R128_BUFFER_USED	0xffffffff
 #define R128_BUFFER_FREE	0
 
@@ -731,7 +718,6 @@ static int r128_freelist_init( drm_device_t *dev )
 	return 0;
 
 }
-#endif
 
 drm_buf_t *r128_freelist_get( drm_device_t *dev )
 {

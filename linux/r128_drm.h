@@ -24,7 +24,9 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
  *
- * Authors: Kevin E. Martin <martin@valinux.com>
+ * Authors:
+ *    Kevin E. Martin <martin@valinux.com>
+ *    Gareth Hughes <gareth@valinux.com>
  *
  */
 
@@ -179,8 +181,7 @@ typedef struct drm_r128_init {
 	unsigned int mmio_offset;
 	unsigned int ring_offset;
 	unsigned int ring_rptr_offset;
-	unsigned int vertex_buffers_offset;
-	unsigned int indirect_buffers_offset;
+	unsigned int buffers_offset;
 	unsigned int agp_textures_offset;
 } drm_r128_init_t;
 
