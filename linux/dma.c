@@ -431,6 +431,7 @@ int drm_dma_enqueue(drm_device_t *dev, drm_dma_t *d)
 			atomic_dec(&q->use_count);
 			DRM_ERROR("Process %d using buffer %d on list %d\n",
 				  current->pid, buf->idx, buf->list);
+			return -EINVAL;
 		}
 		buf->used	  = d->send_sizes[i];
 		buf->while_locked = while_locked;
