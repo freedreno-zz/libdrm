@@ -204,10 +204,6 @@ typedef struct
    	int ctxOwner;		
 	mgaTexRegion texList[MGA_NR_TEX_REGIONS+1];
 	int texAge;	      
-                      
-
-   
-
 } drm_mga_sarea_t;	
 
 

@@ -104,31 +104,16 @@ static drm_buf_t *i810_freelist_get(drm_device_t *dev)
    
 	/* Linear search might not be the best solution */
 
-#if 0
-   	i810_print_status_page(dev);
-#endif
    	for (i = 0; i < dma->buf_count; i++) {
 	   	drm_buf_t *buf = dma->buflist[ i ];
 	   	drm_i810_buf_priv_t *buf_priv = buf->dev_private;
 		/* In use is already a pointer */
-#if 0
-	   	printk("idx : %d in_use : %d\n", i, *buf_priv->in_use);
-#endif
 	   	used = cmpxchg(buf_priv->in_use, I810_BUF_FREE, 
 			       I810_BUF_USED);
-#if 0
-	   	printk("used : %d\n", used);
-#endif
 	   	if(used == I810_BUF_FREE) {
-#if 0
-		   printk("Got buffer\n");
-#endif
 		   return buf;
 		}
 	}
-#if 0
-   	printk("Didn't get buffer\n");
-#endif
    	return NULL;
 }
 
@@ -142,9 +127,6 @@ static int i810_freelist_put(drm_device_t *dev, drm_buf_t *buf)
    	int used;
    
    	/* In use is already a pointer */
-#if 0
-      	i810_print_status_page(dev);
-#endif
    	used = cmpxchg(buf_priv->in_use, I810_BUF_USED, I810_BUF_FREE);
    	if(used != I810_BUF_USED) {
 	   	DRM_ERROR("Freeing buffer thats not in use : %d\n", buf->idx);
@@ -300,9 +282,6 @@ static int i810_freelist_init(drm_device_t *dev)
 	   	buf_priv->my_use_idx = my_idx;
 	   	my_idx += 4;
 	}
-#if 0
-   	i810_print_status_page(dev);
-#endif
 	return 0;
 }
 
@@ -495,10 +474,7 @@ static inline void i810_dma_dispatch_vertex(drm_device_t *dev, drm_buf_t *buf)
 
 static inline void i810_dma_quiescent(drm_device_t *dev)
 {
-#if 0
    	/* Not written yet */
-   	drm_i810_private_t *dev_priv = (drm_i810_private_t *)dev->dev_private;
-#endif
 }
 
 /* Interrupts are only for flushing */
@@ -600,9 +576,7 @@ int i810_irq_uninstall(drm_device_t *dev)
 	
 	if (!irq) return -EINVAL;
 
-   	DRM_DEBUG(  "Interrupt UnInstall: %d\n", irq);
-
-	
+   	DRM_DEBUG(  "Interrupt UnInstall: %d\n", irq);	
 	DRM_DEBUG("%d\n", irq);
    
    	temp = I810_READ16(I810REG_INT_IDENTITY_R);
@@ -669,16 +643,10 @@ static int i810_flush_queue(drm_device_t *dev)
   	drm_i810_private_t *dev_priv = (drm_i810_private_t *)dev->dev_private;
    	int ret = 0;
 
-#if 0
-   	printk("i810_flush_queue\n");
-#endif
    	if(dev_priv == NULL) {
 	   	return 0;
 	}
       	atomic_set(&dev_priv->flush_done, 0);
-#if 0
-   	printk("got to flush\n");
-#endif
    	current->state = TASK_INTERRUPTIBLE;
    	add_wait_queue(&dev_priv->flush_queue, &entry);
    	for (;;) {
@@ -779,9 +747,6 @@ int i810_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 				/* Contention */
 			atomic_inc(&dev->total_sleeps);
 			current->state = TASK_INTERRUPTIBLE;
-#if 0
-		   	current->policy |= SCHED_YIELD;
-#endif
 		   	DRM_DEBUG("Calling lock schedule\n");
 			schedule();
 			if (signal_pending(current)) {

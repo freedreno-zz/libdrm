@@ -194,51 +194,11 @@ int mga_rmctx(struct inode *inode, struct file *filp, unsigned int cmd,
 	drm_file_t	*priv	= filp->private_data;
 	drm_device_t	*dev	= priv->dev;
 	drm_ctx_t	ctx;
-	drm_queue_t	*q;
-	drm_buf_t	*buf;
 
 	copy_from_user_ret(&ctx, (drm_ctx_t *)arg, sizeof(ctx), -EFAULT);
 	printk("%d\n", ctx.handle);
-	if(ctx.handle == DRM_KERNEL_CONTEXT) {
-	   q = dev->queuelist[ctx.handle];
-	   atomic_inc(&q->use_count);
-	   if (atomic_read(&q->use_count) == 1) {
-	      /* No longer in use */
-	      atomic_dec(&q->use_count);
-	      return -EINVAL;
-	   }
-	   atomic_inc(&q->finalization); /* Mark queue in finalization state */
-	   atomic_sub(2, &q->use_count); 
-	   /* Mark queue as unused (pending finalization) */
-	   
-	   while (test_and_set_bit(0, &dev->interrupt_flag)) {
-	      printk("Calling schedule from rmctx\n");
-	      schedule();
-	      if (signal_pending(current)) {
-		 clear_bit(0, &dev->interrupt_flag);
-		 return -EINTR;
-	      }
-	   }
-	   
-	   /* Remove queued buffers */
-	   while ((buf = drm_waitlist_get(&q->waitlist))) {
-	      drm_free_buffer(dev, buf);
-	   }
-	   clear_bit(0, &dev->interrupt_flag);
-	   
-	   /* Wakeup blocked processes */
-	   wake_up_interruptible(&q->read_queue);
-	   wake_up_interruptible(&q->write_queue);
-	   wake_up_interruptible(&q->flush_queue);
-	   
-	   /* Finalization over.  Queue is made
-	    available when both use_count and
-	    finalization become 0, which won't
-	    happen until all the waiting processes
-	    stop waiting. */
-	   atomic_dec(&q->finalization);
-	} else {
-	   drm_ctxbitmap_free(dev, ctx.handle);
+      	if(ctx.handle != DRM_KERNEL_CONTEXT) {
+	   	drm_ctxbitmap_free(dev, ctx.handle);
 	}
 	
 	return 0;
