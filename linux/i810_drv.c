@@ -39,10 +39,10 @@
 
 #define DRIVER_NAME		"i810"
 #define DRIVER_DESC		"Intel i810"
-#define DRIVER_DATE		"20010215"
+#define DRIVER_DATE		"20010616"
 
-#define DRIVER_MAJOR		1
-#define DRIVER_MINOR		1
+#define DRIVER_MAJOR		2
+#define DRIVER_MINOR		0
 #define DRIVER_PATCHLEVEL	0
 
 #define DRIVER_IOCTLS							    \
@@ -71,6 +71,26 @@
 #include "drm_dma.h"
 #include "drm_drawable.h"
 #include "drm_drv.h"
+
+#ifndef MODULE
+/* DRM(options) is called by the kernel to parse command-line options
+ * passed via the boot-loader (e.g., LILO).  It calls the insmod option
+ * routine, drm_parse_drm.
+ */
+
+/* JH- We have to hand expand the string ourselves because of the cpp.  If
+ * anyone can think of a way that we can fit into the __setup macro without
+ * changing it, then please send the solution my way.
+ */
+static int __init i810_options( char *str )
+{
+	DRM(parse_options)( str );
+	return 1;
+}
+
+__setup( DRIVER_NAME "=", i810_options );
+#endif
+
 #include "drm_fops.h"
 #include "drm_init.h"
 #include "drm_ioctl.h"

@@ -27,7 +27,7 @@
  * Authors: Rickard E. (Rik) Faith <faith@valinux.com>
  *	    Kevin E. Martin <martin@valinux.com>
  *
- * $XFree86: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/xf86drm.c,v 1.20 2001/04/18 18:44:39 dawes Exp $
+ * $XFree86: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/xf86drm.c,v 1.22 2001/05/19 00:26:45 dawes Exp $
  *
  */
 
@@ -68,10 +68,12 @@ extern int xf86RemoveSIGIOHandler(int fd);
 # endif
 #endif
 
+/* No longer needed with CVS kernel modules on alpha 
 #if defined(__alpha__) && defined(__linux__)
 extern unsigned long _bus_base(void);
 #define BUS_BASE _bus_base()
 #endif
+*/
 
 /* Not all systems have MAP_FAILED defined */
 #ifndef MAP_FAILED
@@ -542,11 +544,12 @@ int drmAddMap(int fd,
     drm_map_t map;
 
     map.offset  = offset;
+/* No longer needed with CVS kernel modules on alpha
 #ifdef __alpha__
-    /* Make sure we add the bus_base to all but shm */
     if (type != DRM_SHM)
 	map.offset += BUS_BASE;
 #endif
+*/
     map.size    = size;
     map.handle  = 0;
     map.type    = type;
