@@ -63,7 +63,7 @@
 #define __HAVE_DMA_QUIESCENT		1
 #define DRIVER_DMA_QUIESCENT() do {					\
 	/* FIXME ! */ 							\
-	gamma_dma_quiescent_dual(dev);					\
+	gamma_dma_quiescent_single(dev);					\
 	return 0;							\
 } while (0)
 
