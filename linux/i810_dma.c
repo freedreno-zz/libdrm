@@ -862,10 +862,10 @@ static int i810_flush_queue(drm_device_t *dev)
 }
 
 /* Must be called with the lock held */
-void i810_reclaim_buffers(struct file *filp)
+void i810_reclaim_buffers(drm_device_t *dev, struct file *filp)
 {
-	drm_file_t    *priv   = filp->private_data;
-	drm_device_t  *dev    = priv->dev;
+/* 	drm_file_t    *priv   = filp->private_data; */
+/* 	drm_device_t  *dev    = priv->dev; */
 	drm_device_dma_t *dma = dev->dma;
 	int		 i;
 

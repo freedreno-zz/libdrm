@@ -470,7 +470,7 @@ static int DRM(takedown)( drm_device_t *dev )
 					DRM_DEBUG( "mtrr_del=%d\n", retcode );
 				}
 #endif
-				DRM(ioremapfree)( dev, map );
+				DRM(ioremapfree)( map->handle, map->size, dev );
 				break;
 			case _DRM_SHM:
 				vfree(map->handle);
@@ -901,7 +901,7 @@ int DRM(release)( struct inode *inode, struct file *filp )
 		}
 	}
 #elif __HAVE_DMA
-	DRM(reclaim_buffers)( filp );
+	DRM(reclaim_buffers)( dev, filp );
 #endif
 
 	DRM(fasync)( -1, filp, 0 );

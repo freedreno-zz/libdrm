@@ -40,15 +40,9 @@
  */
 void *
 DRM(pci_alloc)(drm_device_t *dev, size_t size, size_t align, dma_addr_t maxaddr,
-    dma_addr_t *busaddr)
+	       dma_addr_t *busaddr)
 {
-	void *vaddr;
-
-	vaddr = contigmalloc(size, DRM(M_DRM), M_WAITOK, 0ul, maxaddr, align,
-	    0);
-	*busaddr = vtophys(vaddr);
-	
-	return vaddr;
+	return pci_alloc_consistent(dev->pdev, PAGE_SIZE, busaddr);
 }
 
 /**
@@ -57,7 +51,7 @@ DRM(pci_alloc)(drm_device_t *dev, size_t size, size_t align, dma_addr_t maxaddr,
 void
 DRM(pci_free)(drm_device_t *dev, size_t size, void *vaddr, dma_addr_t busaddr)
 {
-   pci_free_consistent(dev->pdev, size, vaddr, busaddr);
+	pci_free_consistent(dev->pdev, size, vaddr, busaddr);
 }
 
 /*@}*/

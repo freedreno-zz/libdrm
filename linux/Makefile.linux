@@ -79,7 +79,7 @@ MGASHARED =     mga.h mga_dma.c mga_drm.h mga_drv.h mga_irq.c mga_state.c \
                 mga_ucode.h mga_warp.c
 I810HEADERS =   i810.h i810_drv.h i810_drm.h $(DRMHEADERS) $(DRMTEMPLATES)
 I830HEADERS =   i830.h i830_drv.h i830_drm.h $(DRMHEADERS) $(DRMTEMPLATES)
-I830SHARED  =   i830_compat.c i830_dma.c i830_drm.h i830_drv.c i830_drv.h \
+I830SHARED  =   i830_dma.c i830_drm.h i830_drv.c i830_drv.h \
 		i830.h i830_irq.c i830_mem.c
 
 SISHEADERS=     sis_drv.h sis_drm.h $(DRMHEADERS)

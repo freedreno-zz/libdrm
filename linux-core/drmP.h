@@ -307,7 +307,7 @@ static inline struct page * vmalloc_to_page(void * vmalloc_addr)
 #define DRM_IOREMAPFREE(map, dev)					\
 	do {								\
 		if ( (map)->handle && (map)->size )			\
-			DRM(ioremapfree)( dev, map );	\
+			DRM(ioremapfree)( (map)->handle, (map)->size, dev );	\
 	} while (0)
 
 /**
@@ -827,7 +827,7 @@ extern void	     DRM(free_pages)(unsigned long address, int order,
 extern void	     *DRM(ioremap)(unsigned long offset, unsigned long size, drm_device_t *dev);
 extern void	     *DRM(ioremap_nocache)(unsigned long offset, unsigned long size,
 					   drm_device_t *dev);
-extern void	     DRM(ioremapfree)(drm_device_t *dev, drm_local_map_t *map);
+extern void	     DRM(ioremapfree)(void *pt, unsigned long size, drm_device_t *dev);
 
 #if __REALLY_HAVE_AGP
 extern agp_memory    *DRM(alloc_agp)(int pages, u32 type);
@@ -932,7 +932,7 @@ extern int	     DRM(mapbufs)( struct inode *inode, struct file *filp,
 extern int	     DRM(dma_setup)(drm_device_t *dev);
 extern void	     DRM(dma_takedown)(drm_device_t *dev);
 extern void	     DRM(free_buffer)(drm_device_t *dev, drm_buf_t *buf);
-extern void	     DRM(reclaim_buffers)( struct file *filp );
+extern void	     DRM(reclaim_buffers)( drm_device_t *dev, struct file *filp );
 #if __HAVE_DMA_IRQ
 extern int           DRM(control)( struct inode *inode, struct file *filp,
 				   unsigned int cmd, unsigned long arg );

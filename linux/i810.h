@@ -86,7 +86,7 @@
  */
 #define __HAVE_RELEASE		1
 #define DRIVER_RELEASE() do {						\
-	i810_reclaim_buffers( filp );					\
+	i810_reclaim_buffers( dev, filp );				\
 } while (0)
 
 #define DRIVER_PRETAKEDOWN() do {					\
