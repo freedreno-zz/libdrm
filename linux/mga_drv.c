@@ -353,6 +353,95 @@ static int mga_takedown(drm_device_t *dev)
 
 /* mga_init is called via init_module at module load time, or via
  * linux/init/main.c (this is not currently supported). */
+typedef union {
+	void          (*free_memory)(agp_memory *);
+	agp_memory    *(*allocate_memory)(size_t, u32);
+	int           (*bind_memory)(agp_memory *, off_t);
+	int           (*unbind_memory)(agp_memory *);
+	void          (*enable)(u32);
+	int           (*acquire)(void);
+	void          (*release)(void);
+	void          (*copy_info)(agp_kern_info *);
+	unsigned long address;
+} drm_agp_func_u;
+
+typedef struct drm_agp_fill {
+        const char     *name;
+	drm_agp_func_u *f;
+} drm_agp_fill_t;
+
+static drm_agp_fill_t drm_agp_fill[] = {
+	{ __MODULE_STRING(agp_free_memory),
+	   (drm_agp_func_u *)&drm_agp.free_memory     },
+	{ __MODULE_STRING(agp_allocate_memory), 
+	   (drm_agp_func_u *)&drm_agp.allocate_memory },
+	{ __MODULE_STRING(agp_bind_memory),     
+	   (drm_agp_func_u *)&drm_agp.bind_memory     },
+	{ __MODULE_STRING(agp_unbind_memory),   
+	   (drm_agp_func_u *)&drm_agp.unbind_memory   },
+	{ __MODULE_STRING(agp_enable),          
+	   (drm_agp_func_u *)&drm_agp.enable          },
+	{ __MODULE_STRING(agp_backend_acquire), 
+	   (drm_agp_func_u *)&drm_agp.acquire         },
+	{ __MODULE_STRING(agp_backend_release), 
+	   (drm_agp_func_u *)&drm_agp.release         },
+	{ __MODULE_STRING(agp_copy_info),       
+	   (drm_agp_func_u *)&drm_agp.copy_info       },
+	{ NULL, NULL }
+};
+
+drm_agp_head_t *mga_agp_init(void)
+{
+	drm_agp_fill_t *fill;
+	drm_agp_head_t *head         = NULL;
+	int            agp_available = 1;
+
+	for (fill = &drm_agp_fill[0]; fill->name; fill++) {
+		char *n  = (char *)fill->name;
+		*fill->f = (drm_agp_func_u)get_module_symbol(NULL, n);
+		printk("%s resolves to 0x%08lx\n", n, (*fill->f).address);
+		if (!(*fill->f).address) agp_available = 0;
+	}
+   
+	printk("agp_available = %d\n", agp_available);
+   
+   	if(agp_available == 0) {
+	   	printk("agp is not available\n");
+	   	return NULL;
+	}
+
+	if (agp_available) {
+		if (!(head = drm_alloc(sizeof(*head), DRM_MEM_AGPLISTS)))
+			return NULL;
+		memset((void *)head, 0, sizeof(*head));
+		(*drm_agp.copy_info)(&head->agp_info);
+		head->memory = NULL;
+		switch (head->agp_info.chipset) {
+		case INTEL_GENERIC:  head->chipset = "Intel";          break;
+		case INTEL_LX:       head->chipset = "Intel 440LX";    break;
+		case INTEL_BX:       head->chipset = "Intel 440BX";    break;
+		case INTEL_GX:       head->chipset = "Intel 440GX";    break;
+		case INTEL_I810:     head->chipset = "Intel i810";     break;
+		case VIA_GENERIC:    head->chipset = "VIA";            break;
+		case VIA_VP3:        head->chipset = "VIA VP3";        break;
+		case VIA_MVP3:       head->chipset = "VIA MVP3";       break;
+		case VIA_APOLLO_PRO: head->chipset = "VIA Apollo Pro"; break;
+		case SIS_GENERIC:    head->chipset = "SiS";            break;
+		case AMD_GENERIC:    head->chipset = "AMD";            break;
+		case AMD_IRONGATE:   head->chipset = "AMD Irongate";   break;
+		case ALI_GENERIC:    head->chipset = "ALi";            break;
+		case ALI_M1541:      head->chipset = "ALi M1541";      break;
+		default:
+		}
+		DRM_INFO("AGP %d.%d on %s @ 0x%08lx %dMB\n",
+			 head->agp_info.version.major,
+			 head->agp_info.version.minor,
+			 head->chipset,
+			 head->agp_info.aper_base,
+			 head->agp_info.aper_size);
+	}
+	return head;
+}
 
 int mga_init(void)
 {
@@ -381,7 +470,22 @@ int mga_init(void)
 	DRM_DEBUG("doing proc init\n");
 	drm_proc_init(dev);
 	DRM_DEBUG("doing agp init\n");
-	dev->agp    = drm_agp_init();
+	dev->agp    = mga_agp_init();
+      	if(dev->agp == NULL) {
+	   	printk("The mga drm module requires the agpgart module"
+		       " to function correctly\nPlease load the agpgart"
+		       " module before you load the mga module\n");
+	   	drm_proc_cleanup();
+	   	misc_deregister(&mga_misc);
+	   	mga_takedown(dev);
+	   	return -ENOMEM;
+	}
+#ifdef CONFIG_MTRR
+   	dev->agp->agp_mtrr = mtrr_add(dev->agp->agp_info.aper_base,
+				      dev->agp->agp_info.aper_size,
+				      MTRR_TYPE_WRCOMB,
+				      1);
+#endif
 	DRM_DEBUG("doing ctxbitmap init\n");
 	if((retcode = drm_ctxbitmap_init(dev))) {
 		DRM_ERROR("Cannot allocate memory for context bitmap.\n");
@@ -418,6 +522,16 @@ void mga_cleanup(void)
 	}
 	drm_ctxbitmap_cleanup(dev);
 	mga_dma_cleanup(dev);
+#ifdef CONFIG_MTRR
+   	if(dev->agp && dev->agp->agp_mtrr) {
+	   	int retval;
+	   	retval = mtrr_del(dev->agp->agp_mtrr, 
+				  dev->agp->agp_info.aper_base,
+				  dev->agp->agp_info.aper_size);
+	   	DRM_DEBUG("mtrr_del = %d\n", retval);
+	}
+#endif
+
 	mga_takedown(dev);
 	if (dev->agp) {
 		drm_free(dev->agp, sizeof(*dev->agp), DRM_MEM_AGPLISTS);

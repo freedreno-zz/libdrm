@@ -421,6 +421,7 @@ typedef struct drm_agp_head {
 	int                enabled;
 	int                acquired;
 	unsigned long      base;
+   	int 		   agp_mtrr;
 } drm_agp_head_t;
 
 typedef struct {

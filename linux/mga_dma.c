@@ -93,6 +93,15 @@ static void mga_delay(void)
    	return;
 }
 
+static void mga_flush_write_combine(void)
+{
+   	int xchangeDummy;
+   	__asm__ volatile( " push %%eax ; xchg %%eax, %0 ; pop %%eax" : : "m" (xchangeDummy));
+   	__asm__ volatile(" push %%eax ; push %%ebx ; push %%ecx ; push %%edx ;"
+			 " movl $0,%%eax ; cpuid ; pop %%edx ; pop %%ecx ; pop %%ebx ;"
+			 " pop %%eax" : /* no outputs */ :  /* no inputs */ );
+}
+
 int mga_dma_cleanup(drm_device_t *dev)
 {
 	if(dev->dev_private) {
@@ -347,6 +356,7 @@ static int mga_dma_initialize(drm_device_t *dev, drm_mga_init_t *init) {
    		status[1] = 0;
 	   
 
+		mga_flush_write_combine();
 	   	MGA_WRITE(MGAREG_PRIMADDRESS, phys_head | TT_GENERAL);
 
 		MGA_WRITE(MGAREG_PRIMEND, ((phys_head + num_dwords * 4) | 
@@ -444,6 +454,7 @@ static void __mga_iload_small(drm_device_t *dev, drm_buf_t *buf)
 	}
 
    	PRIMADVANCE(dev_priv);
+   	mga_flush_write_combine();
       	MGA_WRITE(MGAREG_PRIMADDRESS, dev_priv->prim_phys_head | TT_GENERAL);
 	MGA_WRITE(MGAREG_PRIMEND, (phys_head + num_dwords * 4) | use_agp);   
 }
@@ -523,6 +534,7 @@ static void __mga_iload_xy(drm_device_t *dev, drm_buf_t *buf )
 	   sarea_priv->dirty &= ~(MGA_DMA_FLUSH);
 	}
    
+   	mga_flush_write_combine();
       	MGA_WRITE(MGAREG_PRIMADDRESS, dev_priv->prim_phys_head | TT_GENERAL);
 	MGA_WRITE(MGAREG_PRIMEND, (phys_head + num_dwords * 4) | use_agp);
 }
@@ -616,7 +628,7 @@ static void mga_dma_dispatch_tex_blit(drm_device_t *dev, drm_buf_t *buf )
 	   sarea_priv->dirty &= ~(MGA_DMA_FLUSH);
 	}
 
-
+   	mga_flush_write_combine();
       	MGA_WRITE(MGAREG_PRIMADDRESS, dev_priv->prim_phys_head | TT_GENERAL);
 	MGA_WRITE(MGAREG_PRIMEND, (phys_head + num_dwords * 4) | use_agp);
    
@@ -682,7 +694,7 @@ static void mga_dma_dispatch_vertex(drm_device_t *dev, drm_buf_t *buf)
 	}
    
 	PRIMADVANCE( dev_priv );
-
+   	mga_flush_write_combine();
       	MGA_WRITE(MGAREG_PRIMADDRESS, dev_priv->prim_phys_head | TT_GENERAL);
 	MGA_WRITE(MGAREG_PRIMEND, (phys_head + num_dwords * 4) | use_agp);
 }
@@ -720,6 +732,7 @@ static void mga_dma_dispatch_general(drm_device_t *dev, drm_buf_t *buf)
 	   sarea_priv->dirty &= ~(MGA_DMA_FLUSH);
 	}
    
+   	mga_flush_write_combine();
       	MGA_WRITE(MGAREG_PRIMADDRESS, dev_priv->prim_phys_head | TT_GENERAL);
 	MGA_WRITE(MGAREG_PRIMEND, (phys_head + num_dwords * 4) | use_agp);
 }
@@ -859,6 +872,7 @@ static void mga_dma_dispatch_clear( drm_device_t *dev, drm_buf_t *buf )
 	   sarea_priv->dirty &= ~(MGA_DMA_FLUSH);
 	}
 
+   	mga_flush_write_combine();
       	MGA_WRITE(MGAREG_PRIMADDRESS, dev_priv->prim_phys_head | TT_GENERAL);
 	MGA_WRITE(MGAREG_PRIMEND, (phys_head + num_dwords * 4) | use_agp);
 }
@@ -916,6 +930,7 @@ static void mga_dma_dispatch_swap( drm_device_t *dev, drm_buf_t *buf )
 	   sarea_priv->dirty &= ~(MGA_DMA_FLUSH);
 	}
 
+   	mga_flush_write_combine();
       	MGA_WRITE(MGAREG_PRIMADDRESS, dev_priv->prim_phys_head | TT_GENERAL);
 	MGA_WRITE(MGAREG_PRIMEND, (phys_head + num_dwords * 4) | use_agp);
 }
@@ -951,6 +966,7 @@ static void mga_dma_dispatch_bad( drm_device_t *dev, drm_buf_t *buf )
 	   sarea_priv->dirty &= ~(MGA_DMA_FLUSH);
 	}
 
+   	mga_flush_write_combine();
       	MGA_WRITE(MGAREG_PRIMADDRESS, dev_priv->prim_phys_head | TT_GENERAL);
 	MGA_WRITE(MGAREG_PRIMEND, (phys_head + num_dwords * 4) | use_agp);
 }
@@ -1480,7 +1496,6 @@ int mga_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 		}
 	}
    
-out_lock:
 	DRM_DEBUG("%d %s\n", lock.context, ret ? "interrupted" : "has lock");
 	return ret;
 }

@@ -52,7 +52,7 @@ typedef struct {
 
 
 
-#define MGA_VERBOSE 1
+#define MGA_VERBOSE 0
 
 
 
