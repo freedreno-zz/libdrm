@@ -217,6 +217,20 @@ static int drmOpenByName(const char *name)
     group = xf86ConfigDRI.group ? xf86ConfigDRI.group : DRM_DEV_GID;
 #endif
 
+    if (!drmAvailable()) {
+        /* try to load the kernel module now */
+        char filename[1000];
+        snprintf(filename, 999, "misc/%s.o", name);
+        /* xf86LoadKernelModule will prefix "/lib/modules/<kernel-version>"
+         * for Linux, or similar for other OSes.
+         */
+        if (!xf86LoadKernelModule(filename)) {
+            ErrorF(stderr, "[drm] failed to load kernel module \"%s\"\n",
+                  filename);
+            return -1;
+        }
+    }
+
     if (!geteuid()) {
 	dirmode = mode;
 	if (dirmode & S_IRUSR) dirmode |= S_IXUSR;
