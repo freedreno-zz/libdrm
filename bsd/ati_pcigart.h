@@ -66,6 +66,7 @@ int DRM(ati_pcigart_init)( drm_device_t *dev,
 			   dma_addr_t *bus_addr)
 {
 	drm_sg_mem_t *entry = dev->sg;
+	unsigned long address = 0;
 	unsigned long pages;
 	u32 *pci_gart=0, page_base, bus_address = 0;
 	int i, j, ret = 0;
@@ -75,23 +76,25 @@ int DRM(ati_pcigart_init)( drm_device_t *dev,
 		goto done;
 	}
 
-	pci_gart = (u32 *)DRM(ati_alloc_pcigart_table)();
-	if ( !pci_gart ) {
+	address = DRM(ati_alloc_pcigart_table)();
+	if ( !address ) {
 		DRM_ERROR( "cannot allocate PCI GART page!\n" );
 		goto done;
 	}
 
 	/* FIXME non-vtophys==bustophys-arches */
-	bus_address = vtophys( pci_gart );
+	bus_address = vtophys( address );
 	/*pci_map_single(dev->pdev, (void *)address,
 				  ATI_PCIGART_TABLE_PAGES * PAGE_SIZE,
 				  PCI_DMA_TODEVICE);*/
-	if (bus_address == 0) {
+/*	if (bus_address == 0) {
 		DRM_ERROR( "unable to map PCIGART pages!\n" );
-		DRM(ati_free_pcigart_table)( (unsigned long)pci_gart );
-		pci_gart = 0;
+		DRM(ati_free_pcigart_table)( (unsigned long)address );
+		address = 0;
 		goto done;
-	}
+	}*/
+
+	pci_gart = (u32 *)address;
 
 	pages = ( entry->pages <= ATI_MAX_PCIGART_PAGES )
 		? entry->pages : ATI_MAX_PCIGART_PAGES;
@@ -101,13 +104,13 @@ int DRM(ati_pcigart_init)( drm_device_t *dev,
 	for ( i = 0 ; i < pages ; i++ ) {
 		/* we need to support large memory configurations */
 		/* FIXME non-vtophys==vtobus-arches */		entry->busaddr[i] = vtophys( entry->handle + (i*PAGE_SIZE) );
-		if (entry->busaddr[i] == 0) {
+/*		if (entry->busaddr[i] == 0) {
 			DRM_ERROR( "unable to map PCIGART pages!\n" );
-			DRM(ati_pcigart_cleanup)( dev, (unsigned long)pci_gart, bus_address );
-			pci_gart = 0;
+			DRM(ati_pcigart_cleanup)( dev, (unsigned long)address, bus_address );
+			address = 0;
 			bus_address = 0;
 			goto done;
-		}
+		}*/
 		page_base = (u32) entry->busaddr[i];
 
 		for (j = 0; j < (PAGE_SIZE / ATI_PCIGART_PAGE_SIZE); j++) {
@@ -121,7 +124,7 @@ int DRM(ati_pcigart_init)( drm_device_t *dev,
 	DRM_OS_READMEMORYBARRIER();
 
 done:
-	*addr = (unsigned long)pci_gart;
+	*addr = address;
 	*bus_addr = bus_address;
 	return ret;
 }
