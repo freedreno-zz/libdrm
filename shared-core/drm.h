@@ -85,6 +85,7 @@ typedef struct drm_tex_region {
 #include "i810_drm.h"
 #include "r128_drm.h"
 #include "radeon_drm.h"
+#include "gamma_drm.h"
 #ifdef CONFIG_DRM_SIS
 #include "sis_drm.h"
 #endif
