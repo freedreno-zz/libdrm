@@ -175,10 +175,8 @@ do {								\
 #define DRM_HZ hz
 
 #define DRM_WAIT_ON( ret, queue, timeout, condition )			\
-while (!condition) {							\
+for ( ret = 0 ; !(condition) && !ret ; ) {				\
 	ret = tsleep( &(queue), PZERO | PCATCH, "drmwtq", (timeout) );	\
-	if ( ret )							\
-		return ret;						\
 }
 
 #define DRM_WAKEUP( queue ) wakeup( queue )
