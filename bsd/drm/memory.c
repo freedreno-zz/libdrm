@@ -34,6 +34,9 @@
 
 #include <vm/vm.h>
 #include <vm/pmap.h>
+#ifdef DRM_AGP
+#include <sys/agpio.h>
+#endif
 
 MALLOC_DEFINE(M_DRM, "drm", "DRM Data Structures");
 
@@ -67,6 +70,10 @@ static drm_mem_stats_t	  drm_mem_stats[]   = {
 	[DRM_MEM_CMDS]	   = { "commands" },
 	[DRM_MEM_MAPPINGS] = { "mappings" },
 	[DRM_MEM_BUFLISTS] = { "buflists" },
+	[DRM_MEM_AGPLISTS]  = { "agplist"  },
+	[DRM_MEM_TOTALAGP]  = { "totalagp" },
+	[DRM_MEM_BOUNDAGP]  = { "boundagp" },
+	[DRM_MEM_CTXBITMAP] = { "ctxbitmap"},
 	{ NULL, 0, }		/* Last entry must be null */
 };
 
@@ -337,20 +344,20 @@ void *drm_alloc_agp(int pages, u_int32_t type)
 	}
 	
 	if ((handle = agp_alloc_memory(dev, type, pages << AGP_PAGE_SHIFT))) {
-		spin_lock(&drm_mem_lock);
+		simple_lock(&drm_mem_lock);
 		++drm_mem_stats[DRM_MEM_TOTALAGP].succeed_count;
 		drm_mem_stats[DRM_MEM_TOTALAGP].bytes_allocated
 			+= pages << PAGE_SHIFT;
-		spin_unlock(&drm_mem_lock);
+		simple_unlock(&drm_mem_lock);
 		return handle;
 	}
-	spin_lock(&drm_mem_lock);
+	simple_lock(&drm_mem_lock);
 	++drm_mem_stats[DRM_MEM_TOTALAGP].fail_count;
-	spin_unlock(&drm_mem_lock);
+	simple_unlock(&drm_mem_lock);
 	return NULL;
 }
 
-int drm_free_agp(agp_memory *handle, int pages)
+int drm_free_agp(void *handle, int pages)
 {
 	device_t dev = agp_find_device();
 	int           alloc_count;
@@ -367,12 +374,12 @@ int drm_free_agp(agp_memory *handle, int pages)
 	}
 	
 	agp_free_memory(dev, handle);
-	spin_lock(&drm_mem_lock);
+	simple_lock(&drm_mem_lock);
 	free_count  = ++drm_mem_stats[DRM_MEM_TOTALAGP].free_count;
 	alloc_count =   drm_mem_stats[DRM_MEM_TOTALAGP].succeed_count;
 	drm_mem_stats[DRM_MEM_TOTALAGP].bytes_freed
 		+= pages << PAGE_SHIFT;
-	spin_unlock(&drm_mem_lock);
+	simple_unlock(&drm_mem_lock);
 	if (free_count > alloc_count) {
 		DRM_MEM_ERROR(DRM_MEM_TOTALAGP,
 			      "Excess frees: %d frees, %d allocs\n",
@@ -381,10 +388,11 @@ int drm_free_agp(agp_memory *handle, int pages)
 	return 0;
 }
 
-int drm_bind_agp(agp_memory *handle, unsigned int start)
+int drm_bind_agp(void *handle, unsigned int start)
 {
 	device_t dev = agp_find_device();
 	int retcode  = EINVAL;
+	struct agp_memory_info info;
 
 	DRM_DEBUG("drm_bind_agp called\n");
 
@@ -397,22 +405,24 @@ int drm_bind_agp(agp_memory *handle, unsigned int start)
 		return retcode;
 	}
 
-	if (!(retcode = agp_bind_memory(handle, start << AGP_PAGE_SHIFT))) {
-		spin_lock(&drm_mem_lock);
+	if (!(retcode = agp_bind_memory(dev, handle,
+					start << AGP_PAGE_SHIFT))) {
+		simple_lock(&drm_mem_lock);
 		++drm_mem_stats[DRM_MEM_BOUNDAGP].succeed_count;
+		agp_memory_info(dev, handle, &info);
 		drm_mem_stats[DRM_MEM_BOUNDAGP].bytes_allocated
-			+= handle->page_count << PAGE_SHIFT;
-		spin_unlock(&drm_mem_lock);
+			+= info.ami_size;
+		simple_unlock(&drm_mem_lock);
 		DRM_DEBUG("drm_agp.bind_memory: retcode %d\n", retcode);
 		return retcode;
 	}
-	spin_lock(&drm_mem_lock);
+	simple_lock(&drm_mem_lock);
 	++drm_mem_stats[DRM_MEM_BOUNDAGP].fail_count;
-	spin_unlock(&drm_mem_lock);
+	simple_unlock(&drm_mem_lock);
 	return retcode;
 }
 
-int drm_unbind_agp(agp_memory *handle)
+int drm_unbind_agp(void *handle)
 {
 	device_t dev = agp_find_device();
 	int alloc_count;
@@ -433,11 +443,11 @@ int drm_unbind_agp(agp_memory *handle)
 	agp_memory_info(dev, handle, &info);
 	if ((retcode = agp_unbind_memory(dev, handle)))
 		return retcode;
-	spin_lock(&drm_mem_lock);
+	simple_lock(&drm_mem_lock);
 	free_count  = ++drm_mem_stats[DRM_MEM_BOUNDAGP].free_count;
 	alloc_count = drm_mem_stats[DRM_MEM_BOUNDAGP].succeed_count;
 	drm_mem_stats[DRM_MEM_BOUNDAGP].bytes_freed += info.ami_size;
-	spin_unlock(&drm_mem_lock);
+	simple_unlock(&drm_mem_lock);
 	if (free_count > alloc_count) {
 		DRM_MEM_ERROR(DRM_MEM_BOUNDAGP,
 			      "Excess frees: %d frees, %d allocs\n",
