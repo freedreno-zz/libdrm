@@ -384,9 +384,9 @@ int mga_init(void)
 	DRM_DEBUG("doing agp init\n");
 	dev->agp    = drm_agp_init();
       	if(dev->agp == NULL) {
-	   	DRM_DEBUG("The mga drm module requires the agpgart module"
-		          " to function correctly\nPlease load the agpgart"
-		          " module before you load the mga module\n");
+	   	DRM_INFO("The mga drm module requires the agpgart module"
+		         " to function correctly\nPlease load the agpgart"
+		         " module before you load the mga module\n");
 	   	drm_proc_cleanup();
 	   	misc_deregister(&mga_misc);
 	   	mga_takedown(dev);
