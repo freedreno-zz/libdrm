@@ -106,6 +106,12 @@
 #define DRM_READ32(addr)	*((volatile long *)(addr))
 #define DRM_WRITE8(addr, val)	*((volatile char *)(addr)) = (val)
 #define DRM_WRITE32(addr, val)	*((volatile long *)(addr)) = (val)
+/*
+#define DRM_READ8(map, offset)		*(volatile u_int8_t *)(((unsigned long)map->handle) + offset)
+#define DRM_READ32(map, offset)		*(volatile u_int32_t *)(((unsigned long)map->handle) + offset)
+#define DRM_WRITE8(map, offset, val)	*(volatile u_int8_t *)(((unsigned long)map->handle) + offset) = val
+#define DRM_WRITE32(map, offset, val)	*(volatile u_int32_t *)(((unsigned long)map->handle) + offset) = val
+*/
 #define DRM_AGP_FIND_DEVICE()	agp_find_device()
 #define DRM_ERR(v)		v
 
@@ -130,7 +136,7 @@ do {								\
 do {								\
 	drm_map_list_entry_t *listentry;			\
 	TAILQ_FOREACH(listentry, dev->maplist, link) {		\
-		drm_map_t *map = listentry->map;		\
+		drm_local_map_t *map = listentry->map;		\
 		if (map->type == _DRM_SHM &&			\
 			map->flags & _DRM_CONTAINS_LOCK) {	\
 			dev_priv->sarea = map;			\

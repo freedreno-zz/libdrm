@@ -17,6 +17,7 @@
 #include <uvm/uvm.h>
 #include <sys/vnode.h>
 #include <sys/poll.h>
+#include <sys/lkm.h>
 /* For TIOCSPGRP/TIOCGPGRP */
 #include <sys/ttycom.h>
 
@@ -31,8 +32,6 @@
 #include <dev/pci/pcireg.h>
 #include <dev/pci/pcivar.h>
  
-#include "drmvar.h"
-
 #define __REALLY_HAVE_AGP	__HAVE_AGP
 
 #define __REALLY_HAVE_MTRR	0
@@ -43,8 +42,9 @@
 #include <sys/agpio.h>
 #endif
 
-#define device_t struct device *
-extern struct cfdriver DRM(_cd);
+typedef drm_device_t *device_t;
+
+extern drm_device_t *DRM(devs)[16];
 
 #if DRM_DEBUG
 #undef  DRM_DEBUG_CODE
@@ -57,7 +57,7 @@ extern struct cfdriver DRM(_cd);
 #define DRM_DEV_MODE	(S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP)
 #define DRM_DEV_UID	0
 #define DRM_DEV_GID	0
-#define CDEV_MAJOR	90
+#define CDEV_MAJOR	34
 
 #define DRM_CURPROC		curproc
 #define DRM_STRUCTPROC	struct proc
@@ -73,15 +73,22 @@ extern struct cfdriver DRM(_cd);
 #define DRM_SUSER(p)		suser(p->p_ucred, &p->p_acflag)
 #define DRM_TASKQUEUE_ARGS	void *dev, int pending
 #define DRM_IRQ_ARGS		void *device
-#define DRM_DEVICE		drm_device_t *dev = device_lookup(&DRM(_cd), minor(kdev))
+#define DRM_DEVICE		drm_device_t *dev = \
+					(DRM(devs)[minor(kdev)])
 #define DRM_MALLOC(size)	malloc( size, DRM(M_DRM), M_NOWAIT )
 #define DRM_FREE(pt)		free( pt, DRM(M_DRM) )
 #define DRM_VTOPHYS(addr)	vtophys(addr)
-#define DRM_READ8(addr)	*((volatile char *)(addr))
+#define DRM_READ8(addr)		*((volatile char *)(addr))
 #define DRM_READ32(addr)	*((volatile long *)(addr))
 #define DRM_WRITE8(addr, val)	*((volatile char *)(addr)) = (val)
 #define DRM_WRITE32(addr, val)	*((volatile long *)(addr)) = (val)
-#define DRM_AGP_FIND_DEVICE()
+/*
+#define DRM_READ8(map, offset)		bus_space_read_1( map->iot, map->ioh, offset, val );
+#define DRM_READ32(map, offset)		bus_space_read_4( map->iot, map->ioh, offset, val );
+#define DRM_WRITE8(map, offset, val)	bus_space_write_1( map->iot, map->ioh, offset, val );
+#define DRM_WRITE32(map, offset, val)	bus_space_write_4( map->iot, map->ioh, offset, val );
+*/
+#define DRM_AGP_FIND_DEVICE()	agp_find_device(0)
 
 #define DRM_PRIV					\
 	drm_file_t	*priv	= (drm_file_t *) DRM(find_file_by_proc)(dev, p); \
@@ -104,7 +111,7 @@ do {								\
 do {								\
 	drm_map_list_entry_t *listentry;			\
 	TAILQ_FOREACH(listentry, dev->maplist, link) {		\
-		drm_map_t *map = listentry->map;		\
+		drm_local_map_t *map = listentry->map;		\
 		if (map->type == _DRM_SHM &&			\
 			map->flags & _DRM_CONTAINS_LOCK) {	\
 			dev_priv->sarea = map;			\
@@ -113,7 +120,6 @@ do {								\
 	}							\
 } while (0)
 
-#define return DRM_ERR(v)	return v;
 #define DRM_ERR(v)		v
 
 #define DRM_COPY_TO_USER_IOCTL(arg1, arg2, arg3) \
@@ -125,7 +131,7 @@ do {								\
 #define DRM_COPY_FROM_USER(arg1, arg2, arg3) \
 	copyin(arg2, arg1, arg3)
 
-#define DRM_READMEMORYBARRIER \
+#define DRM_READMEMORYBARRIER() \
 {												\
    	int xchangeDummy;									\
 	DRM_DEBUG("%s\n", __FUNCTION__);							\
@@ -135,7 +141,7 @@ do {								\
 			 " pop %%eax" : /* no outputs */ :  /* no inputs */ );			\
 } while (0);
 
-#define DRM_WRITEMEMORYBARRIER DRM_READMEMORYBARRIER
+#define DRM_WRITEMEMORYBARRIER() DRM_READMEMORYBARRIER()
 
 #define DRM_WAKEUP(w) wakeup(w)
 #define DRM_WAKEUP_INT(w) wakeup(w)
@@ -151,7 +157,7 @@ typedef struct drm_chipinfo
 } drm_chipinfo_t;
 
 typedef u_int32_t dma_addr_t;
-typedef volatile u_int32_t atomic_t;
+typedef volatile long atomic_t;
 typedef u_int32_t cycles_t;
 typedef u_int32_t spinlock_t;
 typedef u_int32_t u32;
@@ -160,14 +166,15 @@ typedef u_int8_t u8;
 typedef dev_type_ioctl(d_ioctl_t);
 typedef vaddr_t vm_offset_t;
 
+/* FIXME */
 #define atomic_set(p, v)	(*(p) = (v))
 #define atomic_read(p)		(*(p))
-#define atomic_inc(p)		atomic_add_int(p, 1)
-#define atomic_dec(p)		atomic_subtract_int(p, 1)
-#define atomic_add(n, p)	atomic_add_int(p, n)
-#define atomic_sub(n, p)	atomic_subtract_int(p, n)
+#define atomic_inc(p)		(*(p) += 1)
+#define atomic_dec(p)		(*(p) -= 1)
+#define atomic_add(n, p)	(*(p) += (n))
+#define atomic_sub(n, p)	(*(p) -= (n))
 
-/* FIXME: Is NetBSD's kernel non-reentrant? */
+/* FIXME */
 #define atomic_add_int(p, v)      *(p) += v
 #define atomic_subtract_int(p, v) *(p) -= v
 #define atomic_set_int(p, bits)   *(p) |= (bits)

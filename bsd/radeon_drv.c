@@ -74,4 +74,6 @@ drm_chipinfo_t DRM(devicelist)[] = {
 #include "drm_scatter.h"
 #endif
 
+#ifdef __FreeBSD__
 DRIVER_MODULE(DRIVER_NAME, pci, DRM(driver), DRM(devclass), 0, 0);
+#endif /* __FreeBSD__ */

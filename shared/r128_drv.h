@@ -98,13 +98,13 @@ typedef struct drm_r128_private {
 	u32 depth_pitch_offset_c;
 	u32 span_pitch_offset_c;
 
-	drm_map_t *sarea;
-	drm_map_t *fb;
-	drm_map_t *mmio;
-	drm_map_t *cce_ring;
-	drm_map_t *ring_rptr;
-	drm_map_t *buffers;
-	drm_map_t *agp_textures;
+	drm_local_map_t *sarea;
+	drm_local_map_t *fb;
+	drm_local_map_t *mmio;
+	drm_local_map_t *cce_ring;
+	drm_local_map_t *ring_rptr;
+	drm_local_map_t *buffers;
+	drm_local_map_t *agp_textures;
 } drm_r128_private_t;
 
 typedef struct drm_r128_buf_priv {
@@ -379,6 +379,12 @@ extern int r128_cce_indirect( DRM_IOCTL_ARGS );
 
 #define R128_READ8(reg)		DRM_READ8(  (volatile u8 *) R128_ADDR(reg) )
 #define R128_WRITE8(reg,val)	DRM_WRITE8( (volatile u8 *) R128_ADDR(reg), (val) )
+/*
+#define R128_READ(reg)		DRM_READ32(  dev_priv->mmio, reg )
+#define R128_WRITE(reg,val)	DRM_WRITE32( dev_priv->mmio, reg, (val) )
+#define R128_READ8(reg)		DRM_READ8(   dev_priv->mmio, reg )
+#define R128_WRITE8(reg,val)	DRM_WRITE8(  dev_priv->mmio, reg, (val) )
+*/
 
 #define R128_WRITE_PLL(addr,val)					\
 do {									\

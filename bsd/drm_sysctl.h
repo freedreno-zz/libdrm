@@ -125,7 +125,7 @@ static int DRM(name_info)DRM_SYSCTL_HANDLER_ARGS
 static int DRM(_vm_info)DRM_SYSCTL_HANDLER_ARGS
 {
 	drm_device_t *dev = arg1;
-	drm_map_t    *map;
+	drm_local_map_t    *map;
 	drm_map_list_entry_t    *listentry;
 	const char   *types[] = { "FB", "REG", "SHM" };
 	const char   *type;

@@ -200,6 +200,7 @@ int DRM(write_string)(drm_device_t *dev, const char *s)
 			gsignal(dev->buf_pgid, SIGIO);
 		else if(dev->buf_pgid && (p = pfind(-dev->buf_pgid)) != NULL)
 			psignal(p, SIGIO);
+	}
 #endif /* __NetBSD__ */
 	DRM_DEBUG("waking\n");
 	wakeup(&dev->buf_rp);

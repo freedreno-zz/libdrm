@@ -90,14 +90,14 @@ typedef struct drm_mga_private {
 	unsigned int texture_offset;
 	unsigned int texture_size;
 
-	drm_map_t *sarea;
-	drm_map_t *fb;
-	drm_map_t *mmio;
-	drm_map_t *status;
-	drm_map_t *warp;
-	drm_map_t *primary;
-	drm_map_t *buffers;
-	drm_map_t *agp_textures;
+	drm_local_map_t *sarea;
+	drm_local_map_t *fb;
+	drm_local_map_t *mmio;
+	drm_local_map_t *status;
+	drm_local_map_t *warp;
+	drm_local_map_t *primary;
+	drm_local_map_t *buffers;
+	drm_local_map_t *agp_textures;
 } drm_mga_private_t;
 
 				/* mga_dma.c */
@@ -157,6 +157,12 @@ static inline u32 _MGA_READ(u32 *addr)
 #define MGA_READ8( reg )	MGA_DEREF8( reg )
 #define MGA_WRITE( reg, val )	do { MGA_DEREF( reg ) = val; } while (0)
 #define MGA_WRITE8( reg, val )  do { MGA_DEREF8( reg ) = val; } while (0)
+/*
+#define MGA_READ8( reg )	DRM_READ8(dev_priv->mmio, reg)
+#define MGA_READ( reg )		DRM_READ32(dev_priv->mmio, reg)
+#define MGA_WRITE8( reg, val )  DRM_WRITE8(dev_priv->mmio, reg, val)
+#define MGA_WRITE( reg, val )	DRM_WRITE32(dev_priv->mmio, reg, val)
+*/
 #endif
 
 #define DWGREG0 	0x1c00

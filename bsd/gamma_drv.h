@@ -34,11 +34,11 @@
 
 
 typedef struct drm_gamma_private {
-	drm_map_t *buffers;
-	drm_map_t *mmio0;
-	drm_map_t *mmio1;
-	drm_map_t *mmio2;
-	drm_map_t *mmio3;
+	drm_local_map_t *buffers;
+	drm_local_map_t *mmio0;
+	drm_local_map_t *mmio1;
+	drm_local_map_t *mmio2;
+	drm_local_map_t *mmio3;
 } drm_gamma_private_t;
 
 #define LOCK_TEST_WITH_RETURN( dev )					\

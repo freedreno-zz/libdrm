@@ -63,4 +63,6 @@ drm_chipinfo_t DRM(devicelist)[] = {
 #include "drm_vm.h"
 #include "drm_sysctl.h"
 
+#ifdef __FreeBSD__
 DRIVER_MODULE(mga, pci, mga_driver, mga_devclass, 0, 0);
+#endif

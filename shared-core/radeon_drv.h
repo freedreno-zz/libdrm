@@ -126,13 +126,13 @@ typedef struct drm_radeon_private {
 
 	drm_radeon_depth_clear_t depth_clear;
 
-	drm_map_t *sarea;
-	drm_map_t *fb;
-	drm_map_t *mmio;
-	drm_map_t *cp_ring;
-	drm_map_t *ring_rptr;
-	drm_map_t *buffers;
-	drm_map_t *agp_textures;
+	drm_local_map_t *sarea;
+	drm_local_map_t *fb;
+	drm_local_map_t *mmio;
+	drm_local_map_t *cp_ring;
+	drm_local_map_t *ring_rptr;
+	drm_local_map_t *buffers;
+	drm_local_map_t *agp_textures;
 
 	struct mem_block *agp_heap;
 	struct mem_block *fb_heap;
@@ -692,9 +692,17 @@ extern int radeon_emit_irq(drm_device_t *dev);
 
 #define RADEON_READ(reg)	DRM_READ32(  (volatile u32 *) RADEON_ADDR(reg) )
 #define RADEON_WRITE(reg,val)	DRM_WRITE32( (volatile u32 *) RADEON_ADDR(reg), (val) )
+/*
+#define RADEON_READ(reg)	DRM_READ32(  dev_priv->mmio, reg )
+#define RADEON_WRITE(reg,val)	DRM_WRITE32( dev_priv->mmio, reg, (val) )
+*/
 
 #define RADEON_READ8(reg)	DRM_READ8(  (volatile u8 *) RADEON_ADDR(reg) )
 #define RADEON_WRITE8(reg,val)	DRM_WRITE8( (volatile u8 *) RADEON_ADDR(reg), (val) )
+/*
+#define RADEON_READ8(reg)	DRM_READ8(  dev_priv->mmio, reg )
+#define RADEON_WRITE8(reg,val)	DRM_WRITE8( dev_priv->mmio, reg, (val) )
+*/
 
 #define RADEON_WRITE_PLL( addr, val )					\
 do {									\

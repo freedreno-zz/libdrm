@@ -11,6 +11,12 @@
 #define DRM_READ32(addr)		readl(addr)
 #define DRM_WRITE8(addr, val)		writeb(val, addr)
 #define DRM_WRITE32(addr, val)		writel(val, addr)
+/*
+#define DRM_READ8(map, offset)		readb((unsigned long)map->handle + offset)
+#define DRM_READ32(map, offset)		readl((unsigned long)map->handle + offset)
+#define DRM_WRITE8(map, offset, val)	writeb(val, (unsigned long)map->handle + offset)
+#define DRM_WRITE32(map, offset, val)	writel(val, (unsigned long)map->handle + offset)
+*/
 #define DRM_READMEMORYBARRIER()		mb()
 #define DRM_WRITEMEMORYBARRIER()	wmb()
 #define DRM_DEVICE	drm_file_t	*priv	= filp->private_data; \

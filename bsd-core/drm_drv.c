@@ -134,7 +134,6 @@ static void DRM(cleanup)(drm_device_t *);
 #endif
 
 #ifdef __FreeBSD__
-#define CDEV_MAJOR	145
 #define DRIVER_SOFTC(unit) \
 	((drm_device_t *) devclass_get_softc(DRM(devclass), unit))
 
@@ -147,9 +146,11 @@ MODULE_DEPEND(DRIVER_NAME, linux, 1, 1, 1);
 #endif /* __FreeBSD__ */
 
 #ifdef __NetBSD__
-#define CDEV_MAJOR	90
 #define DRIVER_SOFTC(unit) \
-	((drm_device_t *) device_lookup(&DRM(_cd), unit))
+	(DRM(devs)[(unit)])
+
+drm_device_t *DRM(devs)[16];
+
 #endif /* __NetBSD__ */
 
 static drm_ioctl_desc_t		  DRM(ioctls)[] = {
@@ -228,6 +229,35 @@ static drm_ioctl_desc_t		  DRM(ioctls)[] = {
 
 const char *DRM(find_description)(int vendor, int device);
 
+static struct cdevsw DRM(cdevsw) = {
+	/* open */	DRM( open ),
+	/* close */	DRM( close ),
+	/* read */	DRM( read ),
+	/* write */	DRM( write ),
+	/* ioctl */	DRM( ioctl ),
+#ifdef __NetBSD__
+	/* stop */      NULL,
+	/* tty */       NULL,
+#endif /* __NetBSD__ */
+	/* poll */	DRM( poll ),
+	/* mmap */	DRM( mmap ),
+#ifdef __NetBSD__
+	/* type */      NULL
+#elif defined(__FreeBSD__)
+	/* strategy */	nostrategy,
+	/* name */	DRIVER_NAME,
+	/* maj */	CDEV_MAJOR,
+	/* dump */	nodump,
+	/* psize */	nopsize,
+	/* flags */	D_TTY | D_TRACKCLOSE,
+#if __FreeBSD_version >= 500000
+	/* kqfilter */	0
+#else
+	/* bmaj */	-1
+#endif
+#endif /* __FreeBSD__ */
+};
+
 #ifdef __FreeBSD__
 static int DRM(probe)(device_t dev)
 {
@@ -271,79 +301,85 @@ static driver_t DRM(driver) = {
 	sizeof(drm_device_t),
 };
 
-static devclass_t DRM( devclass);
-
-static struct cdevsw DRM( cdevsw) = {
-	/* open */	DRM( open ),
-	/* close */	DRM( close ),
-	/* read */	DRM( read ),
-	/* write */	DRM( write ),
-	/* ioctl */	DRM( ioctl ),
-	/* poll */	DRM( poll ),
-	/* mmap */	DRM( mmap ),
-	/* strategy */	nostrategy,
-	/* name */	DRIVER_NAME,
-	/* maj */	CDEV_MAJOR,
-	/* dump */	nodump,
-	/* psize */	nopsize,
-	/* flags */	D_TTY | D_TRACKCLOSE,
-#if __FreeBSD_version >= 500000
-	/* kqfilter */	0
-#else
-	/* bmaj */	-1
-#endif
-};
+static devclass_t DRM(devclass);
 
 #elif defined(__NetBSD__)
-int DRM(probe)(struct device *parent, struct cfdata *match, void *aux);
-void DRM(attach)(struct device *parent, struct device *self, void *aux);
-int DRM(detach)(struct device *self, int flags);
-int DRM(activate)(struct device *self, enum devact act);
+int DRM(refcnt) = 0;
+MOD_DEV( DRIVER_NAME, LM_DT_CHAR, CDEV_MAJOR, &DRM(cdevsw) );
 
-struct cfattach DRM(_ca) = {
-	sizeof(drm_device_t), DRM(probe), 
-	DRM(attach), DRM(detach), DRM(activate) };
-	
-int DRM(probe)(struct device *parent, struct cfdata *match, void *aux)
+int DRM(lkmentry)(struct lkm_table *lkmtp, int cmd, int ver);
+static int DRM(lkmhandle)(struct lkm_table *lkmtp, int cmd);
+
+int DRM(modprobe)();
+int DRM(probe)(struct pci_attach_args *pa);
+void DRM(attach)(struct pci_attach_args *pa);
+
+int DRM(lkmentry)(struct lkm_table *lkmtp, int cmd, int ver)
+	DISPATCH(lkmtp, cmd, ver, DRM(lkmhandle), DRM(lkmhandle), DRM(lkmhandle));
+}
+
+static int DRM(lkmhandle)(struct lkm_table *lkmtp, int cmd)
 {
-	struct pci_attach_args *pa = aux;
+	int j, error = 0;
+
+	switch(cmd) {
+	case LKM_E_LOAD:
+		if (lkmexists(lkmtp))
+			return EEXIST;
+		if(DRM(modprobe)())
+			return 0;
+
+		return 1;
+
+	case LKM_E_UNLOAD:
+		if (DRM(refcnt) > 0)
+			return (EBUSY);
+/*		for (j = 0; j <= sc->sc_maxvm; j++)
+			DRM(destroy)(j); */
+		break;
+
+	case LKM_E_STAT:
+		break;
+
+	default:
+		error = EIO;
+		break;
+	}
+	return error;
+}
+
+int DRM(modprobe)() {
+	struct pci_attach_args pa;
+	int error = 0;
+	if((error = pci_find_device(&pa, DRM(probe))) != 0)
+	DRM(attach)(&pa);
+	return error;
+}
+
+int DRM(probe)(struct pci_attach_args *pa)
+{
 	const char *desc;
 
 	desc = DRM(find_description)(PCI_VENDOR(pa->pa_id), PCI_PRODUCT(pa->pa_id));
-	if (desc != NULL)
+	if (desc != NULL) {
 		return 10;
+	}
+
 	return 0;
 }
 
-void DRM(attach)(struct device *parent, struct device *self, void *aux)
-{
-	struct pci_attach_args *pa = aux;
-	drm_device_t *dev = (drm_device_t *)self;
-	
-	memcpy(&dev->pa, aux, sizeof(dev->pa));
-	
+void DRM(attach)(struct pci_attach_args *pa)
+ {
+	int i;
+	drm_device_t *dev = malloc(sizeof(drm_device_t), M_DEVBUF, M_WAITOK);
+
+	memset(dev, 0, sizeof(drm_device_t));
+	memcpy(&dev->pa, pa, sizeof(dev->pa));
+
+	DRM(devs)[0] = dev;
+
 	DRM_INFO("%s", DRM(find_description)(PCI_VENDOR(pa->pa_id), PCI_PRODUCT(pa->pa_id)));
 	DRM(init)(dev);
-}
-
-int DRM(detach)(struct device *self, int flags)
-{
-	DRM(cleanup)((drm_device_t *)self);
-	return 0;
-}
-
-int DRM(activate)(struct device *self, enum devact act)
-{
-	switch (act) {
-	case DVACT_ACTIVATE:
-		return (EOPNOTSUPP);
-		break;
-
-	case DVACT_DEACTIVATE:
-		/* FIXME */
-		break;
-	}
-	return (0);
 }
 
 #endif
@@ -487,7 +523,7 @@ static int DRM(setup)( drm_device_t *dev )
 static int DRM(takedown)( drm_device_t *dev )
 {
 	drm_magic_entry_t *pt, *next;
-	drm_map_t *map;
+	drm_local_map_t *map;
 	drm_map_list_entry_t *list;
 	drm_vma_entry_t *vma, *vma_next;
 	int i;
@@ -589,7 +625,7 @@ static int DRM(takedown)( drm_device_t *dev )
 					DRM_DEBUG( "mtrr_del=%d\n", retcode );
 				}
 #endif
-				DRM(ioremapfree)( map->handle, map->size );
+				DRM(ioremapfree)( map );
 				break;
 			case _DRM_SHM:
 				DRM(free)(map->handle,
@@ -724,7 +760,6 @@ static int DRM(init)( drm_device_t *dev )
 		struct mtrr mtrrmap;
 		int one = 1;
 		mtrrmap.base = dev->agp->info.ai_aperture_base;
-		/* Might need a multiplier here XXX */
 		mtrrmap.len = dev->agp->info.ai_aperture_size;
 		mtrrmap.type = MTRR_TYPE_WC;
 		mtrrmap.flags = MTRR_VALID;
@@ -1043,7 +1078,6 @@ int DRM(ioctl)( DRM_IOCTL_ARGS )
 		*(int *) data = fgetown(dev->buf_sigio);
 #endif
 		return 0;
-	}
 #endif /* __FreeBSD__ */
 #ifdef __NetBSD__
 	case TIOCSPGRP:
@@ -1056,6 +1090,7 @@ int DRM(ioctl)( DRM_IOCTL_ARGS )
 		*(int *)data = dev->buf_pgid;
 		return 0;
 #endif /* __NetBSD__ */
+	}
 
 	if ( nr >= DRIVER_IOCTL_COUNT ) {
 		retcode = EINVAL;
