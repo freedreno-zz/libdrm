@@ -1,7 +1,7 @@
-/* tdfx_drm.c -- 3dfx core DRM -*- linux-c -*-
- * Created: Wed Feb 14 12:32:06 2001 by gareth@valinux.com
+/* i810.h -- Intel i810/i815 DRM template customization -*- linux-c -*-
+ * Created: Thu Feb 15 00:01:12 2001 by gareth@valinux.com
  *
- * Copyright 2001 VA Linux Systems, Inc., Sunnyvale, California.
+ * Copyright 2000 VA Linux Systems, Inc., Sunnyvale, California.
  * All Rights Reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -27,21 +27,24 @@
  *    Gareth Hughes <gareth@valinux.com>
  */
 
-#define __NO_VERSION__
-#include "tdfx.h"
-#include "drmP.h"
+#ifndef __I810_H__
+#define __I810_H__
 
-#include "drm_agpsupport.h"
-#include "drm_auth.h"
-#include "drm_bufs.h"
-#include "drm_context.h"
-#include "drm_dma.h"
-#include "drm_drawable.h"
-#include "drm_fops.h"
-#include "drm_init.h"
-#include "drm_ioctl.h"
-#include "drm_lock.h"
-#include "drm_memory.h"
-#include "drm_proc.h"
-#include "drm_vm.h"
-#include "drm_stub.h"
+/* This remains constant for all DRM template files.
+ */
+#define DRM(x) i810_##x
+
+#define __HAVE_AGP		1
+#define __MUST_HAVE_AGP		1
+
+#define __HAVE_MTRR		1
+
+#define __HAVE_CTX_BITMAP	1
+
+#define __HAVE_DMA		1
+#define __HAVE_DMA_IRQ		1
+#define __HAVE_DMA_QUEUE	1
+#define __HAVE_DMA_WAITLIST	1
+#define __HAVE_DMA_RECLAIM	1
+
+#endif

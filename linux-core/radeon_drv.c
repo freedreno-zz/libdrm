@@ -90,14 +90,16 @@
 #include "drm_drv.h"
 
 
-/* FIXME: Do we need to define __NO_VERSION__ for these???
- */
-#define DRIVER_DEV_PRIV_T	drm_radeon_private_t
-#define DRIVER_AGP_BUFFER_MAP	dev_priv->buffers
+#define DRIVER_BUF_PRIV_T	drm_radeon_buf_priv_t
+
+#define DRIVER_AGP_BUFFERS_MAP( dev )					\
+	((drm_radeon_private_t *)((dev)->dev_private))->buffers
+
+#include "drm_bufs.h"
+
 
 #include "drm_agpsupport.h"
 #include "drm_auth.h"
-#include "drm_bufs.h"
 #include "drm_context.h"
 #include "drm_dma.h"
 #include "drm_drawable.h"

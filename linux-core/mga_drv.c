@@ -68,19 +68,31 @@ do {									\
 	return mga_do_wait_for_idle( dev_priv );			\
 } while (0)
 
-#if 0
-#define __HAVE_RELEASE		1
-#define DRIVER_RELEASE() do {						\
-	mga_reclaim_buffers( dev, priv->pid );				\
-	if ( dev->dev_private ) {					\
-		drm_mga_private_t *dev_priv = dev->dev_private;		\
-		dev_priv->dispatch_status &= MGA_IN_DISPATCH;		\
-	}								\
-} while (0)
-#endif
-
 #define DRIVER_PRETAKEDOWN() do {					\
 	if ( dev->dev_private ) mga_do_cleanup_dma( dev );		\
 } while (0)
 
 #include "drm_drv.h"
+
+
+#define DRIVER_BUF_PRIV_T	drm_mga_buf_priv_t
+
+#define DRIVER_AGP_BUFFERS_MAP( dev )					\
+	((drm_mga_private_t *)((dev)->dev_private))->buffers
+
+#include "drm_bufs.h"
+
+
+#include "drm_agpsupport.h"
+#include "drm_auth.h"
+#include "drm_context.h"
+#include "drm_dma.h"
+#include "drm_drawable.h"
+#include "drm_fops.h"
+#include "drm_init.h"
+#include "drm_ioctl.h"
+#include "drm_lock.h"
+#include "drm_memory.h"
+#include "drm_proc.h"
+#include "drm_vm.h"
+#include "drm_stub.h"

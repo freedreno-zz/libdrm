@@ -63,7 +63,7 @@ DRMHEADERS=	drm.h drmP.h compat-pre24.h
 GAMMAOBJS=      gamma_drv.o gamma_drm.o gamma_dma.o gamma_context.o
 GAMMAHEADERS=   gamma_drv.h $(DRMHEADERS) $(DRMTEMPLATES)
 
-TDFXOBJS=       tdfx_drv.o tdfx_drm.o
+TDFXOBJS=       tdfx_drv.o
 TDFXHEADERS=    tdfx.h $(DRMHEADERS)
 
 INC=		/usr/include
@@ -138,20 +138,21 @@ MODCFLAGS += -DCONFIG_AGP -DCONFIG_AGP_MODULE
 #DRMOBJS += agpsupport.o
 MODS += mga.o r128.o radeon.o
 #ifeq ($(MACHINE),i386)
-#MODS += i810.o
+MODS += i810.o
 #endif
 
-MGAOBJS=	mga_drv.o mga_drm.o mga_dma.o mga_state.o mga_warp.o
+MGAOBJS=	mga_drv.o mga_dma.o mga_state.o mga_warp.o
 MGAHEADERS=	mga.h mga_drv.h $(DRMHEADERS) $(DRMTEMPLATES)
 
-I810OBJS=	i810_drv.o i810_dma.o i810_bufs.o i810_context.o
-I810HEADERS=	i810_drv.h $(DRMHEADERS)
+I810OBJS=	i810_drv.o i810_dma.o
+I810HEADERS=	i810.h i810_drv.h $(DRMHEADERS) $(DRMTEMPLATES)
 
-R128OBJS=	r128_drv.o r128_drm.o r128_cce.o r128_state.o
-R128HEADERS=	r128.h r128_drv.h r128_drm.h $(DRMHEADERS)
+R128OBJS=	r128_drv.o r128_cce.o r128_state.o
+R128HEADERS=	r128.h r128_drv.h r128_drm.h $(DRMHEADERS) $(DRMTEMPLATES)
 
 RADEONOBJS=	radeon_drv.o radeon_cp.o radeon_state.o
-RADEONHEADERS=	radeon.h radeon_drv.h radeon_drm.h $(DRMHEADERS)
+RADEONHEADERS=	radeon.h radeon_drv.h radeon_drm.h $(DRMHEADERS) \
+		$(DRMTEMPLATES)
 endif
 
 ifeq ($(SIS),1)

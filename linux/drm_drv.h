@@ -255,8 +255,8 @@ static int DRM(setup)( drm_device_t *dev )
 	dev->types[14] = __HAVE_COUNTER14;
 #endif
 
-	for (i = 0; i < DRM_ARRAY_SIZE(dev->counts); i++)
-		atomic_set(&dev->counts[i], 0);
+	for ( i = 0 ; i < DRM_ARRAY_SIZE(dev->counts) ; i++ )
+		atomic_set( &dev->counts[i], 0 );
 
 	for ( i = 0 ; i < DRM_HASH_SIZE ; i++ ) {
 		dev->magiclist[i].head = NULL;
@@ -670,7 +670,9 @@ int DRM(release)( struct inode *inode, struct file *filp )
 				break;	/* Got lock */
 			}
 				/* Contention */
+#if 0
 			atomic_inc( &dev->total_sleeps );
+#endif
 			schedule();
 			if ( signal_pending( current ) ) {
 				retcode = -ERESTARTSYS;
@@ -824,19 +826,6 @@ int DRM(lock)( struct inode *inode, struct file *filp,
 	ret = DRM(flush_block_and_flush)( dev, lock.context, lock.flags );
 #endif
         if ( !ret ) {
-#if 0 /* gamma stuff */
-		if (_DRM_LOCKING_CONTEXT(dev->lock.hw_lock->lock)
-		    != lock.context) {
-			long j = jiffies - dev->lock.lock_time;
-
-			if (j > 0 && j <= DRM_LOCK_SLICE) {
-				/* Can't take lock if we just had it and
-				   there is contention. */
-				current->state = TASK_INTERRUPTIBLE;
-				schedule_timeout(j);
-			}
-		}
-#endif
                 add_wait_queue( &dev->lock.lock_queue, &entry );
                 for (;;) {
                         current->state = TASK_INTERRUPTIBLE;

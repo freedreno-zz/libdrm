@@ -36,14 +36,15 @@
 #define __HAVE_PCI_DMA		0
 #endif
 
-#ifndef DRIVER_DEV_PRIV_T
-#define DRIVER_DEV_PRIV_T	u32
-#endif
 #ifndef DRIVER_BUF_PRIV_T
-#define DRIVER_BUF_PRIV_T	u32
+#define DRIVER_BUF_PRIV_T		u32
 #endif
-#ifndef DRIVER_AGP_BUFFER_MAP
-#define DRIVER_AGP_BUFFER_MAP	NULL
+#ifndef DRIVER_AGP_BUFFERS_MAP
+#if __HAVE_AGP && __HAVE_DMA
+#error "You must define DRIVER_AGP_BUFFERS_MAP()"
+#else
+#define DRIVER_AGP_BUFFERS_MAP( dev )	NULL
+#endif
 #endif
 
 /*
@@ -262,7 +263,7 @@ int DRM(addbufs_agp)( struct inode *inode, struct file *filp,
 
 		buf->dev_priv_size = sizeof(DRIVER_BUF_PRIV_T);
 		buf->dev_private = DRM(alloc)( sizeof(DRIVER_BUF_PRIV_T),
-					      DRM_MEM_BUFS );
+					       DRM_MEM_BUFS );
 		memset( buf->dev_private, 0, buf->dev_priv_size );
 
 #if DRM_DMA_HISTOGRAM
@@ -688,10 +689,8 @@ int DRM(mapbufs)( struct inode *inode, struct file *filp,
 
 	if ( request.count >= dma->buf_count ) {
 		if ( __HAVE_AGP && (dma->flags & _DRM_DMA_USE_AGP) ) {
-			DRIVER_DEV_PRIV_T *dev_priv = dev->dev_private;
-			drm_map_t *map;
+			drm_map_t *map = DRIVER_AGP_BUFFERS_MAP( dev );
 
-			map = DRIVER_AGP_BUFFER_MAP;
 			if ( !map ) {
 				retcode = -EINVAL;
 				goto done;

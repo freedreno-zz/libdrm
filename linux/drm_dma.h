@@ -37,6 +37,9 @@
 #ifndef __HAVE_DMA_WAITQUEUE
 #define __HAVE_DMA_WAITQUEUE	0
 #endif
+#ifndef __HAVE_DMA_RECLAIM
+#define __HAVE_DMA_RECLAIM	0
+#endif
 
 #if __HAVE_DMA
 
@@ -198,6 +201,7 @@ void DRM(free_buffer)(drm_device_t *dev, drm_buf_t *buf)
 #endif
 }
 
+#if !__HAVE_DMA_RECLAIM
 void DRM(reclaim_buffers)(drm_device_t *dev, pid_t pid)
 {
 	drm_device_dma_t *dma = dev->dma;
@@ -220,7 +224,11 @@ void DRM(reclaim_buffers)(drm_device_t *dev, pid_t pid)
 		}
 	}
 }
+#endif
 
+
+/* GH: This is a big hack for now...
+ */
 #if __HAVE_OLD_DMA
 
 int drm_context_switch(drm_device_t *dev, int old, int new)
