@@ -851,24 +851,18 @@ int DRM(open)(dev_t kdev, int flags, int fmt, DRM_STRUCTPROC *p)
 
 	DRM_DEBUG( "open_count = %d\n", dev->open_count );
 
-#ifdef __FreeBSD__
-	device_busy(dev->device);
-#endif
 	retcode = DRM(open_helper)(kdev, flags, fmt, p, dev);
 
 	if ( !retcode ) {
 		atomic_inc( &dev->counts[_DRM_STAT_OPENS] );
 		DRM_SPINLOCK( &dev->count_lock );
-		if ( !dev->open_count++ ) {
+#ifdef __FreeBSD__
+		device_busy(dev->device);
+#endif
+		if ( !dev->open_count++ )
 			retcode = DRM(setup)( dev );
-			DRM_SPINUNLOCK( &dev->count_lock );
-			return retcode;
-		}
 		DRM_SPINUNLOCK( &dev->count_lock );
 	}
-#ifdef __FreeBSD__
-	device_unbusy(dev->device);
-#endif
 
 	return retcode;
 }
@@ -923,7 +917,7 @@ int DRM(close)(dev_t kdev, int flags, int fmt, DRM_STRUCTPROC *p)
 		for (;;) {
 			if ( !dev->lock.hw_lock ) {
 				/* Device has been unregistered */
-				retcode = EINTR;
+				retcode = DRM_ERR(EINTR);
 				break;
 			}
 			if ( DRM(lock_take)( &dev->lock.hw_lock->lock,
@@ -980,6 +974,9 @@ int DRM(close)(dev_t kdev, int flags, int fmt, DRM_STRUCTPROC *p)
 
 	atomic_inc( &dev->counts[_DRM_STAT_CLOSES] );
 	DRM_SPINLOCK( &dev->count_lock );
+#ifdef __FreeBSD__
+	device_unbusy(dev->device);
+#endif
 	if ( !--dev->open_count ) {
 		if ( atomic_read( &dev->ioctl_count ) || dev->blocked ) {
 			DRM_ERROR( "Device busy: %ld %d\n",
@@ -992,11 +989,8 @@ int DRM(close)(dev_t kdev, int flags, int fmt, DRM_STRUCTPROC *p)
 		return DRM(takedown)( dev );
 	}
 	DRM_SPINUNLOCK( &dev->count_lock );
-#ifdef __FreeBSD__
-	device_unbusy(dev->device);
-#endif
 	
-	return DRM_ERR(retcode);
+	return retcode;
 }
 
 /* DRM(ioctl) is called whenever a process performs an ioctl on /dev/drm.
