@@ -358,7 +358,7 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 	u32 rb3d_cntl = 0, rb3d_stencilrefmask= 0;
 	int i;
 	RING_LOCALS;
-	printk( __FUNCTION__": flags = 0x%x\n", flags );
+	DRM_DEBUG( __FUNCTION__": flags = 0x%x\n", flags );
 
 	if ( dev_priv->page_flipping && dev_priv->current_page == 1 ) {
 		unsigned int tmp = flags;
@@ -1765,7 +1765,7 @@ static int radeon_emit_packets(
 	RING_LOCALS;
 
 
-	printk("emit packet %s/%d\n", packet[id].name, sz );
+	DRM_DEBUG("emit packet %s/%d\n", packet[id].name, sz );
 
 	if (sz * sizeof(int) > cmdbuf->bufsz) 
 		return -EINVAL;
@@ -1937,7 +1937,7 @@ int radeon_cp_cmdbuf( struct inode *inode, struct file *filp,
 	drm_radeon_cmd_buffer_t cmdbuf;
 	drm_radeon_cmd_header_t header;
 
-	printk( "%s\n", __FUNCTION__ );
+	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
 	LOCK_TEST_WITH_RETURN( dev );
 
@@ -1952,7 +1952,7 @@ int radeon_cp_cmdbuf( struct inode *inode, struct file *filp,
 		return -EFAULT;
 	}
 
-	printk( __FUNCTION__": pid=%d\n", current->pid );
+	DRM_DEBUG( __FUNCTION__": pid=%d\n", current->pid );
 	RING_SPACE_TEST_WITH_RETURN( dev_priv );
 	VB_AGE_TEST_WITH_RETURN( dev_priv );
 
@@ -1977,7 +1977,7 @@ int radeon_cp_cmdbuf( struct inode *inode, struct file *filp,
 
 		switch (header.header.cmd_type) {
 		case RADEON_CMD_PACKET: 
-			printk("RADEON_CMD_PACKET\n");
+			DRM_DEBUG("RADEON_CMD_PACKET\n");
 			if (radeon_emit_packets( dev_priv, header, &cmdbuf )) {
 				DRM_ERROR("radeon_emit_packets failed\n");
 				return -EINVAL;
@@ -1985,7 +1985,7 @@ int radeon_cp_cmdbuf( struct inode *inode, struct file *filp,
 			break;
 
 		case RADEON_CMD_SCALARS:
-			printk("RADEON_CMD_SCALARS\n");
+			DRM_DEBUG("RADEON_CMD_SCALARS\n");
 			if (radeon_emit_scalars( dev_priv, header, &cmdbuf )) {
 				DRM_ERROR("radeon_emit_scalars failed\n");
 				return -EINVAL;
@@ -1993,7 +1993,7 @@ int radeon_cp_cmdbuf( struct inode *inode, struct file *filp,
 			break;
 
 		case RADEON_CMD_VECTORS:
-			printk("RADEON_CMD_VECTORS\n");
+			DRM_DEBUG("RADEON_CMD_VECTORS\n");
 			if (radeon_emit_vectors( dev_priv, header, &cmdbuf )) {
 				DRM_ERROR("radeon_emit_vectors failed\n");
 				return -EINVAL;
@@ -2001,7 +2001,7 @@ int radeon_cp_cmdbuf( struct inode *inode, struct file *filp,
 			break;
 
 		case RADEON_CMD_DMA_DISCARD:
-			printk("RADEON_CMD_DMA_DISCARD\n");
+			DRM_DEBUG("RADEON_CMD_DMA_DISCARD\n");
 			idx = header.dma.buf_idx;
 			if ( idx < 0 || idx >= dma->buf_count ) {
 				DRM_ERROR( "buffer index %d (of %d max)\n",
@@ -2019,7 +2019,7 @@ int radeon_cp_cmdbuf( struct inode *inode, struct file *filp,
 			break;
 
 		case RADEON_CMD_PACKET3:
-			printk("RADEON_CMD_PACKET3\n");
+			DRM_DEBUG("RADEON_CMD_PACKET3\n");
 			if (radeon_emit_packet3( dev, &cmdbuf )) {
 				DRM_ERROR("radeon_emit_packet3 failed\n");
 				return -EINVAL;
@@ -2027,7 +2027,7 @@ int radeon_cp_cmdbuf( struct inode *inode, struct file *filp,
 			break;
 
 		case RADEON_CMD_PACKET3_CLIP:
-			printk("RADEON_CMD_PACKET3_CLIP\n");
+			DRM_DEBUG("RADEON_CMD_PACKET3_CLIP\n");
 			if (radeon_emit_packet3_cliprect( dev, &cmdbuf )) {
 				DRM_ERROR("radeon_emit_packet3_clip failed\n");
 				return -EINVAL;
@@ -2035,7 +2035,7 @@ int radeon_cp_cmdbuf( struct inode *inode, struct file *filp,
 			break;
 
 		case RADEON_CMD_SCALARS2:
-			printk("RADEON_CMD_SCALARS2\n");
+			DRM_DEBUG("RADEON_CMD_SCALARS2\n");
 			if (radeon_emit_scalars2( dev_priv, header, &cmdbuf )) {
 				DRM_ERROR("radeon_emit_scalars2 failed\n");
 				return -EINVAL;
@@ -2050,7 +2050,7 @@ int radeon_cp_cmdbuf( struct inode *inode, struct file *filp,
 	}
 
 
-	printk("DONE\n");
+	DRM_DEBUG("DONE\n");
 	COMMIT_RING();
 	return 0;
 }
