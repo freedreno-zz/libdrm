@@ -7,6 +7,7 @@
 # $XFree86: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/kernel/Makefile.kernel,v 1.17 2003/04/12 17:18:17 dawes Exp $
 #
 
+savage-objs := savage_drv.o savage_dma.o savage_state.o
 gamma-objs  := gamma_drv.o gamma_dma.o
 tdfx-objs   := tdfx_drv.o
 r128-objs   := r128_drv.o r128_cce.o r128_state.o r128_irq.o
@@ -30,12 +31,13 @@ endif
 
 ifeq ($(BELOW25),y)
 O_TARGET	:= drm.o
-list-multi	:= gamma.o tdfx.o r128.o mga.o i810.o i830.o ffb.o radeon.o
+list-multi	:= savage.o gamma.o tdfx.o r128.o mga.o i810.o i830.o ffb.o radeon.o
 obj-m		:=
 obj-n		:=
 obj-		:=
 endif
 
+obj-$(CONFIG_DRM_SAVAGE) += savage.o
 obj-$(CONFIG_DRM_GAMMA) += gamma.o
 obj-$(CONFIG_DRM_TDFX)	+= tdfx.o
 obj-$(CONFIG_DRM_R128)	+= r128.o
@@ -51,6 +53,9 @@ include $(TOPDIR)/Rules.make
 endif
 
 ifeq ($(BELOW25),y)
+savage.o: $(savage-objs) $(lib)
+	$(LD) -r -o $@ $(savage-objs) $(lib)
+
 gamma.o: $(gamma-objs) $(lib)
 	$(LD) -r -o $@ $(gamma-objs) $(lib)
 

@@ -44,7 +44,7 @@ endif
 MACHINE := $(shell uname -m)
 
 # Modules for all architectures
-MODULE_LIST := gamma.o tdfx.o r128.o radeon.o mga.o #sis.o
+MODULE_LIST := gamma.o tdfx.o r128.o radeon.o mga.o savage.o #sis.o
 
 # Modules only for ix86 architectures
 ifneq (,$(findstring 86,$(MACHINE)))
@@ -64,6 +64,7 @@ DRMTEMPLATES =  drm_auth.h drm_bufs.h drm_context.h drm_dma.h drm_drawable.h \
 DRMSHARED =     drm_sarea.h
 DRMHEADERS =    drm.h drmP.h $(DRMSHARED)
 
+SAVAGEHEADERS = savage_drm.h savage_drv.h savage.h $(DRMHEADERS) $(DRMTEMPLATES)
 GAMMAHEADERS =  gamma.h gamma_context.h gamma_drm.h gamma_drv.h gamma_lists.h \
                 gamma_old_dma.h gamma_lock.h $(DRMHEADERS) $(DRMTEMPLATES)
 TDFXHEADERS =   tdfx.h $(DRMHEADERS) $(DRMTEMPLATES)
@@ -295,6 +296,7 @@ endif
 
 
 # Start with all modules turned off.
+CONFIG_DRM_SAVAGE := n
 CONFIG_DRM_GAMMA := n
 CONFIG_DRM_TDFX := n
 CONFIG_DRM_MGA := n
@@ -307,6 +309,9 @@ CONFIG_DRM_FFB := n
 
 # Enable module builds for the modules requested/supported.
 
+ifneq (,$(findstring savage,$(DRM_MODULES)))
+CONFIG_DRM_SAVAGE := m
+endif
 ifneq (,$(findstring gamma,$(DRM_MODULES)))
 CONFIG_DRM_GAMMA := m
 endif
@@ -340,6 +345,7 @@ endif
 include $(DRMSRCDIR)/Makefile.kernel
 
 # Depencencies
+$(savage-objs):	$(SAVAGEHEADERS)
 $(gamma-objs):	$(GAMMAHEADERS)
 $(tdfx-objs):	$(TDFXHEADERS)
 $(r128-objs):	$(R128HEADERS)
