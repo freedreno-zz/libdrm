@@ -50,6 +50,7 @@
 #define R128_UPLOAD_WINDOW		0x100
 #define R128_UPLOAD_CLIPRECTS		0x200	/* handled client-side */
 #define R128_REQUIRE_QUIESCENCE		0x400
+#define R128_UPLOAD_ALL			0x7ff
 
 #define R128_FRONT			0x1
 #define R128_BACK			0x2

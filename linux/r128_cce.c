@@ -154,6 +154,7 @@ static int r128_do_pixcache_flush( drm_r128_private_t *dev_priv )
 		udelay( 1 );
 	}
 
+	DRM_DEBUG( "%s failed!\n", __FUNCTION__ );
 	return -EBUSY;
 }
 
@@ -166,6 +167,8 @@ static int r128_do_wait_for_fifo( drm_r128_private_t *dev_priv, int entries )
 		if ( slots >= entries ) return 0;
 		udelay( 1 );
 	}
+
+	DRM_DEBUG( "%s failed!\n", __FUNCTION__ );
 	return -EBUSY;
 }
 
@@ -183,6 +186,8 @@ static int r128_do_wait_for_idle( drm_r128_private_t *dev_priv )
 		}
 		udelay( 1 );
 	}
+
+	DRM_DEBUG( "%s failed!\n", __FUNCTION__ );
 	return -EBUSY;
 }
 
@@ -238,6 +243,7 @@ static int r128_do_cce_idle( drm_r128_private_t *dev_priv )
 		udelay( 1 );
 	}
 
+	DRM_DEBUG( "%s failed!\n", __FUNCTION__ );
 	return -EBUSY;
 }
 
@@ -251,6 +257,8 @@ static void r128_do_cce_start( drm_r128_private_t *dev_priv )
 		    dev_priv->cce_mode | dev_priv->ring.size_l2qw );
 	R128_READ( R128_PM4_BUFFER_ADDR ); /* as per the sample code */
 	R128_WRITE( R128_PM4_MICRO_CNTL, R128_PM4_MICRO_FREERUN );
+
+	dev_priv->cce_running = 1;
 }
 
 /* Reset the Concurrent Command Engine.  This will not flush any pending
@@ -273,9 +281,11 @@ static void r128_do_cce_stop( drm_r128_private_t *dev_priv )
 {
 	R128_WRITE( R128_PM4_MICRO_CNTL, 0 );
 	R128_WRITE( R128_PM4_BUFFER_CNTL, R128_PM4_NONPM4 );
+
+	dev_priv->cce_running = 0;
 }
 
-/* Reset the engine, and the CCE if it is currently running.
+/* Reset the engine.  This will stop the CCE if it is running.
  */
 static int r128_do_engine_reset( drm_device_t *dev )
 {
@@ -307,10 +317,8 @@ static int r128_do_engine_reset( drm_device_t *dev )
 	/* Reset the CCE ring */
 	r128_do_cce_reset( dev_priv );
 
-	if ( dev_priv->cce_running ) {
-		/* Start the CCE again */
-		r128_do_cce_start( dev_priv );
-	}
+	/* The CCE is no longer running after an engine reset */
+	dev_priv->cce_running = 0;
 
 	/* Reset any pending vertex, indirect buffers */
 	r128_freelist_reset( dev );
@@ -320,7 +328,7 @@ static int r128_do_engine_reset( drm_device_t *dev )
 
 static void r128_cce_init_ring_buffer( drm_device_t *dev )
 {
-    	drm_r128_private_t *dev_priv = dev->dev_private;
+	drm_r128_private_t *dev_priv = dev->dev_private;
 	u32 ring_start;
 	u32 tmp;
 
@@ -555,7 +563,7 @@ int r128_cce_start( struct inode *inode, struct file *filp,
 
 	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||
 	     dev->lock.pid != current->pid ) {
-		DRM_ERROR( "r128_cce_start called without lock held\n" );
+		DRM_ERROR( "%s called without lock held\n", __FUNCTION__ );
 		return -EINVAL;
 	}
 	if ( !dev_priv )
@@ -566,7 +574,6 @@ int r128_cce_start( struct inode *inode, struct file *filp,
 
 	r128_do_cce_start( dev_priv );
 
-	dev_priv->cce_running = 1;
 	return 0;
 }
 
@@ -576,10 +583,11 @@ int r128_cce_stop( struct inode *inode, struct file *filp,
         drm_file_t *priv = filp->private_data;
         drm_device_t *dev = priv->dev;
 	drm_r128_private_t *dev_priv = dev->dev_private;
+	int ret;
 
 	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||
 	     dev->lock.pid != current->pid ) {
-		DRM_ERROR( "r128_cce_stop called without lock held\n" );
+		DRM_ERROR( "%s called without lock held\n", __FUNCTION__ );
 		return -EINVAL;
 	}
 	if ( !dev_priv )
@@ -588,15 +596,23 @@ int r128_cce_stop( struct inode *inode, struct file *filp,
 	if ( !dev_priv->cce_running || dev_priv->cce_mode == R128_PM4_NONPM4 )
 		return 0;
 
-	/* Flush any pending CCE commands, then turn off the engine */
+	/* Flush any pending CCE commands.  This ensures any outstanding
+	 * commands are exectuted by the engine before we turn it off.
+	 */
 	r128_do_cce_flush( dev_priv );
-	r128_do_cce_idle( dev_priv );
+
+	/* If we fail to make the engine go idle, we return an error
+	 * code so that the DRM ioctl wrapper can try again.
+	 */
+	ret = r128_do_cce_idle( dev_priv );
+	if ( ret < 0 ) return ret;
+
+	/* Finally, if we've managed to make the engine go idle, we
+	 * can turn off the CCE.
+	 */
 	r128_do_cce_stop( dev_priv );
 
-	/* Mark the CCE as off so it is not reset */
-	dev_priv->cce_running = 0;
-
-	/* Reset the engine, but not the CCE */
+	/* Reset the engine */
 	r128_do_engine_reset( dev );
 
 	return 0;
@@ -613,7 +629,7 @@ int r128_cce_reset( struct inode *inode, struct file *filp,
 
 	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||
 	     dev->lock.pid != current->pid ) {
-		DRM_ERROR( "r128_cce_reset called without lock held\n" );
+		DRM_ERROR( "%s called without lock held\n", __FUNCTION__ );
 		return -EINVAL;
 	}
 	if ( !dev_priv )
@@ -624,8 +640,9 @@ int r128_cce_reset( struct inode *inode, struct file *filp,
 
 	r128_do_cce_reset( dev_priv );
 
-	/* The ring is no longer in use */
+	/* The CCE is no longer running after an engine reset */
 	dev_priv->cce_running = 0;
+
 	return 0;
 }
 
@@ -638,7 +655,7 @@ int r128_cce_idle( struct inode *inode, struct file *filp,
 
 	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||
 	     dev->lock.pid != current->pid ) {
-		DRM_ERROR( "r128_cce_idle called without lock held\n" );
+		DRM_ERROR( "%s called without lock held\n", __FUNCTION__ );
 		return -EINVAL;
 	}
 
@@ -654,7 +671,7 @@ int r128_engine_reset( struct inode *inode, struct file *filp,
 
 	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||
 	     dev->lock.pid != current->pid ) {
-		DRM_ERROR( "r128_engine_reset called without lock held\n" );
+		DRM_ERROR( "%s called without lock held\n", __FUNCTION__ );
 		return -EINVAL;
 	}
 
@@ -665,18 +682,56 @@ int r128_engine_reset( struct inode *inode, struct file *filp,
 /* ================================================================
  * Freelist management
  */
+#if 0
+#define R128_BUFFER_USED	0xffffffff
+#define R128_BUFFER_FREE	0
 
-void r128_freelist_reset( drm_device_t *dev )
+static int r128_freelist_init( drm_device_t *dev )
 {
 	drm_device_dma_t *dma = dev->dma;
+	drm_r128_private_t *dev_priv = dev->dev_private;
+	drm_buf_t *buf;
+	drm_r128_buf_priv_t *buf_priv;
+	drm_r128_freelist_t *entry;
 	int i;
 
+	dev_priv->head = drm_alloc( sizeof(drm_r128_freelist_t),
+				    DRM_MEM_DRIVER );
+	if ( dev_priv->head == NULL )
+		return -ENOMEM;
+
+	memset( dev_priv->head, 0, sizeof(drm_r128_freelist_t) );
+	dev_priv->head->age = R128_BUFFER_USED;
+
 	for ( i = 0 ; i < dma->buf_count ; i++ ) {
-		drm_buf_t *buf = dma->buflist[i];
-		drm_r128_buf_priv_t *buf_priv = buf->dev_private;
-		buf_priv->age = 0;
+		buf = dma->buflist[i];
+		buf_priv = buf->dev_private;
+
+		entry = drm_alloc( sizeof(drm_r128_freelist_t),
+				   DRM_MEM_DRIVER );
+		if ( !entry ) return -ENOMEM;
+
+		entry->age = R128_BUFFER_FREE;
+		entry->buf = buf;
+		entry->prev = dev_priv->head;
+		entry->next = dev_priv->head->next;
+		if ( !entry->next )
+			dev_priv->tail = entry;
+
+		buf_priv->discard = 0;
+		buf_priv->dispatched = 0;
+		buf_priv->list_entry = entry;
+
+		dev_priv->head->next = entry;
+
+		if ( dev_priv->head->next )
+			dev_priv->head->next->prev = entry;
 	}
+
+	return 0;
+
 }
+#endif
 
 drm_buf_t *r128_freelist_get( drm_device_t *dev )
 {
@@ -711,8 +766,20 @@ drm_buf_t *r128_freelist_get( drm_device_t *dev )
 		udelay( 1 );
 	}
 
-	r128_status( dev );
+	DRM_ERROR( "%s: returning NULL!\n", __FUNCTION__ );
 	return NULL;
+}
+
+void r128_freelist_reset( drm_device_t *dev )
+{
+	drm_device_dma_t *dma = dev->dma;
+	int i;
+
+	for ( i = 0 ; i < dma->buf_count ; i++ ) {
+		drm_buf_t *buf = dma->buflist[i];
+		drm_r128_buf_priv_t *buf_priv = buf->dev_private;
+		buf_priv->age = 0;
+	}
 }
 
 
@@ -722,11 +789,11 @@ drm_buf_t *r128_freelist_get( drm_device_t *dev )
 
 int r128_wait_ring( drm_r128_private_t *dev_priv, int n )
 {
-   	drm_r128_ring_buffer_t *ring = &dev_priv->ring;
+	drm_r128_ring_buffer_t *ring = &dev_priv->ring;
 	int i;
 
 	for ( i = 0 ; i < dev_priv->usec_timeout ; i++ ) {
-	   	ring->space = *ring->head - dev_priv->ring.tail;
+		ring->space = *ring->head - dev_priv->ring.tail;
 		if ( ring->space <= 0 )
 			ring->space += ring->size;
 
@@ -741,10 +808,10 @@ int r128_wait_ring( drm_r128_private_t *dev_priv, int n )
 
 void r128_update_ring_snapshot( drm_r128_private_t *dev_priv )
 {
-   	drm_r128_ring_buffer_t *ring = &dev_priv->ring;
+	drm_r128_ring_buffer_t *ring = &dev_priv->ring;
 
-     	ring->space = *ring->head - dev_priv->ring.tail;
-     	if ( ring->space <= 0 )
+	ring->space = *ring->head - dev_priv->ring.tail;
+	if ( ring->space <= 0 )
 		ring->space += ring->size;
 }
 
@@ -1086,70 +1153,5 @@ static int r128_send_vertbufs( drm_device_t *dev, drm_r128_vertex_t *v )
 	dev_priv->submit_age++;
 
 	return 0;
-}
-#endif
-
-#if 0
-int r128_dma( struct inode *inode, struct file *filp,
-	      unsigned int cmd, unsigned long arg )
-{
-	drm_file_t *priv = filp->private_data;
-	drm_device_t *dev = priv->dev;
-	drm_r128_private_t *dev_priv = dev->dev_private;
-	drm_device_dma_t *dma = dev->dma;
-	int retcode = 0;
-	drm_dma_t d;
-	DRM_DEBUG( "%s\n", __FUNCTION__ );
-
-	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||
-	     dev->lock.pid != current->pid ) {
-		DRM_ERROR( "r128_dma called without lock held\n" );
-		return -EINVAL;
-	}
-	if ( !dev_priv || dev_priv->is_pci ) {
-		DRM_ERROR( "r128_dma called with a PCI card\n" );
-		return -EINVAL;
-	}
-
-	if ( copy_from_user( &v, (drm_r128_vertex_t *)arg, sizeof(v) ) )
-		return -EFAULT;
-	DRM_DEBUG( "%d: %d send, %d req\n",
-		   current->pid, v.send_count, v.request_count );
-
-#if 0
-	if ( d.send_count < 0 || d.send_count > dma->buf_count ) {
-		DRM_ERROR("Process %d trying to send %d buffers (of %d max)\n",
-			  current->pid, v.send_count, dma->buf_count);
-		return -EINVAL;
-	}
-#else
-	if ( d.send_count != 0 ) {
-		DRM_ERROR( "Process %d trying to send %d buffers via drmDMA\n",
-			   current->pid, d.send_count );
-		return -EINVAL;
-	}
-#endif
-	if ( d.request_count < 0 || d.request_count > dma->buf_count ) {
-		DRM_ERROR( "Process %d trying to get %d buffers (of %d max)\n",
-			   current->pid, d.request_count, dma->buf_count );
-		return -EINVAL;
-	}
-#if 0
-	if ( v.send_count ) {
-		retcode = r128_send_vertbufs( dev, &v );
-	}
-#endif
-	v.granted_count = 0;
-
-	if ( /* !retcode && */ d.request_count ) {
-		retcode = r128_get_dma_buffers( dev, &d );
-	}
-
-	DRM_DEBUG( "%d returning, granted = %d\n",
-		   current->pid, d.granted_count );
-	if ( copy_to_user( (drm_dma_t *)arg, &d, sizeof(d) ) )
-		return -EFAULT;
-
-	return retcode;
 }
 #endif

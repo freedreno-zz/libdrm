@@ -267,6 +267,10 @@ static inline void r128_emit_state( drm_r128_private_t *dev_priv )
 
 	/* Turn off the texture cache flushing */
 	sarea_priv->context_state.tex_cntl_c &= ~R128_TEX_CACHE_FLUSH;
+
+	sarea_priv->dirty &= ~(R128_UPLOAD_TEX0IMAGES |
+			       R128_UPLOAD_TEX1IMAGES |
+			       R128_REQUIRE_QUIESCENCE);
 }
 
 
@@ -276,18 +280,18 @@ static inline void r128_emit_state( drm_r128_private_t *dev_priv )
 
 static void r128_print_dirty( const char *msg, unsigned int flags )
 {
-   DRM_INFO( "%s: (0x%x) %s%s%s%s%s%s%s%s%s\n",
-	     msg,
-	     flags,
-	     (flags & R128_UPLOAD_CORE)		? "core, " : "",
-	     (flags & R128_UPLOAD_CONTEXT)	? "context, " : "",
-	     (flags & R128_UPLOAD_SETUP)	? "setup, " : "",
-	     (flags & R128_UPLOAD_TEX0)		? "tex0, " : "",
-	     (flags & R128_UPLOAD_TEX1)		? "tex1, " : "",
-	     (flags & R128_UPLOAD_MASKS)	? "masks, " : "",
-	     (flags & R128_UPLOAD_WINDOW)	? "window, " : "",
-	     (flags & R128_UPLOAD_CLIPRECTS)	? "cliprects, " : "",
-	     (flags & R128_REQUIRE_QUIESCENCE)	? "quiescence, " : "" );
+	DRM_DEBUG( "%s: (0x%x) %s%s%s%s%s%s%s%s%s\n",
+		   msg,
+		   flags,
+		   (flags & R128_UPLOAD_CORE)        ? "core, " : "",
+		   (flags & R128_UPLOAD_CONTEXT)     ? "context, " : "",
+		   (flags & R128_UPLOAD_SETUP)       ? "setup, " : "",
+		   (flags & R128_UPLOAD_TEX0)        ? "tex0, " : "",
+		   (flags & R128_UPLOAD_TEX1)        ? "tex1, " : "",
+		   (flags & R128_UPLOAD_MASKS)       ? "masks, " : "",
+		   (flags & R128_UPLOAD_WINDOW)      ? "window, " : "",
+		   (flags & R128_UPLOAD_CLIPRECTS)   ? "cliprects, " : "",
+		   (flags & R128_REQUIRE_QUIESCENCE) ? "quiescence, " : "" );
 }
 
 static void r128_cce_dispatch_clear( drm_device_t *dev,
@@ -510,14 +514,15 @@ static void r128_cce_dispatch_vertex( drm_device_t *dev,
 
 	DRM_DEBUG( "vertex buffer index = %d\n", index );
 	DRM_DEBUG( "vertex buffer offset = 0x%x\n", offset );
-	DRM_DEBUG( "vertex buffer size = %d bytes\n", size );
+	DRM_DEBUG( "vertex buffer size = %d vertices, %d bytes\n",
+		   size, buf->used );
 	DRM_DEBUG( "vertex size = %d\n", vertsize );
 	DRM_DEBUG( "vertex format = 0x%x\n", format );
 
 	r128_update_ring_snapshot( dev_priv );
 
 	if ( 0 )
-	   r128_print_dirty( "dispatch_vertex", sarea_priv->dirty );
+		r128_print_dirty( "dispatch_vertex", sarea_priv->dirty );
 
 	prim = R128_CCE_VC_CNTL_PRIM_TYPE_TRI_LIST;
 
@@ -588,7 +593,6 @@ static void r128_cce_dispatch_vertex( drm_device_t *dev,
 static void r128_get_vertex_buffer( drm_device_t *dev, drm_r128_vertex_t *v )
 {
 	drm_buf_t *buf;
-	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
 	buf = r128_freelist_get( dev );
 	if ( !buf ) return;
@@ -671,7 +675,6 @@ int r128_cce_vertex( struct inode *inode, struct file *filp,
 	drm_buf_t *buf;
 	drm_r128_buf_priv_t *buf_priv;
 	drm_r128_vertex_t vertex;
-	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
 	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||
 	     dev->lock.pid != current->pid ) {
@@ -686,8 +689,9 @@ int r128_cce_vertex( struct inode *inode, struct file *filp,
 	if ( copy_from_user( &vertex, (drm_r128_vertex_t *)arg,
 			     sizeof(vertex) ) )
 		return -EFAULT;
-	DRM_DEBUG( "%d: index=%d used=%d flags=%s%s%s\n",
-		   current->pid, vertex.index, vertex.used,
+
+	DRM_DEBUG( "%s: pid=%d index=%d used=%d flags=%s%s%s\n",
+		   __FUNCTION__, current->pid, vertex.index, vertex.used,
 		   ( vertex.send ) ?    "S" : ".",
 		   ( vertex.discard ) ? "D" : ".",
 		   ( vertex.request ) ? "R" : "." );
@@ -727,7 +731,8 @@ int r128_cce_vertex( struct inode *inode, struct file *filp,
 		r128_get_vertex_buffer( dev, &vertex );
 	}
 
-	DRM_DEBUG( "%d: returning, index=%d\n", current->pid, vertex.index );
+	DRM_DEBUG( "%s: returning, pid=%d index=%d\n",
+		   __FUNCTION__, current->pid, vertex.index );
 	if ( copy_to_user( (drm_r128_vertex_t *)arg, &vertex,
 			   sizeof(vertex) ) )
 		return -EFAULT;
