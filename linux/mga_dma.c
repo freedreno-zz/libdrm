@@ -56,7 +56,10 @@ int mga_do_wait_for_idle( drm_mga_private_t *dev_priv )
 
 	for ( i = 0 ; i < dev_priv->usec_timeout ; i++ ) {
 		status = MGA_READ( MGA_STATUS ) & MGA_ENGINE_IDLE_MASK;
-		if ( status == MGA_ENDPRDMASTS ) return 0;
+		if ( status == MGA_ENDPRDMASTS ) {
+			MGA_WRITE8( MGA_CRTC_INDEX, 0 );
+			return 0;
+		}
 		udelay( 1 );
 	}
 
@@ -80,33 +83,37 @@ int mga_do_dma_idle( drm_mga_private_t *dev_priv )
 	return -EBUSY;
 }
 
-int mga_do_dma_reset( drm_mga_private_t *dev_priv )
+int mga_do_dma_reset( drm_device_t *dev )
 {
+	drm_mga_private_t *dev_priv = dev->dev_private;
 	drm_mga_sarea_t *sarea_priv = dev_priv->sarea_priv;
 	drm_mga_primary_buffer_t *primary = &dev_priv->prim;
 
-	DRM_DEBUG( "%s\n", __FUNCTION__ );
+	DRM_INFO( "%s\n", __FUNCTION__ );
 
 	/* The primary DMA stream should look like new right about now.
 	 */
 	primary->tail = 0;
 	primary->space = primary->size;
 	primary->last_flush = 0;
+	primary->last_wrap = 0;
+
+	primary->status[0] = dev_priv->primary->offset;
+	primary->status[1] = 0;
 
 	sarea_priv->last_wrap = 0;
+	sarea_priv->last_frame.head = 0;
+	sarea_priv->last_frame.wrap = 0;
 
-	/* FIXME: Reset counters, buffer ages etc...
-	 */
-
-	/* FIXME: What else do we need to reinitialize?  WARP stuff?
-	 */
+	mga_freelist_reset( dev );
 
 	return 0;
 }
 
-int mga_do_engine_reset( drm_mga_private_t *dev_priv )
+int mga_do_engine_reset( drm_device_t *dev )
 {
-	DRM_DEBUG( "%s\n", __FUNCTION__ );
+	drm_mga_private_t *dev_priv = dev->dev_private;
+	DRM_INFO( "%s\n", __FUNCTION__ );
 
 	/* Okay, so we've completely screwed up and locked the engine.
 	 * How about we clean up after ourselves?
@@ -122,19 +129,21 @@ int mga_do_engine_reset( drm_mga_private_t *dev_priv )
 	 * 3D clients should probably die after calling this.  The X
 	 * server should reset the engine state to known values.
 	 */
-#if 0
 	MGA_WRITE( MGA_PRIMPTR,
-		   virt_to_bus((void *)dev_priv->prim.status_page) |
-		   MGA_PRIMPTREN0 |
-		   MGA_PRIMPTREN1 );
-#endif
-
-	MGA_WRITE( MGA_ICLEAR, MGA_SOFTRAPICLR );
-	MGA_WRITE( MGA_IEN,    MGA_SOFTRAPIEN );
+		   virt_to_bus((void *)dev_priv->prim.status) |
+		   MGA_PRIMPTREN0 |	/* Soft trap, SECEND, SETUPEND */
+		   MGA_PRIMPTREN1 );	/* DWGSYNC */
 
 	/* The primary DMA stream should look like new right about now.
 	 */
-	mga_do_dma_reset( dev_priv );
+	mga_do_dma_reset( dev );
+
+	/* Initialize the WARP engine again.
+	 */
+	if ( mga_warp_init( dev_priv ) < 0 ) {
+		/* Can we do anything else? */
+		DRM_ERROR( "failed to reinit WARP engine!\n" );
+	}
 
 	/* This bad boy will never fail.
 	 */
@@ -269,7 +278,8 @@ static void mga_freelist_print( drm_device_t *dev )
 	DRM_INFO( "\n" );
 	DRM_INFO( "current dispatch: last=0x%x done=0x%x\n",
 		  dev_priv->sarea_priv->last_dispatch,
-		  *dev_priv->prim.head - dev_priv->primary->offset );
+		  (unsigned int)(*dev_priv->prim.head - 
+				 dev_priv->primary->offset) );
 	DRM_INFO( "current freelist:\n" );
 
 	for ( entry = dev_priv->head->next ; entry ; entry = entry->next ) {
@@ -350,7 +360,6 @@ static void mga_freelist_cleanup( drm_device_t *dev )
 static void mga_freelist_reset( drm_device_t *dev )
 {
 	drm_device_dma_t *dma = dev->dma;
-	drm_mga_private_t *dev_priv = dev->dev_private;
 	drm_buf_t *buf;
 	drm_mga_buf_priv_t *buf_priv;
 	int i;
@@ -408,15 +417,17 @@ int mga_freelist_put( drm_device_t *dev, drm_buf_t *buf )
 		   dev_priv->primary->offset,
 		   buf_priv->list_entry->age.wrap );
 
+	/* Put buffer on the head + 1, as the head is a sentinal.
+	 */
+
+	next = buf_priv->list_entry;
+	head = dev_priv->head;
+	prev = head->next;
+
 	if ( buf_priv->list_entry->age.head == MGA_BUFFER_USED ) {
 		SET_AGE( &next->age, MGA_BUFFER_FREE, 0 );
 	}
 
-	/* Put buffer on the head + 1, as the head is a sentinal.
-	 */
-	next = buf_priv->list_entry;
-	head = dev_priv->head;
-	prev = head->next;
 	head->next = next;
 	prev->prev = next;
 	next->prev = head;
@@ -482,14 +493,14 @@ static int mga_do_init_dma( drm_device_t *dev, drm_mga_init_t *init )
 	DRM_IOREMAP( dev_priv->primary );
 	DRM_IOREMAP( dev_priv->buffers );
 
-	ret = mga_warp_install_microcode( dev );
+	ret = mga_warp_install_microcode( dev_priv );
 	if ( ret < 0 ) {
 		DRM_ERROR( "failed to install WARP ucode!\n" );
 		mga_do_cleanup_dma( dev );
 		return ret;
 	}
 
-	ret = mga_warp_init( dev );
+	ret = mga_warp_init( dev_priv );
 	if ( ret < 0 ) {
 		DRM_ERROR( "failed to init WARP engine!\n" );
 		mga_do_cleanup_dma( dev );
@@ -538,6 +549,49 @@ static int mga_do_init_dma( drm_device_t *dev, drm_mga_init_t *init )
 		mga_do_cleanup_dma( dev );
 		return -ENOMEM;
 	}
+
+
+	if ( 0 ) {
+		drm_mga_primary_buffer_t *primary = &dev_priv->prim;
+		u32 tail;
+		DMA_LOCALS;
+
+		BEGIN_DMA( 4 );
+
+		DMA_BLOCK( MGA_DMAPAD,	0x00000000,
+			   MGA_DMAPAD,	0x00000000,
+			   MGA_DMAPAD,	0x00000000,
+			   MGA_DMAPAD,	0x00000000 );
+
+		DMA_BLOCK( MGA_DMAPAD,	0x00000000,
+			   MGA_DMAPAD,	0x00000000,
+			   MGA_DMAPAD,	0x00000000,
+			   MGA_DMAPAD,	0x00000000 );
+
+		DMA_BLOCK( MGA_DMAPAD,	0x00000000,
+			   MGA_DMAPAD,	0x00000000,
+			   MGA_DMAPAD,	0x00000000,
+			   MGA_DMAPAD,	0x00000000 );
+
+		DMA_BLOCK( MGA_DMAPAD,	0x00000000,
+			   MGA_DMAPAD,	0x00000000,
+			   MGA_DMAPAD,	0x00000000,
+			   MGA_DMAPAD,	0x00000000 );
+
+		ADVANCE_DMA();
+
+		tail = primary->tail + dev_priv->primary->offset - 4096;
+
+		mga_flush_write_combine();
+		MGA_WRITE( MGA_PRIMEND, tail | MGA_PAGPXFER );
+
+
+		if ( mga_do_wait_for_idle( dev_priv ) < 0 ) {
+			DRM_INFO( "cool, we're fucked!\n" );
+			mga_do_engine_reset( dev );
+		}
+	}
+
 
 	return 0;
 }
@@ -627,11 +681,10 @@ int mga_dma_reset( struct inode *inode, struct file *filp,
 {
 	drm_file_t *priv = filp->private_data;
 	drm_device_t *dev = priv->dev;
-	drm_mga_private_t *dev_priv = (drm_mga_private_t *)dev->dev_private;
 
 	LOCK_TEST_WITH_RETURN( dev );
 
-	return mga_do_dma_reset( dev_priv );
+	return mga_do_dma_reset( dev );
 }
 
 

@@ -61,6 +61,7 @@
 #define __HAVE_DMA		1
 
 #if 0
+/* GH: Remove this for now... */
 #define __HAVE_DMA_QUIESCENT	1
 #define DRIVER_DMA_QUIESCENT() do {					\
 	drm_radeon_private_t *dev_priv = dev->dev_private;		\
