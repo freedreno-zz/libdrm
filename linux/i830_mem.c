@@ -60,7 +60,7 @@ static void mark_block( drm_device_t *dev, struct mem_block *p,
    int age;
 
    shift = dev_priv->tex_lru_log_granularity;
-   nr = dev_priv->tex_lru_nr_regions;
+   nr = I830_NR_TEX_REGIONS;
 
    start = p->start >> shift;
    end = (p->start + p->size - 1) >> shift;

@@ -1605,9 +1605,6 @@ int i830_setparam( DRM_IOCTL_ARGS )
 	case I830_SETPARAM_TEX_LRU_LOG_GRANULARITY:
 		dev_priv->tex_lru_log_granularity = param.value;
 		break;
-	case I830_SETPARAM_TEX_LRU_NR_REGIONS:
-		dev_priv->tex_lru_nr_regions = param.value;
-		break;
 	default:
 		DRM_ERROR("unknown parameter %d\n", param.param);
 		return DRM_ERR(EINVAL);

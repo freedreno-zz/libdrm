@@ -264,7 +264,7 @@ typedef struct _drm_i830_sarea {
 #define DRM_IOCTL_I830_IRQ_EMIT         DRM_IOWR(0x4a, drm_i830_irq_emit_t)
 #define DRM_IOCTL_I830_IRQ_WAIT         DRM_IOW( 0x4b, drm_i830_irq_wait_t)
 #define DRM_IOCTL_I830_GETPARAM         DRM_IOWR(0x4c, drm_i830_getparam_t)
-#define DRM_IOCTL_I830_SETPARAM         DRM_IOWR(0x4d, drm_i830_setparam_t)
+#define DRM_IOCTL_I830_SETPARAM         DRM_IOW( 0x4d, drm_i830_setparam_t)
 #define DRM_IOCTL_I830_GETBUF2		DRM_IOWR(0x4e, drm_i830_dma_t)
 #define DRM_IOCTL_I830_VERTEX2		DRM_IOW( 0x4f, drm_i830_vertex_t)
 #define DRM_IOCTL_I830_ALLOC            DRM_IOWR(0x50, drm_i830_mem_alloc_t)
@@ -332,7 +332,6 @@ typedef struct drm_i830_getparam {
 #define I830_SETPARAM_USE_MI_BATCHBUFFER_START            1
 #define I830_SETPARAM_PERF_BOXES                          2
 #define I830_SETPARAM_TEX_LRU_LOG_GRANULARITY             3
-#define I830_SETPARAM_TEX_LRU_NR_REGIONS                  4
 
 typedef struct drm_i830_setparam {
 	int param;

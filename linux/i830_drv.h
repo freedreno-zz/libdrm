@@ -97,7 +97,6 @@ typedef struct drm_i830_private {
 
 	int use_mi_batchbuffer_start;
 	int tex_lru_log_granularity;
-	int tex_lru_nr_regions;
 
 	struct mem_block *agp_heap;
 
