@@ -911,6 +911,20 @@ int i810_dma_vertex(struct inode *inode, struct file *filp,
 
 }
 
+int i810_getage(struct inode *inode, struct file *filp, unsigned int cmd,
+		unsigned long arg)
+{
+   	drm_file_t	  *priv	    = filp->private_data;
+	drm_device_t	  *dev	    = priv->dev;
+   	drm_i810_private_t *dev_priv = (drm_i810_private_t *)dev->dev_private;
+      	u32 *hw_status = (u32 *)dev_priv->hw_status_page;
+   	drm_i810_sarea_t *sarea_priv = (drm_i810_sarea_t *) 
+     					dev_priv->sarea_priv; 
+
+      	sarea_priv->last_dispatch = (int) hw_status[5];
+	return 0;
+}
+
 int i810_dma(struct inode *inode, struct file *filp, unsigned int cmd,
 	    unsigned long arg)
 {

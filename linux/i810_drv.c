@@ -111,6 +111,7 @@ static drm_ioctl_desc_t	      i810_ioctls[] = {
    	[DRM_IOCTL_NR(DRM_IOCTL_I810_VERTEX)] = { i810_dma_vertex, 1, 0 },
    	[DRM_IOCTL_NR(DRM_IOCTL_I810_DMA)]    = { i810_dma_general,1, 0 },
       	[DRM_IOCTL_NR(DRM_IOCTL_I810_FLUSH)]  = { i810_flush_ioctl,1, 0 },
+   	[DRM_IOCTL_NR(DRM_IOCTL_I810_GETAGE)] = { i810_getage,     1, 0 },
 };
 
 #define I810_IOCTL_COUNT DRM_ARRAY_SIZE(i810_ioctls)

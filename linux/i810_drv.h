@@ -85,6 +85,8 @@ extern int  i810_dma_init(struct inode *inode, struct file *filp,
 extern int  i810_flush_ioctl(struct inode *inode, struct file *filp,
 			     unsigned int cmd, unsigned long arg);
 extern void i810_reclaim_buffers(drm_device_t *dev, pid_t pid);
+extern int  i810_getage(struct inode *inode, struct file *filp, unsigned int cmd,
+			unsigned long arg);
 
 
 				/* i810_bufs.c */
