@@ -631,7 +631,6 @@ static void mga_dma_dispatch_vertex( drm_device_t *dev, drm_buf_t *buf )
 
 		MGA_EMIT_STATE( dev_priv, sarea_priv->dirty );
 
-#if 0
 		do {
 			if ( i < sarea_priv->nbox ) {
 				mga_emit_clip_rect( dev_priv,
@@ -649,7 +648,6 @@ static void mga_dma_dispatch_vertex( drm_device_t *dev, drm_buf_t *buf )
 
 			ADVANCE_DMA();
 		} while ( ++i < sarea_priv->nbox );
-#endif
 	}
 
 	if ( buf_priv->discard ) {
