@@ -53,6 +53,7 @@ typedef struct _drm_mga_private {
    	__volatile__ unsigned long softrap_age;
    	atomic_t dispatch_lock;
    	atomic_t pending_bufs;
+   	atomic_t in_flush;
    	void *ioremap;
    	u32 *prim_head;
    	u32 *current_dma_ptr;

@@ -533,8 +533,6 @@ static inline void mga_dma_quiescent(drm_device_t *dev)
    MGA_WRITE(MGAREG_DWGSYNC, MGA_SYNC_TAG);
 #endif
    	while(MGA_READ(MGAREG_DWGSYNC) == MGA_SYNC_TAG) ;
-   	MGA_WRITE(MGAREG_DWGSYNC, MGA_SYNC_TAG);
-	while(MGA_READ(MGAREG_DWGSYNC) != MGA_SYNC_TAG) ;
    	atomic_dec(&dev_priv->dispatch_lock);
 }
 
@@ -575,9 +573,9 @@ static void mga_dma_service(int irq, void *device, struct pt_regs *regs)
 	drm_device_dma_t *dma = dev->dma;
    	drm_mga_private_t *dev_priv = (drm_mga_private_t *)dev->dev_private;
 
-	atomic_dec(&dev_priv->dispatch_lock);   	
 	atomic_inc(&dev->total_irq);
       	MGA_WRITE(MGAREG_ICLEAR, 0xfa7);
+   	atomic_dec(&dev_priv->dispatch_lock);
 
 				/* Free previous buffer */
    	if (test_and_set_bit(0, &dev->dma_flag)) {
@@ -585,8 +583,8 @@ static void mga_dma_service(int irq, void *device, struct pt_regs *regs)
 	   	return;
 	}
    	if (dma->this_buffer) {
-	   	drm_free_buffer(dev, dma->this_buffer);
-	   	dma->this_buffer = NULL;
+	   drm_free_buffer(dev, dma->this_buffer);
+	   dma->this_buffer = NULL;
 	}
    	clear_bit(0, &dev->dma_flag);
 
@@ -624,6 +622,10 @@ static int mga_do_dma(drm_device_t *dev, int locked)
 	if (buf->list == DRM_LIST_RECLAIM) {
 		drm_clear_next_buffer(dev);
 		drm_free_buffer(dev, buf);
+	      	atomic_dec(&dev_priv->pending_bufs);
+	   	if(!(atomic_read(&dev_priv->pending_bufs))) {
+		   wake_up_interruptible(&dev->queuelist[DRM_KERNEL_CONTEXT]->flush_queue);
+	   	}
 		clear_bit(0, &dev->dma_flag);
 		return -EINVAL;
 	}
@@ -642,7 +644,10 @@ static int mga_do_dma(drm_device_t *dev, int locked)
 	}
    
 	/* Always hold the hardware lock while dispatching.
+	 * or if in_flush is set, ignore the lock.
 	 */
+   	if ((atomic_read(&dev_priv->in_flush)) == 1) locked = 1;
+
 	if (!locked && !drm_lock_take(&dev->lock.hw_lock->lock,
 				      DRM_KERNEL_CONTEXT)) {
 		atomic_inc(&dma->total_missed_lock);
@@ -679,7 +684,10 @@ static int mga_do_dma(drm_device_t *dev, int locked)
 	}
    	atomic_dec(&dev_priv->pending_bufs);
 
-	drm_free_buffer(dev, dma->this_buffer);
+   	if(dma->this_buffer) {
+	   drm_free_buffer(dev, dma->this_buffer);
+	}
+   
 	dma->this_buffer = buf;
 
 	atomic_add(buf->used, &dma->total_bytes);
@@ -694,10 +702,9 @@ static int mga_do_dma(drm_device_t *dev, int locked)
 
 	clear_bit(0, &dev->dma_flag);
    
-   if(!atomic_read(&dev_priv->pending_bufs)) {
-      wake_up_interruptible(&dev->queuelist[DRM_KERNEL_CONTEXT]->flush_queue);
-   }
-   
+   	if(!(atomic_read(&dev_priv->pending_bufs))) {
+	   wake_up_interruptible(&dev->queuelist[DRM_KERNEL_CONTEXT]->flush_queue);
+	}   
 #if 0
    wake_up_interruptible(&dev->lock.lock_queue);
 #endif
@@ -727,6 +734,8 @@ int mga_dma_schedule(drm_device_t *dev, int locked)
 	int		 missed;
 	int		 expire	   = 20;
 	drm_device_dma_t *dma	   = dev->dma;
+      	drm_mga_private_t *dev_priv = dev->dev_private;
+
 
       	printk("mga_dma_schedule\n");
 
@@ -746,8 +755,16 @@ again:
 		dma->next_buffer = buf;
 		dma->next_queue	 = q;
 		if (buf && buf->list == DRM_LIST_RECLAIM) {
+		   	printk("reclaiming in mga_dma_schedule\n");
 			drm_clear_next_buffer(dev);
 			drm_free_buffer(dev, buf);
+		   	atomic_dec(&dev_priv->pending_bufs);
+		   printk("pending bufs : %d\n", atomic_read(&dev_priv->pending_bufs));
+	   		if(!(atomic_read(&dev_priv->pending_bufs))) {
+			   wake_up_interruptible(&dev->queuelist[DRM_KERNEL_CONTEXT]->flush_queue);
+			}
+		   dma->next_buffer = NULL;
+		   goto again;
 		}
 	}
 
@@ -755,6 +772,10 @@ again:
 		if (!(retcode = mga_do_dma(dev, locked))) 
 			++processed;
 	}
+   	if(!(atomic_read(&dev_priv->pending_bufs))) {
+	   wake_up_interruptible(&dev->queuelist[DRM_KERNEL_CONTEXT]->flush_queue);
+	}
+
 
 	/* Try again if we succesfully dispatched a buffer, or if someone 
 	 * tried to schedule while we were working.
@@ -850,7 +871,6 @@ int mga_irq_uninstall(drm_device_t *dev)
 	return 0;
 }
 
-
 int mga_control(struct inode *inode, struct file *filp, unsigned int cmd,
 		  unsigned long arg)
 {
@@ -878,14 +898,17 @@ int mga_flush_queue(drm_device_t *dev)
    	int ret = 0;
    	
    	printk("mga_flush_queue\n");
+   	printk("pending_bufs : %d\n", atomic_read(&dev_priv->pending_bufs));
    	if(atomic_read(&dev_priv->pending_bufs) != 0) {
+#if 1
+	   printk("got to flush\n");
+	   atomic_inc(&dev_priv->in_flush);
 	   current->state = TASK_INTERRUPTIBLE;
 	   add_wait_queue(&q->flush_queue, &entry);
 	   for (;;) {
 	      	if (!atomic_read(&dev_priv->pending_bufs)) break;
 	      	printk("Calling schedule from flush_queue : %d\n",
 		       atomic_read(&dev_priv->pending_bufs));
-	      	mga_dma_schedule(dev, 1);
 	      	schedule();
 	      	if (signal_pending(current)) {
 		   	ret = -EINTR; /* Can't restart */
@@ -895,6 +918,14 @@ int mga_flush_queue(drm_device_t *dev)
 	   printk("Exited out of schedule from flush_queue\n");
 	   current->state = TASK_RUNNING;
 	   remove_wait_queue(&q->flush_queue, &entry);
+	   atomic_dec(&dev_priv->in_flush);
+#endif
+#if 0
+	   while(atomic_read(&dev_priv->pending_bufs) != 0) {
+	      /* We have the lock */
+	      mga_dma_schedule(dev, 1);
+	   }
+#endif
 	}
    
    	return ret;
