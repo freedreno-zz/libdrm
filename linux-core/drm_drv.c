@@ -52,9 +52,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef __MUST_HAVE_AGP
-#define __MUST_HAVE_AGP			0
-#endif
+
 #ifndef __HAVE_CTX_BITMAP
 #define __HAVE_CTX_BITMAP		0
 #endif
@@ -180,7 +178,7 @@ drm_ioctl_desc_t		  DRM(ioctls)[] = {
 	[DRM_IOCTL_NR(DRM_IOCTL_CONTROL)]       = { DRM(control),     1, 1 },
 #endif
 
-#if __REALLY_HAVE_AGP
+#if __OS_HAS_AGP
 	[DRM_IOCTL_NR(DRM_IOCTL_AGP_ACQUIRE)]   = { DRM(agp_acquire), 1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_AGP_RELEASE)]   = { DRM(agp_release), 1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_AGP_ENABLE)]    = { DRM(agp_enable),  1, 1 },
@@ -380,9 +378,9 @@ static int DRM(takedown)( drm_device_t *dev )
 		dev->magiclist[i].head = dev->magiclist[i].tail = NULL;
 	}
 
-#if __REALLY_HAVE_AGP
+#if __OS_HAS_AGP
 				/* Clear AGP information */
-	if ( dev->agp ) {
+	if ( (dev->device_features & DRIVER_USE_AGP) && dev->agp ) {
 		drm_agp_mem_t *entry;
 		drm_agp_mem_t *nexte;
 
@@ -420,13 +418,15 @@ static int DRM(takedown)( drm_device_t *dev )
 				switch ( map->type ) {
 				case _DRM_REGISTERS:
 				case _DRM_FRAME_BUFFER:
-#if __REALLY_HAVE_MTRR
-					if ( map->mtrr >= 0 ) {
-						int retcode;
-						retcode = mtrr_del( map->mtrr,
-								    map->offset,
-								    map->size );
-						DRM_DEBUG( "mtrr_del=%d\n", retcode );
+#if __OS_HAS_MTRR
+					if (dev->driver_features & DRIVER_USE_MTRR) {
+						if ( map->mtrr >= 0 ) {
+							int retcode;
+							retcode = mtrr_del( map->mtrr,
+									    map->offset,
+									    map->size );
+							DRM_DEBUG( "mtrr_del=%d\n", retcode );
+						}
 					}
 #endif
 					DRM(ioremapfree)( map->handle, map->size, dev );
@@ -545,21 +545,24 @@ static int drm_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 		if ((retcode = dev->fn_tbl.preinit(dev, ent->driver_data)))
 			goto error_out_unreg;
 
-#if __REALLY_HAVE_AGP
-	dev->agp = DRM(agp_init)();
-#if __MUST_HAVE_AGP
-	if ( dev->agp == NULL ) {
+#if __OS_HAS_AGP
+	if (dev->driver_features & DRIVER_USE_AGP)
+	{
+		dev->agp = DRM(agp_init)();
+		if ( dev->driver_features & DRIVER_REQUIRE_AGP) && dev->agp == NULL ) {
 		DRM_ERROR( "Cannot initialize the agpgart module.\n" );
 		retcode = -EINVAL;
 		goto error_out_unreg;
 	}
 #endif
-#if __REALLY_HAVE_MTRR
-	if (dev->agp)
-		dev->agp->agp_mtrr = mtrr_add( dev->agp->agp_info.aper_base,
-					dev->agp->agp_info.aper_size*1024*1024,
-					MTRR_TYPE_WRCOMB,
-					1 );
+#if __OS_HAS_MTRR
+	if (dev->driver_features & DRIVER_USE_MTRR) {
+		if (dev->agp)
+			dev->agp->agp_mtrr = mtrr_add( dev->agp->agp_info.aper_base,
+						       dev->agp->agp_info.aper_size*1024*1024,
+						       MTRR_TYPE_WRCOMB,
+						       1 );
+	}
 #endif
 #endif
 
@@ -697,8 +700,9 @@ static void __exit drm_cleanup( drm_device_t *dev )
 #if __HAVE_CTX_BITMAP
 	DRM(ctxbitmap_cleanup)( dev );
 #endif
-#if __REALLY_HAVE_AGP && __REALLY_HAVE_MTRR
-	if ( dev->agp && dev->agp->agp_mtrr >= 0) {
+#if __OS_HAS_AGP
+#if __OS_HAS_MTRR
+	if ( (dev->driver_features & DRIVER_USE_MTRR) && dev->agp && dev->agp->agp_mtrr >= 0 ) {
 		int retval;
 		retval = mtrr_del( dev->agp->agp_mtrr,
 				   dev->agp->agp_info.aper_base,
@@ -706,8 +710,7 @@ static void __exit drm_cleanup( drm_device_t *dev )
 		DRM_DEBUG( "mtrr_del=%d\n", retval );
 	}
 #endif
-#if __REALLY_HAVE_AGP
-	if ( dev->agp ) {
+	if ( (dev->driver_features & DRIVER_USE_AGP) && dev->agp ) {
 		DRM(agp_uninit)();
 		DRM(free)( dev->agp, sizeof(*dev->agp), DRM_MEM_AGPLISTS );
 		dev->agp = NULL;

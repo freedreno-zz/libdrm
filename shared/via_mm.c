@@ -348,6 +348,7 @@ EXPORT_SYMBOL(via_fb_free);
 
 void DRM(driver_register_fns)(drm_device_t *dev)
 {
-  dev->fn_tbl.context_ctor = via_init_context;
-  dev->fn_tbl.context_dtor = via_final_context;
+	dev->driver_features = DRIVER_USE_AGP | DRIVER_USE_MTRR;
+	dev->fn_tbl.context_ctor = via_init_context;
+	dev->fn_tbl.context_dtor = via_final_context;
 }

@@ -858,7 +858,7 @@ static void radeon_cp_init_ring_buffer( drm_device_t *dev,
 		      ( ( dev_priv->gart_vm_start - 1 ) & 0xffff0000 )
 		    | ( dev_priv->fb_location >> 16 ) );
 
-#if __REALLY_HAVE_AGP
+#if __OS_HAS_AGP
 	if (dev_priv->flags & CHIP_IS_AGP) {
 		RADEON_WRITE( RADEON_MC_AGP_LOCATION,
 			      (((dev_priv->gart_vm_start - 1 +
@@ -885,7 +885,7 @@ static void radeon_cp_init_ring_buffer( drm_device_t *dev,
 	SET_RING_HEAD( dev_priv, cur_read_ptr );
 	dev_priv->ring.tail = cur_read_ptr;
 
-#if __REALLY_HAVE_AGP
+#if __OS_HAS_AGP
 	if (dev_priv->flags & CHIP_IS_AGP) {
 		/* set RADEON_AGP_BASE here instead of relying on X from user space */
 		RADEON_WRITE( RADEON_AGP_BASE, (unsigned int)dev->agp->base );
@@ -1146,7 +1146,7 @@ static int radeon_do_init_cp( drm_device_t *dev, drm_radeon_init_t *init )
 		(drm_radeon_sarea_t *)((u8 *)dev_priv->sarea->handle +
 				       init->sarea_priv_offset);
 
-#if __REALLY_HAVE_AGP
+#if __OS_HAS_AGP
 	if ( dev_priv->flags & CHIP_IS_AGP ) {
 		drm_core_ioremap( dev_priv->cp_ring, dev );
 		drm_core_ioremap( dev_priv->ring_rptr, dev );
@@ -1195,7 +1195,7 @@ static int radeon_do_init_cp( drm_device_t *dev, drm_radeon_init_t *init )
 	dev_priv->gart_vm_start = dev_priv->fb_location
 				+ RADEON_READ( RADEON_CONFIG_APER_SIZE );
 
-#if __REALLY_HAVE_AGP
+#if __OS_HAS_AGP
 	if (dev_priv->flags & CHIP_IS_AGP)
 		dev_priv->gart_buffers_offset = (dev->agp_buffer_map->offset
 						- dev->agp->base
@@ -1224,7 +1224,7 @@ static int radeon_do_init_cp( drm_device_t *dev, drm_radeon_init_t *init )
 
 	dev_priv->ring.high_mark = RADEON_RING_HIGH_MARK;
 
-#if __REALLY_HAVE_AGP
+#if __OS_HAS_AGP
 	if (dev_priv->flags & CHIP_IS_AGP) {
 		/* Turn off PCI GART */
 		radeon_set_pcigart( dev_priv, 0 );
@@ -1265,14 +1265,23 @@ int radeon_do_cleanup_cp( drm_device_t *dev )
 	if ( dev->irq_enabled ) DRM(irq_uninstall)(dev);
 #endif
 
-#if __REALLY_HAVE_AGP
+#if __OS_HAS_AGP
 	if (dev_priv->flags & CHIP_IS_AGP) {
 		if ( dev_priv->cp_ring != NULL )
+		{
 			drm_core_ioremapfree( dev_priv->cp_ring, dev );
+			dev_priv->cp_ring = NULL;
+		}
 		if ( dev_priv->ring_rptr != NULL )
+		{
 			drm_core_ioremapfree( dev_priv->ring_rptr, dev );
+			dev_priv->ring_rptr = NULL;
+		}
 		if ( dev->agp_buffer_map != NULL )
+		{
 			drm_core_ioremapfree( dev->agp_buffer_map, dev );
+			dev->agp_buffer_map = NULL;
+		}
 	} else
 #endif
 	{
@@ -1309,7 +1318,7 @@ static int radeon_do_resume_cp( drm_device_t *dev )
 
 	DRM_DEBUG("Starting radeon_do_resume_cp()\n");
 
-#if __REALLY_HAVE_AGP
+#if __OS_HAS_AGP
 	if (dev_priv->flags & CHIP_IS_AGP) {
 		/* Turn off PCI GART */
 		radeon_set_pcigart( dev_priv, 0 );

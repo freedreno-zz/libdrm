@@ -52,5 +52,6 @@
 
 void DRM(driver_register_fns)(drm_device_t *dev)
 {
+	dev->driver_features = DRIVER_USE_MTRR;
 }
 

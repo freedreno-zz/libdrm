@@ -90,12 +90,16 @@
 /** \name DRM template customization defaults */
 /*@{*/
 
-#ifndef __HAVE_AGP
-#define __HAVE_AGP		0
-#endif
-#ifndef __HAVE_MTRR
-#define __HAVE_MTRR		0
-#endif
+/* driver capabilities and requirements mask */
+#define DRIVER_USE_AGP     0x1
+#define DRIVER_REQUIRE_AGP 0x2
+#define DRIVER_USE_MTRR   0x4
+#define DRIVER_CTX_BITMAP  0x8
+#define DRIVER_HAVE_DMA    0x10
+#define DRIVER_HAVE_IRQ    0x20
+#define DRIVER_HAVE_SG     0x40
+#define DRIVER_HAVE_PCI_DMA 0x80
+
 #ifndef __HAVE_CTX_BITMAP
 #define __HAVE_CTX_BITMAP	0
 #endif
@@ -106,11 +110,10 @@
 #define __HAVE_IRQ		0
 #endif
 
-#define __REALLY_HAVE_AGP	(__HAVE_AGP && (defined(CONFIG_AGP) || \
-						defined(CONFIG_AGP_MODULE)))
-#define __REALLY_HAVE_MTRR	(__HAVE_MTRR && defined(CONFIG_MTRR))
 #define __REALLY_HAVE_SG	(__HAVE_SG)
 
+#define __OS_HAS_AGP (defined(CONFIG_AGP) || defined(CONFIG_AGP_MODULE))
+#define __OS_HAS_MTRR (defined(CONFIG_MTRR))
 /*@}*/
 
 
@@ -438,7 +441,7 @@ typedef struct drm_device_dma {
 	/*@}*/
 } drm_device_dma_t;
 
-#if __REALLY_HAVE_AGP
+#if __OS_HAS_AGP
 /** 
  * AGP memory entry.  Stored as a doubly linked list.
  */
@@ -656,7 +659,7 @@ typedef struct drm_device {
 	wait_queue_head_t buf_readers;	/**< Processes waiting to read */
 	wait_queue_head_t buf_writers;	/**< Processes waiting to ctx switch */
 
-#if __REALLY_HAVE_AGP
+#if __OS_HAS_AGP
 	drm_agp_head_t    *agp;	/**< AGP data */
 #endif
 
@@ -682,6 +685,7 @@ typedef struct drm_device {
 	struct drm_driver_fn fn_tbl;
 	drm_local_map_t   *agp_buffer_map;
 	int               dev_priv_size;
+	u32               driver_features;
 } drm_device_t;
 
 extern void DRM(driver_register_fns)(struct drm_device *dev);
@@ -742,7 +746,7 @@ extern void	     *DRM(ioremap_nocache)(unsigned long offset, unsigned long size,
 					   drm_device_t *dev);
 extern void	     DRM(ioremapfree)(void *pt, unsigned long size, drm_device_t *dev);
 
-#if __REALLY_HAVE_AGP
+#if __OS_HAS_AGP
 extern DRM_AGP_MEM   *DRM(alloc_agp)(int pages, u32 type);
 extern int           DRM(free_agp)(DRM_AGP_MEM *handle, int pages);
 extern int           DRM(bind_agp)(DRM_AGP_MEM *handle, unsigned int start);
@@ -874,7 +878,7 @@ extern void          DRM(irq_immediate_bh)( void *dev );
 #endif
 
 
-#if __REALLY_HAVE_AGP
+#if __OS_HAS_AGP
 				/* AGP/GART support (drm_agpsupport.h) */
 extern drm_agp_head_t *DRM(agp_init)(void);
 extern void           DRM(agp_uninit)(void);
