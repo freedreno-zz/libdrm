@@ -126,7 +126,7 @@ int r128_addbufs_agp(struct inode *inode, struct file *filp, unsigned int cmd,
 		buf->used    = 0;
 		buf->offset  = (dma->byte_count + offset);
 		buf->bus_address = agp_offset + offset;
-		buf->address = (void *)(agp_offset + dev->agp->base + offset);
+		buf->address = (void *)(agp_offset + offset + dev->agp->base);
 		buf->next    = NULL;
 		buf->waiting = 0;
 		buf->pending = 0;

@@ -99,7 +99,8 @@ unsigned long ati_pcigart_init( drm_device_t *dev )
 	memset( pci_gart, 0, ATI_MAX_PCIGART_PAGES * sizeof(u32) );
 
 	for ( i = 0 ; i < pages ; i++ ) {
-		pci_gart[i] = (u32) virt_to_bus( entry->pagelist[i]->virtual );
+		struct page *page = entry->pagelist[i];
+		pci_gart[i] = cpu_to_le32( virt_to_bus( page->virtual ) );
 	}
 
 #if __i386__

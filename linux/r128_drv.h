@@ -32,10 +32,10 @@
  *
  */
 
-#include "ati_pcigart.h"
-
 #ifndef __R128_DRV_H__
 #define __R128_DRV_H__
+
+#include "ati_pcigart.h"
 
 typedef struct drm_r128_freelist {
    	unsigned int age;
@@ -54,6 +54,8 @@ typedef struct drm_r128_ring_buffer {
 	u32 tail;
 	u32 tail_mask;
 	int space;
+
+	int high_mark;
 } drm_r128_ring_buffer_t;
 
 typedef struct drm_r128_private {
@@ -196,6 +198,7 @@ extern int  r128_rmctx(struct inode *inode, struct file *filp,
 extern int  r128_context_switch(drm_device_t *dev, int old, int new);
 extern int  r128_context_switch_complete(drm_device_t *dev, int new);
 
+
 /* Register definitions, register access macros and drmAddMap constants
  * for Rage 128 kernel driver.
  */
@@ -271,9 +274,6 @@ extern int  r128_context_switch_complete(drm_device_t *dev, int new);
 #define R128_GUI_SCRATCH_REG4		0x15f0
 #define R128_GUI_SCRATCH_REG5		0x15f4
 
-#define R128_WAIT_UNTIL			0x1720
-#define		R128_EVENT_CRTC_OFFSET		(1 <<  0)
-
 #define R128_GUI_STAT			0x1740
 #	define R128_GUI_FIFOCNT_MASK		0x0fff
 #	define R128_GUI_ACTIVE			(1 << 31)
@@ -302,6 +302,8 @@ extern int  r128_context_switch_complete(drm_device_t *dev, int new);
 #define R128_TEX_CNTL_C			0x1c9c
 #	define R128_TEX_CACHE_FLUSH		(1 << 23)
 
+#define R128_WAIT_UNTIL			0x1720
+#	define R128_EVENT_CRTC_OFFSET		(1 << 0)
 #define R128_WINDOW_XY_OFFSET		0x1bcc
 
 
@@ -409,59 +411,20 @@ extern int  r128_context_switch_complete(drm_device_t *dev, int new);
 #define R128_MAX_VB_AGE			0x7fffffff
 #define R128_MAX_VB_VERTS		(0xffff)
 
+#define R128_PERFORMANCE_BOXES		0
+
+
 #define R128_BASE(reg)		((u32)(dev_priv->mmio->handle))
 #define R128_ADDR(reg)		(R128_BASE(reg) + reg)
 
-#ifdef __powerpc__
-
-static __inline__ void
-WriteMmio32Le(int *base, const unsigned long offset,
-                  const unsigned long val)
-{
-        __asm__ __volatile__(
-                        "stwbrx %1,%2,%3\n\t"
-                        : "=m" (*(volatile int *)(base+offset))
-                        : "r" (val), "b" (base), "r" (offset));
-}
-
-static __inline__ unsigned int
-ReadMmio32Le(int *base, const unsigned long offset)
-{
-        register unsigned int val;
-        __asm__ __volatile__(
-                        "lwbrx %0,%1,%2\n\t"
-                        "eieio"
-                        : "=r" (val)
-                        : "b" (base), "r" (offset),
-                        "m" (*(volatile int *)(base+offset)));
-        return(val);
-}
-
-#define R128_READ(reg)		ReadMmio32Le((int *)R128_BASE(reg),reg)
-#define R128_WRITE(reg,val)	WriteMmio32Le((int *)R128_BASE(reg),reg,val)
-
-#else	/* ! __powerpc__; FIXME: other big endian machines need their own code here */
-
-#define R128_DEREF(reg)		*(__volatile__ u32 *)R128_ADDR(reg)
-#define R128_READ(reg)		R128_DEREF(reg)
-#define R128_WRITE(reg,val)	do { R128_DEREF(reg) = val; } while (0)
-
-#endif	/* __powerpc__ */
+#define R128_DEREF(reg)		*(volatile u32 *)R128_ADDR(reg)
+#define R128_READ(reg)		le32_to_cpu( R128_DEREF(reg) )
+#define R128_WRITE(reg,val)	do { R128_DEREF(reg) = cpu_to_le32(val); } while (0)
 
 #define R128_DEREF8(reg)	*(__volatile__ u8 *)R128_ADDR(reg)
 #define R128_READ8(reg)		R128_DEREF8(reg)
 #define R128_WRITE8(reg,val)	do { R128_DEREF8(reg) = val; } while (0)
 
-#define VB_AGE_CHECK_WITH_RET( dev_priv )				\
-do {									\
-	drm_r128_sarea_t *sarea_priv = dev_priv->sarea_priv;		\
-	if ( sarea_priv->last_dispatch >= R128_MAX_VB_AGE ) {		\
-		int __ret = r128_do_cce_idle( dev_priv );		\
-		if ( __ret < 0 ) return __ret;				\
-		sarea_priv->last_dispatch = 0;				\
-		r128_freelist_reset( dev );				\
-	}								\
-} while (0)
 
 #define R128_WRITE_PLL(addr,val)                                              \
 do {                                                                          \
@@ -470,13 +433,6 @@ do {                                                                          \
 } while (0)
 
 extern u32 R128_READ_PLL(drm_device_t *dev, int addr);
-
-#define R128CCE0(p,r,n)   ((p) | ((n) << 16) | ((r) >> 2))
-#define R128CCE1(p,r1,r2) ((p) | (((r2) >> 2) << 11) | ((r1) >> 2))
-#define R128CCE2(p)       ((p))
-#define R128CCE3(p,n)     ((p) | ((n) << 16))
-
-
 
 
 #define CCE_PACKET0( reg, n )		(R128_CCE_PACKET0 |		\
@@ -488,7 +444,61 @@ extern u32 R128_READ_PLL(drm_device_t *dev, int addr);
 					 (pkt) | ((n) << 16))
 
 
-#define r128_flush_write_combine()		mb()
+/* ================================================================
+ * Misc helper macros
+ */
+
+#define LOCK_TEST_WITH_RETURN( dev )					\
+do {									\
+	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||		\
+	     dev->lock.pid != current->pid ) {				\
+		DRM_ERROR( "%s called without lock held\n",		\
+			   __FUNCTION__ );				\
+		return -EINVAL;						\
+	}								\
+} while (0)
+
+#define RING_SPACE_TEST_WITH_RETURN( dev_priv )				\
+do {									\
+	drm_r128_ring_buffer_t *ring = &dev_priv->ring; int i;		\
+	if ( ring->space < ring->high_mark ) {				\
+		for ( i = 0 ; i < dev_priv->usec_timeout ; i++ ) {	\
+			ring->space = *ring->head - ring->tail;		\
+			if ( ring->space <= 0 )				\
+				ring->space += ring->size;		\
+			if ( ring->space >= ring->high_mark )		\
+				goto __ring_space_done;			\
+			udelay( 1 );					\
+		}							\
+		DRM_ERROR( "ring space check failed!\n" );		\
+		return -EBUSY;						\
+	}								\
+ __ring_space_done:							\
+} while (0)
+
+#define VB_AGE_TEST_WITH_RETURN( dev_priv )				\
+do {									\
+	drm_r128_sarea_t *sarea_priv = dev_priv->sarea_priv;		\
+	if ( sarea_priv->last_dispatch >= R128_MAX_VB_AGE ) {		\
+		int __ret = r128_do_cce_idle( dev_priv );		\
+		if ( __ret < 0 ) return __ret;				\
+		sarea_priv->last_dispatch = 0;				\
+		r128_freelist_reset( dev );				\
+	}								\
+} while (0)
+
+#define R128_WAIT_UNTIL_PAGE_FLIPPED()					\
+do {									\
+	OUT_RING( CCE_PACKET0( R128_WAIT_UNTIL, 0 ) );			\
+	OUT_RING( R128_EVENT_CRTC_OFFSET );				\
+} while (0)
+
+
+/* ================================================================
+ * Ring control
+ */
+
+#define r128_flush_write_combine()	mb()
 
 
 #define R128_VERBOSE	0
@@ -524,16 +534,11 @@ extern u32 R128_READ_PLL(drm_device_t *dev, int addr);
 		DRM_INFO( "   OUT_RING( 0x%08x ) at 0x%x\n",		\
 			   (unsigned int)(x), write );			\
 	}								\
-	ring[write++] = (x);						\
+	ring[write++] = cpu_to_le32( x );				\
 	write &= tail_mask;						\
 } while (0)
 
-#define R128_WAIT_UNTIL_PAGE_FLIPPED()				\
-do {									\
-	OUT_RING( CCE_PACKET0( R128_WAIT_UNTIL, 0 ) );			\
-	OUT_RING( R128_EVENT_CRTC_OFFSET );				\
-} while (0)
-
-#define R128_PERFORMANCE_BOXES	0
+#define GET_RING_HEAD( dev_priv )	le32_to_cpu( *dev_priv->ring.head )
+#define SET_RING_HEAD( dev_priv, val )	*dev_priv->ring.head = cpu_to_le32( val )
 
 #endif /* __R128_DRV_H__ */

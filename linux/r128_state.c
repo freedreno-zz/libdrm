@@ -32,6 +32,7 @@
 #include "drmP.h"
 #include "r128_drv.h"
 #include "drm.h"
+#include <linux/delay.h>
 
 
 /* ================================================================
@@ -372,7 +373,7 @@ static void r128_cce_dispatch_clear( drm_device_t *dev,
 	u32 fb_bpp, depth_bpp;
 	int i;
 	RING_LOCALS;
-	DRM_DEBUG( "%s\n", __FUNCTION__ );
+	DRM_DEBUG( "%s:\n", __FUNCTION__ );
 
 	r128_update_ring_snapshot( dev_priv );
 
@@ -398,7 +399,7 @@ static void r128_cce_dispatch_clear( drm_device_t *dev,
 		return;
 	}
 
-	if ( dev_priv->page_flipping && dev_priv->current_page == 1) {
+	if ( dev_priv->page_flipping && dev_priv->current_page == 1 ) {
 		unsigned int tmp = flags;
 
 		flags &= ~(R128_FRONT | R128_BACK);
@@ -581,7 +582,6 @@ static void r128_cce_dispatch_flip( drm_device_t *dev )
 	BEGIN_RING( 4 );
 
 	R128_WAIT_UNTIL_PAGE_FLIPPED();
-
 	OUT_RING( CCE_PACKET0( R128_CRTC_OFFSET, 0 ) );
 
 	if ( dev_priv->current_page == 0 ) {
@@ -620,8 +620,8 @@ static void r128_cce_dispatch_vertex( drm_device_t *dev,
 	int prim = buf_priv->prim;
 	int i = 0;
 	RING_LOCALS;
-	DRM_DEBUG( "%s: buf=%d nbox=%d\n",
-		   __FUNCTION__, buf->idx, sarea_priv->nbox );
+	DRM_DEBUG( "%s: buf=%d nbox=%d used=%d\n",
+		   __FUNCTION__, buf->idx, sarea_priv->nbox, buf->used );
 
 	r128_update_ring_snapshot( dev_priv );
 
@@ -660,7 +660,7 @@ static void r128_cce_dispatch_vertex( drm_device_t *dev,
 	}
 
 	if ( buf_priv->discard ) {
-		buf_priv->age = dev_priv->sarea_priv->last_dispatch;
+		buf_priv->age = sarea_priv->last_dispatch;
 
 		/* Emit the vertex buffer age */
 		BEGIN_RING( 2 );
@@ -676,7 +676,7 @@ static void r128_cce_dispatch_vertex( drm_device_t *dev,
 		buf_priv->dispatched = 0;
 	}
 
-	dev_priv->sarea_priv->last_dispatch++;
+	sarea_priv->last_dispatch++;
 
 	sarea_priv->dirty &= ~R128_UPLOAD_CLIPRECTS;
 	sarea_priv->nbox = 0;
@@ -695,7 +695,7 @@ static void r128_cce_dispatch_indirect( drm_device_t *dev,
 	r128_update_ring_snapshot( dev_priv );
 
 	if ( start != end ) {
-		int offset = (buf->bus_address + start);
+		int offset = buf->bus_address + start;
 		int dwords = (end - start + 3) / sizeof(u32);
 
 		/* Indirect buffer data must be an even number of
@@ -706,7 +706,7 @@ static void r128_cce_dispatch_indirect( drm_device_t *dev,
 			u32 *data = (u32 *)
 				((char *)dev_priv->buffers->handle
 				 + buf->offset + start);
-			data[dwords++] = R128_CCE_PACKET2;
+			data[dwords++] = cpu_to_le32( R128_CCE_PACKET2 );
 		}
 
 		buf_priv->dispatched = 1;
@@ -775,16 +775,20 @@ static void r128_cce_dispatch_indices( drm_device_t *dev,
 		data = (u32 *)((char *)dev_priv->buffers->handle
 			       + buf->offset + start);
 
-		data[0] = CCE_PACKET3( R128_3D_RNDR_GEN_INDX_PRIM, dwords-2 );
-
-		data[1] = offset;
-		data[2] = R128_MAX_VB_VERTS;
-		data[3] = format;
-		data[4] = (prim | R128_CCE_VC_CNTL_PRIM_WALK_IND |
-			   (count << 16));
+		data[0] = cpu_to_le32( CCE_PACKET3( R128_3D_RNDR_GEN_INDX_PRIM,
+						    dwords-2 ) );
+		data[1] = cpu_to_le32( offset );
+		data[2] = cpu_to_le32( R128_MAX_VB_VERTS );
+		data[3] = cpu_to_le32( format );
+		data[4] = cpu_to_le32( (prim | R128_CCE_VC_CNTL_PRIM_WALK_IND |
+					(count << 16)) );
 
 		if ( count & 0x1 ) {
+#ifdef __LITTLE_ENDIAN
 			data[dwords-1] &= 0x0000ffff;
+#else
+			data[dwords-1] &= 0xffff0000;
+#endif
 		}
 
 		do {
@@ -892,23 +896,24 @@ static int r128_cce_dispatch_blit( drm_device_t *dev,
 
 	data = (u32 *)((char *)dev_priv->buffers->handle + buf->offset);
 
-	data[0] = CCE_PACKET3( R128_CNTL_HOSTDATA_BLT, dwords + 6 );
-	data[1] = (R128_GMC_DST_PITCH_OFFSET_CNTL |
-		   R128_GMC_BRUSH_NONE |
-		   (blit->format << 8) |
-		   R128_GMC_SRC_DATATYPE_COLOR |
-		   R128_ROP3_S |
-		   R128_DP_SRC_SOURCE_HOST_DATA |
-		   R128_GMC_CLR_CMP_CNTL_DIS |
-		   R128_GMC_AUX_CLIP_DIS |
-		   R128_GMC_WR_MSK_DIS);
+	data[0] = cpu_to_le32( CCE_PACKET3( R128_CNTL_HOSTDATA_BLT,
+					    dwords + 6 ) );
+	data[1] = cpu_to_le32( R128_GMC_DST_PITCH_OFFSET_CNTL |
+			       R128_GMC_BRUSH_NONE |
+			       (blit->format << 8) |
+			       R128_GMC_SRC_DATATYPE_COLOR |
+			       R128_ROP3_S |
+			       R128_DP_SRC_SOURCE_HOST_DATA |
+			       R128_GMC_CLR_CMP_CNTL_DIS |
+			       R128_GMC_AUX_CLIP_DIS |
+			       R128_GMC_WR_MSK_DIS );
 
-	data[2] = (blit->pitch << 21) | (blit->offset >> 5);
-	data[3] = 0xffffffff;
-	data[4] = 0xffffffff;
-	data[5] = (blit->y << 16) | blit->x;
-	data[6] = (blit->height << 16) | blit->width;
-	data[7] = dwords;
+	data[2] = cpu_to_le32( (blit->pitch << 21) | (blit->offset >> 5) );
+	data[3] = cpu_to_le32( 0xffffffff );
+	data[4] = cpu_to_le32( 0xffffffff );
+	data[5] = cpu_to_le32( (blit->y << 16) | blit->x );
+	data[6] = cpu_to_le32( (blit->height << 16) | blit->width );
+	data[7] = cpu_to_le32( dwords );
 
 	buf->used = (dwords + 8) * sizeof(u32);
 
@@ -1351,15 +1356,13 @@ int r128_cce_clear( struct inode *inode, struct file *filp,
 	drm_r128_clear_t clear;
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
-	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||
-	     dev->lock.pid != current->pid ) {
-		DRM_ERROR( "r128_cce_clear called without lock held\n" );
-		return -EINVAL;
-	}
+	LOCK_TEST_WITH_RETURN( dev );
 
 	if ( copy_from_user( &clear, (drm_r128_clear_t *) arg,
 			     sizeof(clear) ) )
 		return -EFAULT;
+
+	RING_SPACE_TEST_WITH_RETURN( dev_priv );
 
 	if ( sarea_priv->nbox > R128_NR_SAREA_CLIPRECTS )
 		sarea_priv->nbox = R128_NR_SAREA_CLIPRECTS;
@@ -1384,11 +1387,9 @@ int r128_cce_swap( struct inode *inode, struct file *filp,
 	drm_r128_sarea_t *sarea_priv = dev_priv->sarea_priv;
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
-	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||
-	     dev->lock.pid != current->pid ) {
-		DRM_ERROR( "r128_cce_swap called without lock held\n" );
-		return -EINVAL;
-	}
+	LOCK_TEST_WITH_RETURN( dev );
+
+	RING_SPACE_TEST_WITH_RETURN( dev_priv );
 
 	if ( sarea_priv->nbox > R128_NR_SAREA_CLIPRECTS )
 		sarea_priv->nbox = R128_NR_SAREA_CLIPRECTS;
@@ -1415,11 +1416,8 @@ int r128_cce_vertex( struct inode *inode, struct file *filp,
 	drm_r128_buf_priv_t *buf_priv;
 	drm_r128_vertex_t vertex;
 
-	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||
-	     dev->lock.pid != current->pid ) {
-		DRM_ERROR( "%s called without lock held\n", __FUNCTION__ );
-		return -EINVAL;
-	}
+	LOCK_TEST_WITH_RETURN( dev );
+
 	if ( !dev_priv )
 		return -EINVAL;
 
@@ -1442,7 +1440,8 @@ int r128_cce_vertex( struct inode *inode, struct file *filp,
 		return -EINVAL;
 	}
 
-        VB_AGE_CHECK_WITH_RET( dev_priv );
+	RING_SPACE_TEST_WITH_RETURN( dev_priv );
+	VB_AGE_TEST_WITH_RETURN( dev_priv );
 
 	buf = dma->buflist[vertex.idx];
 	buf_priv = buf->dev_private;
@@ -1478,11 +1477,8 @@ int r128_cce_indices( struct inode *inode, struct file *filp,
 	drm_r128_indices_t elts;
 	int count;
 
-	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||
-	     dev->lock.pid != current->pid ) {
-		DRM_ERROR( "%s called without lock held\n", __FUNCTION__ );
-		return -EINVAL;
-	}
+	LOCK_TEST_WITH_RETURN( dev );
+
 	if ( !dev_priv )
 		return -EINVAL;
 
@@ -1505,7 +1501,8 @@ int r128_cce_indices( struct inode *inode, struct file *filp,
 		return -EINVAL;
 	}
 
-        VB_AGE_CHECK_WITH_RET( dev_priv );
+	RING_SPACE_TEST_WITH_RETURN( dev_priv );
+	VB_AGE_TEST_WITH_RETURN( dev_priv );
 
 	buf = dma->buflist[elts.idx];
 	buf_priv = buf->dev_private;
@@ -1550,11 +1547,7 @@ int r128_cce_blit( struct inode *inode, struct file *filp,
 	drm_device_dma_t *dma = dev->dma;
 	drm_r128_blit_t blit;
 
-	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||
-	     dev->lock.pid != current->pid ) {
-		DRM_ERROR( "%s called without lock held\n", __FUNCTION__ );
-		return -EINVAL;
-	}
+	LOCK_TEST_WITH_RETURN( dev );
 
 	if ( copy_from_user( &blit, (drm_r128_blit_t *)arg,
 			     sizeof(blit) ) )
@@ -1569,7 +1562,8 @@ int r128_cce_blit( struct inode *inode, struct file *filp,
 		return -EINVAL;
 	}
 
-        VB_AGE_CHECK_WITH_RET( dev_priv );
+	RING_SPACE_TEST_WITH_RETURN( dev_priv );
+	VB_AGE_TEST_WITH_RETURN( dev_priv );
 
 	return r128_cce_dispatch_blit( dev, &blit );
 }
@@ -1579,17 +1573,16 @@ int r128_cce_depth( struct inode *inode, struct file *filp,
 {
 	drm_file_t *priv = filp->private_data;
 	drm_device_t *dev = priv->dev;
+	drm_r128_private_t *dev_priv = dev->dev_private;
 	drm_r128_depth_t depth;
 
-	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||
-	     dev->lock.pid != current->pid ) {
-		DRM_ERROR( "%s called without lock held\n", __FUNCTION__ );
-		return -EINVAL;
-	}
+	LOCK_TEST_WITH_RETURN( dev );
 
 	if ( copy_from_user( &depth, (drm_r128_depth_t *)arg,
 			     sizeof(depth) ) )
 		return -EFAULT;
+
+	RING_SPACE_TEST_WITH_RETURN( dev_priv );
 
 	switch ( depth.func ) {
 	case R128_WRITE_SPAN:
@@ -1610,14 +1603,11 @@ int r128_cce_stipple( struct inode *inode, struct file *filp,
 {
 	drm_file_t *priv = filp->private_data;
 	drm_device_t *dev = priv->dev;
+	drm_r128_private_t *dev_priv = dev->dev_private;
 	drm_r128_stipple_t stipple;
 	u32 mask[32];
 
-	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||
-	     dev->lock.pid != current->pid ) {
-		DRM_ERROR( "%s called without lock held\n", __FUNCTION__ );
-		return -EINVAL;
-	}
+	LOCK_TEST_WITH_RETURN( dev );
 
 	if ( copy_from_user( &stipple, (drm_r128_stipple_t *)arg,
 			     sizeof(stipple) ) )
@@ -1626,6 +1616,8 @@ int r128_cce_stipple( struct inode *inode, struct file *filp,
 	if ( copy_from_user( &mask, stipple.mask,
 			     32 * sizeof(u32) ) )
 		return -EFAULT;
+
+	RING_SPACE_TEST_WITH_RETURN( dev_priv );
 
 	r128_cce_dispatch_stipple( dev, mask );
 
@@ -1638,11 +1630,7 @@ int r128_cce_indirect( struct inode *inode, struct file *filp,
 	drm_file_t *priv = filp->private_data;
 	drm_device_t *dev = priv->dev;
 
-	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||
-	     dev->lock.pid != current->pid ) {
-		DRM_ERROR( "%s called without lock held\n", __FUNCTION__ );
-		return -EINVAL;
-	}
+	LOCK_TEST_WITH_RETURN( dev );
 
 	/* Indirect buffer firing is not supported at this time.
 	 */
