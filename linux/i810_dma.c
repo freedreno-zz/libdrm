@@ -1367,6 +1367,7 @@ int i810_getbuf(struct inode *inode, struct file *filp, unsigned int cmd,
      					dev_priv->sarea_priv;
 
 	DRM_DEBUG("getbuf\n");
+
    	if (copy_from_user(&d, (drm_i810_dma_t *)arg, sizeof(d)))
 		return -EFAULT;
 

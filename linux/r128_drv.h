@@ -292,7 +292,7 @@ extern int  r128_context_switch_complete(drm_device_t *dev, int new);
 #define R128_VB_AGE_REG		R128_GUI_SCRATCH_REG0
 
 
-#define R128_BASE(reg)		((u32)(dev_priv->mmio->handle))
+#define R128_BASE(reg)		((unsigned long)(dev_priv->mmio->handle))
 #define R128_ADDR(reg)		(R128_BASE(reg) + reg)
 
 #define R128_DEREF(reg)		*(__volatile__ int *)R128_ADDR(reg)
