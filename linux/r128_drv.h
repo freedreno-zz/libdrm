@@ -29,105 +29,119 @@
  *
  */
 
-#ifndef _R128_DRV_H_
-#define _R128_DRV_H_
+#ifndef __R128_DRV_H__
+#define __R128_DRV_H__
 
 typedef struct drm_r128_freelist {
-   	unsigned int	age;
-   	drm_buf_t	*buf;
+   	unsigned int age;
+   	drm_buf_t *buf;
    	struct drm_r128_freelist *next;
    	struct drm_r128_freelist *prev;
 } drm_r128_freelist_t;
 
 typedef struct drm_r128_ring_buffer {
-	__volatile__ u32 *read_ptr;
+	u32 *start;
+	u32 *end;
+	int size;
+	int size_l2qw;
 
-	u32	start;
-	u32	end;
-	int	size;
-	int	size_l2qw;
-	u32	*virtual_start;
-
-	int	head;
-	int	tail;
-	u32	tail_mask;
-	int	space;
+	volatile u32 *head;
+	u32 tail;
+	u32 tail_mask;
+	int space;
 } drm_r128_ring_buffer_t;
 
 typedef struct drm_r128_private {
-	__volatile__ u32 *ring_read_ptr;
+	drm_r128_ring_buffer_t ring;
 	drm_r128_sarea_t *sarea_priv;
 
-	u32	*ring_start;
-	u32	*ring_end;
-	int	ring_size;
-	int	ring_sizel2qw;
-	int	ring_entries;
-
-	int	cce_mode;
-	int	cce_fifo_size;
-	int	cce_is_bm_mode;
-	int	cce_secure;
-	u32	*cce_buffer;
+	int cce_mode;
+	int cce_fifo_size;
+	int cce_secure;
+	int cce_running;
 
    	drm_r128_freelist_t *head;
    	drm_r128_freelist_t *tail;
 
-	unsigned int	submit_age;
+	unsigned int submit_age;
 
-	int	usec_timeout;
-	int	is_pci;
+	int usec_timeout;
+	int is_pci;
 
-	drm_map_t	*sarea;
-	drm_map_t	*fb;
-	drm_map_t	*agp_ring;
-	drm_map_t	*agp_read_ptr;
-	drm_map_t	*agp_vertbufs;
-	drm_map_t	*agp_indbufs;
-	drm_map_t	*agp_textures;
-	drm_map_t	*mmio;
+	unsigned int fb_bpp;
+	unsigned int front_offset;
+	unsigned int front_pitch;
+	unsigned int front_x;
+	unsigned int front_y;
+	unsigned int back_offset;
+	unsigned int back_pitch;
+	unsigned int back_x;
+	unsigned int back_y;
+
+	unsigned int depth_bpp;
+	unsigned int depth_offset;
+	unsigned int depth_pitch;
+	unsigned int depth_x;
+	unsigned int depth_y;
+
+	drm_map_t *sarea;
+	drm_map_t *fb;
+	drm_map_t *mmio;
+	drm_map_t *cce_ring;
+	drm_map_t *ring_rptr;
+	drm_map_t *vertex_buffers;
+	drm_map_t *indirect_buffers;
+	drm_map_t *agp_textures;
 } drm_r128_private_t;
 
 typedef struct drm_r128_buf_priv {
-	u32	age;
-	int	discard;
-	int	dispatched;
+	u32 age;
+	int discard;
+	int dispatched;
    	drm_r128_freelist_t *my_freelist;
 } drm_r128_buf_priv_t;
 
 				/* r128_drv.c */
-extern int  r128_version(struct inode *inode, struct file *filp,
-			  unsigned int cmd, unsigned long arg);
-extern int  r128_open(struct inode *inode, struct file *filp);
-extern int  r128_release(struct inode *inode, struct file *filp);
-extern int  r128_ioctl(struct inode *inode, struct file *filp,
-			unsigned int cmd, unsigned long arg);
-extern int  r128_lock(struct inode *inode, struct file *filp,
-		       unsigned int cmd, unsigned long arg);
-extern int  r128_unlock(struct inode *inode, struct file *filp,
-			 unsigned int cmd, unsigned long arg);
+extern int  r128_version( struct inode *inode, struct file *filp,
+			  unsigned int cmd, unsigned long arg );
+extern int  r128_open( struct inode *inode, struct file *filp );
+extern int  r128_release( struct inode *inode, struct file *filp );
+extern int  r128_ioctl( struct inode *inode, struct file *filp,
+			unsigned int cmd, unsigned long arg );
+extern int  r128_lock( struct inode *inode, struct file *filp,
+		       unsigned int cmd, unsigned long arg );
+extern int  r128_unlock( struct inode *inode, struct file *filp,
+			 unsigned int cmd, unsigned long arg );
 
-				/* r128_dma.c */
-extern int r128_init_cce(struct inode *inode, struct file *filp,
-			 unsigned int cmd, unsigned long arg);
-extern int r128_eng_reset(struct inode *inode, struct file *filp,
-			  unsigned int cmd, unsigned long arg);
-extern int r128_eng_flush(struct inode *inode, struct file *filp,
-			  unsigned int cmd, unsigned long arg);
-extern int r128_cce_packet(struct inode *inode, struct file *filp,
-			   unsigned int cmd, unsigned long arg);
-extern int r128_cce_idle(struct inode *inode, struct file *filp,
-			 unsigned int cmd, unsigned long arg);
+				/* r128_cce.c */
+extern int r128_cce_init( struct inode *inode, struct file *filp,
+			  unsigned int cmd, unsigned long arg );
+extern int r128_cce_start( struct inode *inode, struct file *filp,
+			   unsigned int cmd, unsigned long arg );
+extern int r128_cce_stop( struct inode *inode, struct file *filp,
+			  unsigned int cmd, unsigned long arg );
+extern int r128_cce_reset( struct inode *inode, struct file *filp,
+			   unsigned int cmd, unsigned long arg );
+extern int r128_cce_idle( struct inode *inode, struct file *filp,
+			  unsigned int cmd, unsigned long arg );
+extern int r128_engine_reset( struct inode *inode, struct file *filp,
+			      unsigned int cmd, unsigned long arg );
+extern int r128_cce_packet( struct inode *inode, struct file *filp,
+			    unsigned int cmd, unsigned long arg );
 
-extern void r128_flush_write_combine( void );
-extern int r128_do_wait_for_idle( drm_r128_private_t *dev_priv );
-extern int r128_do_submit_packet( drm_r128_private_t *dev_priv,
-				  u32 *buffer, int count );
+extern void r128_freelist_reset( drm_device_t *dev );
 extern drm_buf_t *r128_freelist_get( drm_device_t *dev );
 
+extern int r128_wait_ring( drm_r128_private_t *dev_priv, int n );
+extern void r128_update_ring_snapshot( drm_r128_private_t *dev_priv );
+
 				/* r128_state.c */
-extern int r128_cce_vertex(struct inode *inode, struct file *filp,
-			   unsigned int cmd, unsigned long arg);
+extern int r128_cce_clear( struct inode *inode, struct file *filp,
+			   unsigned int cmd, unsigned long arg );
+extern int r128_cce_swap( struct inode *inode, struct file *filp,
+			  unsigned int cmd, unsigned long arg );
+extern int r128_cce_vertex( struct inode *inode, struct file *filp,
+			    unsigned int cmd, unsigned long arg );
 
 				/* r128_bufs.c */
 extern int r128_addbufs(struct inode *inode, struct file *filp,
@@ -182,12 +196,29 @@ extern int  r128_context_switch_complete(drm_device_t *dev, int new);
 #define R128_AUX3_SC_TOP		0x168c
 #define R128_AUX3_SC_BOTTOM		0x1690
 
+#define R128_BUS_CNTL			0x0030
+#	define R128_BUS_MASTER_DIS		(1 << 6)
+
 #define R128_CLOCK_CNTL_INDEX		0x0008
 #define R128_CLOCK_CNTL_DATA		0x000c
 #	define R128_PLL_WR_EN			(1 << 7)
 
 #define R128_CONSTANT_COLOR_C		0x1d34
 
+#define R128_DP_GUI_MASTER_CNTL		0x146c
+#	define R128_GMC_BRUSH_SOLID_COLOR	(13   <<  4)
+#	define R128_GMC_BRUSH_NONE		(15   <<  4)
+#	define R128_GMC_DST_16BPP		(4    <<  8)
+#	define R128_GMC_DST_24BPP		(5    <<  8)
+#	define R128_GMC_DST_32BPP		(6    <<  8)
+#	define R128_GMC_SRC_DATATYPE_COLOR	(3    << 12)
+#	define R128_DP_SRC_SOURCE_MEMORY	(2    << 24)
+#	define R128_DP_SRC_SOURCE_HOST_DATA	(3    << 24)
+#	define R128_GMC_CLR_CMP_CNTL_DIS	(1    << 28)
+#	define R128_GMC_AUX_CLIP_DIS		(1    << 29)
+#	define R128_GMC_WR_MSK_DIS		(1    << 30)
+#	define R128_ROP3_S			0x00cc0000
+#	define R128_ROP3_P			0x00f00000
 #define R128_DP_WRITE_MASK		0x16cc
 #define R128_DST_PITCH_OFFSET_C		0x1c80
 
@@ -214,36 +245,6 @@ extern int  r128_context_switch_complete(drm_device_t *dev, int new);
 #	define R128_PC_FLUSH_ALL		0x00ff
 #	define R128_PC_BUSY			(1 << 31)
 
-#define R128_PM4_BUFFER_CNTL		0x0704
-#	define R128_PM4_NONPM4			(0  << 28)
-#	define R128_PM4_192PIO			(1  << 28)
-#	define R128_PM4_192BM			(2  << 28)
-#	define R128_PM4_128PIO_64INDBM		(3  << 28)
-#	define R128_PM4_128BM_64INDBM		(4  << 28)
-#	define R128_PM4_64PIO_128INDBM		(5  << 28)
-#	define R128_PM4_64BM_128INDBM		(6  << 28)
-#	define R128_PM4_64PIO_64VCBM_64INDBM	(7  << 28)
-#	define R128_PM4_64BM_64VCBM_64INDBM	(8  << 28)
-#	define R128_PM4_64PIO_64VCPIO_64INDPIO	(15 << 28)
-
-#define R128_PM4_BUFFER_DL_RPTR		0x0710
-#define R128_PM4_BUFFER_DL_WPTR		0x0714
-#	define R128_PM4_BUFFER_DL_DONE		(1 << 31)
-
-#define R128_PM4_VC_FPU_SETUP		0x071c
-
-#define R128_PM4_STAT			0x07b8
-#	define R128_PM4_FIFOCNT_MASK		0x0fff
-#	define R128_PM4_BUSY			(1 << 16)
-#	define R128_PM4_GUI_ACTIVE		(1 << 31)
-
-#define R128_PM4_BUFFER_ADDR		0x07f0
-#define R128_PM4_MICRO_CNTL		0x07fc
-#	define R128_PM4_MICRO_FREERUN		(1 << 30)
-
-#define R128_PM4_FIFO_DATA_EVEN		0x1000
-#define R128_PM4_FIFO_DATA_ODD		0x1004
-
 #define R128_PRIM_TEX_CNTL_C		0x1cb0
 
 #define R128_SCALE_3D_CNTL		0x1a00
@@ -258,12 +259,62 @@ extern int  r128_context_switch_complete(drm_device_t *dev, int new);
 #define R128_WINDOW_XY_OFFSET		0x1bcc
 
 
+/* CCE registers
+ */
+#define R128_PM4_BUFFER_OFFSET		0x0700
+#define R128_PM4_BUFFER_CNTL		0x0704
+#	define R128_PM4_MASK			(15 << 28)
+#	define R128_PM4_NONPM4			(0  << 28)
+#	define R128_PM4_192PIO			(1  << 28)
+#	define R128_PM4_192BM			(2  << 28)
+#	define R128_PM4_128PIO_64INDBM		(3  << 28)
+#	define R128_PM4_128BM_64INDBM		(4  << 28)
+#	define R128_PM4_64PIO_128INDBM		(5  << 28)
+#	define R128_PM4_64BM_128INDBM		(6  << 28)
+#	define R128_PM4_64PIO_64VCBM_64INDBM	(7  << 28)
+#	define R128_PM4_64BM_64VCBM_64INDBM	(8  << 28)
+#	define R128_PM4_64PIO_64VCPIO_64INDPIO	(15 << 28)
+
+#define R128_PM4_BUFFER_WM_CNTL		0x0708
+#	define R128_WMA_SHIFT			0
+#	define R128_WMB_SHIFT			8
+#	define R128_WMC_SHIFT			16
+#	define R128_WB_WM_SHIFT			24
+
+#define R128_PM4_BUFFER_DL_RPTR_ADDR	0x070c
+#define R128_PM4_BUFFER_DL_RPTR		0x0710
+#define R128_PM4_BUFFER_DL_WPTR		0x0714
+#	define R128_PM4_BUFFER_DL_DONE		(1 << 31)
+
+#define R128_PM4_VC_FPU_SETUP		0x071c
+
+#define R128_PM4_STAT			0x07b8
+#	define R128_PM4_FIFOCNT_MASK		0x0fff
+#	define R128_PM4_BUSY			(1 << 16)
+#	define R128_PM4_GUI_ACTIVE		(1 << 31)
+
+#define R128_PM4_MICROCODE_ADDR		0x07d4
+#define R128_PM4_MICROCODE_RADDR	0x07d8
+#define R128_PM4_MICROCODE_DATAH	0x07dc
+#define R128_PM4_MICROCODE_DATAL	0x07e0
+
+#define R128_PM4_BUFFER_ADDR		0x07f0
+#define R128_PM4_MICRO_CNTL		0x07fc
+#	define R128_PM4_MICRO_FREERUN		(1 << 30)
+
+#define R128_PM4_FIFO_DATA_EVEN		0x1000
+#define R128_PM4_FIFO_DATA_ODD		0x1004
+
+
 /* CCE command packets
  */
 #define R128_CCE_PACKET0		0x00000000
 #define R128_CCE_PACKET1		0x40000000
 #define R128_CCE_PACKET2		0x80000000
 #define R128_CCE_PACKET3		0xC0000000
+#	define R128_CNTL_HOSTDATA_BLT		0x00009400
+#	define R128_CNTL_PAINT_MULTI		0x00009A00
+#	define R128_CNTL_BITBLT_MULTI		0x00009B00
 #	define R128_3D_RNDR_GEN_INDX_PRIM	0x00002300
 
 #define R128_CCE_PACKET_MASK		0xC0000000
@@ -285,6 +336,13 @@ extern int  r128_context_switch_complete(drm_device_t *dev, int new);
 #define R128_CCE_VC_CNTL_PRIM_WALK_RING		0x00000030
 #define R128_CCE_VC_CNTL_NUM_SHIFT		16
 
+/* Constants */
+#define R128_AGP_OFFSET			0x02000000
+
+#define R128_WATERMARK_L		16
+#define R128_WATERMARK_M		8
+#define R128_WATERMARK_N		8
+#define R128_WATERMARK_K		128
 
 #define R128_MAX_USEC_TIMEOUT	100000	/* 100 ms */
 
@@ -328,77 +386,44 @@ extern int R128_READ_PLL(drm_device_t *dev, int addr);
 					 (pkt) | ((n) << 16))
 
 
+#define r128_flush_write_combine()		mb()
+
+
 #define R128_VERBOSE	0
 
-#if 0
-
-#define RING_LOCALS	unsigned long outring, ringmask; volatile u32 *virt;
+#define RING_LOCALS	int write; unsigned int mask; volatile u32 *ring;
 
 #define BEGIN_RING( n ) do {						\
 	if ( R128_VERBOSE ) {						\
-		DRM_DEBUG( "BEGIN_RING( %d ) in %s\n",			\
+		DRM_INFO( "BEGIN_RING( %d ) in %s\n",			\
 			   n, __FUNCTION__ );				\
 	}								\
 	if ( dev_priv->ring.space < n * sizeof(u32) ) {			\
 		r128_wait_ring( dev_priv, n * sizeof(u32) );		\
 	}								\
 	dev_priv->ring.space -= n * sizeof(u32);			\
-	outring = dev_priv->ring.tail;					\
-	ringmask = dev_priv->ring.tail_mask;				\
-	virt = dev_priv->->ring.virtual_start;				\
+	write = dev_priv->ring.tail;					\
+	mask = dev_priv->ring.tail_mask;				\
+	ring = dev_priv->ring.start;					\
 } while (0)
 
 #define ADVANCE_RING() do {						\
 	if ( R128_VERBOSE ) {						\
-		DRM_DEBUG( "ADVANCE_RING()\n" );			\
+		DRM_INFO( "ADVANCE_RING() tail=0x%06x wr=0x%06x\n",	\
+			  write, dev_priv->ring.tail );			\
 	}								\
-	dev_priv->sarea_priv->ring_write = write;
-	R128_WRITE( R128_PM4_BUFFER_DL_WPTR, write );
-	__ret = r128_do_submit_packet( dev_priv, buffer, outring );	\
-	if ( __ret < 0 ) {						\
-		DRM_ERROR( "ADVANCE_RING fucked up!\n" );		\
-	}								\
+	r128_flush_write_combine();					\
+	dev_priv->ring.tail = write;					\
+	R128_WRITE( R128_PM4_BUFFER_DL_WPTR, write );			\
 } while (0)
 
 #define OUT_RING( x ) do {						\
 	if ( R128_VERBOSE ) {						\
-		DRM_DEBUG( "   OUT_RING( 0x%08x )\n",			\
-			   (unsigned int)(x) );				\
+		DRM_INFO( "   OUT_RING( 0x%08x ) at 0x%x\n",		\
+			   (unsigned int)(x), write );			\
 	}								\
-	buffer[outring++] = x;						\
+	ring[write++] = x;						\
+	write &= mask;							\
 } while (0)
 
-#else
-
-#define RING_LOCALS	unsigned long outring; u32 *buffer; int __ret;
-
-#define BEGIN_RING( n ) do {						\
-	if ( R128_VERBOSE ) {						\
-		DRM_DEBUG( "BEGIN_RING( %d ) in %s\n",			\
-			   n, __FUNCTION__ );				\
-	}								\
-	outring = 0;							\
-	buffer = dev_priv->cce_buffer;					\
-} while (0)
-
-#define ADVANCE_RING() do {						\
-	if ( R128_VERBOSE ) {						\
-		DRM_DEBUG( "ADVANCE_RING()\n" );			\
-	}								\
-	__ret = r128_do_submit_packet( dev_priv, buffer, outring );	\
-	if ( __ret < 0 ) {						\
-		DRM_ERROR( "ADVANCE_RING fucked up!\n" );		\
-	}								\
-} while (0)
-
-#define OUT_RING( x ) do {						\
-	if ( R128_VERBOSE ) {						\
-		DRM_DEBUG( "   OUT_RING( 0x%08x )\n",			\
-			   (unsigned int)(x) );				\
-	}								\
-	buffer[outring++] = x;						\
-} while (0)
-
-#endif
-
-#endif
+#endif /* __R128_DRV_H__ */

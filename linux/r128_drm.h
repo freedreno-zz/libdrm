@@ -51,9 +51,9 @@
 #define R128_UPLOAD_CLIPRECTS		0x200	/* handled client-side */
 #define R128_REQUIRE_QUIESCENCE		0x400
 
-#define R128_FRONT	0x1
-#define R128_BACK	0x2
-#define R128_DEPTH	0x4
+#define R128_FRONT			0x1
+#define R128_BACK			0x2
+#define R128_DEPTH			0x4
 
 /* Keep these small for testing.
  */
@@ -140,7 +140,6 @@ typedef struct drm_r128_sarea {
 	drm_tex_region_t tex_list[R128_NR_TEX_HEAPS][R128_NR_TEX_REGIONS+1];
 	int tex_age[R128_NR_TEX_HEAPS];
 	int ctx_owner;
-	int ring_write;
 } drm_r128_sarea_t;
 
 
@@ -155,24 +154,35 @@ typedef struct drm_r128_init {
 	int sarea_priv_offset;
 	int is_pci;
 	int cce_mode;
-	int cce_fifo_size;
 	int cce_secure;
 	int ring_size;
 	int usec_timeout;
 
-	int fb_offset;
-	int agp_ring_offset;
-	int agp_read_ptr_offset;
-	int agp_vertbufs_offset;
-	int agp_indbufs_offset;
-	int agp_textures_offset;
-	int mmio_offset;
+	unsigned int fb_bpp;
+	unsigned int front_offset, front_pitch;
+	unsigned int front_x, front_y;
+	unsigned int back_offset, back_pitch;
+	unsigned int back_x, back_y;
+	unsigned int depth_bpp;
+	unsigned int depth_offset, depth_pitch;
+	unsigned int depth_x, depth_y;
+
+	unsigned int fb_offset;
+	unsigned int mmio_offset;
+	unsigned int ring_offset;
+	unsigned int ring_rptr_offset;
+	unsigned int vertex_buffers_offset;
+	unsigned int indirect_buffers_offset;
+	unsigned int agp_textures_offset;
 } drm_r128_init_t;
 
 typedef struct drm_r128_clear {
+	unsigned int flags;
+	int x, y, w, h;
 	unsigned int clear_color;
 	unsigned int clear_depth;
-	unsigned int flags;
+	unsigned int color_mask;
+	unsigned int depth_mask;
 } drm_r128_clear_t;
 
 typedef struct drm_r128_vertex {

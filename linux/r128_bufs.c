@@ -235,7 +235,7 @@ int r128_mapbufs(struct inode *inode, struct file *filp, unsigned int cmd,
 		if (dma->flags & _DRM_DMA_USE_AGP) {
 			drm_map_t *map;
 
-			map = dev_priv->agp_vertbufs;
+			map = dev_priv->vertex_buffers;
 			if (!map) {
 				retcode = -EINVAL;
 				goto done;

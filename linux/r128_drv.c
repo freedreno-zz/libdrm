@@ -35,7 +35,7 @@
 
 #define R128_NAME		"r128"
 #define R128_DESC		"ATI Rage 128"
-#define R128_DATE		"20000919"
+#define R128_DATE		"20000928"
 #define R128_MAJOR		1
 #define R128_MINOR		1
 #define R128_PATCHLEVEL		0
@@ -105,12 +105,16 @@ static drm_ioctl_desc_t	      r128_ioctls[] = {
 	[DRM_IOCTL_NR(DRM_IOCTL_AGP_UNBIND)]  = { drm_agp_unbind,  1, 1 },
 #endif
 
-	[DRM_IOCTL_NR(DRM_IOCTL_R128_INIT)]   = { r128_init_cce,   1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_R128_RESET)]  = { r128_eng_reset,  1, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_R128_FLUSH)]  = { r128_eng_flush,  1, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_R128_PACKET)] = { r128_cce_packet, 1, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_R128_IDLE)]   = { r128_cce_idle,   1, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_R128_VERTEX)] = { r128_cce_vertex, 1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_R128_INIT)]   = { r128_cce_init,     1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_R128_CCE_START)] = { r128_cce_start, 1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_R128_CCE_STOP)]  = { r128_cce_stop,  1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_R128_CCE_RESET)] = { r128_cce_reset, 1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_R128_CCE_IDLE)]  = { r128_cce_idle,  1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_R128_RESET)]  = { r128_engine_reset, 1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_R128_SWAP)]   = { r128_cce_swap,     1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_R128_CLEAR)]  = { r128_cce_clear,    1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_R128_VERTEX)] = { r128_cce_vertex,   1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_R128_PACKET)] = { r128_cce_packet,   1, 0 },
 };
 #define R128_IOCTL_COUNT DRM_ARRAY_SIZE(r128_ioctls)
 
