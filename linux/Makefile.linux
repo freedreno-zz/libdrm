@@ -64,7 +64,7 @@ GAMMAOBJS=      gamma_drv.o gamma_drm.o gamma_dma.o gamma_context.o
 GAMMAHEADERS=   gamma_drv.h $(DRMHEADERS) $(DRMTEMPLATES)
 
 TDFXOBJS=       tdfx_drv.o tdfx_drm.o
-TDFXHEADERS=    tdfx_drv.h $(DRMHEADERS)
+TDFXHEADERS=    tdfx.h $(DRMHEADERS)
 
 INC=		/usr/include
 
@@ -142,7 +142,7 @@ MODS += mga.o gamma.o
 #endif
 
 MGAOBJS=	mga_drv.o mga_drm.o mga_dma.o mga_state.o mga_warp.o
-MGAHEADERS=	mga_drv.h $(DRMHEADERS) $(DRMTEMPLATES)
+MGAHEADERS=	mga.h mga_drv.h $(DRMHEADERS) $(DRMTEMPLATES)
 
 I810OBJS=	i810_drv.o i810_dma.o i810_bufs.o i810_context.o
 I810HEADERS=	i810_drv.h $(DRMHEADERS)
