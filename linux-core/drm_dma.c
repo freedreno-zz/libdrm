@@ -37,13 +37,6 @@
 #include "drmP.h"
 
 
-#ifndef __HAVE_DMA_WAITQUEUE
-#define __HAVE_DMA_WAITQUEUE	0
-#endif
-#ifndef __HAVE_DMA_RECLAIM
-#define __HAVE_DMA_RECLAIM	0
-#endif
-
 /**
  * Initialize the DMA data.
  * 
@@ -154,7 +147,7 @@ void DRM(free_buffer)(drm_device_t *dev, drm_buf_t *buf)
 	buf->filp     = NULL;
 	buf->used     = 0;
 
-	if ( __HAVE_DMA_WAITQUEUE && waitqueue_active(&buf->dma_wait)) {
+	if ( (dev->driver_features & DRIVER_DMA_QUEUE) && waitqueue_active(&buf->dma_wait)) {
 		wake_up_interruptible(&buf->dma_wait);
 	}
 	/* If processes are waiting, the last one
@@ -166,7 +159,6 @@ void DRM(free_buffer)(drm_device_t *dev, drm_buf_t *buf)
 
 }
 
-#if !__HAVE_DMA_RECLAIM
 /**
  * Reclaim the buffers.
  *
@@ -174,7 +166,7 @@ void DRM(free_buffer)(drm_device_t *dev, drm_buf_t *buf)
  *
  * Frees each buffer associated with \p filp not already on the hardware.
  */
-void DRM(reclaim_buffers)( struct file *filp )
+void DRM(core_reclaim_buffers)( struct file *filp )
 {
 	drm_file_t    *priv   = filp->private_data;
 	drm_device_t  *dev    = priv->dev;
@@ -198,5 +190,4 @@ void DRM(reclaim_buffers)( struct file *filp )
 		}
 	}
 }
-#endif
 

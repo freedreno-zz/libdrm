@@ -118,22 +118,9 @@ int DRM(irq_install)( drm_device_t *dev )
 
 	DRM_DEBUG( "%s: irq=%d\n", __FUNCTION__, dev->irq );
 
-#if __HAVE_DMA
 	dev->dma->next_buffer = NULL;
 	dev->dma->next_queue = NULL;
 	dev->dma->this_buffer = NULL;
-#endif
-
-#ifdef __HAVE_IRQ_BH
-#if !HAS_WORKQUEUE
-	INIT_LIST_HEAD( &dev->tq.list );
-	dev->tq.sync = 0;
-	dev->tq.routine = DRM(irq_immediate_bh);
-	dev->tq.data = dev;
-#else
-	INIT_WORK(&dev->work, DRM(irq_immediate_bh), dev);
-#endif
-#endif
 
 	if (dev->driver_features & DRIVER_IRQ_VBL) {
 		init_waitqueue_head(&dev->vbl_queue);

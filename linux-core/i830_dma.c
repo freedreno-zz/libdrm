@@ -1607,7 +1607,7 @@ static int i830_driver_dma_quiescent(drm_device_t *dev)
 
 void i830_driver_register_fns(drm_device_t *dev)
 {
-	dev->driver_features = DRIVER_USE_AGP | DRIVER_REQUIRE_AGP | DRIVER_USE_MTRR | DRIVER_HAVE_DMA;
+	dev->driver_features = DRIVER_USE_AGP | DRIVER_REQUIRE_AGP | DRIVER_USE_MTRR | DRIVER_HAVE_DMA | DRIVER_DMA_QUEUE;
 #if USE_IRQS
 	dev->driver_features |= DRIVER_HAVE_IRQ | DRIVER_SHARED_IRQ;
 #endif
@@ -1615,6 +1615,7 @@ void i830_driver_register_fns(drm_device_t *dev)
 	dev->fn_tbl.pretakedown = i830_driver_pretakedown;
 	dev->fn_tbl.release = i830_driver_release;
 	dev->fn_tbl.dma_quiescent = i830_driver_dma_quiescent;
+	dev->fn_tbl.reclaim_buffers = i830_reclaim_buffers;
 #if USE_IRQS
 	dev->fn_tbl.irq_preinstall = i830_driver_irq_preinstall;
 	dev->fn_tbl.irq_postinstall = i830_driver_irq_postinstall;

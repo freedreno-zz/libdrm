@@ -100,6 +100,7 @@
 #define DRIVER_PCI_DMA     0x80
 #define DRIVER_IRQ_SHARED  0x100
 #define DRIVER_IRQ_VBL     0x200
+#define DRIVER_DMA_QUEUE   0x800
 
 #define __OS_HAS_AGP (defined(CONFIG_AGP) || defined(CONFIG_AGP_MODULE))
 #define __OS_HAS_MTRR (defined(CONFIG_MTRR))
@@ -539,6 +540,10 @@ struct drm_driver_fn {
 	void (*irq_preinstall)(struct drm_device *dev);
 	void (*irq_postinstall)(struct drm_device *dev);
 	void (*irq_uninstall)(struct drm_device *dev);
+	void (*reclaim_buffers)(struct file *filp);
+	unsigned long (*get_map_ofs)(drm_map_t *map);
+	unsigned long (*get_reg_ofs)(struct drm_device *dev);
+	void (*set_version)(struct drm_device *dev, drm_set_version_t *sv);
 };
 
 /**
@@ -858,10 +863,6 @@ extern int           DRM(wait_vblank)(struct inode *inode, struct file *filp,
 extern int           DRM(vblank_wait)(drm_device_t *dev, unsigned int *vbl_seq);
 extern void          DRM(vbl_send_signals)( drm_device_t *dev );
 
-#ifdef __HAVE_IRQ_BH
-extern void          DRM(irq_immediate_bh)( void *dev );
-#endif
-
 
 #if __OS_HAS_AGP
 				/* AGP/GART support (drm_agpsupport.h) */
@@ -962,5 +963,7 @@ static __inline__ void drm_core_dropmap(struct drm_map *map)
 }
 /*@}*/
 
+extern unsigned long DRM(core_get_map_ofs)(drm_map_t *map);
+extern unsigned long DRM(core_get_reg_ofs)(struct drm_device *dev);
 #endif /* __KERNEL__ */
 #endif

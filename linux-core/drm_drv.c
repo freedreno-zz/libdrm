@@ -53,12 +53,7 @@
  */
 
 
-#ifndef __HAVE_DMA_QUEUE
-#define __HAVE_DMA_QUEUE		0
-#endif
-#ifndef __HAVE_MULTIPLE_DMA_QUEUES
-#define __HAVE_MULTIPLE_DMA_QUEUES	0
-#endif
+
 #ifndef __HAVE_COUNTERS
 #define __HAVE_COUNTERS			0
 #endif
@@ -434,8 +429,8 @@ static int DRM(takedown)( drm_device_t *dev )
 		dev->maplist = NULL;
  	}
 
-#if __HAVE_DMA_QUEUE || __HAVE_MULTIPLE_DMA_QUEUES
-	if ( dev->queuelist ) {
+	
+	if ( (dev->driver_features & DRIVER_DMA_QUEUE) && dev->queuelist ) {
 		for ( i = 0 ; i < dev->queue_count ; i++ ) {
 			if (dev->fn_tbl.waitlist_destroy)
 				dev->fn_tbl.waitlist_destroy( &dev->queuelist[i]->waitlist);
@@ -453,7 +448,6 @@ static int DRM(takedown)( drm_device_t *dev )
 		dev->queuelist = NULL;
 	}
 	dev->queue_count = 0;
-#endif
 
 	if (dev->driver_features & DRIVER_HAVE_DMA)
 		DRM(dma_takedown)( dev );
@@ -467,6 +461,13 @@ static int DRM(takedown)( drm_device_t *dev )
 	up( &dev->struct_sem );
 
 	return 0;
+}
+
+static void DRM(init_fn_table)(struct drm_device *dev)
+{
+	dev->fn_tbl.reclaim_buffers = DRM(core_reclaim_buffers);
+	dev->fn_tbl.get_map_ofs = DRM(core_get_map_ofs);
+	dev->fn_tbl.get_reg_ofs = DRM(core_get_reg_ofs);
 }
 
 #include "drm_pciids.h"
@@ -512,6 +513,9 @@ static int drm_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 
 	/* dev_priv_size can be changed by a driver in driver_register_fns */
 	dev->dev_priv_size = sizeof(u32);
+	
+ 	DRM(init_fn_table)(dev);
+
 	DRM(driver_register_fns)(dev);
 	
 	/* if we have CTX_BITMAP add the ioctls */
@@ -892,7 +896,9 @@ int DRM(release)( struct inode *inode, struct file *filp )
 	}
 	
 	if (dev->driver_features & DRIVER_HAVE_DMA)
-		DRM(reclaim_buffers)( filp );
+	{
+		dev->fn_tbl.reclaim_buffers(filp);
+	}
 
 	DRM(fasync)( -1, filp, 0 );
 
@@ -1033,9 +1039,6 @@ int DRM(lock)( struct inode *inode, struct file *filp,
         DECLARE_WAITQUEUE( entry, current );
         drm_lock_t lock;
         int ret = 0;
-#if __HAVE_MULTIPLE_DMA_QUEUES
-	drm_queue_t *q;
-#endif
 
 	++priv->lock_count;
 
@@ -1052,14 +1055,9 @@ int DRM(lock)( struct inode *inode, struct file *filp,
 		   lock.context, current->pid,
 		   dev->lock.hw_lock->lock, lock.flags );
 
-#if __HAVE_DMA_QUEUE
-        if ( lock.context < 0 )
-                return -EINVAL;
-#elif __HAVE_MULTIPLE_DMA_QUEUES
-        if ( lock.context < 0 || lock.context >= dev->queue_count )
-                return -EINVAL;
-	q = dev->queuelist[lock.context];
-#endif
+	if (dev->driver_features & DRIVER_DMA_QUEUE)
+		if ( lock.context < 0 )
+			return -EINVAL;
 
 	if (dev->fn_tbl.dma_flush_block_and_flush)
 		ret = dev->fn_tbl.dma_flush_block_and_flush(dev, lock.context, lock.flags);

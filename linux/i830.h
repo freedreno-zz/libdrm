@@ -79,12 +79,6 @@
 #define __HAVE_COUNTER8         _DRM_STAT_SECONDARY
 #define __HAVE_COUNTER9         _DRM_STAT_DMA
 
-/* DMA customization:
- */
-#define __HAVE_DMA		1
-#define __HAVE_DMA_QUEUE	1
-#define __HAVE_DMA_RECLAIM	1
-
 /* Driver will work either way: IRQ's save cpu time when waiting for
  * the card, but are subject to subtle interactions between bios,
  * hardware and the driver.
