@@ -835,9 +835,9 @@ extern int           DRM(notifier)(void *priv);
 				/* Context Bitmap support (ctxbitmap.c) */
 extern int	     DRM(ctxbitmap_init)( drm_device_t *dev );
 extern void	     DRM(ctxbitmap_cleanup)( drm_device_t *dev );
-extern int	     DRM(add_ctx_map)( struct inode *inode, struct file *filp,
+extern int	     DRM(setsareactx)( struct inode *inode, struct file *filp,
 				       unsigned int cmd, unsigned long arg );
-extern int	     DRM(get_ctx_map)( struct inode *inode, struct file *filp,
+extern int	     DRM(getsareactx)( struct inode *inode, struct file *filp,
 				       unsigned int cmd, unsigned long arg );
 
 				/* Buffer management support (bufs.c) */

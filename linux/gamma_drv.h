@@ -35,10 +35,6 @@
 
 typedef struct drm_gamma_private {
 	drm_map_t *buffers;
-	drm_map_t *mmio0;
-	drm_map_t *mmio1;
-	drm_map_t *mmio2;
-	drm_map_t *mmio3;
 } drm_gamma_private_t;
 
 #define LOCK_TEST_WITH_RETURN( dev )					\
@@ -76,8 +72,5 @@ extern int  gamma_control(struct inode *inode, struct file *filp,
 			  unsigned int cmd, unsigned long arg);
 extern int  gamma_find_devices(void);
 extern int  gamma_found(void);
-extern void gamma_dma_cleanup(drm_device_t *dev);
-extern int  gamma_dma_init(struct inode *inode, struct file *filp, 
-			   unsigned int cmd, unsigned long arg);
 
 #endif

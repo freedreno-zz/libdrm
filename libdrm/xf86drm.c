@@ -519,7 +519,7 @@ int drmRmMap(int fd, drmHandle handle)
 {
     drm_map_t map;
 
-    map.handle = handle;
+    map.handle = (void *)handle;
 
     if(ioctl(fd, DRM_IOCTL_RM_MAP, &map)) return -errno;
     return 0;
@@ -1105,9 +1105,9 @@ int drmAddContextPrivateMapping(int fd, drmContext ctx_id, drmHandle handle)
     drm_ctx_priv_map_t map;
 
     map.ctx_id = ctx_id;
-    map.handle = handle;
+    map.handle = (void *)handle;
 
-    if(ioctl(fd, DRM_IOCTL_CTX_SAREA, &map)) return -errno;
+    if (ioctl(fd, DRM_IOCTL_SET_SAREA_CTX, &map)) return -errno;
     return 0;
 }
 
@@ -1117,8 +1117,8 @@ int drmGetContextPrivateMapping(int fd, drmContext ctx_id, drmHandlePtr handle)
 
     map.ctx_id = ctx_id;
 
-    if(ioctl(fd, DRM_IOCTL_GET_CTX_SAREA, &map)) return -errno;
-    if(handle) *handle = map.handle;
+    if (ioctl(fd, DRM_IOCTL_GET_SAREA_CTX, &map)) return -errno;
+    if (handle) *handle = (drmHandle)map.handle;
 
     return 0;
 }

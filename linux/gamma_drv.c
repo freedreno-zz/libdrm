@@ -46,8 +46,7 @@
 
 
 #define DRIVER_IOCTLS							  \
-	[DRM_IOCTL_NR(DRM_IOCTL_DMA)]	     = { gamma_dma,	  1, 0 }, \
-	[DRM_IOCTL_NR(DRM_IOCTL_GAMMA_INIT)] = { gamma_dma_init,  1, 0 }
+	[DRM_IOCTL_NR(DRM_IOCTL_DMA)]	     = { gamma_dma,	  1, 0 }
 
 #define __HAVE_MTRR		1
 #define __HAVE_CTX_BITMAP	0
@@ -90,13 +89,14 @@ do {									\
 	gamma_reclaim_buffers( dev, priv->pid );			\
 	if ( dev->dev_private ) {					\
 		drm_gamma_private_t *dev_priv = dev->dev_private;	\
+		dev_priv->dispatch_status &= MGA_IN_DISPATCH;		\
 	}								\
 } while (0)
 #endif
 
 #if 0
 #define DRIVER_PRETAKEDOWN() do {					\
-	if ( dev->dev_private ) gamma_dma_cleanup( dev );		\
+	if ( dev->dev_private ) gamma_do_cleanup_dma( dev );		\
 } while (0)
 #endif
 

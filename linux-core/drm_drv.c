@@ -118,64 +118,64 @@ static struct file_operations	DRM(fops) = {
 };
 
 
-static drm_ioctl_desc_t		DRM(ioctls)[] = {
-	[DRM_IOCTL_NR(DRM_IOCTL_VERSION)]     = { DRM(version),     0, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_GET_UNIQUE)]  = { DRM(getunique),   0, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_GET_MAGIC)]   = { DRM(getmagic),    0, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_IRQ_BUSID)]   = { DRM(irq_busid),   0, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_GET_MAP)]     = { DRM(getmap),      0, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_GET_CLIENT)]  = { DRM(getclient),   0, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_GET_STATS)]   = { DRM(getstats),    0, 0 },
+static drm_ioctl_desc_t		  DRM(ioctls)[] = {
+	[DRM_IOCTL_NR(DRM_IOCTL_VERSION)]       = { DRM(version),     0, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_GET_UNIQUE)]    = { DRM(getunique),   0, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_GET_MAGIC)]     = { DRM(getmagic),    0, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_IRQ_BUSID)]     = { DRM(irq_busid),   0, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_GET_MAP)]       = { DRM(getmap),      0, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_GET_CLIENT)]    = { DRM(getclient),   0, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_GET_STATS)]     = { DRM(getstats),    0, 0 },
 
-	[DRM_IOCTL_NR(DRM_IOCTL_SET_UNIQUE)]  = { DRM(setunique),   1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_BLOCK)]       = { DRM(block),       1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_UNBLOCK)]     = { DRM(unblock),     1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_AUTH_MAGIC)]  = { DRM(authmagic),   1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_SET_UNIQUE)]    = { DRM(setunique),   1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_BLOCK)]         = { DRM(block),       1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_UNBLOCK)]       = { DRM(unblock),     1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_AUTH_MAGIC)]    = { DRM(authmagic),   1, 1 },
 
-	[DRM_IOCTL_NR(DRM_IOCTL_ADD_MAP)]     = { DRM(addmap),      1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_RM_MAP)]      = { DRM(rmmap),       1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_ADD_MAP)]       = { DRM(addmap),      1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_RM_MAP)]        = { DRM(rmmap),       1, 0 },
 
-	[DRM_IOCTL_NR(DRM_IOCTL_CTX_SAREA)]     = { DRM(add_ctx_map), 1, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_GET_CTX_SAREA)] = { DRM(get_ctx_map), 1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_SET_SAREA_CTX)] = { DRM(setsareactx), 1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_GET_SAREA_CTX)] = { DRM(getsareactx), 1, 0 },
 
-	[DRM_IOCTL_NR(DRM_IOCTL_ADD_CTX)]     = { DRM(addctx),      1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_RM_CTX)]      = { DRM(rmctx),       1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_MOD_CTX)]     = { DRM(modctx),      1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_GET_CTX)]     = { DRM(getctx),      1, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_SWITCH_CTX)]  = { DRM(switchctx),   1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_NEW_CTX)]     = { DRM(newctx),      1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_RES_CTX)]     = { DRM(resctx),      1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_ADD_CTX)]       = { DRM(addctx),      1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_RM_CTX)]        = { DRM(rmctx),       1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_MOD_CTX)]       = { DRM(modctx),      1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_GET_CTX)]       = { DRM(getctx),      1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_SWITCH_CTX)]    = { DRM(switchctx),   1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_NEW_CTX)]       = { DRM(newctx),      1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_RES_CTX)]       = { DRM(resctx),      1, 0 },
 
-	[DRM_IOCTL_NR(DRM_IOCTL_ADD_DRAW)]    = { DRM(adddraw),     1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_RM_DRAW)]     = { DRM(rmdraw),      1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_ADD_DRAW)]      = { DRM(adddraw),     1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_RM_DRAW)]       = { DRM(rmdraw),      1, 1 },
 
-	[DRM_IOCTL_NR(DRM_IOCTL_LOCK)]	      = { DRM(lock),        1, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_UNLOCK)]      = { DRM(unlock),      1, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_FINISH)]      = { DRM(finish),      1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_LOCK)]	        = { DRM(lock),        1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_UNLOCK)]        = { DRM(unlock),      1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_FINISH)]        = { DRM(finish),      1, 0 },
 
 #if __HAVE_DMA
-	[DRM_IOCTL_NR(DRM_IOCTL_ADD_BUFS)]    = { DRM(addbufs),     1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_MARK_BUFS)]   = { DRM(markbufs),    1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_INFO_BUFS)]   = { DRM(infobufs),    1, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_MAP_BUFS)]    = { DRM(mapbufs),     1, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_FREE_BUFS)]   = { DRM(freebufs),    1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_ADD_BUFS)]      = { DRM(addbufs),     1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_MARK_BUFS)]     = { DRM(markbufs),    1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_INFO_BUFS)]     = { DRM(infobufs),    1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_MAP_BUFS)]      = { DRM(mapbufs),     1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_FREE_BUFS)]     = { DRM(freebufs),    1, 0 },
 
 	/* The DRM_IOCTL_DMA ioctl should be defined by the driver.
 	 */
 #if __HAVE_DMA_IRQ
-	[DRM_IOCTL_NR(DRM_IOCTL_CONTROL)]     = { DRM(control),     1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_CONTROL)]       = { DRM(control),     1, 1 },
 #endif
 #endif
 
 #if __REALLY_HAVE_AGP
-	[DRM_IOCTL_NR(DRM_IOCTL_AGP_ACQUIRE)] = { DRM(agp_acquire), 1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_AGP_RELEASE)] = { DRM(agp_release), 1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_AGP_ENABLE)]  = { DRM(agp_enable),  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_AGP_INFO)]    = { DRM(agp_info),    1, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_AGP_ALLOC)]   = { DRM(agp_alloc),   1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_AGP_FREE)]    = { DRM(agp_free),    1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_AGP_BIND)]    = { DRM(agp_bind),    1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_AGP_UNBIND)]  = { DRM(agp_unbind),  1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_AGP_ACQUIRE)]   = { DRM(agp_acquire), 1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_AGP_RELEASE)]   = { DRM(agp_release), 1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_AGP_ENABLE)]    = { DRM(agp_enable),  1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_AGP_INFO)]      = { DRM(agp_info),    1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_AGP_ALLOC)]     = { DRM(agp_alloc),   1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_AGP_FREE)]      = { DRM(agp_free),    1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_AGP_BIND)]      = { DRM(agp_bind),    1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_AGP_UNBIND)]    = { DRM(agp_unbind),  1, 1 },
 #endif
 
 	DRIVER_IOCTLS

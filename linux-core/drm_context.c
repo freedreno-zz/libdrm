@@ -129,7 +129,7 @@ void DRM(ctxbitmap_cleanup)( drm_device_t *dev )
  * Per Context SAREA Support
  */
 
-int DRM(get_ctx_map)(struct inode *inode, struct file *filp,
+int DRM(getsareactx)(struct inode *inode, struct file *filp,
 		     unsigned int cmd, unsigned long arg)
 {
 	drm_file_t	*priv	= filp->private_data;
@@ -137,13 +137,13 @@ int DRM(get_ctx_map)(struct inode *inode, struct file *filp,
 	drm_ctx_priv_map_t request;
 	drm_map_t *map;
 
-	if(copy_from_user(&request,
-			  (drm_ctx_priv_map_t *)arg,
-			  sizeof(request)))
+	if (copy_from_user(&request,
+			   (drm_ctx_priv_map_t *)arg,
+			   sizeof(request)))
 		return -EFAULT;
 
 	down(&dev->struct_sem);
-	if((int)request.ctx_id >= dev->max_context) {
+	if ((int)request.ctx_id >= dev->max_context) {
 		up(&dev->struct_sem);
 		return -EINVAL;
 	}
@@ -157,7 +157,7 @@ int DRM(get_ctx_map)(struct inode *inode, struct file *filp,
 	return 0;
 }
 
-int DRM(add_ctx_map)(struct inode *inode, struct file *filp,
+int DRM(setsareactx)(struct inode *inode, struct file *filp,
 		     unsigned int cmd, unsigned long arg)
 {
 	drm_file_t	*priv	= filp->private_data;
@@ -167,9 +167,9 @@ int DRM(add_ctx_map)(struct inode *inode, struct file *filp,
 	drm_map_list_t *r_list;
 	struct list_head *list;
 
-	if(copy_from_user(&request,
-			  (drm_ctx_priv_map_t *)arg,
-			  sizeof(request)))
+	if (copy_from_user(&request,
+			   (drm_ctx_priv_map_t *)arg,
+			   sizeof(request)))
 		return -EFAULT;
 
 	down(&dev->struct_sem);
@@ -178,17 +178,17 @@ int DRM(add_ctx_map)(struct inode *inode, struct file *filp,
 		if(r_list->map &&
 		   r_list->map->handle == request.handle) break;
 	}
-	if(list == &(dev->maplist->head)) {
+	if (list == &(dev->maplist->head)) {
 		up(&dev->struct_sem);
 		return -EINVAL;
 	}
 	map = r_list->map;
 	up(&dev->struct_sem);
 
-	if(!map) return -EINVAL;
+	if (!map) return -EINVAL;
 
 	down(&dev->struct_sem);
-	if((int)request.ctx_id >= dev->max_context) {
+	if ((int)request.ctx_id >= dev->max_context) {
 		up(&dev->struct_sem);
 		return -EINVAL;
 	}
