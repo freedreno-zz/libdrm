@@ -220,14 +220,9 @@ static int drmOpenByName(const char *name)
 #if defined(XFree86Server)
     if (!drmAvailable()) {
         /* try to load the kernel module now */
-        char filename[1000];
-        snprintf(filename, 999, "misc/%s.o", name);
-        /* xf86LoadKernelModule will prefix "/lib/modules/<kernel-version>"
-         * for Linux, or similar for other OSes.
-         */
-        if (!xf86LoadKernelModule(filename)) {
-            ErrorF(stderr, "[drm] failed to load kernel module \"%s\"\n",
-                  filename);
+        if (!xf86LoadKernelModule(name)) {
+            ErrorF("[drm] failed to load kernel module \"%s\"\n",
+		   name);
             return -1;
         }
     }
