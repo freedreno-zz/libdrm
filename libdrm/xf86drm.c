@@ -27,7 +27,7 @@
  * Authors: Rickard E. (Rik) Faith <faith@valinux.com>
  *	    Kevin E. Martin <martin@valinux.com>
  *
- * $XFree86: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/xf86drm.c,v 1.28 2002/10/16 01:26:49 dawes Exp $
+ * $XFree86: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/xf86drm.c,v 1.31 2003/02/04 03:01:59 dawes Exp $
  *
  */
 
@@ -84,13 +84,16 @@ extern unsigned long _bus_base(void);
 
 #include "xf86drm.h"
 
-#ifndef DRM_MAJOR
-#define DRM_MAJOR 226		/* Linux */
+#ifdef __FreeBSD__
+#define DRM_MAJOR 145
 #endif
 
-#ifndef __linux__
-#undef  DRM_MAJOR
-#define DRM_MAJOR 145		/* Should set in drm.h for *BSD */
+#ifdef __NetBSD__
+#define DRM_MAJOR 34
+#endif
+
+#ifndef DRM_MAJOR
+#define DRM_MAJOR 226		/* Linux */
 #endif
 
 #ifndef DRM_MAX_MINOR

@@ -27,6 +27,7 @@
  * Author:
  *    Rickard E. (Rik) Faith <faith@valinux.com>
  *    Gareth Hughes <gareth@valinux.com>
+ * $FreeBSD: src/sys/dev/drm/drm_agpsupport.h,v 1.2 2003/03/09 02:08:28 anholt Exp $
  */
 
 #include "drmP.h"
@@ -37,7 +38,8 @@ int DRM(agp_info)(DRM_IOCTL_ARGS)
 	struct agp_info *kern;
 	drm_agp_info_t   info;
 
-	if (!dev->agp || !dev->agp->acquired) return EINVAL;
+	if (!dev->agp || !dev->agp->acquired)
+		return EINVAL;
 
 	kern                   = &dev->agp->info;
 	agp_get_info(dev->agp->agpdev, kern);
@@ -60,9 +62,11 @@ int DRM(agp_acquire)(DRM_IOCTL_ARGS)
 	DRM_DEVICE;
 	int          retcode;
 
-	if (!dev->agp || dev->agp->acquired) return EINVAL;
+	if (!dev->agp || dev->agp->acquired)
+		return EINVAL;
 	retcode = agp_acquire(dev->agp->agpdev);
-	if (retcode) return retcode;
+	if (retcode)
+		return retcode;
 	dev->agp->acquired = 1;
 	return 0;
 }
@@ -93,7 +97,8 @@ int DRM(agp_enable)(DRM_IOCTL_ARGS)
 	DRM_DEVICE;
 	drm_agp_mode_t mode;
 
-	if (!dev->agp || !dev->agp->acquired) return EINVAL;
+	if (!dev->agp || !dev->agp->acquired)
+		return EINVAL;
 
 	mode = *(drm_agp_mode_t *) data;
 	
@@ -114,7 +119,8 @@ int DRM(agp_alloc)(DRM_IOCTL_ARGS)
 	u_int32_t	 type;
 	struct agp_memory_info info;
 
-	if (!dev->agp || !dev->agp->acquired) return EINVAL;
+	if (!dev->agp || !dev->agp->acquired)
+		return EINVAL;
 
 	request = *(drm_agp_buffer_t *) data;
 
@@ -136,7 +142,8 @@ int DRM(agp_alloc)(DRM_IOCTL_ARGS)
 	entry->pages     = pages;
 	entry->prev      = NULL;
 	entry->next      = dev->agp->memory;
-	if (dev->agp->memory) dev->agp->memory->prev = entry;
+	if (dev->agp->memory)
+		dev->agp->memory->prev = entry;
 	dev->agp->memory = entry;
 
 	agp_memory_info(dev->agp->agpdev, entry->handle, &info);
@@ -166,7 +173,8 @@ int DRM(agp_unbind)(DRM_IOCTL_ARGS)
 	drm_agp_mem_t     *entry;
 	int retcode;
 
-	if (!dev->agp || !dev->agp->acquired) return EINVAL;
+	if (!dev->agp || !dev->agp->acquired)
+		return EINVAL;
 	request = *(drm_agp_binding_t *) data;
 	if (!(entry = DRM(agp_lookup_entry)(dev, (void *) request.handle)))
 		return EINVAL;
@@ -209,15 +217,20 @@ int DRM(agp_free)(DRM_IOCTL_ARGS)
 	drm_agp_buffer_t request;
 	drm_agp_mem_t    *entry;
 	
-	if (!dev->agp || !dev->agp->acquired) return EINVAL;
+	if (!dev->agp || !dev->agp->acquired)
+		return EINVAL;
 	request = *(drm_agp_buffer_t *) data;
 	if (!(entry = DRM(agp_lookup_entry)(dev, (void*) request.handle)))
 		return EINVAL;
-	if (entry->bound) DRM(unbind_agp)(entry->handle);
+	if (entry->bound)
+		DRM(unbind_agp)(entry->handle);
    
-	if (entry->prev) entry->prev->next = entry->next;
-	else             dev->agp->memory  = entry->next;
-	if (entry->next) entry->next->prev = entry->prev;
+	if (entry->prev)
+		entry->prev->next = entry->next;
+	else
+		dev->agp->memory  = entry->next;
+	if (entry->next)
+		entry->next->prev = entry->prev;
 	DRM(free_agp)(entry->handle, entry->pages);
 	DRM(free)(entry, sizeof(*entry), DRM_MEM_AGPLISTS);
 	return 0;

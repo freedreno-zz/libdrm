@@ -166,6 +166,12 @@
 #define pte_unmap(pte)
 #endif
 
+#ifndef list_for_each_safe
+#define list_for_each_safe(pos, n, head)				\
+	for (pos = (head)->next, n = pos->next; pos != (head);		\
+		pos = n, n = pos->next)
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,4,19)
 static inline struct page * vmalloc_to_page(void * vmalloc_addr)
 {
@@ -255,6 +261,7 @@ do {									\
  		}							\
 	}								\
 } while(0)
+#define DRM_DROP_MAP(_map)
 
 				/* Internal types and structures */
 #define DRM_ARRAY_SIZE(x) (sizeof(x)/sizeof(x[0]))
@@ -268,6 +275,17 @@ do {									\
 #define DRM_GET_PRIV_SAREA(_dev, _ctx, _map) do {	\
 	(_map) = (_dev)->context_sareas[_ctx];		\
 } while(0)
+
+#define LOCK_TEST_WITH_RETURN( dev, filp )				\
+do {									\
+	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||		\
+	     dev->lock.filp != filp ) {				\
+		DRM_ERROR( "%s called without lock held\n",		\
+			   __FUNCTION__ );				\
+		return -EINVAL;						\
+	}								\
+} while (0)
+
 
 typedef int drm_ioctl_t( struct inode *inode, struct file *filp,
 			 unsigned int cmd, unsigned long arg );
@@ -317,7 +335,7 @@ typedef struct drm_buf {
 	__volatile__ int  waiting;     /* On kernel DMA queue		     */
 	__volatile__ int  pending;     /* On hardware DMA queue		     */
 	wait_queue_head_t dma_wait;    /* Processes waiting		     */
-	pid_t		  pid;	       /* PID of holding process	     */
+	struct file       *filp;       /* Pointer to holding file descr	     */
 	int		  context;     /* Kernel queue for this buffer	     */
 	int		  while_locked;/* Dispatch this buffer while locked  */
 	enum {
@@ -435,7 +453,7 @@ typedef struct drm_queue {
 
 typedef struct drm_lock_data {
 	drm_hw_lock_t	  *hw_lock;	/* Hardware lock		   */
-	pid_t		  pid;		/* PID of lock holder (0=kernel)   */
+	struct file       *filp;	/* File descr of lock holder (0=kernel)   */
 	wait_queue_head_t lock_queue;	/* Queue of blocked processes	   */
 	unsigned long	  lock_time;	/* Time of last lock in jiffies	   */
 } drm_lock_data_t;
@@ -516,6 +534,8 @@ typedef struct drm_map_list {
 	struct list_head	head;
 	drm_map_t		*map;
 } drm_map_list_t;
+
+typedef drm_map_t drm_local_map_t;
 
 #if __HAVE_VBL_IRQ
 
@@ -809,15 +829,15 @@ extern int	     DRM(mapbufs)( struct inode *inode, struct file *filp,
 extern int	     DRM(dma_setup)(drm_device_t *dev);
 extern void	     DRM(dma_takedown)(drm_device_t *dev);
 extern void	     DRM(free_buffer)(drm_device_t *dev, drm_buf_t *buf);
-extern void	     DRM(reclaim_buffers)(drm_device_t *dev, pid_t pid);
+extern void	     DRM(reclaim_buffers)( struct file *filp );
 #if __HAVE_OLD_DMA
 /* GH: This is a dirty hack for now...
  */
 extern void	     DRM(clear_next_buffer)(drm_device_t *dev);
 extern int	     DRM(select_queue)(drm_device_t *dev,
 				       void (*wrapper)(unsigned long));
-extern int	     DRM(dma_enqueue)(drm_device_t *dev, drm_dma_t *dma);
-extern int	     DRM(dma_get_buffers)(drm_device_t *dev, drm_dma_t *dma);
+extern int	     DRM(dma_enqueue)(struct file *filp, drm_dma_t *dma);
+extern int	     DRM(dma_get_buffers)(struct file *filp, drm_dma_t *dma);
 #endif
 #if __HAVE_DMA_IRQ
 extern int           DRM(control)( struct inode *inode, struct file *filp,

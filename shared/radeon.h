@@ -120,18 +120,17 @@ do {									\
 		if ( dev_priv->page_flipping ) {			\
 			radeon_do_cleanup_pageflip( dev );		\
 		}							\
-                radeon_mem_release( dev_priv->agp_heap );		\
-                radeon_mem_release( dev_priv->fb_heap );		\
+                radeon_mem_release( filp, dev_priv->agp_heap );		\
+                radeon_mem_release( filp, dev_priv->fb_heap );		\
 	}								\
 } while (0)
 
 /* When the last client dies, shut down the CP and free dev->dev_priv.
  */
-#define __HAVE_RELEASE 1
-#define DRIVER_RELEASE() 			\
+/* #define __HAVE_RELEASE 1 */
+#define DRIVER_PRETAKEDOWN()			\
 do {						\
-	if ( dev->open_count == 1)		\
-                 radeon_do_release( dev );	\
+    radeon_do_release( dev );			\
 } while (0)
 
 

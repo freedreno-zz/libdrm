@@ -27,6 +27,8 @@
  * Authors:
  *    Rickard E. (Rik) Faith <faith@valinux.com>
  *    Gareth Hughes <gareth@valinux.com>
+ *
+ * $FreeBSD: src/sys/dev/drm/drm_dma.h,v 1.4 2003/03/09 02:08:28 anholt Exp $
  */
 
 #include "drmP.h"
@@ -180,7 +182,7 @@ void DRM(free_buffer)(drm_device_t *dev, drm_buf_t *buf)
 
 	buf->waiting  = 0;
 	buf->pending  = 0;
-	buf->pid      = 0;
+	buf->filp     = NULL;
 	buf->used     = 0;
 #if __HAVE_DMA_HISTOGRAM
 	buf->time_completed = get_cycles();
@@ -203,14 +205,14 @@ void DRM(free_buffer)(drm_device_t *dev, drm_buf_t *buf)
 }
 
 #if !__HAVE_DMA_RECLAIM
-void DRM(reclaim_buffers)(drm_device_t *dev, pid_t pid)
+void DRM(reclaim_buffers)(drm_device_t *dev, DRMFILE filp)
 {
 	drm_device_dma_t *dma = dev->dma;
 	int		 i;
 
 	if (!dma) return;
 	for (i = 0; i < dma->buf_count; i++) {
-		if (dma->buflist[i]->pid == pid) {
+		if (dma->buflist[i]->filp == filp) {
 			switch (dma->buflist[i]->list) {
 			case DRM_LIST_NONE:
 				DRM(free_buffer)(dev, dma->buflist[i]);
@@ -524,7 +526,7 @@ int DRM(irq_install)( drm_device_t *dev, int irq )
 	TASK_INIT(&dev->task, 0, DRM(dma_immediate_bh), dev);
 #endif
 
-#if __HAVE_VBL_IRQ
+#if __HAVE_VBL_IRQ && 0 /* disabled */
 	DRM_SPININIT( dev->vbl_lock, "vblsig" );
 	TAILQ_INIT( &dev->vbl_sig_list );
 #endif
@@ -534,9 +536,13 @@ int DRM(irq_install)( drm_device_t *dev, int irq )
 
 				/* Install handler */
 	dev->irqrid = 0;
+#ifdef __FreeBSD__
 	dev->irqr = bus_alloc_resource(dev->device, SYS_RES_IRQ, &dev->irqrid,
 				      0, ~0, 1, RF_SHAREABLE);
 	if (!dev->irqr) {
+#elif defined(__NetBSD__)
+	if (pci_intr_map(&dev->pa, &dev->ih) != 0) {
+#endif
 		DRM_LOCK;
 		dev->irq = 0;
 		dev->irqrid = 0;
@@ -544,11 +550,24 @@ int DRM(irq_install)( drm_device_t *dev, int irq )
 		return ENOENT;
 	}
 	
+#ifdef __FreeBSD__
+#if __FreeBSD_version < 500000
 	retcode = bus_setup_intr(dev->device, dev->irqr, INTR_TYPE_TTY,
 				 DRM(dma_service), dev, &dev->irqh);
+#else
+	retcode = bus_setup_intr(dev->device, dev->irqr, INTR_TYPE_TTY | INTR_MPSAFE,
+				 DRM(dma_service), dev, &dev->irqh);
+#endif
 	if ( retcode ) {
+#elif defined(__NetBSD__)
+	dev->irqh = pci_intr_establish(&dev->pa.pa_pc, dev->ih, IPL_TTY,
+				      (int (*)(DRM_IRQ_ARGS))DRM(dma_service), dev);
+	if ( !dev->irqh ) {
+#endif
 		DRM_LOCK;
+#ifdef __FreeBSD__
 		bus_release_resource(dev->device, SYS_RES_IRQ, dev->irqrid, dev->irqr);
+#endif
 		dev->irq = 0;
 		dev->irqrid = 0;
 		DRM_UNLOCK;
@@ -580,9 +599,13 @@ int DRM(irq_uninstall)( drm_device_t *dev )
 
 	DRM(driver_irq_uninstall)( dev );
 
+#ifdef __FreeBSD__
 	bus_teardown_intr(dev->device, dev->irqr, dev->irqh);
 	bus_release_resource(dev->device, SYS_RES_IRQ, irqrid, dev->irqr);
-	
+#elif defined(__NetBSD__)
+	pci_intr_disestablish(&dev->pa.pa_pc, dev->irqh);
+#endif
+
 	return 0;
 }
 
@@ -624,6 +647,7 @@ int DRM(wait_vblank)( DRM_IOCTL_ARGS )
 
 	flags = vblwait.request.type & _DRM_VBLANK_FLAGS_MASK;
 	if (flags & _DRM_VBLANK_SIGNAL) {
+#if 0 /* disabled */
 		drm_vbl_sig_t *vbl_sig = DRM_MALLOC(sizeof(drm_vbl_sig_t));
 		if (vbl_sig == NULL)
 			return ENOMEM;
@@ -639,6 +663,8 @@ int DRM(wait_vblank)( DRM_IOCTL_ARGS )
 		TAILQ_INSERT_HEAD(&dev->vbl_sig_list, vbl_sig, link);
 		DRM_SPINUNLOCK(&dev->vbl_lock);
 		ret = 0;
+#endif
+		ret = EINVAL;
 	} else {
 		ret = DRM(vblank_wait)(dev, &vblwait.request.sequence);
 		
@@ -653,6 +679,11 @@ int DRM(wait_vblank)( DRM_IOCTL_ARGS )
 	return ret;
 }
 
+void DRM(vbl_send_signals)(drm_device_t *dev)
+{
+}
+
+#if 0 /* disabled */
 void DRM(vbl_send_signals)( drm_device_t *dev )
 {
 	drm_vbl_sig_t *vbl_sig;
@@ -671,13 +702,14 @@ void DRM(vbl_send_signals)( drm_device_t *dev )
 				psignal(p, vbl_sig->signo);
 
 			TAILQ_REMOVE(&dev->vbl_sig_list, vbl_sig, link);
-			DRM_FREE(vbl_sig);
+			DRM_FREE(vbl_sig,sizeof(*vbl_sig));
 		}
 		vbl_sig = next;
 	}
 
 	DRM_SPINUNLOCK(&dev->vbl_lock);
 }
+#endif
 
 #endif /*  __HAVE_VBL_IRQ */
 

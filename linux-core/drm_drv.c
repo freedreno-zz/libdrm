@@ -496,7 +496,7 @@ static int DRM(takedown)( drm_device_t *dev )
 #endif
 	if ( dev->lock.hw_lock ) {
 		dev->sigdata.lock = dev->lock.hw_lock = NULL; /* SHM removed */
-		dev->lock.pid = 0;
+		dev->lock.filp = 0;
 		wake_up_interruptible( &dev->lock.lock_queue );
 	}
 	up( &dev->struct_sem );
@@ -732,8 +732,6 @@ int DRM(open)( struct inode *inode, struct file *filp )
 		return -ENODEV;
 	}
 
-	DRM_DEBUG( "open_count = %d\n", dev->open_count );
-
 	retcode = DRM(open_helper)( inode, filp, dev );
 	if ( !retcode ) {
 		atomic_inc( &dev->counts[_DRM_STAT_OPENS] );
@@ -765,15 +763,15 @@ int DRM(release)( struct inode *inode, struct file *filp )
 	 * Begin inline drm_release
 	 */
 
-	DRM_DEBUG( "pid = %d, device = 0x%x, open_count = %d\n",
-		   current->pid, dev->device, dev->open_count );
+	DRM_DEBUG( "pid = %d, device = 0x%lx, open_count = %d\n",
+		   current->pid, (long)dev->device, dev->open_count );
 
 	if ( dev->lock.hw_lock &&
 	     _DRM_LOCK_IS_HELD(dev->lock.hw_lock->lock) &&
-	     dev->lock.pid == current->pid ) {
-		DRM_DEBUG( "Process %d dead, freeing lock for context %d\n",
-			   current->pid,
-			   _DRM_LOCKING_CONTEXT(dev->lock.hw_lock->lock) );
+	     dev->lock.filp == filp ) {
+		DRM_DEBUG( "File %p released, freeing lock for context %d\n",
+			filp,
+			_DRM_LOCKING_CONTEXT(dev->lock.hw_lock->lock) );
 #if __HAVE_RELEASE
 		DRIVER_RELEASE();
 #endif
@@ -789,6 +787,7 @@ int DRM(release)( struct inode *inode, struct file *filp )
 	else if ( dev->lock.hw_lock ) {
 		/* The lock is required to reclaim buffers */
 		DECLARE_WAITQUEUE( entry, current );
+
 		add_wait_queue( &dev->lock.lock_queue, &entry );
 		for (;;) {
 			current->state = TASK_INTERRUPTIBLE;
@@ -799,7 +798,7 @@ int DRM(release)( struct inode *inode, struct file *filp )
 			}
 			if ( DRM(lock_take)( &dev->lock.hw_lock->lock,
 					     DRM_KERNEL_CONTEXT ) ) {
-				dev->lock.pid	    = priv->pid;
+				dev->lock.filp	    = filp;
 				dev->lock.lock_time = jiffies;
                                 atomic_inc( &dev->counts[_DRM_STAT_LOCKS] );
 				break;	/* Got lock */
@@ -823,7 +822,7 @@ int DRM(release)( struct inode *inode, struct file *filp )
 		}
 	}
 #elif __HAVE_DMA
-	DRM(reclaim_buffers)( dev, priv->pid );
+	DRM(reclaim_buffers)( filp );
 #endif
 
 	DRM(fasync)( -1, filp, 0 );
@@ -847,7 +846,7 @@ int DRM(release)( struct inode *inode, struct file *filp )
 		dev->file_last	 = priv->prev;
 	}
 	up( &dev->struct_sem );
-
+	
 	DRM(free)( priv, sizeof(*priv), DRM_MEM_FILES );
 
 	/* ========================================================
@@ -872,6 +871,7 @@ int DRM(release)( struct inode *inode, struct file *filp )
 	spin_unlock( &dev->count_lock );
 
 	unlock_kernel();
+
 	return retcode;
 }
 
@@ -891,8 +891,9 @@ int DRM(ioctl)( struct inode *inode, struct file *filp,
 	atomic_inc( &dev->counts[_DRM_STAT_IOCTLS] );
 	++priv->ioctl_count;
 
-	DRM_DEBUG( "pid=%d, cmd=0x%02x, nr=0x%02x, dev 0x%x, auth=%d\n",
-		   current->pid, cmd, nr, dev->device, priv->authenticated );
+	DRM_DEBUG( "pid=%d, cmd=0x%02x, nr=0x%02x, dev 0x%lx, auth=%d\n",
+		   current->pid, cmd, nr, (long)dev->device, 
+		   priv->authenticated );
 
 	if ( nr >= DRIVER_IOCTL_COUNT ) {
 		retcode = -EINVAL;
@@ -968,7 +969,7 @@ int DRM(lock)( struct inode *inode, struct file *filp,
                         }
                         if ( DRM(lock_take)( &dev->lock.hw_lock->lock,
 					     lock.context ) ) {
-                                dev->lock.pid       = current->pid;
+                                dev->lock.filp      = filp;
                                 dev->lock.lock_time = jiffies;
                                 atomic_inc( &dev->counts[_DRM_STAT_LOCKS] );
                                 break;  /* Got lock */
@@ -1050,7 +1051,7 @@ int DRM(unlock)( struct inode *inode, struct file *filp,
 	 * agent to request it then we should just be able to
 	 * take it immediately and not eat the ioctl.
 	 */
-	dev->lock.pid = 0;
+	dev->lock.filp = 0;
 	{
 		__volatile__ unsigned int *plock = &dev->lock.hw_lock->lock;
 		unsigned int old, new, prev, ctx;
