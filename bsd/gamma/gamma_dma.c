@@ -134,6 +134,7 @@ void gamma_dma_service( DRM_OS_IRQ_ARGS)
 		}
 		clear_bit(0, &dev->dma_flag);
 
+		taskqueue_enqueue(taskqueue_swi, &dev->task);
 	}
 }
 
