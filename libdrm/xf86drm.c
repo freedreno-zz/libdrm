@@ -105,6 +105,28 @@ extern unsigned long _bus_base(void);
 #define makedev(x,y)    ((dev_t)(((x) << 8) | (y)))
 #endif
 
+#define DRM_MSG_VERBOSITY 1
+
+static void
+drmMsg(const char *format, ...)
+{
+    va_list	ap;
+
+#ifndef XFree86Server
+    const char *env;
+    if ((env = getenv("LIBGL_DEBUG")) && strstr(env, "verbose"))
+#endif
+    {
+	va_start(ap, format);
+#ifdef XFree86Server
+	xf86VDrvMsgVerb(-1, X_NONE, DRM_MSG_VERBOSITY, format, ap);
+#else
+	vfprintf(stderr, format, ap);
+#endif
+	va_end(ap);
+    }
+}
+
 static void *drmHashTable = NULL; /* Context switch callbacks */
 
 typedef struct drmHashEntry {
@@ -169,11 +191,7 @@ static drmHashEntry *drmGetEntry(int fd)
 
 static int drmOpenDevice(long dev, int minor)
 {
-#ifdef XFree86LOADER
-    struct xf86stat st;
-#else
-    struct stat     st;
-#endif
+    stat_t          st;
     char            buf[64];
     int             fd;
     mode_t          dirmode = DRM_DEV_DIRMODE;
@@ -183,6 +201,8 @@ static int drmOpenDevice(long dev, int minor)
     uid_t           user    = DRM_DEV_UID;
     gid_t           group   = DRM_DEV_GID;
 #endif
+
+    drmMsg("drmOpenDevice: minor is %d\n", minor);
 
 #if defined(XFree86Server)
     devmode  = xf86ConfigDRI.mode ? xf86ConfigDRI.mode : DRM_DEV_MODE;
@@ -205,6 +225,7 @@ static int drmOpenDevice(long dev, int minor)
 #endif
 
     sprintf(buf, DRM_DEV_NAME, DRM_DIR_NAME, minor);
+    drmMsg("drmOpenDevice: node name is %s\n", buf);
     if (stat(buf, &st) || st.st_rdev != dev) {
 	if (!isroot) return DRM_ERR_NOT_ROOT;
 	remove(buf);
@@ -215,7 +236,11 @@ static int drmOpenDevice(long dev, int minor)
     chmod(buf, devmode);
 #endif
 
-    if ((fd = open(buf, O_RDWR, 0)) >= 0) return fd;
+    fd = open(buf, O_RDWR, 0);
+    drmMsg("drmOpenDevice: open result is %d, (%s)\n",
+		fd, fd < 0 ? strerror(errno) : "OK");
+    if (fd >= 0) return fd;
+    drmMsg("drmOpenDevice: Open failed\n");
     remove(buf);
     return -errno;
 }
@@ -263,9 +288,13 @@ static int drmOpenByBusid(const char *busid)
     int        fd;
     const char *buf;
     
+    drmMsg("drmOpenByBusid: busid is %s\n", busid);
     for (i = 0; i < DRM_MAX_MINOR; i++) {
-	if ((fd = drmOpenMinor(i, 0)) >= 0) {
+	fd = drmOpenMinor(i, 1);
+	drmMsg("drmOpenByBusid: drmOpenMinor returns %d\n", fd);
+	if (fd >= 0) {
 	    buf = drmGetBusid(fd);
+	    drmMsg("drmOpenByBusid: drmGetBusid reports %s\n", buf);
 	    if (buf && !strcmp(buf, busid)) {
 		drmFreeBusid(buf);
 		return fd;
@@ -277,7 +306,7 @@ static int drmOpenByBusid(const char *busid)
     return -1;
 }
 
-static int drmOpenByName(const char *name)
+static int drmOpenByName(const char *name, int startminor)
 {
     int           i;
     int           fd;
@@ -296,7 +325,7 @@ static int drmOpenByName(const char *name)
 #endif
     }
 
-    for (i = 0; i < DRM_MAX_MINOR; i++) {
+    for (i = startminor; i < DRM_MAX_MINOR; i++) {
 	if ((fd = drmOpenMinor(i, 1)) >= 0) {
 	    if ((version = drmGetVersion(fd))) {
 		if (!strcmp(version->name, name)) {
@@ -308,6 +337,7 @@ static int drmOpenByName(const char *name)
 	}
     }
 
+#if 0
 #ifdef __linux__
 				/* Backward-compatibility /proc support */
     for (i = 0; i < 8; i++) {
@@ -339,6 +369,7 @@ static int drmOpenByName(const char *name)
 	}
     }
 #endif
+#endif
 
     return -1;
 }
@@ -351,8 +382,8 @@ static int drmOpenByName(const char *name)
 int drmOpen(const char *name, const char *busid)
 {
 
-    if (busid) return drmOpenByBusid(busid);
-    return drmOpenByName(name);
+    if ((int)busid > 100) return drmOpenByBusid(busid);
+    return drmOpenByName(name, (int)busid);
 }
 
 void drmFreeVersion(drmVersionPtr v)
@@ -461,7 +492,9 @@ int drmSetBusid(int fd, const char *busid)
     u.unique     = (char *)busid;
     u.unique_len = strlen(busid);
 
-    if (ioctl(fd, DRM_IOCTL_SET_UNIQUE, &u)) return -errno;
+    if (ioctl(fd, DRM_IOCTL_SET_UNIQUE, &u)) {
+	return -errno;
+    }
     return 0;
 }
 
