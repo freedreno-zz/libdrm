@@ -220,8 +220,6 @@ static void mgaG400EmitPipe(drm_mga_private_t *dev_priv,
 	float fParam = 12800.0f;
 	PRIMLOCALS;
    
-	printk("emit g400 pipe %x\n", pipe);
-
 	PRIMGETPTR(dev_priv);
 
    
@@ -270,8 +268,6 @@ static void mgaG200EmitPipe( drm_mga_private_t *dev_priv,
 	unsigned int pipe = sarea_priv->WarpPipe;
 	PRIMLOCALS;
 
-	printk("emit g200 pipe %x\n", pipe);
-
 	PRIMGETPTR(dev_priv);
 
 	PRIMOUTREG(MGAREG_WIADDR, WIA_wmode_suspend);
@@ -299,6 +295,8 @@ void mgaEmitState( drm_mga_private_t *dev_priv, drm_mga_buf_priv_t *buf_priv )
 	unsigned int dirty = buf_priv->dirty;
 
 	if (dev_priv->chipset == MGA_CARD_TYPE_G400) {	   
+		int multitex = buf_priv->WarpPipe & MGA_T2;
+
 		if (dirty & MGA_UPLOAD_PIPE) 
 			mgaG400EmitPipe( dev_priv, buf_priv );
 
@@ -308,7 +306,7 @@ void mgaEmitState( drm_mga_private_t *dev_priv, drm_mga_buf_priv_t *buf_priv )
 		if (dirty & MGA_UPLOAD_TEX0)
 			mgaG400EmitTex0( dev_priv, buf_priv );
 
-		if (dirty & MGA_UPLOAD_TEX1)
+		if ((dirty & MGA_UPLOAD_TEX1) && multitex)
 			mgaG400EmitTex1( dev_priv, buf_priv );
 	} else {
 		if (dirty & MGA_UPLOAD_PIPE) 
@@ -331,15 +329,10 @@ static int mgaCopyContext(drm_mga_private_t *dev_priv,
 {
 	drm_mga_sarea_t *sarea_priv = dev_priv->sarea_priv;
 	unsigned int *regs = buf_priv->ContextState;
-	int i;
 
 	memcpy(regs, 
 	       sarea_priv->ContextState, 
 	       sizeof(buf_priv->ContextState));
-
-	for (i = 0 ; i < MGA_CTX_SETUP_SIZE ; i++)
-		printk("ctx %d: %x\n", i, regs[i]);
-
 
 	if (regs[MGA_CTXREG_DSTORG] != dev_priv->frontOffset &&
 	    regs[MGA_CTXREG_DSTORG] != dev_priv->backOffset) {
@@ -349,8 +342,6 @@ static int mgaCopyContext(drm_mga_private_t *dev_priv,
   	        regs[MGA_CTXREG_DSTORG] = 0;
 		return -1;
 	}
-	else
-		printk("DSTORG OK: %x\n", regs[MGA_CTXREG_DSTORG]);
 
 	return 0;
 }
@@ -374,10 +365,6 @@ static int mgaCopyTex(drm_mga_private_t *dev_priv,
 		buf_priv->TexState[unit][MGA_TEXREG_ORG] = 0;
 		return -1;
 	} 
-	else 
-		printk("using texreg_org: %x unit %d\n", 
-		       sarea_priv->TexState[unit][MGA_TEXREG_ORG],
-		       unit);
 
 	return 0;
 }

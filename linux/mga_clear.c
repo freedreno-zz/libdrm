@@ -93,14 +93,12 @@ int mgaSwapBuffers(drm_device_t *dev, drm_mga_swap_t *args)
 	drm_buf_t *buf;
 	drm_dma_t d;
 
-	printk("swap buf idx %d\n", args->idx);
-
 	buf = dma->buflist[ args->idx ];
 	buf_priv = buf->dev_private;
 	buf_priv->dma_type = MGA_DMA_SWAP;
 
 	if (!mgaCopyAndVerifyState(dev_priv, buf_priv, MGA_UPLOAD_CLIPRECTS)) {
-	   printk("mgaCopyAndVerifyState faild for swap\n");
+		printk("mgaCopyAndVerifyState faild for swap\n");
 		buf_priv->dma_type = MGA_DMA_DISCARD;
 	}
 
@@ -120,8 +118,6 @@ int mgaSwapBuffers(drm_device_t *dev, drm_mga_swap_t *args)
 	d.request_indices = NULL;
 	d.request_sizes = NULL;
 	d.granted_count = 0;	 
-
-	printk("enqueue swap buf, idx %d\n", buf->idx);
 
    	atomic_inc(&dev_priv->pending_bufs);
       	if((drm_dma_enqueue(dev, &d)) != 0) 
@@ -201,7 +197,8 @@ static int mgaDmaVertex(drm_device_t *dev, drm_mga_vertex_t *args)
 
 	buf = dma->buflist[ args->idx ];
 
-	printk("mgaDmaVertex idx %d used %d\n", args->idx, buf->used);
+	if (MGA_VERBOSE)
+		printk("mgaDmaVertex idx %d used %d\n", args->idx, buf->used);
 
 	buf_priv = buf->dev_private;
 	buf_priv->dma_type = MGA_DMA_VERTEX;
@@ -258,8 +255,6 @@ int mga_swap_bufs(struct inode *inode, struct file *filp,
 
 	copy_from_user_ret(&swap, (drm_mga_swap_t *)arg, sizeof(swap), -EFAULT);
    
-	printk("(a) swap buf idx %d\n", swap.idx);
-
 	retcode = mgaSwapBuffers(dev, &swap);
    
 	return retcode;

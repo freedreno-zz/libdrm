@@ -25,6 +25,7 @@
  *
  * Authors: Rickard E. (Rik) Faith <faith@precisioninsight.com>
  *	    Jeff Hartmann <jhartmann@precisioninsight.com>
+ *	    Keith Whitwell <keithw@precisioninsight.com>
  *
  * $XFree86$
  *
@@ -198,27 +199,26 @@ static int mga_dma_initialize(drm_device_t *dev, drm_mga_init_t *init) {
 
 	dev_priv->mAccess = init->mAccess;
 	
-
-	printk("chipset: %d ucode_size: %d backOffset: %x depthOffset: %x\n",
-	       dev_priv->chipset, dev_priv->warp_ucode_size, 
-	       dev_priv->backOffset, dev_priv->depthOffset);
-	printk("cpp: %d sgram: %d stride: %d maccess: %x\n",
-	       dev_priv->cpp, dev_priv->sgram, dev_priv->stride, 
-	       dev_priv->mAccess);
+	if (MGA_VERBOSE) {
+	   printk("chipset: %d ucode_size: %d backOffset: %x depthOffset: %x\n",
+		  dev_priv->chipset, dev_priv->warp_ucode_size, 
+		  dev_priv->backOffset, dev_priv->depthOffset);
+	   printk("cpp: %d sgram: %d stride: %d maccess: %x\n",
+		  dev_priv->cpp, dev_priv->sgram, dev_priv->stride, 
+		  dev_priv->mAccess);
+	}
 
    
-	printk("memcpy\n");
 	memcpy(&dev_priv->WarpIndex, &init->WarpIndex, 
 	       sizeof(mgaWarpIndex) * MGA_MAX_WARP_PIPES);
-	printk("memcpy done\n");
 
-
-	for (i = 0 ; i < MGA_MAX_WARP_PIPES ; i++) 
-	   printk("warp pipe %d: installed: %d phys_addr: %lx size: %x\n",
-		  i, 
-		  dev_priv->WarpIndex[i].installed,
-		  dev_priv->WarpIndex[i].phys_addr,
-		  dev_priv->WarpIndex[i].size);
+	if (MGA_VERBOSE)
+	   for (i = 0 ; i < MGA_MAX_WARP_PIPES ; i++) 
+	      printk("warp pipe %d: installed: %d phys_addr: %lx size: %x\n",
+		     i, 
+		     dev_priv->WarpIndex[i].installed,
+		     dev_priv->WarpIndex[i].phys_addr,
+		     dev_priv->WarpIndex[i].size);
 		  
 
 	prim_map = dev->maplist[init->reserved_map_idx];
@@ -226,10 +226,13 @@ static int mga_dma_initialize(drm_device_t *dev, drm_mga_init_t *init) {
 	temp = init->warp_ucode_size + dev_priv->primary_size;
 	temp = ((temp + PAGE_SIZE - 1) / 
 		PAGE_SIZE) * PAGE_SIZE;
-	printk("temp : %x\n", temp);
-	printk("dev->agp->base: %lx\n", dev->agp->base);
-	printk("init->reserved_map_agpstart: %x\n", init->reserved_map_agpstart);
-
+	   
+	if (MGA_VERBOSE) {
+	   printk("temp : %x\n", temp);
+	   printk("dev->agp->base: %lx\n", dev->agp->base);
+	   printk("init->reserved_map_agpstart: %x\n", 
+		  init->reserved_map_agpstart);
+	}
 
 	dev_priv->ioremap = drm_ioremap(dev->agp->base + init->reserved_map_agpstart, 
 					temp);
@@ -242,12 +245,13 @@ static int mga_dma_initialize(drm_device_t *dev, drm_mga_init_t *init) {
 
 
 	dev_priv->prim_head = (u32 *)dev_priv->ioremap;
-	printk("dev_priv->prim_head : %p\n", dev_priv->prim_head);
 	dev_priv->current_dma_ptr = dev_priv->prim_head;
 	dev_priv->prim_num_dwords = 0;
 	dev_priv->prim_max_dwords = dev_priv->primary_size / 4;
    
-	printk("dma initialization\n");
+
+	if (MGA_VERBOSE)
+	   printk("dma initialization\n");
 
 	/* Private is now filled in, initialize the hardware */
 	{
@@ -266,8 +270,6 @@ static int mga_dma_initialize(drm_device_t *dev, drm_mga_init_t *init) {
 		/* Poll for the first buffer to insure that
 		 * the status register will be correct
 		 */
-	   	printk("phys_head : %x\n", phys_head);
-   
 		MGA_WRITE(MGAREG_DWGSYNC, MGA_SYNC_TAG);
 
 		while(MGA_READ(MGAREG_DWGSYNC) != MGA_SYNC_TAG) {
@@ -285,7 +287,8 @@ static int mga_dma_initialize(drm_device_t *dev, drm_mga_init_t *init) {
 
 	}
    
-	printk("dma init was successful\n");
+	if (MGA_VERBOSE)
+	   printk("dma init was successful\n");
 	return 0;
 }
 
@@ -310,10 +313,9 @@ int mga_dma_init(struct inode *inode, struct file *filp,
 
 
 
-static void __mga_iload_small(drm_device_t *dev,
-			      drm_buf_t *buf,
-			      int use_agp) 
+static void __mga_iload_small(drm_device_t *dev, drm_buf_t *buf) 
 {
+	int use_agp = PDEA_pagpxfer_enable;
    	drm_mga_private_t *dev_priv = dev->dev_private;
    	drm_mga_buf_priv_t *buf_priv = buf->dev_private;
    	unsigned long address = (unsigned long)buf->bus_address;
@@ -329,7 +331,7 @@ static void __mga_iload_small(drm_device_t *dev,
 	PRIMRESET(dev_priv);		
    	PRIMGETPTR(dev_priv);
    
-   	PRIMOUTREG(MGAREG_DSTORG, dstorg | use_agp);
+   	PRIMOUTREG(MGAREG_DSTORG, dstorg );
    	PRIMOUTREG(MGAREG_MACCESS, maccess);
    	PRIMOUTREG(MGAREG_PITCH, (1 << 15));
    	PRIMOUTREG(MGAREG_YDST, y1 * (x2 - x1));   
@@ -359,10 +361,9 @@ static void __mga_iload_small(drm_device_t *dev,
 	MGA_WRITE(MGAREG_PRIMEND, (phys_head + num_dwords * 4) | use_agp);   
 }
 
-static void __mga_iload_xy(drm_device_t *dev,
-			   drm_buf_t *buf,
-			   int use_agp) 
+static void __mga_iload_xy(drm_device_t *dev, drm_buf_t *buf ) 
 {
+	int use_agp = PDEA_pagpxfer_enable;
       	drm_mga_private_t *dev_priv = dev->dev_private;
    	drm_mga_buf_priv_t *buf_priv = buf->dev_private;
 	unsigned long address = (unsigned long)buf->bus_address;
@@ -402,7 +403,7 @@ static void __mga_iload_xy(drm_device_t *dev,
    
 	PRIMRESET(dev_priv);		
    	PRIMGETPTR(dev_priv);
-   	PRIMOUTREG(MGAREG_DSTORG, dstorg | use_agp);
+   	PRIMOUTREG(MGAREG_DSTORG, dstorg);
    	PRIMOUTREG(MGAREG_MACCESS, maccess);
    	PRIMOUTREG(MGAREG_PITCH, pitch);
    	PRIMOUTREG(MGAREG_YDSTLEN, (y1 << 16) | height);
@@ -417,9 +418,9 @@ static void __mga_iload_xy(drm_device_t *dev,
    	PRIMOUTREG(MGAREG_SECADDRESS, ((__u32)address) | TT_BLIT);
    	PRIMOUTREG(MGAREG_SECEND, ((__u32)(address + length)) | use_agp);
 	   
-   	PRIMOUTREG(MGAREG_DMAPAD, 0);
-   	PRIMOUTREG(MGAREG_DMAPAD, 0);
-   	PRIMOUTREG(MGAREG_DMAPAD, 0);
+   	PRIMOUTREG(MGAREG_DSTORG, dev_priv->frontOffset);
+   	PRIMOUTREG(MGAREG_MACCESS, dev_priv->mAccess);
+   	PRIMOUTREG(MGAREG_PITCH, dev_priv->stride);
    	PRIMOUTREG(MGAREG_SOFTRAP, 0);
    	PRIMADVANCE(dev_priv);
 
@@ -427,24 +428,90 @@ static void __mga_iload_xy(drm_device_t *dev,
 	MGA_WRITE(MGAREG_PRIMEND, (phys_head + num_dwords * 4) | use_agp);
 }
 
+
 static void mga_dma_dispatch_iload(drm_device_t *dev, drm_buf_t *buf)
 {
    	drm_mga_buf_priv_t *buf_priv = buf->dev_private;
 
-	int use_agp = PDEA_pagpxfer_enable;
 	int x1 = buf_priv->boxes[0].x1;
 	int x2 = buf_priv->boxes[0].x2;
    
 
-   	printk("dispatch iload!\n");
-
    	if((x2 - x1) < 32) {
-	   	printk("using iload small\n");
-	   	__mga_iload_small(dev, buf, use_agp);
+		if (MGA_VERBOSE) printk("using iload small\n");
+	   	__mga_iload_small(dev, buf);
 	} else {
-	   	printk("using iload xy\n");
-	   	__mga_iload_xy(dev, buf, use_agp); 
+	   	if (MGA_VERBOSE) printk("using iload xy\n");
+	   	__mga_iload_xy(dev, buf); 
 	}   
+}
+
+static void mga_dma_dispatch_tex_blit(drm_device_t *dev, drm_buf_t *buf )
+{
+	int use_agp = PDEA_pagpxfer_enable;
+      	drm_mga_private_t *dev_priv = dev->dev_private;
+   	drm_mga_buf_priv_t *buf_priv = buf->dev_private;
+	unsigned long address = (unsigned long)buf->bus_address;
+   	int length = buf->used;
+	int y1 = buf_priv->boxes[0].y1;
+	int x1 = buf_priv->boxes[0].x1;
+	int y2 = buf_priv->boxes[0].y2;
+	int x2 = buf_priv->boxes[0].x2;
+   	int dstorg = buf_priv->ContextState[MGA_CTXREG_DSTORG];
+   	int maccess = buf_priv->ContextState[MGA_CTXREG_MACCESS];
+   	int pitch = buf_priv->ServerState[MGA_2DREG_PITCH];
+   	int width, height;
+   	int texperdword = 0;
+   	PRIMLOCALS;
+   
+   	switch((maccess & 0x00000003)) {
+	case 0:
+	   	texperdword = 4;
+      		break;
+	case 1:
+      		texperdword = 2;
+	   	break;
+	case 2:
+      		texperdword = 1;
+      		break;
+	}
+   
+   	x2 = (x2 + (texperdword - 1)) & ~(texperdword - 1);
+   	x1 = (x1 + (texperdword - 1)) & ~(texperdword - 1);
+   	width = x2 - x1;
+   	height = y2 - y1;
+   
+	PRIMRESET(dev_priv);		
+   	PRIMGETPTR(dev_priv);
+   	PRIMOUTREG(MGAREG_DSTORG, dstorg);
+   	PRIMOUTREG(MGAREG_MACCESS, maccess);
+   	PRIMOUTREG(MGAREG_PITCH, pitch);
+   	PRIMOUTREG(MGAREG_YDSTLEN, (y1 << 16) | height);
+   
+   	PRIMOUTREG(MGAREG_FXBNDRY, ((x1+width-1) << 16) | x1);
+   	PRIMOUTREG(MGAREG_AR0, width * height - 1);
+      	PRIMOUTREG(MGAREG_AR3, 0 );
+   	PRIMOUTREG(MGAREG_DWGCTL+MGAREG_MGA_EXEC, MGA_ILOAD_CMD);
+	   	   
+   	PRIMOUTREG(MGAREG_DMAPAD, 0);
+   	PRIMOUTREG(MGAREG_DMAPAD, 0);
+   	PRIMOUTREG(MGAREG_SRCORG, ((__u32)address) | TT_BLIT);
+   	PRIMOUTREG(MGAREG_SECEND, ((__u32)(address + length)) | use_agp);
+	   
+   	PRIMOUTREG(MGAREG_DSTORG, dev_priv->frontOffset);
+   	PRIMOUTREG(MGAREG_MACCESS, dev_priv->mAccess);
+   	PRIMOUTREG(MGAREG_PITCH, dev_priv->stride);
+   	PRIMOUTREG(MGAREG_AR0, 0 );
+
+      	PRIMOUTREG(MGAREG_AR3, 0 );
+	PRIMOUTREG(MGAREG_DMAPAD, 0);
+	PRIMOUTREG(MGAREG_DMAPAD, 0);
+   	PRIMOUTREG(MGAREG_SOFTRAP, 0);
+   	PRIMADVANCE(dev_priv);
+
+      	MGA_WRITE(MGAREG_PRIMADDRESS, dev_priv->prim_phys_head | TT_GENERAL);
+	MGA_WRITE(MGAREG_PRIMEND, (phys_head + num_dwords * 4) | use_agp);
+   
 }
 
 static void mga_dma_dispatch_vertex(drm_device_t *dev, drm_buf_t *buf)
@@ -466,8 +533,9 @@ static void mga_dma_dispatch_vertex(drm_device_t *dev, drm_buf_t *buf)
 	if (count)
 	   mgaEmitState( dev_priv, buf_priv );
 
-   	printk("dispatch vertex addr 0x%lx, length 0x%x nbox %d\n", 
-	       address, length, buf_priv->nbox);
+   	if (MGA_VERBOSE)
+		printk("dispatch vertex addr 0x%lx, length 0x%x nbox %d\n", 
+		       address, length, buf_priv->nbox);
 
 	for (i = 0 ; i < count ; i++) {		
 		mgaEmitClipRect( dev_priv, &buf_priv->boxes[i] );
@@ -493,8 +561,7 @@ static void mga_dma_dispatch_vertex(drm_device_t *dev, drm_buf_t *buf)
 }
 
 
-/* Used internally for the small buffers generated from client state
- * information. 
+/* Not currently used
  */
 static void mga_dma_dispatch_general(drm_device_t *dev, drm_buf_t *buf)
 {
@@ -503,9 +570,6 @@ static void mga_dma_dispatch_general(drm_device_t *dev, drm_buf_t *buf)
 	int length = buf->used;
 	int use_agp = PDEA_pagpxfer_enable;
    	PRIMLOCALS;
-
-
-   	printk("dispatch general!\n");
 
 	PRIMRESET(dev_priv);
    	PRIMGETPTR(dev_priv);
@@ -549,18 +613,21 @@ static void mga_dma_dispatch_clear( drm_device_t *dev, drm_buf_t *buf )
 
 	for (i = 0 ; i < nbox ; i++) {
 		unsigned int height = pbox[i].y2 - pbox[i].y1;
-		
-		printk("dispatch clear %d,%d-%d,%d flags %x!\n",
-		       pbox[i].x1,
-		       pbox[i].y1,
-		       pbox[i].x2,
-		       pbox[i].y2,
-		       flags);
+
+		if (MGA_VERBOSE)
+			printk("dispatch clear %d,%d-%d,%d flags %x!\n",
+			       pbox[i].x1,
+			       pbox[i].y1,
+			       pbox[i].x2,
+			       pbox[i].y2,
+			       flags);
 
 
 		if ( flags & MGA_CLEAR_FRONT ) 
 		{	    
-			printk("clear front\n");
+			if (MGA_VERBOSE)
+				printk("clear front\n");
+
 			PRIMOUTREG( MGAREG_DMAPAD, 0);
 			PRIMOUTREG( MGAREG_DMAPAD, 0);
 			PRIMOUTREG(MGAREG_YDSTLEN, (pbox[i].y1<<16)|height);
@@ -573,7 +640,8 @@ static void mga_dma_dispatch_clear( drm_device_t *dev, drm_buf_t *buf )
 		}
 
 		if ( flags & MGA_CLEAR_BACK ) {
-			printk("clear back\n");
+			if (MGA_VERBOSE) printk("clear back\n");
+
 			PRIMOUTREG( MGAREG_DMAPAD, 0);
 			PRIMOUTREG( MGAREG_DMAPAD, 0);
 			PRIMOUTREG(MGAREG_YDSTLEN, (pbox[i].y1<<16)|height);
@@ -587,7 +655,7 @@ static void mga_dma_dispatch_clear( drm_device_t *dev, drm_buf_t *buf )
 
 		if ( flags & MGA_CLEAR_DEPTH ) 
 		{
-			printk("clear depth\n");
+			if (MGA_VERBOSE) printk("clear depth\n");
 			PRIMOUTREG( MGAREG_DMAPAD, 0);
 			PRIMOUTREG( MGAREG_DMAPAD, 0);
 			PRIMOUTREG(MGAREG_YDSTLEN, (pbox[i].y1<<16)|height);
@@ -640,11 +708,12 @@ static void mga_dma_dispatch_swap( drm_device_t *dev, drm_buf_t *buf )
 		unsigned int h = pbox[i].y2 - pbox[i].y1;
 		unsigned int start = pbox[i].y1 * dev_priv->stride/2;
 		
-		printk("dispatch swap %d,%d-%d,%d!\n",
-		       pbox[i].x1,
-		       pbox[i].y1,
-		       pbox[i].x2,
-		       pbox[i].y2);
+		if (MGA_VERBOSE)
+			printk("dispatch swap %d,%d-%d,%d!\n",
+			       pbox[i].x1,
+			       pbox[i].y1,
+			       pbox[i].x2,
+			       pbox[i].y2);
 
 		PRIMOUTREG(MGAREG_AR0, start + pbox[i].x2 - 1);
 		PRIMOUTREG(MGAREG_AR3, start + pbox[i].x1);		
@@ -771,15 +840,17 @@ static int mga_do_dma(drm_device_t *dev, int locked)
       	drm_mga_private_t *dev_priv = (drm_mga_private_t *)dev->dev_private;
 	drm_mga_buf_priv_t *buf_priv;
 
-   	printk("mga_do_dma\n");
+   	if (MGA_VERBOSE) printk("mga_do_dma\n");
 	if (test_and_set_bit(0, &dev->dma_flag)) {
-		printk("mga_do_dma - busy\n");
+		if (MGA_VERBOSE)
+			printk("mga_do_dma - busy\n");
 		atomic_inc(&dma->total_missed_dma);
 		return -EBUSY;
 	}
 	
 	if (!dma->next_buffer) {
-		printk("mga_do_dma - no next buffer\n");
+		if (MGA_VERBOSE)
+			printk("mga_do_dma - no next buffer\n");
 		DRM_ERROR("No next_buffer\n");
 		clear_bit(0, &dev->dma_flag);
 		return -EINVAL;
@@ -787,11 +858,13 @@ static int mga_do_dma(drm_device_t *dev, int locked)
 
 	buf	= dma->next_buffer;
 
-	printk("context %d, buffer %d\n", buf->context, buf->idx);
-
+	if (MGA_VERBOSE)
+		printk("context %d, buffer %d\n", buf->context, buf->idx);
+	
 	if (buf->list == DRM_LIST_RECLAIM) {
-		printk("mga_do_dma - reclaim\n");
-
+		if (MGA_VERBOSE)
+			printk("mga_do_dma - reclaim\n");
+		
 		drm_clear_next_buffer(dev);
 		drm_free_buffer(dev, buf);
 	      	atomic_dec(&dev_priv->pending_bufs);
@@ -821,7 +894,8 @@ static int mga_do_dma(drm_device_t *dev, int locked)
 
 	if (!locked && !drm_lock_take(&dev->lock.hw_lock->lock,
 				      DRM_KERNEL_CONTEXT)) {
-		printk("mga_do_dma - didn't get lock\n");
+		if (MGA_VERBOSE)
+			printk("mga_do_dma - didn't get lock\n");
 		atomic_inc(&dma->total_missed_lock);
 		clear_bit(0, &dev->dma_flag);
 		atomic_dec(&dev_priv->dispatch_lock);
@@ -836,7 +910,7 @@ static int mga_do_dma(drm_device_t *dev, int locked)
 	buf->list	 = DRM_LIST_PEND;
 
 	buf_priv = buf->dev_private;
-	printk("mga_do_dma - type %d\n", buf_priv->dma_type);
+	if (MGA_VERBOSE) printk("mga_do_dma - type %d\n", buf_priv->dma_type);
 
 	switch (buf_priv->dma_type) {
 	case MGA_DMA_GENERAL:
@@ -849,7 +923,7 @@ static int mga_do_dma(drm_device_t *dev, int locked)
 /*  		mga_dma_dispatch_setup(dev, address, length); */
 /*  		break; */
 	case MGA_DMA_ILOAD:
-		mga_dma_dispatch_iload(dev, buf);
+		mga_dma_dispatch_tex_blit(dev, buf);
 		break;
 	case MGA_DMA_SWAP:
 		mga_dma_dispatch_swap(dev, buf);
@@ -868,7 +942,7 @@ static int mga_do_dma(drm_device_t *dev, int locked)
    	atomic_dec(&dev_priv->pending_bufs);
 
    	if(dma->this_buffer) {
-		printk("mga_do_dma - freeing this_buffer\n");
+		if (MGA_VERBOSE) printk("mga_do_dma - freeing this_buffer\n");
 		drm_free_buffer(dev, dma->this_buffer);
 	}
    
@@ -889,8 +963,6 @@ static int mga_do_dma(drm_device_t *dev, int locked)
    	if(!(atomic_read(&dev_priv->pending_bufs))) {
 	   wake_up_interruptible(&dev->queuelist[DRM_KERNEL_CONTEXT]->flush_queue);
 	}   
-#if 0
-#endif
    
 	/* We hold the dispatch lock until the interrupt handler
 	 * frees it
@@ -920,7 +992,8 @@ int mga_dma_schedule(drm_device_t *dev, int locked)
       	drm_mga_private_t *dev_priv = dev->dev_private;
 
 
-      	printk("mga_dma_schedule\n");
+      	if (MGA_VERBOSE) 
+		printk("mga_dma_schedule\n");
 
 	if (test_and_set_bit(0, &dev->interrupt_flag)) {
 				/* Not reentrant */
@@ -938,16 +1011,18 @@ again:
 		dma->next_buffer = buf;
 		dma->next_queue	 = q;
 		if (buf && buf->list == DRM_LIST_RECLAIM) {
-		   	printk("reclaiming in mga_dma_schedule\n");
+		   	if (MGA_VERBOSE) 
+				printk("reclaiming in mga_dma_schedule\n");
 			drm_clear_next_buffer(dev);
 			drm_free_buffer(dev, buf);
 		   	atomic_dec(&dev_priv->pending_bufs);
-		   printk("pending bufs : %d\n", atomic_read(&dev_priv->pending_bufs));
+			if (MGA_VERBOSE)
+				printk("pending bufs : %d\n", atomic_read(&dev_priv->pending_bufs));
 	   		if(!(atomic_read(&dev_priv->pending_bufs))) {
-			   wake_up_interruptible(&dev->queuelist[DRM_KERNEL_CONTEXT]->flush_queue);
+				wake_up_interruptible(&dev->queuelist[DRM_KERNEL_CONTEXT]->flush_queue);
 			}
-		   dma->next_buffer = NULL;
-		   goto again;
+			dma->next_buffer = NULL;
+			goto again;
 		}
 	}
 
@@ -1043,7 +1118,8 @@ int mga_irq_uninstall(drm_device_t *dev)
 	
 	if (!irq) return -EINVAL;
 	
-	printk("remove irq handler %d\n", irq);
+	if (MGA_VERBOSE) 
+		printk("remove irq handler %d\n", irq);
 
       	MGA_WRITE(MGAREG_ICLEAR, 0xfa7);
 	MGA_WRITE(MGAREG_IEN, 0);
@@ -1080,25 +1156,34 @@ int mga_flush_queue(drm_device_t *dev)
    	drm_mga_private_t *dev_priv = (drm_mga_private_t *)dev->dev_private;
    	int ret = 0;
    	
-   	printk("mga_flush_queue\n");
-   	printk("pending_bufs : %d\n", atomic_read(&dev_priv->pending_bufs));
-   	if(atomic_read(&dev_priv->pending_bufs) != 0) {
-	   printk("got to flush\n");
-	   current->state = TASK_INTERRUPTIBLE;
-	   add_wait_queue(&q->flush_queue, &entry);
-	   for (;;) {
-	      	if (!atomic_read(&dev_priv->pending_bufs)) break;
-	      	printk("Calling schedule from flush_queue : %d\n",
+   	if (MGA_VERBOSE) {
+		printk("mga_flush_queue\n");
+		printk("pending_bufs : %d\n", 
 		       atomic_read(&dev_priv->pending_bufs));
-	      	schedule();
-	      	if (signal_pending(current)) {
-		   	ret = -EINTR; /* Can't restart */
-		   	break;
+	}
+
+   	if(atomic_read(&dev_priv->pending_bufs) != 0) {
+		if (MGA_VERBOSE) 
+			printk("got to flush\n");
+		current->state = TASK_INTERRUPTIBLE;
+		add_wait_queue(&q->flush_queue, &entry);
+		for (;;) {
+			if (!atomic_read(&dev_priv->pending_bufs)) break;
+			if (MGA_VERBOSE)
+				printk("Calling schedule from flush_queue : %d\n",
+				       atomic_read(&dev_priv->pending_bufs));
+			schedule();
+			if (signal_pending(current)) {
+				ret = -EINTR; /* Can't restart */
+				break;
+			}
 		}
-	   }
-	   printk("Exited out of schedule from flush_queue\n");
-	   current->state = TASK_RUNNING;
-	   remove_wait_queue(&q->flush_queue, &entry);
+
+		if (MGA_VERBOSE)
+			printk("Exited out of schedule from flush_queue\n");
+
+		current->state = TASK_RUNNING;
+		remove_wait_queue(&q->flush_queue, &entry);
 	}
    
    	return ret;
@@ -1123,9 +1208,10 @@ int mga_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 		return -EINVAL;
 	}
    
-   	printk("%d (pid %d) requests lock (0x%08x), flags = 0x%08x\n",
-		  lock.context, current->pid, dev->lock.hw_lock->lock,
-		  lock.flags);
+   	if (MGA_VERBOSE)
+		printk("%d (pid %d) requests lock (0x%08x), flags = 0x%08x\n",
+		       lock.context, current->pid, dev->lock.hw_lock->lock,
+		       lock.flags);
 
 
 	if (lock.context < 0) {
@@ -1146,7 +1232,7 @@ int mga_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 		 break;
 	      }
 	      atomic_dec(&dev_priv->in_flush);
-	      printk("Calling lock schedule\n");
+	      if (MGA_VERBOSE) printk("Calling lock schedule\n");
 	      schedule();
 	      if (signal_pending(current)) {
 		 ret = -ERESTARTSYS;
@@ -1186,7 +1272,7 @@ int mga_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 			atomic_inc(&dev->total_sleeps);
 			current->state = TASK_INTERRUPTIBLE;
 		   	current->policy |= SCHED_YIELD;
-		   	printk("Calling lock schedule\n");
+		   	if (MGA_VERBOSE) printk("Calling lock schedule\n");
 			schedule();
 			if (signal_pending(current)) {
 				ret = -ERESTARTSYS;
@@ -1199,7 +1285,7 @@ int mga_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 	
 	if (!ret) {
 		if (lock.flags & _DRM_LOCK_QUIESCENT) {
-		   printk("_DRM_LOCK_QUIESCENT\n");
+			if (MGA_VERBOSE) printk("_DRM_LOCK_QUIESCENT\n");
 #if 0
 		   mga_dma_quiescent(dev);
 #endif
@@ -1207,7 +1293,11 @@ int mga_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 		   wake_up_interruptible(&dev->lock.lock_queue);
 		}
 	}
-	printk("%d %s\n", lock.context, ret ? "interrupted" : "has lock");
+
+	if (MGA_VERBOSE)
+		printk("%d %s\n", lock.context, 
+		       ret ? "interrupted" : "has lock");
+
 	return ret;
 }
 		

@@ -4,8 +4,9 @@
 #include "mga_drm_public.h"
 
 
-/* Isn't this fun.  This has to be fixed asap by emitting primary
- * dma commands in the 'do_dma' ioctl.
+/* Isn't this fun - we copy the outstanding card state for every
+ * MGA_DMA_VERTEX buffer.  This has to be fixed asap by emitting
+ * primary dma commands in the 'vertex_dma' ioctl.  
  */
 typedef struct {
 	int dma_type;
@@ -47,14 +48,13 @@ typedef struct {
 #define ADRINDEX(r)	(ISREG0(r) ? ADRINDEX0(r) : ADRINDEX1(r)) 
 
 
+
+#define MGA_VERBOSE 0
+
+
+
 /* Macros for inserting commands into a secondary dma buffer.
  */
-
-
-#define VERBO 1
-
-
-
 #define DMALOCALS	u8 tempIndex[4]; u32 *dma_ptr; \
 			int outcount, num_dwords;
 
@@ -62,30 +62,30 @@ typedef struct {
   dma_ptr = (u32 *)((u8 *)buf->address + buf->used);	\
   outcount = 0;						\
   num_dwords = buf->used / 4;				\
-  if (VERBO)						\
-	printk(KERN_INFO "DMAGETPTR in %s, start %d\n",		\
-	       __FUNCTION__, num_dwords);				\
+  if (MGA_VERBOSE)					\
+	printk(KERN_INFO "DMAGETPTR in %s, start %d\n",	\
+	       __FUNCTION__, num_dwords);		\
 } while(0)
 
 #define DMAADVANCE(buf)	do {			\
-  if (VERBO)					\
-	printk(KERN_INFO "DMAADVANCE\n");			\
+  if (MGA_VERBOSE)				\
+	printk(KERN_INFO "DMAADVANCE\n");	\
   buf->used = num_dwords * 4;			\
 } while(0)
 
-#define DMAOUTREG(reg, val) do {		\
-  tempIndex[outcount]=ADRINDEX(reg);		\
-  dma_ptr[++outcount] = val;			\
-  if (VERBO)					\
-	printk(KERN_INFO			\
-	       "   DMAOUT %d: 0x%x -- 0x%x\n",	\
+#define DMAOUTREG(reg, val) do {				\
+  tempIndex[outcount]=ADRINDEX(reg);				\
+  dma_ptr[++outcount] = val;					\
+  if (MGA_VERBOSE)						\
+	printk(KERN_INFO					\
+	       "   DMAOUT %d: 0x%x -- 0x%x\n",			\
 	       num_dwords +1+outcount, ADRINDEX(reg), val);	\
-  if (outcount == 4) {				\
-     outcount = 0;				\
-     dma_ptr[0] = *(u32 *)tempIndex;		\
-     dma_ptr+=5;				\
-     num_dwords += 5;				\
-  }						\
+  if (outcount == 4) {						\
+     outcount = 0;						\
+     dma_ptr[0] = *(u32 *)tempIndex;				\
+     dma_ptr+=5;						\
+     num_dwords += 5;						\
+  }								\
 }while (0)
 
 
@@ -100,34 +100,34 @@ typedef struct {
    	dev_priv->current_dma_ptr = dev_priv->prim_head;	\
 } while (0)
 	
-#define	PRIMGETPTR(dev_priv) do {			\
-	dma_ptr = dev_priv->current_dma_ptr;		\
-	phys_head = dev_priv->prim_phys_head;		\
-	num_dwords = dev_priv->prim_num_dwords;		\
-	outcount = 0;					\
-	if (VERBO)					\
+#define	PRIMGETPTR(dev_priv) do {					\
+	dma_ptr = dev_priv->current_dma_ptr;				\
+	phys_head = dev_priv->prim_phys_head;				\
+	num_dwords = dev_priv->prim_num_dwords;				\
+	outcount = 0;							\
+	if (MGA_VERBOSE)						\
 		printk(KERN_INFO "PRIMGETPTR in %s, start %d\n",	\
 		       __FUNCTION__, num_dwords);			\
 } while (0)
 
-#define PRIMADVANCEPAD(dev_priv)	do {			\
+#define PRIMADVANCEPAD(dev_priv)	do {		\
         while(outcount & 3) {				\
-	    if (VERBO)					\
+	    if (MGA_VERBOSE)				\
       	        printk(KERN_INFO "PAD %d\n",		\
                        num_dwords + 1 + outcount);	\
 	    tempIndex[outcount++]=0x15;			\
         }						\
 							\
-	if (VERBO)					\
+	if (MGA_VERBOSE)				\
 		printk(KERN_INFO "PRIMADVANCEPAD\n");	\
 	dev_priv->prim_num_dwords = num_dwords;		\
 	dev_priv->current_dma_ptr = dma_ptr;		\
 } while (0)
 
 #define PRIMADVANCE(dev_priv)	do {				\
-	if (VERBO) {						\
+	if (MGA_VERBOSE) {					\
 		printk(KERN_INFO "PRIMADVANCE\n");		\
-                if (outcount & 3) 				\
+                if (outcount & 3)				\
                       printk(KERN_INFO " --- truncation\n");	\
         }							\
 	dev_priv->prim_num_dwords = num_dwords;			\
@@ -138,10 +138,10 @@ typedef struct {
 #define PRIMOUTREG(reg, val) do {					\
 	tempIndex[outcount]=ADRINDEX(reg);				\
 	dma_ptr[1+outcount] = val;					\
-	if (VERBO) 							\
-		printk(KERN_INFO 					\
-		       "   PRIMOUT %d: 0x%x -- 0x%x\n",	\
-		       num_dwords + 1 + outcount, ADRINDEX(reg), val);			\
+	if (MGA_VERBOSE)						\
+		printk(KERN_INFO					\
+		       "   PRIMOUT %d: 0x%x -- 0x%x\n",			\
+		       num_dwords + 1 + outcount, ADRINDEX(reg), val);	\
 	if( ++outcount == 4) {						\
 		outcount = 0;						\
 		dma_ptr[0] = *(u32 *)tempIndex;				\
