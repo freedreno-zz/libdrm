@@ -390,7 +390,20 @@ do {						\
 		}							\
 	} while (0)
 
-#define cmpxchg( a, b, c ) atomic_cmpset_int( a, b, c )
+
+static __inline__ int cmpxchg(volatile unsigned int *ptr, 
+			      unsigned int old,
+			      unsigned int new)
+{
+   unsigned int prev;
+   __asm__ __volatile__("lock ; cmpxchgl %1,%2"
+			: "=a"(prev)
+			: "q"(new), "m"(*ptr), "0"(old)
+			: "memory");
+   return prev;
+}
+
+
 
 /* Internal functions */
 
