@@ -57,7 +57,8 @@ int DRM(ati_pcigart_init)( drm_device_t *dev,
 		goto done;
 	}
 
-	address = malloc( (1 << ATI_PCIGART_TABLE_ORDER) * PAGE_SIZE, DRM(M_DRM), M_WAITOK );
+	address = (long)contigmalloc((1 << ATI_PCIGART_TABLE_ORDER) * PAGE_SIZE, 
+	    DRM(M_DRM), M_WAITOK, 0ul, 0xfffffffful, PAGE_SIZE, 0);
 	if ( !address ) {
 		DRM_ERROR( "cannot allocate PCI GART page!\n" );
 		goto done;
@@ -103,7 +104,8 @@ int DRM(ati_pcigart_cleanup)( drm_device_t *dev,
 		return 0;
 	}
 
-	free( (void *)addr, DRM(M_DRM));
-
+#if __FreeBSD_version > 500000
+	contigfree( (void *)addr, (1 << ATI_PCIGART_TABLE_ORDER) * PAGE_SIZE, DRM(M_DRM));	/* Not available on 4.x */
+#endif
 	return 1;
 }
