@@ -60,20 +60,10 @@
 	i810_dma_quiescent( dev );					\
 } while (0)
 
-/* Don't need an irq any more, but this must be kept around for
- * backwards compatibility.  (Could override the core drm ioctls
- * somehow to just return success, but this does the job).  
- * 
- * This is pretty hacky: the return's jump out of the drm core
- * functions before the irq is allocated or deallocated.  Noops might
- * be cleaner.
+/* Don't need an irq any more.  The template code will make sure that
+ * a noop stub is generated for compatibility.
  */
-#define __HAVE_DMA_IRQ		1
-#define __HAVE_DMA_IRQ_BH	0 /* ??? */
-#define __HAVE_SHARED_IRQ       1
-#define DRIVER_PREINSTALL()  return 0
-#define DRIVER_POSTINSTALL() return 0
-#define DRIVER_UNINSTALL()   return 0
+#define __HAVE_DMA_IRQ		0
 
 /* Buffer customization:
  */
