@@ -1,9 +1,7 @@
-/* drawable.c -- IOCTLs for drawables -*- linux-c -*-
- * Created: Tue Feb  2 08:37:54 1999 by faith@precisioninsight.com
- *
- * Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
+/* compat-pre24.h -- Linux pre-2.4.0 compatibility
+ * Created: Mon Aug 28 15:31:43 2000 by faith@acm.org
  * Copyright 2000 VA Linux Systems, Inc., Sunnyvale, California.
- * All Rights Reserved.
+ * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -26,26 +24,18 @@
  * 
  * Authors:
  *    Rickard E. (Rik) Faith <faith@valinux.com>
- *
+ * 
  */
 
-#define __NO_VERSION__
-#include "drmP.h"
+#ifndef _COMPAT_PRE24_H_
+#define _COMPAT_PRE24_H_
 
-int drm_adddraw(struct inode *inode, struct file *filp, unsigned int cmd,
-		unsigned long arg)
-{
-	drm_draw_t draw;
+				/* virt_to_page added in 2.4.0-test6 */
+#if LINUX_VERSION_CODE < 0x020400
+#define virt_to_page(kaddr) (mem_map + MAP_NR(kaddr))
+#endif
 
-	draw.handle = 0;	/* NOOP */
-	DRM_DEBUG("%d\n", draw.handle);
-	if (copy_to_user((drm_draw_t *)arg, &draw, sizeof(draw)))
-		return -EFAULT;
-	return 0;
-}
+#define block_all_signals(a,b,c)
+#define unblock_all_signals()
 
-int drm_rmdraw(struct inode *inode, struct file *filp, unsigned int cmd,
-	       unsigned long arg)
-{
-	return 0;		/* NOOP */
-}
+#endif

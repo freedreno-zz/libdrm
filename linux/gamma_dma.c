@@ -11,11 +11,11 @@
  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
  * and/or sell copies of the Software, and to permit persons to whom the
  * Software is furnished to do so, subject to the following conditions:
- * 
+ *
  * The above copyright notice and this permission notice (including the next
  * paragraph) shall be included in all copies or substantial portions of the
  * Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
@@ -23,7 +23,7 @@
  * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
- * 
+ *
  * Authors:
  *    Rickard E. (Rik) Faith <faith@valinux.com>
  *
@@ -97,7 +97,7 @@ static inline void gamma_dma_quiescent_single(drm_device_t *dev)
 
 	GAMMA_WRITE(GAMMA_FILTERMODE, 1 << 10);
 	GAMMA_WRITE(GAMMA_SYNC, 0);
-	
+
 	do {
 		while (!GAMMA_READ(GAMMA_OUTFIFOWORDS))
 			;
@@ -115,13 +115,13 @@ static inline void gamma_dma_quiescent_dual(drm_device_t *dev)
 
 	GAMMA_WRITE(GAMMA_FILTERMODE, 1 << 10);
 	GAMMA_WRITE(GAMMA_SYNC, 0);
-	
+
 				/* Read from first MX */
 	do {
 		while (!GAMMA_READ(GAMMA_OUTFIFOWORDS))
 			;
 	} while (GAMMA_READ(GAMMA_OUTPUTFIFO) != GAMMA_SYNC_TAG);
-	
+
 				/* Read from second MX */
 	do {
 		while (!GAMMA_READ(GAMMA_OUTFIFOWORDS + 0x10000))
@@ -144,7 +144,7 @@ static void gamma_dma_service(int irq, void *device, struct pt_regs *regs)
 {
 	drm_device_t	 *dev = (drm_device_t *)device;
 	drm_device_dma_t *dma = dev->dma;
-	
+
 	atomic_inc(&dev->total_irq);
 	GAMMA_WRITE(GAMMA_GDELAYTIMER, 0xc350/2); /* 0x05S */
 	GAMMA_WRITE(GAMMA_GCOMMANDINTFLAGS, 8);
@@ -183,7 +183,7 @@ static int gamma_do_dma(drm_device_t *dev, int locked)
 		atomic_inc(&dma->total_missed_dma);
 		return -EBUSY;
 	}
-	
+
 #if DRM_DMA_HISTOGRAM
 	dma_start = get_cycles();
 #endif
@@ -215,7 +215,7 @@ static int gamma_do_dma(drm_device_t *dev, int locked)
 		clear_bit(0, &dev->dma_flag);
 		return 0;
 	}
-	
+
 	if (!gamma_dma_is_ready(dev)) {
 		clear_bit(0, &dev->dma_flag);
 		return -EBUSY;
@@ -246,7 +246,7 @@ static int gamma_do_dma(drm_device_t *dev, int locked)
 		}
 		retcode = -EBUSY;
 		goto cleanup;
-			
+
 				/* POST: we will wait for the context
 				   switch and will dispatch on a later call
 				   when dev->last_context == buf->context.
@@ -371,9 +371,9 @@ again:
 			goto again;
 		}
 	}
-	
+
 	clear_bit(0, &dev->interrupt_flag);
-	
+
 #if DRM_DMA_HISTOGRAM
 	atomic_inc(&dev->histo.schedule[drm_histogram_slot(get_cycles()
 							   - schedule_start)]);
@@ -461,7 +461,7 @@ static int gamma_dma_priority(drm_device_t *dev, drm_dma_t *d)
 			goto cleanup;
 		}
 		buf->pending = 1;
-		
+
 		if (dev->last_context != buf->context
 		    && !(dev->queuelist[buf->context]->flags
 			 & _DRM_CONTEXT_PRESERVED)) {
@@ -496,7 +496,7 @@ static int gamma_dma_priority(drm_device_t *dev, drm_dma_t *d)
 		gamma_dma_dispatch(dev, address, length);
 		atomic_add(length, &dma->total_bytes);
 		atomic_inc(&dma->total_dmas);
-		
+
 		if (last_buf) {
 			drm_free_buffer(dev, last_buf);
 		}
@@ -509,7 +509,7 @@ cleanup:
 		gamma_dma_ready(dev);
 		drm_free_buffer(dev, last_buf);
 	}
-	
+
 	if (must_free && !dev->context_flag) {
 		if (drm_lock_free(dev, &dev->lock.hw_lock->lock,
 				  DRM_KERNEL_CONTEXT)) {
@@ -531,15 +531,15 @@ static int gamma_dma_send_buffers(drm_device_t *dev, drm_dma_t *d)
 		last_buf = dma->buflist[d->send_indices[d->send_count-1]];
 		add_wait_queue(&last_buf->dma_wait, &entry);
 	}
-	
+
 	if ((retcode = drm_dma_enqueue(dev, d))) {
 		if (d->flags & _DRM_DMA_BLOCK)
 			remove_wait_queue(&last_buf->dma_wait, &entry);
 		return retcode;
 	}
-	
+
 	gamma_dma_schedule(dev, 0);
-	
+
 	if (d->flags & _DRM_DMA_BLOCK) {
 		DRM_DEBUG("%d waiting\n", current->pid);
 		current->state = TASK_INTERRUPTIBLE;
@@ -586,7 +586,8 @@ int gamma_dma(struct inode *inode, struct file *filp, unsigned int cmd,
 	int		  retcode   = 0;
 	drm_dma_t	  d;
 
-	copy_from_user_ret(&d, (drm_dma_t *)arg, sizeof(d), -EFAULT);
+	if (copy_from_user(&d, (drm_dma_t *)arg, sizeof(d)))
+		return -EFAULT;
 	DRM_DEBUG("%d %d: %d send, %d req\n",
 		  current->pid, d.context, d.send_count, d.request_count);
 
@@ -609,7 +610,7 @@ int gamma_dma(struct inode *inode, struct file *filp, unsigned int cmd,
 	if (d.send_count) {
 		if (d.flags & _DRM_DMA_PRIORITY)
 			retcode = gamma_dma_priority(dev, &d);
-		else 
+		else
 			retcode = gamma_dma_send_buffers(dev, &d);
 	}
 
@@ -621,7 +622,8 @@ int gamma_dma(struct inode *inode, struct file *filp, unsigned int cmd,
 
 	DRM_DEBUG("%d returning, granted = %d\n",
 		  current->pid, d.granted_count);
-	copy_to_user_ret((drm_dma_t *)arg, &d, sizeof(d), -EFAULT);
+	if (copy_to_user((drm_dma_t *)arg, &d, sizeof(d)))
+		return -EFAULT;
 
 	return retcode;
 }
@@ -631,7 +633,7 @@ int gamma_irq_install(drm_device_t *dev, int irq)
 	int retcode;
 
 	if (!irq)     return -EINVAL;
-	
+
 	down(&dev->struct_sem);
 	if (dev->irq) {
 		up(&dev->struct_sem);
@@ -639,13 +641,13 @@ int gamma_irq_install(drm_device_t *dev, int irq)
 	}
 	dev->irq = irq;
 	up(&dev->struct_sem);
-	
+
 	DRM_DEBUG("%d\n", irq);
 
 	dev->context_flag     = 0;
 	dev->interrupt_flag   = 0;
 	dev->dma_flag	      = 0;
-	
+
 	dev->dma->next_buffer = NULL;
 	dev->dma->next_queue  = NULL;
 	dev->dma->this_buffer = NULL;
@@ -659,7 +661,7 @@ int gamma_irq_install(drm_device_t *dev, int irq)
 				/* Before installing handler */
 	GAMMA_WRITE(GAMMA_GCOMMANDMODE, 0);
 	GAMMA_WRITE(GAMMA_GDMACONTROL, 0);
-	
+
 				/* Install handler */
 	if ((retcode = request_irq(dev->irq,
 				   gamma_dma_service,
@@ -676,7 +678,7 @@ int gamma_irq_install(drm_device_t *dev, int irq)
 	GAMMA_WRITE(GAMMA_GINTENABLE,	    0x2001);
 	GAMMA_WRITE(GAMMA_COMMANDINTENABLE, 0x0008);
 	GAMMA_WRITE(GAMMA_GDELAYTIMER,	   0x39090);
-	
+
 	return 0;
 }
 
@@ -688,11 +690,11 @@ int gamma_irq_uninstall(drm_device_t *dev)
 	irq	 = dev->irq;
 	dev->irq = 0;
 	up(&dev->struct_sem);
-	
+
 	if (!irq) return -EINVAL;
-	
+
 	DRM_DEBUG("%d\n", irq);
-	
+
 	GAMMA_WRITE(GAMMA_GDELAYTIMER,	    0);
 	GAMMA_WRITE(GAMMA_COMMANDINTENABLE, 0);
 	GAMMA_WRITE(GAMMA_GINTENABLE,	    0);
@@ -709,9 +711,10 @@ int gamma_control(struct inode *inode, struct file *filp, unsigned int cmd,
 	drm_device_t	*dev	= priv->dev;
 	drm_control_t	ctl;
 	int		retcode;
-	
-	copy_from_user_ret(&ctl, (drm_control_t *)arg, sizeof(ctl), -EFAULT);
-	
+
+	if (copy_from_user(&ctl, (drm_control_t *)arg, sizeof(ctl)))
+		return -EFAULT;
+
 	switch (ctl.func) {
 	case DRM_INST_HANDLER:
 		if ((retcode = gamma_irq_install(dev, ctl.irq)))
@@ -742,7 +745,8 @@ int gamma_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 	dev->lck_start = start = get_cycles();
 #endif
 
-	copy_from_user_ret(&lock, (drm_lock_t *)arg, sizeof(lock), -EFAULT);
+	if (copy_from_user(&lock, (drm_lock_t *)arg, sizeof(lock)))
+		return -EFAULT;
 
 	if (lock.context == DRM_KERNEL_CONTEXT) {
 		DRM_ERROR("Process %d using kernel context %d\n",
@@ -757,7 +761,7 @@ int gamma_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 	if (lock.context < 0 || lock.context >= dev->queue_count)
 		return -EINVAL;
 	q = dev->queuelist[lock.context];
-	
+
 	ret = drm_flush_block_and_flush(dev, lock.context, lock.flags);
 
 	if (!ret) {
@@ -787,7 +791,7 @@ int gamma_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 				atomic_inc(&q->total_locks);
 				break;	/* Got lock */
 			}
-			
+
 				/* Contention */
 			atomic_inc(&dev->total_sleeps);
 			current->state = TASK_INTERRUPTIBLE;
@@ -802,9 +806,8 @@ int gamma_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 	}
 
 	drm_flush_unblock(dev, lock.context, lock.flags); /* cleanup phase */
-	
+
 	if (!ret) {
-#if LINUX_VERSION_CODE >= 0x020400 /* KERNEL_VERSION(2,4,0) */
 		sigemptyset(&dev->sigmask);
 		sigaddset(&dev->sigmask, SIGSTOP);
 		sigaddset(&dev->sigmask, SIGTSTP);
@@ -813,7 +816,7 @@ int gamma_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 		dev->sigdata.context = lock.context;
 		dev->sigdata.lock    = dev->lock.hw_lock;
 		block_all_signals(drm_notifier, &dev->sigdata, &dev->sigmask);
-#endif
+
 		if (lock.flags & _DRM_LOCK_READY)
 			gamma_dma_ready(dev);
 		if (lock.flags & _DRM_LOCK_QUIESCENT) {
@@ -829,6 +832,6 @@ int gamma_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 #if DRM_DMA_HISTOGRAM
 	atomic_inc(&dev->histo.lacq[drm_histogram_slot(get_cycles() - start)]);
 #endif
-	
+
 	return ret;
 }

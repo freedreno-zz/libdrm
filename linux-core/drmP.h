@@ -11,11 +11,11 @@
  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
  * and/or sell copies of the Software, and to permit persons to whom the
  * Software is furnished to do so, subject to the following conditions:
- * 
+ *
  * The above copyright notice and this permission notice (including the next
  * paragraph) shall be included in all copies or substantial portions of the
  * Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
@@ -23,16 +23,22 @@
  * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
- * 
+ *
  * Authors:
  *    Rickard E. (Rik) Faith <faith@valinux.com>
- * 
+ *
  */
 
 #ifndef _DRM_P_H_
 #define _DRM_P_H_
 
 #ifdef __KERNEL__
+#ifdef __alpha__
+/* add include of current.h so that "current" is defined
+ * before static inline funcs in wait.h. Doing this so we
+ * can build the DRM (part of PI DRI). 4/21/2000 S + B */
+#include <asm/current.h>
+#endif /* __alpha__ */
 #include <linux/config.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
@@ -47,6 +53,9 @@
 #include <linux/sched.h>
 #include <linux/smp_lock.h>	/* For (un)lock_kernel */
 #include <linux/mm.h>
+#ifdef __alpha__
+#include <asm/pgtable.h> /* For pte_wrprotect */
+#endif
 #include <asm/io.h>
 #include <asm/mman.h>
 #include <asm/uaccess.h>
@@ -60,6 +69,9 @@
 #if LINUX_VERSION_CODE >= 0x020100 /* KERNEL_VERSION(2,1,0) */
 #include <linux/tqueue.h>
 #include <linux/poll.h>
+#endif
+#if LINUX_VERSION_CODE < 0x020400
+#include "compat-pre24.h"
 #endif
 #include "drm.h"
 
@@ -140,15 +152,75 @@ typedef struct wait_queue *wait_queue_head_t;
 #define module_exit(x)  void cleanup_module(void) { x(); }
 #endif
 
-				/* virt_to_page added in 2.4.0-test6 */
-#if LINUX_VERSION_CODE < 0x020400
-#define virt_to_page(kaddr) (mem_map + MAP_NR(kaddr))
-#endif
-
 				/* Generic cmpxchg added in 2.3.x */
 #ifndef __HAVE_ARCH_CMPXCHG
 				/* Include this here so that driver can be
                                    used with older kernels. */
+#if defined(__alpha__)
+static __inline__ unsigned long
+__cmpxchg_u32(volatile int *m, int old, int new)
+{
+	unsigned long prev, cmp;
+
+	__asm__ __volatile__(
+	"1:	ldl_l %0,%2\n"
+	"	cmpeq %0,%3,%1\n"
+	"	beq %1,2f\n"
+	"	mov %4,%1\n"
+	"	stl_c %1,%2\n"
+	"	beq %1,3f\n"
+	"2:	mb\n"
+	".subsection 2\n"
+	"3:	br 1b\n"
+	".previous"
+	: "=&r"(prev), "=&r"(cmp), "=m"(*m)
+	: "r"((long) old), "r"(new), "m"(*m));
+
+	return prev;
+}
+
+static __inline__ unsigned long
+__cmpxchg_u64(volatile long *m, unsigned long old, unsigned long new)
+{
+	unsigned long prev, cmp;
+
+	__asm__ __volatile__(
+	"1:	ldq_l %0,%2\n"
+	"	cmpeq %0,%3,%1\n"
+	"	beq %1,2f\n"
+	"	mov %4,%1\n"
+	"	stq_c %1,%2\n"
+	"	beq %1,3f\n"
+	"2:	mb\n"
+	".subsection 2\n"
+	"3:	br 1b\n"
+	".previous"
+	: "=&r"(prev), "=&r"(cmp), "=m"(*m)
+	: "r"((long) old), "r"(new), "m"(*m));
+
+	return prev;
+}
+
+static __inline__ unsigned long
+__cmpxchg(volatile void *ptr, unsigned long old, unsigned long new, int size)
+{
+	switch (size) {
+		case 4:
+			return __cmpxchg_u32(ptr, old, new);
+		case 8:
+			return __cmpxchg_u64(ptr, old, new);
+	}
+	return old;
+}
+#define cmpxchg(ptr,o,n)						 \
+  ({									 \
+     __typeof__(*(ptr)) _o_ = (o);					 \
+     __typeof__(*(ptr)) _n_ = (n);					 \
+     (__typeof__(*(ptr))) __cmpxchg((ptr), (unsigned long)_o_,		 \
+				    (unsigned long)_n_, sizeof(*(ptr))); \
+  })
+
+#elif __i386__
 static inline unsigned long __cmpxchg(volatile void *ptr, unsigned long old,
 				      unsigned long new, int size)
 {
@@ -179,6 +251,7 @@ static inline unsigned long __cmpxchg(volatile void *ptr, unsigned long old,
 #define cmpxchg(ptr,o,n)						\
   ((__typeof__(*(ptr)))__cmpxchg((ptr),(unsigned long)(o),		\
 				 (unsigned long)(n),sizeof(*(ptr))))
+#endif /* i386 & alpha */
 #endif
 
 				/* Macros to make printk easier */
@@ -231,7 +304,7 @@ typedef struct drm_ioctl_desc {
 
 typedef struct drm_devstate {
 	pid_t		  owner;	/* X server pid holding x_lock */
-	
+
 } drm_devstate_t;
 
 typedef struct drm_magic_entry {
@@ -292,14 +365,14 @@ typedef struct drm_buf {
 #define DRM_DMA_HISTOGRAM_NEXT(current)	 ((current)*10)
 typedef struct drm_histogram {
 	atomic_t	  total;
-	
+
 	atomic_t	  queued_to_dispatched[DRM_DMA_HISTOGRAM_SLOTS];
 	atomic_t	  dispatched_to_completed[DRM_DMA_HISTOGRAM_SLOTS];
 	atomic_t	  completed_to_freed[DRM_DMA_HISTOGRAM_SLOTS];
-	
+
 	atomic_t	  queued_to_completed[DRM_DMA_HISTOGRAM_SLOTS];
 	atomic_t	  queued_to_freed[DRM_DMA_HISTOGRAM_SLOTS];
-	
+
 	atomic_t	  dma[DRM_DMA_HISTOGRAM_SLOTS];
 	atomic_t	  schedule[DRM_DMA_HISTOGRAM_SLOTS];
 	atomic_t	  ctx[DRM_DMA_HISTOGRAM_SLOTS];
@@ -323,7 +396,7 @@ typedef struct drm_freelist {
 	int		  initialized; /* Freelist in use		   */
 	atomic_t	  count;       /* Number of free buffers	   */
 	drm_buf_t	  *next;       /* End pointer			   */
-	
+
 	wait_queue_head_t waiting;     /* Processes waiting on free bufs   */
 	int		  low_mark;    /* Low water mark		   */
 	int		  high_mark;   /* High water mark		   */
@@ -388,7 +461,7 @@ typedef struct drm_device_dma {
 	atomic_t	  total_prio;	/* Total DRM_DMA_PRIORITY	   */
 	atomic_t	  total_bytes;	/* Total bytes DMA'd		   */
 	atomic_t	  total_dmas;	/* Total DMA buffers dispatched	   */
-	
+
 	atomic_t	  total_missed_dma;  /* Missed drm_do_dma	    */
 	atomic_t	  total_missed_lock; /* Missed lock in drm_do_dma   */
 	atomic_t	  total_missed_free; /* Missed drm_free_this_buffer */
@@ -401,7 +474,7 @@ typedef struct drm_device_dma {
 	drm_buf_entry_t	  bufs[DRM_MAX_ORDER+1];
 	int		  buf_count;
 	drm_buf_t	  **buflist;	/* Vector of pointers info bufs	   */
-	int		  seg_count; 
+	int		  seg_count;
 	int		  page_count;
 	unsigned long	  *pagelist;
 	unsigned long	  byte_count;
@@ -462,7 +535,7 @@ typedef struct drm_device {
 	int		  unique_len;	/* Length of unique field	   */
 	dev_t		  device;	/* Device number for mknod	   */
 	char		  *devname;	/* For /proc/interrupts		   */
-	
+
 	int		  blocked;	/* Blocked due to VC switch?	   */
 	struct proc_dir_entry *root;	/* Root for this device's entries  */
 
@@ -483,7 +556,7 @@ typedef struct drm_device {
 	atomic_t	  total_ioctl;
 	atomic_t	  total_irq;	/* Total interruptions		   */
 	atomic_t	  total_ctx;	/* Total context switches	   */
-	
+
 	atomic_t	  total_locks;
 	atomic_t	  total_unlocks;
 	atomic_t	  total_contends;
@@ -524,7 +597,7 @@ typedef struct drm_device {
 #if DRM_DMA_HISTOGRAM
 	drm_histogram_t	  histo;
 #endif
-	
+
 				/* Callback to X server for context switch
 				   and for heavy-handed reset. */
 	char		  buf[DRM_BSZ]; /* Output buffer		   */
@@ -534,7 +607,7 @@ typedef struct drm_device {
 	struct fasync_struct *buf_async;/* Processes waiting for SIGIO	   */
 	wait_queue_head_t buf_readers;	/* Processes waiting to read	   */
 	wait_queue_head_t buf_writers;	/* Processes waiting to ctx switch */
-	
+
 #if defined(CONFIG_AGP) || defined(CONFIG_AGP_MODULE)
 	drm_agp_head_t    *agp;
 #endif
