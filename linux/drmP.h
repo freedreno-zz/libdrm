@@ -244,6 +244,7 @@ typedef struct drm_buf {
 	int		  used;	       /* Amount of buffer in use (for DMA)  */
 	unsigned long	  offset;      /* Byte offset (used internally)	     */
 	void		  *address;    /* Address of buffer		     */
+	unsigned long	  bus_address; /* Bus address of buffer		     */
 	struct drm_buf	  *next;       /* Kernel-only: used for free list    */
 	__volatile__ int  waiting;     /* On kernel DMA queue		     */
 	__volatile__ int  pending;     /* On hardware DMA queue		     */

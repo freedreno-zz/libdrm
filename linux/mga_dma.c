@@ -36,15 +36,15 @@
 
 #include <linux/interrupt.h>	/* For task queue support */
 
-#define MGA_REG(reg)		0 /* for now */
+#define MGA_REG(reg)		2
 #define MGA_BASE(reg)		((unsigned long) \
 				dev->maplist[MGA_REG(reg)]->handle)
-#define MGA_ADDR(reg)		(MGA_BASE(reg) + MGA_OFF(reg))
+#define MGA_ADDR(reg)		(MGA_BASE(reg) + reg)
 #define MGA_DEREF(reg)		*(__volatile__ int *)MGA_ADDR(reg)
 #define MGA_READ(reg)		MGA_DEREF(reg)
 #define MGA_WRITE(reg,val) 	do { MGA_DEREF(reg) = val; } while (0)
 
-typedef _mga_primary_buffer {
+typedef struct _mga_primary_buffer {
 	u32 *head;
 	u32 *dma_ptr;
 	u8 tempIndex[4];
@@ -52,6 +52,8 @@ typedef _mga_primary_buffer {
 	int num_dwords;
 	int max_dwords;
 	unsigned long phys_head;
+	int last_softrap;
+	u8 first_time;
 } mgaPrimBuf;
 
 static mgaPrimBuf buffer;
@@ -64,6 +66,8 @@ typedef enum {
 
 #define DWGREG0 	0x1c00
 #define DWGREG0_END 	0x1dff
+#define DWGREG1		0x2c00
+#define DWGREG1_END	0x2dff
 
 #define ISREG0(r)	(r >= DWGREG0 && r <= DWGREG0_END)
 #define ADRINDEX0(r)	(u8)((r - DWGREG0) >> 2)
@@ -75,7 +79,7 @@ buffer.tempIndex[buffer.outcount]=ADRINDEX(reg);	\
 buffer.dma_ptr[1+buffer.outcount] = val;		\
 if( ++buffer.outcount == 4) {				\
 buffer.outcount = 0;					\
-buffer.dma_ptr[0] = *(u32 *)tempIndex;			\
+buffer.dma_ptr[0] = *(u32 *)buffer.tempIndex;		\
 buffer.dma_ptr+=5;					\
 buffer.num_dwords += 5;					\
 }							\
@@ -83,82 +87,99 @@ buffer.num_dwords += 5;					\
 
 #define CHECK_OVERFLOW(length) do {			\
 if((buffer.max_dwords - buffer.num_dwords) < length) {	\
-	mga_prim_overflow();				\
+	mga_prim_overflow(dev);				\
 }							\
 }while(0)
 
 #define PDEA_pagpxfer_enable 0x2
+#define MGA_SYNC_TAG         0x423f423f
+
+/* This will cause the kernel to overflow on its first dma buffer */
+void mga_dma_init(drm_device_t *dev)
+{
+	memset(&buffer, 0, sizeof(mgaPrimBuf));
+	buffer.phys_head = dev->agp->agp_info.aper_base;
+	buffer.head = (u32 *) drm_ioremap(buffer.phys_head, 65536);
+	buffer.dma_ptr = buffer.head;
+	buffer.max_dwords = 16384;
+	buffer.num_dwords = 16384;
+	buffer.first_time = 1;
+}
+
+void mga_dma_cleanup(drm_device_t *dev)
+{
+	drm_ioremapfree((void *)buffer.phys_head, 65536);
+}
+
+static inline void mga_prim_overflow(drm_device_t *dev)
+{   
+	buffer.num_dwords = 0;
+	buffer.outcount = 0;
+
+	MGA_WRITE(MGAREG_PRIMADDRESS, buffer.phys_head | TT_GENERAL);
+}
 
 static inline void mga_dma_dispatch(drm_device_t *dev, unsigned long address,
 				      unsigned long length)
 {
 	transferType_t transferType = TT_GENERAL;
 	int use_agp = PDEA_pagpxfer_enable;
+	static int softrap = 1;
 
 	CHECK_OVERFLOW(10);
-	DMAOUTREG(MGAREG_DMAPAD, 0);
+	DMAOUTREG(MGAREG_DWGSYNC, 0); /* For debugging */
 	DMAOUTREG(MGAREG_DMAPAD, 0);
 	DMAOUTREG(MGAREG_SECADDRESS, address | transferType);
 	DMAOUTREG(MGAREG_SECEND, (address + length) | use_agp);
 	DMAOUTREG(MGAREG_DMAPAD, 0);
 	DMAOUTREG(MGAREG_DMAPAD, 0);
-	DMAOUTREG(MGAREG_DWGSYNC, 0);
-	DMAOUTREG(MGAREG_SOFTRAP, 0);
-	/* Needs to write out to PRIMEND */
+#if 0
+	DMAOUTREG(MGAREG_DWGSYNC, MGA_SYNC_TAG); /* For debugging */
+#else
+	DMAOUTREG(MGAREG_DMAPAD, 0);
+#endif
+	DMAOUTREG(MGAREG_SOFTRAP, softrap);
+	MGA_WRITE(MGAREG_PRIMEND, (buffer.phys_head + buffer.num_dwords) | 
+		  use_agp);
+	buffer.last_softrap = softrap;
 }
 
 static inline void mga_dma_quiescent(drm_device_t *dev)
 {
-#if 0
-	while (GAMMA_READ(GAMMA_DMACOUNT))
+	while(MGA_READ(MGAREG_SECADDRESS) != buffer.last_softrap)
 		;
-	while (GAMMA_READ(GAMMA_INFIFOSPACE) < 3)
+	MGA_WRITE(MGAREG_DWGSYNC, MGA_SYNC_TAG);
+	while(MGA_READ(MGAREG_DWGSYNC) != MGA_SYNC_TAG)
 		;
-	GAMMA_WRITE(GAMMA_BROADCASTMASK, 3);
-	GAMMA_WRITE(GAMMA_FILTERMODE, 1 << 10);
-	GAMMA_WRITE(GAMMA_SYNC, 0);
-	
-				/* Read from first MX */
-	do {
-		while (!GAMMA_READ(GAMMA_OUTFIFOWORDS))
-			;
-	} while (GAMMA_READ(GAMMA_OUTPUTFIFO) != GAMMA_SYNC_TAG);
-	
-
-				/* Read from second MX */
-	do {
-		while (!GAMMA_READ(GAMMA_OUTFIFOWORDS + 0x10000))
-			;
-	} while (GAMMA_READ(GAMMA_OUTPUTFIFO + 0x10000) != GAMMA_SYNC_TAG);
-#endif
 }
 
 static inline void mga_dma_ready(drm_device_t *dev)
 {
-#if 0
-	while (GAMMA_READ(GAMMA_DMACOUNT))
+	while(MGA_READ(MGAREG_SECADDRESS) != buffer.last_softrap)
 		;
-#endif
 }
 
 static inline int mga_dma_is_ready(drm_device_t *dev)
 {
-#if 0
-	return !GAMMA_READ(GAMMA_DMACOUNT);
-#endif
+				/* Need a better way of doing this */
+   	if(buffer.first_time == 1) {
+	   buffer.first_time = 0;
+	   return 1;
+	}
+				/* If we lose interupts this is a race */
+	if(MGA_READ(MGAREG_SECADDRESS) == buffer.last_softrap)
+		return 1;
+	else
+		return 0;
 }
 
 
 static void mga_dma_service(int irq, void *device, struct pt_regs *regs)
 {
-#if 0
 	drm_device_t	 *dev = (drm_device_t *)device;
 	drm_device_dma_t *dma = dev->dma;
 	
 	atomic_inc(&dev->total_irq);
-	GAMMA_WRITE(GAMMA_GDELAYTIMER, 0xc350/2); /* 0x05S */
-	GAMMA_WRITE(GAMMA_GCOMMANDINTFLAGS, 8);
-	GAMMA_WRITE(GAMMA_GINTFLAGS, 0x2001);
 	if (mga_dma_is_ready(dev)) {
 				/* Free previous buffer */
 		if (test_and_set_bit(0, &dev->dma_flag)) {
@@ -175,7 +196,6 @@ static void mga_dma_service(int irq, void *device, struct pt_regs *regs)
 		queue_task(&dev->tq, &tq_immediate);
 		mark_bh(IMMEDIATE_BH);
 	}
-#endif
 }
 
 /* Only called by mga_dma_schedule. */
@@ -206,7 +226,7 @@ static int mga_do_dma(drm_device_t *dev, int locked)
 	}
 
 	buf	= dma->next_buffer;
-	address = (unsigned long)buf->address;
+	address = (unsigned long)buf->bus_address;
 	length	= buf->used;
 
 	DRM_DEBUG("context %d, buffer %d (%ld bytes)\n",
@@ -310,7 +330,6 @@ static void mga_dma_schedule_tq_wrapper(void *dev)
 
 int mga_dma_schedule(drm_device_t *dev, int locked)
 {
-#if 0
 	int		 next;
 	drm_queue_t	 *q;
 	drm_buf_t	 *buf;
@@ -391,7 +410,6 @@ again:
 							   - schedule_start)]);
 #endif
 	return retcode;
-#endif
 }
 
 static int mga_dma_priority(drm_device_t *dev, drm_dma_t *d)

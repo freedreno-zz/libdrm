@@ -41,8 +41,6 @@ extern int  mga_open(struct inode *inode, struct file *filp);
 extern int  mga_release(struct inode *inode, struct file *filp);
 extern int  mga_ioctl(struct inode *inode, struct file *filp,
 			unsigned int cmd, unsigned long arg);
-extern int  mga_lock(struct inode *inode, struct file *filp,
-		       unsigned int cmd, unsigned long arg);
 extern int  mga_unlock(struct inode *inode, struct file *filp,
 			 unsigned int cmd, unsigned long arg);
 
@@ -54,6 +52,9 @@ extern int  mga_irq_install(drm_device_t *dev, int irq);
 extern int  mga_irq_uninstall(drm_device_t *dev);
 extern int  mga_control(struct inode *inode, struct file *filp,
 			  unsigned int cmd, unsigned long arg);
+extern int  mga_lock(struct inode *inode, struct file *filp,
+		       unsigned int cmd, unsigned long arg);
+
 
 				/* mga_bufs.c */
 extern int  mga_addbufs(struct inode *inode, struct file *filp, 
@@ -67,24 +68,6 @@ extern int  mga_freebufs(struct inode *inode, struct file *filp,
 extern int  mga_mapbufs(struct inode *inode, struct file *filp,
 			unsigned int cmd, unsigned long arg);
 
-				/* mga_context.c */
-extern int  mga_resctx(struct inode *inode, struct file *filp,
-		       unsigned int cmd, unsigned long arg);
-extern int  mga_addctx(struct inode *inode, struct file *filp,
-		       unsigned int cmd, unsigned long arg);
-extern int  mga_modctx(struct inode *inode, struct file *filp,
-		       unsigned int cmd, unsigned long arg);
-extern int  mga_getctx(struct inode *inode, struct file *filp,
-		       unsigned int cmd, unsigned long arg);
-extern int  mga_switchctx(struct inode *inode, struct file *filp,
-			  unsigned int cmd, unsigned long arg);
-extern int  mga_newctx(struct inode *inode, struct file *filp,
-		       unsigned int cmd, unsigned long arg);
-extern int  mga_rmctx(struct inode *inode, struct file *filp,
-		      unsigned int cmd, unsigned long arg);
-
-extern int  mga_context_switch(drm_device_t *dev, int old, int new);
-extern int  mga_context_switch_complete(drm_device_t *dev, int new);
 
 
 #define MGAREG_MGA_EXEC 			0x0100
