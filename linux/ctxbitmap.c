@@ -29,6 +29,7 @@
  *
  */
 
+#define __NO_VERSION__
 #include "drmP.h"
 
 void drm_ctxbitmap_free(drm_device_t *dev, int ctx_handle)
@@ -59,6 +60,8 @@ int drm_ctxbitmap_next(drm_device_t *dev)
 
 int drm_ctxbitmap_init(drm_device_t *dev)
 {
+	int i;
+
 	dev->ctx_bitmap = (unsigned long *) drm_alloc(PAGE_SIZE * 4, 
 						      DRM_MEM_CTXBITMAP);
 	if(dev->ctx_bitmap == NULL) {

@@ -32,6 +32,8 @@
 #ifndef _DRM_P_H_
 #define _DRM_P_H_
 
+#define DRM_AGP 1
+
 #ifdef __KERNEL__
 #include <linux/module.h>
 #include <linux/kernel.h>

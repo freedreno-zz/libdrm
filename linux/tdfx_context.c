@@ -199,6 +199,8 @@ int tdfx_newctx(struct inode *inode, struct file *filp, unsigned int cmd,
 int tdfx_rmctx(struct inode *inode, struct file *filp, unsigned int cmd,
 	       unsigned long arg)
 {
+	drm_file_t      *priv   = filp->private_data;
+	drm_device_t    *dev    = priv->dev;
 	drm_ctx_t	ctx;
 
 	copy_from_user_ret(&ctx, (drm_ctx_t *)arg, sizeof(ctx), -EFAULT);

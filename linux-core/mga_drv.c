@@ -44,6 +44,7 @@ EXPORT_SYMBOL(mga_cleanup);
 #define MGA_PATCHLEVEL	 1
 
 static drm_device_t	      mga_device;
+drm_ctx_t		      mga_res_ctx;
 
 static struct file_operations mga_fops = {
 	open:	 mga_open,
@@ -88,7 +89,9 @@ static drm_ioctl_desc_t	      mga_ioctls[] = {
 	[DRM_IOCTL_NR(DRM_IOCTL_RES_CTX)]    = { mga_resctx,	  1, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_ADD_DRAW)]   = { drm_adddraw,	  1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_RM_DRAW)]    = { drm_rmdraw,	  1, 1 },
+#if 0
 	[DRM_IOCTL_NR(DRM_IOCTL_DMA)]	     = { mga_dma,	  1, 0 },
+#endif
 	[DRM_IOCTL_NR(DRM_IOCTL_LOCK)]	     = { mga_lock,	  1, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_UNLOCK)]     = { mga_unlock,	  1, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_FINISH)]     = { drm_finish,	  1, 0 },
@@ -250,7 +253,17 @@ static int mga_takedown(drm_device_t *dev)
 	}
    				/* Clear AGP information */
 	if (dev->agp) {
-				/* FIXME -- free other information, too */
+		drm_agp_mem_t *temp;
+		drm_agp_mem_t *temp_next;
+
+		temp = dev->agp->memory;
+		while(temp != NULL) {
+			temp_next = temp->next;
+			drm_free_agp(temp->memory, temp->pages);
+			drm_free(temp, sizeof(*temp), DRM_MEM_AGPLISTS);
+			temp = temp_next;
+		}
+		if(dev->agp->acquired) (*drm_agp.release)();
 		drm_free(dev->agp, sizeof(*dev->agp), DRM_MEM_AGPLISTS);
 		dev->agp = NULL;
 	}
