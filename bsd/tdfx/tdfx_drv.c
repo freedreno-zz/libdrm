@@ -161,6 +161,8 @@ tdfx_setup(drm_device_t *dev)
 {
 	int i;
 	
+	device_busy(dev->device);
+
 	atomic_set(&dev->ioctl_count, 0);
 	atomic_set(&dev->vma_count, 0);
 	dev->buf_use	  = 0;
@@ -309,6 +311,8 @@ tdfx_takedown(drm_device_t *dev)
 		wakeup(&dev->lock.lock_queue);
 	}
 	lockmgr(&dev->dev_lock, LK_RELEASE, 0, curproc);
+
+	device_unbusy(dev->device);
 	
 	return 0;
 }
@@ -368,6 +372,7 @@ tdfx_cleanup(device_t nbdev)
 
 	DRM_INFO("Module unloaded\n");
 
+	device_busy(dev->device);
 	tdfx_takedown(dev);
 }
 
@@ -418,8 +423,7 @@ tdfx_open(dev_t kdev, int flags, int fmt, struct proc *p)
 		}
 		simple_unlock(&dev->count_lock);
 	}
-	if (retcode)
-		device_unbusy(dev->device);
+	device_unbusy(dev->device);
 
 	return retcode;
 }
@@ -443,11 +447,11 @@ tdfx_close(dev_t kdev, int flags, int fmt, struct proc *p)
 				return EBUSY;
 			}
 			simple_unlock(&dev->count_lock);
-			device_unbusy(dev->device);
 			return tdfx_takedown(dev);
 		}
 		simple_unlock(&dev->count_lock);
 	}
+
 	return retcode;
 }
 
