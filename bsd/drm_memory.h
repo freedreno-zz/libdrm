@@ -97,7 +97,8 @@ void DRM(mem_init)(void)
 
 #ifdef __FreeBSD__
 /* drm_mem_info is called whenever a process reads /dev/drm/mem. */
-static int DRM(_mem_info) DRM_SYSCTL_HANDLER_ARGS
+static int DRM(_mem_info)(drm_mem_stats_t *stats, struct sysctl_oid *oidp, void *arg1, 
+    int arg2, struct sysctl_req *req)
 {
 	drm_mem_stats_t *pt;
 	char buf[128];
@@ -112,7 +113,7 @@ static int DRM(_mem_info) DRM_SYSCTL_HANDLER_ARGS
 	DRM_SYSCTL_PRINT("%-9.9s %5d %5d %4d %10lu	    |\n",
 		       "locked", 0, 0, 0, DRM(ram_used));
 	DRM_SYSCTL_PRINT("\n");
-	for (pt = DRM(mem_stats); pt->name; pt++) {
+	for (pt = stats; pt->name; pt++) {
 		DRM_SYSCTL_PRINT("%-9.9s %5d %5d %4d %10lu %10lu | %6d %10ld\n",
 			       pt->name,
 			       pt->succeed_count,
@@ -132,10 +133,19 @@ static int DRM(_mem_info) DRM_SYSCTL_HANDLER_ARGS
 int DRM(mem_info) DRM_SYSCTL_HANDLER_ARGS
 {
 	int ret;
-
+	drm_mem_stats_t *stats;
+	
+	stats = malloc(sizeof(DRM(mem_stats)), DRM(M_DRM), M_NOWAIT);
+	if (stats == NULL)
+		return ENOMEM;
+	
 	DRM_SPINLOCK(&DRM(mem_lock));
-	ret = DRM(_mem_info)(oidp, arg1, arg2, req);
+	bcopy(DRM(mem_stats), stats, sizeof(DRM(mem_stats)));
 	DRM_SPINUNLOCK(&DRM(mem_lock));
+	
+	ret = DRM(_mem_info)(stats, oidp, arg1, arg2, req);
+	
+	free(stats, DRM(M_DRM));
 	return ret;
 }
 #endif /* __FreeBSD__ */
