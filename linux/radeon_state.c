@@ -65,7 +65,7 @@ static inline void radeon_emit_context( drm_radeon_private_t *dev_priv )
 	RING_LOCALS;
 	DRM_DEBUG( "    %s\n", __FUNCTION__ );
 
-	BEGIN_RING( 15 );
+	BEGIN_RING( 14 );
 
 	OUT_RING( CP_PACKET0( RADEON_PP_MISC, 6 ) );
 	OUT_RING( ctx->pp_misc );
@@ -522,7 +522,7 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 		return;
 	}
 
-	if ( dev_priv->page_flipping && dev_priv->current_page == 1) {
+	if ( dev_priv->page_flipping && dev_priv->current_page == 1 ) {
 		unsigned int tmp = flags;
 
 		flags &= ~(RADEON_FRONT | RADEON_BACK);
@@ -602,7 +602,6 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 		if ( flags & RADEON_DEPTH ) {
 			drm_radeon_context_regs_t *ctx =
 			   &sarea_priv->context_state;
-			u32 pp_cntl = ctx->pp_cntl;
 			u32 rb3d_cntl = ctx->rb3d_cntl;
 			u32 rb3d_zstencilcntl = ctx->rb3d_zstencilcntl;
 			u32 se_cntl = ctx->se_cntl;
@@ -614,8 +613,6 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 			/* FIXME: Do re really need to do this?  Why
 			 * not just precalculate all the values?
 			 */
-			pp_cntl &= ~RADEON_SCISSOR_ENABLE;
-
 			rb3d_cntl |= (RADEON_PLANE_MASK_ENABLE |
 				      RADEON_Z_ENABLE);
 
@@ -635,7 +632,7 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 			RADEON_WAIT_UNTIL_2D_IDLE();
 
 			OUT_RING( CP_PACKET0( RADEON_PP_CNTL, 1 ) );
-			OUT_RING( pp_cntl );
+			OUT_RING( 0x00000000 );
 			OUT_RING( rb3d_cntl );
 			OUT_RING( CP_PACKET0( RADEON_RB3D_ZSTENCILCNTL, 0 ) );
 			OUT_RING( rb3d_zstencilcntl );
