@@ -590,19 +590,6 @@ static void r128_cce_dispatch_vertex( drm_device_t *dev,
  *
  */
 
-static void r128_get_vertex_buffer( drm_device_t *dev, drm_r128_vertex_t *v )
-{
-	drm_buf_t *buf;
-
-	buf = r128_freelist_get( dev );
-	if ( !buf ) return;
-
-	buf->pid = current->pid;
-
-	v->index = buf->idx;
-	v->granted = 1;
-}
-
 int r128_cce_clear( struct inode *inode, struct file *filp,
 		    unsigned int cmd, unsigned long arg )
 {
@@ -678,11 +665,11 @@ int r128_cce_vertex( struct inode *inode, struct file *filp,
 
 	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||
 	     dev->lock.pid != current->pid ) {
-		DRM_ERROR( "r128_cce_vertex called without lock held\n" );
+		DRM_ERROR( "%s called without lock held\n", __FUNCTION__ );
 		return -EINVAL;
 	}
 	if ( !dev_priv || dev_priv->is_pci ) {
-		DRM_ERROR( "r128_cce_vertex called with a PCI card\n" );
+		DRM_ERROR( "%s called with a PCI card\n", __FUNCTION__ );
 		return -EINVAL;
 	}
 
@@ -690,52 +677,33 @@ int r128_cce_vertex( struct inode *inode, struct file *filp,
 			     sizeof(vertex) ) )
 		return -EFAULT;
 
-	DRM_DEBUG( "%s: pid=%d index=%d used=%d flags=%s%s%s\n",
-		   __FUNCTION__, current->pid, vertex.index, vertex.used,
-		   ( vertex.send ) ?    "S" : ".",
-		   ( vertex.discard ) ? "D" : ".",
-		   ( vertex.request ) ? "R" : "." );
+	DRM_DEBUG( "%s: pid=%d index=%d used=%d discard=%d\n",
+		   __FUNCTION__, current->pid,
+		   vertex.index, vertex.used, vertex.discard );
 
-	/* You can send us buffers.
-	 */
-	if ( vertex.send || vertex.discard ) {
-		if ( vertex.index < 0 || vertex.index >= dma->buf_count ) {
-			DRM_ERROR( "buffer index %d (of %d max)\n",
-				   vertex.index, dma->buf_count - 1 );
-			return -EINVAL;
-		}
-
-		buf = dma->buflist[vertex.index];
-		buf_priv = buf->dev_private;
-
-		if ( buf->pid != current->pid ) {
-			DRM_ERROR( "process %d using buffer owned by %d\n",
-				   current->pid, buf->pid );
-			return -EINVAL;
-		}
-		if ( buf->pending ) {
-			DRM_ERROR( "sending pending buffer %d\n",
-				   vertex.index );
-			return -EINVAL;
-		}
-
-		buf->used = vertex.used;
-		buf_priv->discard = vertex.discard;
-
-		r128_cce_dispatch_vertex( dev, buf );
+	if ( vertex.index < 0 || vertex.index >= dma->buf_count ) {
+		DRM_ERROR( "buffer index %d (of %d max)\n",
+			   vertex.index, dma->buf_count - 1 );
+		return -EINVAL;
 	}
 
-	/* And we'll give you new ones too.
-	 */
-	if ( vertex.request ) {
-		r128_get_vertex_buffer( dev, &vertex );
+	buf = dma->buflist[vertex.index];
+	buf_priv = buf->dev_private;
+
+	if ( buf->pid != current->pid ) {
+		DRM_ERROR( "process %d using buffer owned by %d\n",
+			   current->pid, buf->pid );
+		return -EINVAL;
+	}
+	if ( buf->pending ) {
+		DRM_ERROR( "sending pending buffer %d\n", vertex.index );
+		return -EINVAL;
 	}
 
-	DRM_DEBUG( "%s: returning, pid=%d index=%d\n",
-		   __FUNCTION__, current->pid, vertex.index );
-	if ( copy_to_user( (drm_r128_vertex_t *)arg, &vertex,
-			   sizeof(vertex) ) )
-		return -EFAULT;
+	buf->used = vertex.used;
+	buf_priv->discard = vertex.discard;
+
+	r128_cce_dispatch_vertex( dev, buf );
 
 	return 0;
 }

@@ -1141,3 +1141,75 @@ static int r128_send_vertbufs( drm_device_t *dev, drm_r128_vertex_t *v )
 	return 0;
 }
 #endif
+
+
+
+
+static int r128_cce_get_buffers( drm_device_t *dev, drm_dma_t *d )
+{
+	int i;
+	drm_buf_t *buf;
+
+	for ( i = d->granted_count ; i < d->request_count ; i++ ) {
+		buf = r128_freelist_get( dev );
+		if ( !buf ) break;
+
+		buf->pid = current->pid;
+
+		if ( copy_to_user( &d->request_indices[i], &buf->idx,
+				   sizeof(buf->idx) ) )
+			return -EFAULT;
+		if ( copy_to_user( &d->request_sizes[i], &buf->total,
+				   sizeof(buf->total) ) )
+			return -EFAULT;
+
+		d->granted_count++;
+	}
+	return 0;
+}
+
+int r128_cce_buffers( struct inode *inode, struct file *filp,
+		      unsigned int cmd, unsigned long arg )
+{
+	drm_file_t *priv = filp->private_data;
+	drm_device_t *dev = priv->dev;
+	drm_device_dma_t *dma = dev->dma;
+	int ret = 0;
+	drm_dma_t d;
+
+	if ( copy_from_user( &d, (drm_dma_t *) arg, sizeof(d) ) )
+		return -EFAULT;
+
+	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||
+	     dev->lock.pid != current->pid ) {
+		DRM_ERROR( "%s called without lock held\n", __FUNCTION__ );
+		return -EINVAL;
+	}
+
+	/* Please don't send us buffers.
+	 */
+	if ( d.send_count != 0 ) {
+		DRM_ERROR( "Process %d trying to send %d buffers via drmDMA\n",
+			   current->pid, d.send_count );
+		return -EINVAL;
+	}
+
+	/* We'll send you buffers.
+	 */
+	if ( d.request_count < 0 || d.request_count > dma->buf_count ) {
+		DRM_ERROR( "Process %d trying to get %d buffers (of %d max)\n",
+			   current->pid, d.request_count, dma->buf_count );
+		return -EINVAL;
+	}
+
+	d.granted_count = 0;
+
+	if ( d.request_count ) {
+		ret = r128_cce_get_buffers( dev, &d );
+	}
+
+	if ( copy_to_user( (drm_dma_t *) arg, &d, sizeof(d) ) )
+		return -EFAULT;
+
+	return ret;
+}

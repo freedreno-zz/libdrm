@@ -197,10 +197,7 @@ typedef struct drm_r128_clear {
 typedef struct drm_r128_vertex {
 	int index;			/* Index of vertex buffer */
 	int used;			/* Amount of buffer used */
-	int send;			/* Dispatch buffer? */
-	int discard;			/* Discard buffer? */
-	int request;			/* Request new buffer? */
-	int granted;			/* New buffer granted? */
+	int discard;			/* Client finished with buffer? */
 } drm_r128_vertex_t;
 
 typedef struct drm_r128_packet {

@@ -127,6 +127,8 @@ extern int r128_engine_reset( struct inode *inode, struct file *filp,
 			      unsigned int cmd, unsigned long arg );
 extern int r128_cce_packet( struct inode *inode, struct file *filp,
 			    unsigned int cmd, unsigned long arg );
+extern int r128_cce_buffers( struct inode *inode, struct file *filp,
+			     unsigned int cmd, unsigned long arg );
 
 extern void r128_freelist_reset( drm_device_t *dev );
 extern drm_buf_t *r128_freelist_get( drm_device_t *dev );
