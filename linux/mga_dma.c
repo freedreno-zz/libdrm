@@ -1418,7 +1418,7 @@ int mga_flush_queue(drm_device_t *dev)
 				DRM_DEBUG("Calling schedule from flush_queue : %d\n",
 				       atomic_read(&dev_priv->pending_bufs));
 		   	mga_dma_schedule(dev, 0);
-			schedule_timeout(DRM_LOCK_SLICE);
+			schedule_timeout((HZ/60));
 			if (signal_pending(current)) {
 				ret = -EINTR; /* Can't restart */
 				break;
@@ -1521,7 +1521,9 @@ int mga_flush_ioctl(struct inode *inode, struct file *filp,
    	DRM_DEBUG("mga_flush_ioctl\n");
    	atomic_set(&dev_priv->in_flush, 1);
    	mga_flush_queue(dev);
+#if 0
    	mga_dma_quiescent(dev);
+#endif
    	atomic_set(&dev_priv->in_flush, 0);
    	return 0;
 }
