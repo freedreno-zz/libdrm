@@ -105,6 +105,11 @@ int drm_addmap(dev_t kdev, u_long cmd, caddr_t data,
 			dev->lock.hw_lock = map->handle; /* Pointer to lock */
 		}
 		break;
+#ifdef DRM_AGP
+	case _DRM_AGP:
+		map->offset = map->offset + dev->agp->base;
+		break;
+#endif
 	default:
 		drm_free(map, sizeof(*map), DRM_MEM_MAPS);
 		DRM_DEBUG("bad type\n");
