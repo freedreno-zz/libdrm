@@ -38,7 +38,6 @@
 
 
 #define R128_MAX_VBUF_AGE	0x10000000
-#define R128_VBUF_AGE_TAKEN	R128_MAX_VBUF_AGE*2
 #define R128_VB_AGE_REG		R128_GUI_SCRATCH_REG0
 
 extern int r128_do_engine_reset(drm_device_t *dev);
@@ -325,7 +324,6 @@ int r128_do_cce_wait_for_idle(drm_device_t *dev)
 				int pm4stat = R128_READ(R128_PM4_STAT);
 				if ((pm4stat & R128_PM4_FIFOCNT_MASK) >= dev_priv->cce_fifo_size &&
 				    !(pm4stat & (R128_PM4_BUSY | R128_PM4_GUI_ACTIVE))) {
-					r128_mark_vertbufs_done(dev);
 					return 0;
 				}
 			}
@@ -340,7 +338,6 @@ int r128_do_cce_wait_for_idle(drm_device_t *dev)
 		for (i = 0; i < dev_priv->usec_timeout; i++) {
 			int pm4stat = R128_READ(R128_PM4_STAT);
 			if (!(pm4stat & (R128_PM4_BUSY | R128_PM4_GUI_ACTIVE))) {
-				r128_mark_vertbufs_done(dev);
 				return r128_do_engine_flush(dev);
 			}
 			udelay(1);
@@ -653,7 +650,8 @@ static int r128_send_vertbufs(drm_device_t *dev, drm_r128_vertex_t *v)
 
 	if (++dev_priv->submit_age == R128_MAX_VBUF_AGE) {
 		dev_priv->submit_age = 0;
-		r128_do_cce_wait_for_idle(dev);
+		(void)r128_do_cce_wait_for_idle(dev);
+		r128_mark_vertbufs_done(dev);
 	}
 
 	for (i = 0; i < v->send_count; i++) {
