@@ -46,6 +46,8 @@ drm_chipinfo_t DRM(devicelist)[] = {
 	{0x1002, 0x5145, 1, "ATI Radeon QE"},
 	{0x1002, 0x5146, 1, "ATI Radeon QF"},
 	{0x1002, 0x5147, 1, "ATI Radeon QG"},
+	{0x1002, 0x5157, 1, "ATI Radeon 7500"},
+	{0x1002, 0x5159, 1, "ATI Radeon VE"},
 	{0x1002, 0x5159, 1, "ATI Radeon VE"},
 	{0, 0, 0, NULL}
 };
