@@ -32,14 +32,68 @@
 #include "drmP.h"
 #include "gamma_drv.h"
 
+#include <pci/pcivar.h>
+
+static int gamma_init(device_t nbdev);
+static void gamma_cleanup(device_t nbdev);
+
+static int gamma_probe(device_t dev)
+{
+	const char *s = 0;
+
+	switch (pci_get_devid(dev)) {
+	case 0x00083d3d:
+		s = "3D Labs Gamma graphics accelerator";
+		break;
+	}
+
+	if (s) {
+		device_set_desc(dev, s);
+		return 0;
+	}
+
+	return ENXIO;
+}
+
+static int gamma_attach(device_t dev)
+{
+	gamma_init(dev);
+	return 0;
+}
+
+static int gamma_detach(device_t dev)
+{
+	gamma_cleanup(dev);
+	return 0;
+}
+
+static device_method_t gamma_methods[] = {
+	/* Device interface */
+	DEVMETHOD(device_probe,		gamma_probe),
+	DEVMETHOD(device_attach,	gamma_attach),
+	DEVMETHOD(device_detach,	gamma_detach),
+
+	{ 0, 0 }
+};
+
+static driver_t gamma_driver = {
+	"drm",
+	gamma_methods,
+	sizeof(drm_device_t),
+};
+
+static devclass_t gamma_devclass;
+#define GAMMA_SOFTC(unit) \
+	((drm_device_t *) devclass_get_softc(gamma_devclass, unit))
+
+DRIVER_MODULE(if_gamma, pci, gamma_driver, gamma_devclass, 0, 0);
+
 #define GAMMA_NAME	 "gamma"
 #define GAMMA_DESC	 "3dlabs GMX 2000"
 #define GAMMA_DATE	 "19990830"
 #define GAMMA_MAJOR	 0
 #define GAMMA_MINOR	 0
 #define GAMMA_PATCHLEVEL 5
-
-static drm_device_t	      gamma_device;
 
 #define CDEV_MAJOR	200
 
@@ -259,21 +313,19 @@ gamma_takedown(drm_device_t *dev)
 	if (dev->lock.hw_lock) {
 		dev->lock.hw_lock    = NULL; /* SHM removed */
 		dev->lock.pid	     = 0;
-#if 0
-		wake_up_interruptible(&dev->lock.lock_queue);
-#endif
+		wakeup(&dev->lock.lock_queue);
 	}
 	lockmgr(&dev->dev_lock, LK_RELEASE, 0, curproc);
 	
 	return 0;
 }
 
-/* gamma_init is called via SYSINIT at module load time */
+/* gamma_init is called via gamma_attach at module load time */
 
-static void
-gamma_init(void *arg)
+static int
+gamma_init(device_t nbdev)
 {
-	drm_device_t	      *dev = &gamma_device;
+	drm_device_t	      *dev = device_get_softc(nbdev);
 
 	DRM_DEBUG("\n");
 
@@ -291,16 +343,17 @@ gamma_init(void *arg)
 		return retcode;
 	}
 #endif
-	dev->device = make_dev(&gamma_cdevsw,
-			       /* gamma_misc.minor */ 0,
-			       DRM_DEV_UID,
-			       DRM_DEV_GID,
-			       DRM_DEV_MODE,
-			       GAMMA_NAME);
+	dev->device = nbdev;
+	dev->devnode = make_dev(&gamma_cdevsw,
+				device_get_unit(nbdev),
+				DRM_DEV_UID,
+				DRM_DEV_GID,
+				DRM_DEV_MODE,
+				GAMMA_NAME);
 	dev->name   = GAMMA_NAME;
 
 	drm_mem_init();
-	drm_proc_init(dev);
+	drm_sysctl_init(dev);
 
 	DRM_INFO("Initialized %s %d.%d.%d %s on minor %d\n",
 		 GAMMA_NAME,
@@ -308,21 +361,21 @@ gamma_init(void *arg)
 		 GAMMA_MINOR,
 		 GAMMA_PATCHLEVEL,
 		 GAMMA_DATE,
-		 /* gamma_misc.minor */ 0);
+		 device_get_unit(nbdev));
+
+	return 0;
 }
 
-SYSINIT(gamma_init, SI_SUB_DRIVERS, SI_ORDER_ANY, gamma_init, 0);
-
-/* gamma_cleanup is called via SYSUNINIT at module unload time. */
+/* gamma_cleanup is called via gamma_detach at module unload time. */
 
 static void
-gamma_cleanup(void *arg)
+gamma_cleanup(device_t nbdev)
 {
-	drm_device_t	      *dev = &gamma_device;
+	drm_device_t	      *dev = device_get_softc(nbdev);
 
 	DRM_DEBUG("\n");
 	
-	drm_proc_cleanup();
+	drm_sysctl_cleanup(dev);
 #if 0
 	if (misc_deregister(&gamma_misc)) {
 		DRM_ERROR("Cannot unload module\n");
@@ -374,27 +427,31 @@ int gamma_version(struct inode *inode, struct file *filp, unsigned int cmd,
 int
 gamma_open(dev_t kdev, int flags, int fmt, struct proc *p)
 {
-	drm_device_t  *dev    = &gamma_device;
+	drm_device_t  *dev    = GAMMA_SOFTC(minor(kdev));
 	int	      retcode = 0;
 	
 	DRM_DEBUG("open_count = %d\n", dev->open_count);
+
+	device_busy(dev->device);
 	if (!(retcode = drm_open_helper(kdev, flags, fmt, p, dev))) {
 		atomic_inc(&dev->total_open);
 		simple_lock(&dev->count_lock);
 		if (!dev->open_count++) {
 			simple_unlock(&dev->count_lock);
-			return gamma_setup(dev);
+			retcode = gamma_setup(dev);
 		}
 		simple_unlock(&dev->count_lock);
 	}
+	if (retcode)
+		device_unbusy(dev->device);
+
 	return retcode;
 }
 
 int
 gamma_close(dev_t kdev, int flags, int fmt, struct proc *p)
 {
-	drm_file_t	 *priv	 = kdev->si_drv1;
-	drm_device_t	 *dev	 = priv->dev;
+	drm_device_t	 *dev	 = kdev->si_drv1;
 	int	      retcode = 0;
 
 	DRM_DEBUG("open_count = %d\n", dev->open_count);
@@ -410,6 +467,7 @@ gamma_close(dev_t kdev, int flags, int fmt, struct proc *p)
 				return EBUSY;
 			}
 			simple_unlock(&dev->count_lock);
+			device_unbusy(dev->device);
 			return gamma_takedown(dev);
 		}
 		simple_unlock(&dev->count_lock);
@@ -423,11 +481,17 @@ int
 gamma_ioctl(dev_t kdev, u_long cmd, caddr_t data, int flags, struct proc *p)
 {
 	int		 nr	 = DRM_IOCTL_NR(cmd);
-	drm_file_t	 *priv	 = kdev->si_drv1;
-	drm_device_t	 *dev	 = priv->dev;
+	drm_device_t	 *dev	 = kdev->si_drv1;
+	drm_file_t	 *priv;
 	int		 retcode = 0;
 	drm_ioctl_desc_t *ioctl;
 	d_ioctl_t	 *func;
+
+	priv = drm_find_file_by_proc(dev, p);
+	if (!priv) {
+		DRM_DEBUG("can't find authenticator\n");
+		return EINVAL;
+	}
 
 	atomic_inc(&dev->ioctl_count);
 	atomic_inc(&dev->total_ioctl);
@@ -468,8 +532,7 @@ gamma_ioctl(dev_t kdev, u_long cmd, caddr_t data, int flags, struct proc *p)
 
 int gamma_unlock(dev_t kdev, u_long cmd, caddr_t data, int flags, struct proc *p)
 {
-	drm_file_t	  *priv	  = kdev->si_drv1;
-	drm_device_t	  *dev	  = priv->dev;
+	drm_device_t	  *dev	  = kdev->si_drv1;
 	drm_lock_t	  *lockp  = (drm_lock_t *) data;
 
 	if (lockp->context == DRM_KERNEL_CONTEXT) {

@@ -32,6 +32,8 @@
 #include "drmP.h"
 #include "tdfx_drv.h"
 
+#include <pci/pcivar.h>
+
 #define TDFX_NAME	 "tdfx"
 #define TDFX_DESC	 "tdfx"
 #define TDFX_DATE	 "19991009"
@@ -39,10 +41,67 @@
 #define TDFX_MINOR	 0
 #define TDFX_PATCHLEVEL  1
 
-static drm_device_t	      tdfx_device;
+static int tdfx_init(device_t nbdev);
+static void tdfx_cleanup(device_t nbdev);
+
 drm_ctx_t	              tdfx_res_ctx;
 
-#define CDEV_MAJOR	201
+static int tdfx_probe(device_t dev)
+{
+	const char *s = 0;
+
+	switch (pci_get_devid(dev)) {
+	case 0x0003121a:
+		s = "3Dfx Voodoo Banshee graphics accelerator";
+		break;
+		
+	case 0x0005121a:
+		s = "3Dfx Voodoo 3 graphics accelerator";
+		break;
+	}
+
+	if (s) {
+		device_set_desc(dev, s);
+		return 0;
+	}
+
+	return ENXIO;
+}
+
+static int tdfx_attach(device_t dev)
+{
+	tdfx_init(dev);
+	return 0;
+}
+
+static int tdfx_detach(device_t dev)
+{
+	tdfx_cleanup(dev);
+	return 0;
+}
+
+static device_method_t tdfx_methods[] = {
+	/* Device interface */
+	DEVMETHOD(device_probe,		tdfx_probe),
+	DEVMETHOD(device_attach,	tdfx_attach),
+	DEVMETHOD(device_detach,	tdfx_detach),
+
+	{ 0, 0 }
+};
+
+static driver_t tdfx_driver = {
+	"drm",
+	tdfx_methods,
+	sizeof(drm_device_t),
+};
+
+static devclass_t tdfx_devclass;
+#define TDFX_SOFTC(unit) \
+	((drm_device_t *) devclass_get_softc(tdfx_devclass, unit))
+
+DRIVER_MODULE(if_tdfx, pci, tdfx_driver, tdfx_devclass, 0, 0);
+
+#define CDEV_MAJOR	145
 				/* tdfx_drv.c */
 static d_open_t tdfx_open;
 static d_close_t tdfx_close;
@@ -243,21 +302,19 @@ tdfx_takedown(drm_device_t *dev)
 	if (dev->lock.hw_lock) {
 		dev->lock.hw_lock    = NULL; /* SHM removed */
 		dev->lock.pid	     = 0;
-#if 0
-		wake_up_interruptible(&dev->lock.lock_queue);
-#endif
+		wakeup(&dev->lock.lock_queue);
 	}
 	lockmgr(&dev->dev_lock, LK_RELEASE, 0, curproc);
 	
 	return 0;
 }
 
-/* tdfx_init is called via SYSINIT at module load time, */
+/* tdfx_init is called via tdfx_attach at module load time, */
 
 static int
-tdfx_init(void *arg)
+tdfx_init(device_t nbdev)
 {
-	drm_device_t	      *dev = &tdfx_device;
+	drm_device_t *dev = device_get_softc(nbdev);
 
 	DRM_DEBUG("\n");
 
@@ -269,12 +326,13 @@ tdfx_init(void *arg)
 	drm_parse_options(tdfx);
 #endif
 
-	dev->device = make_dev(&tdfx_cdevsw,
-			       /* gamma_misc.minor */ 0,
-			       DRM_DEV_UID,
-			       DRM_DEV_GID,
-			       DRM_DEV_MODE,
-			       TDFX_NAME);
+	dev->device = nbdev;
+	dev->devnode = make_dev(&tdfx_cdevsw,
+				device_get_unit(nbdev),
+				DRM_DEV_UID,
+				DRM_DEV_GID,
+				DRM_DEV_MODE,
+				TDFX_NAME);
 	dev->name   = TDFX_NAME;
 
 	drm_mem_init();
@@ -287,31 +345,27 @@ tdfx_init(void *arg)
 		 TDFX_MINOR,
 		 TDFX_PATCHLEVEL,
 		 TDFX_DATE,
-		 0 /* tdfx_misc.minor */);
+		 device_get_unit(nbdev));
 	
 	return 0;
 }
 
-SYSINIT(tdfx_init, SI_SUB_DRIVERS, SI_ORDER_ANY, tdfx_init, 0);
-
-/* tdfx_cleanup is called via SYSUNINIT at module unload time. */
+/* tdfx_cleanup is called via tdfx_detach at module unload time. */
 
 static void
-tdfx_cleanup(void *arg)
+tdfx_cleanup(device_t nbdev)
 {
-	drm_device_t	      *dev = &tdfx_device;
+	drm_device_t *dev = device_get_softc(nbdev);
 
 	DRM_DEBUG("\n");
 	
 	drm_sysctl_cleanup(dev);
-	destroy_dev(dev->device);
+	destroy_dev(dev->devnode);
 
 	DRM_INFO("Module unloaded\n");
 
 	tdfx_takedown(dev);
 }
-
-SYSUNINIT(tdfx_init, SI_SUB_DRIVERS, SI_ORDER_ANY, tdfx_cleanup, 0);
 
 static int
 tdfx_version(dev_t kdev, u_long cmd, caddr_t data, int flags, struct proc *p)
@@ -345,19 +399,24 @@ tdfx_version(dev_t kdev, u_long cmd, caddr_t data, int flags, struct proc *p)
 static int
 tdfx_open(dev_t kdev, int flags, int fmt, struct proc *p)
 {
-	drm_device_t  *dev    = &tdfx_device;
+	drm_device_t  *dev    = TDFX_SOFTC(minor(kdev));
 	int	      retcode = 0;
 	
 	DRM_DEBUG("open_count = %d\n", dev->open_count);
+
+	device_busy(dev->device);
 	if (!(retcode = drm_open_helper(kdev, flags, fmt, p, dev))) {
 		atomic_inc(&dev->total_open);
 		simple_lock(&dev->count_lock);
 		if (!dev->open_count++) {
 			simple_unlock(&dev->count_lock);
-			return tdfx_setup(dev);
+			retcode = tdfx_setup(dev);
 		}
 		simple_unlock(&dev->count_lock);
 	}
+	if (retcode)
+		device_unbusy(dev->device);
+
 	return retcode;
 }
 
@@ -380,6 +439,7 @@ tdfx_close(dev_t kdev, int flags, int fmt, struct proc *p)
 				return EBUSY;
 			}
 			simple_unlock(&dev->count_lock);
+			device_unbusy(dev->device);
 			return tdfx_takedown(dev);
 		}
 		simple_unlock(&dev->count_lock);

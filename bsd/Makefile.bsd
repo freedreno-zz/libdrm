@@ -1,17 +1,5 @@
 # $FreeBSD$
 
-KMOD	= drm
-SRCS	= init.c memory.c auth.c context.c drawable.c bufs.c \
-	  lists.c lock.c ioctl.c fops.c vm.c dma.c sysctl.c
-SRCS   += tdfx_drv.c tdfx_context.c
-SRCS   += device_if.h bus_if.h pci_if.h
-CFLAGS += ${DEBUG_FLAGS}
-KERN    = /usr/src/sys
+SUBDIR = drm tdfx gamma
 
-@:
-	ln -sf /sys @
-
-machine:
-	ln -sf /sys/i386/include machine
-
-.include <bsd.kmod.mk>
+.include <bsd.subdir.mk>

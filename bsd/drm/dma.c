@@ -206,7 +206,7 @@ int drm_context_switch(drm_device_t *dev, int old, int new)
 	}
 
 #if DRM_DMA_HISTOGRAM
-	nanotime(&dev->ctx_start);
+	getnanotime(&dev->ctx_start);
 #endif
 	
 	DRM_DEBUG("Context switch from %d to %d\n", old, new);
@@ -262,7 +262,7 @@ int drm_context_switch_complete(drm_device_t *dev, int new)
 #if DRM_DMA_HISTOGRAM
 	{
 		struct timespec ts;
-		nanotime(&ts);
+		getnanotime(&ts);
 		timespecsub(&ts, &dev->ctx_start);
 		atomic_inc(&dev->histo.ctx[drm_histogram_slot(&ts)]);
 	}
@@ -372,7 +372,7 @@ int drm_dma_enqueue(drm_device_t *dev, drm_dma_t *d)
 		if (!_DRM_LOCK_IS_HELD(context)) {
 			DRM_ERROR("No lock held during \"while locked\""
 				  " request\n");
-			return -EINVAL;
+			return EINVAL;
 		}
 		if (d->context != _DRM_LOCKING_CONTEXT(context)
 		    && _DRM_LOCKING_CONTEXT(context) != DRM_KERNEL_CONTEXT) {
@@ -380,7 +380,7 @@ int drm_dma_enqueue(drm_device_t *dev, drm_dma_t *d)
 				  " \"while locked\" request\n",
 				  _DRM_LOCKING_CONTEXT(context),
 				  d->context);
-			return -EINVAL;
+			return EINVAL;
 		}
 		q = dev->queuelist[DRM_KERNEL_CONTEXT];
 		while_locked = 1;

@@ -169,7 +169,7 @@ int drm_addbufs(dev_t kdev, u_long cmd, caddr_t data,
 	if (order < DRM_MIN_ORDER || order > DRM_MAX_ORDER) return EINVAL;
 	if (dev->queue_count) return EBUSY; /* Not while in use */
 
-	alignment  = (request.flags & DRM_PAGE_ALIGN) ? round_page(size) :size;
+	alignment  = (request.flags & _DRM_PAGE_ALIGN) ? round_page(size) :size;
 	page_order = order - PAGE_SHIFT > 0 ? order - PAGE_SHIFT : 0;
 	total	   = PAGE_SIZE << page_order;
 

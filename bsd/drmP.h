@@ -48,6 +48,7 @@
 #include <sys/filio.h>
 #include <sys/sysctl.h>
 #include <sys/select.h>
+#include <sys/bus.h>
 
 #include "drm.h"
 
@@ -58,6 +59,7 @@ typedef u_int32_t spinlock_t;
 #define atomic_read(p)		(*(p))
 #define atomic_inc(p)		atomic_add_int(p, 1)
 #define atomic_dec(p)		atomic_subtract_int(p, 1)
+#define atomic_add(n, p)	atomic_add_int(p, n)
 #define atomic_sub(n, p)	atomic_subtract_int(p, n)
 
 /* Fake this */
@@ -359,7 +361,8 @@ typedef struct drm_device {
 	const char	  *name;	/* Simple driver name		   */
 	char		  *unique;	/* Unique identifier: e.g., busid  */
 	int		  unique_len;	/* Length of unique field	   */
-	dev_t		  device;	/* Device number for mknod	   */
+	device_t	  device;	/* Device instance from newbus     */
+	dev_t		  devnode;	/* Device number for mknod	   */
 	char		  *devname;	/* For /proc/interrupts		   */
 	
 	int		  blocked;	/* Blocked due to VC switch?	   */
@@ -409,7 +412,8 @@ typedef struct drm_device {
 	drm_device_dma_t  *dma;		/* Optional pointer for DMA support */
 
 				/* Context support */
-	int		  irq;		/* Interrupt used by board	   */
+	struct resource   *irq;		/* Interrupt used by board	   */
+	void		  *irqh;	/* Handle from bus_setup_intr      */
 	__volatile__ int  context_flag;	 /* Context swapping flag	   */
 	__volatile__ int  interrupt_flag;/* Interruption handler flag	   */
 	__volatile__ int  dma_flag;	 /* DMA dispatch flag		   */

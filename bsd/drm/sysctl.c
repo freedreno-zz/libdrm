@@ -33,7 +33,7 @@
 #include "drmP.h"
 #include <sys/sysctl.h>
 
-SYSCTL_NODE(_hw, OID_AUTO, graphics, CTLFLAG_RW, 0, "DRI Graphics");
+SYSCTL_NODE(_hw, OID_AUTO, dri, CTLFLAG_RW, 0, "DRI Graphics");
 
 static int	   drm_name_info SYSCTL_HANDLER_ARGS;
 static int	   drm_vm_info SYSCTL_HANDLER_ARGS;
@@ -81,7 +81,7 @@ int drm_sysctl_init(drm_device_t *dev)
 
 	/* Find the next free slot under hw.graphics */
 	i = 0;
-	SLIST_FOREACH(oid, &sysctl__hw_graphics_children, oid_link) {
+	SLIST_FOREACH(oid, &sysctl__hw_dri_children, oid_link) {
 		if (i <= oid->oid_arg2)
 			i = oid->oid_arg2 + 1;
 	}
@@ -94,7 +94,7 @@ int drm_sysctl_init(drm_device_t *dev)
 	info->name[1] = 0;
 	oid = &info->oids[DRM_SYSCTL_ENTRIES];
 	bzero(oid, sizeof(*oid));
-	oid->oid_parent = &sysctl__hw_graphics_children;
+	oid->oid_parent = &sysctl__hw_dri_children;
 	oid->oid_number = OID_AUTO;
 	oid->oid_kind = CTLTYPE_NODE | CTLFLAG_RW;
 	oid->oid_arg1 = &info->list;
@@ -145,9 +145,9 @@ static int drm_name_info SYSCTL_HANDLER_ARGS
 
 	if (dev->unique) {
 		DRM_SYSCTL_PRINT("%s 0x%x %s\n",
-			       dev->name, dev2udev(dev->device), dev->unique);
+			       dev->name, dev2udev(dev->devnode), dev->unique);
 	} else {
-		DRM_SYSCTL_PRINT("%s 0x%x\n", dev->name, dev2udev(dev->device));
+		DRM_SYSCTL_PRINT("%s 0x%x\n", dev->name, dev2udev(dev->devnode));
 	}
 
 	SYSCTL_OUT(req, "", 1);
@@ -255,7 +255,7 @@ static int drm_queues_info SYSCTL_HANDLER_ARGS
 }
 
 /* drm_bufs_info is called whenever a process reads
-   /dev/drm/<dev>/bufs. */
+   hw.dri.0.bufs. */
 
 static int _drm_bufs_info SYSCTL_HANDLER_ARGS
 {
