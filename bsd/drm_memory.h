@@ -31,9 +31,9 @@
 
 #include "drmP.h"
 
-#ifdef __FreeBSD__
+#if defined(__FreeBSD__) || defined(__NetBSD__)
 #define malloctype DRM(M_DRM)
-/* The macros confliced in the MALLOC_DEFINE */
+/* The macros conflicted in the MALLOC_DEFINE */
 
 MALLOC_DEFINE(malloctype, "drm", "DRM Data Structures");
 
@@ -80,6 +80,10 @@ static drm_mem_stats_t	  DRM(mem_stats)[]   = {
 void DRM(mem_init)(void)
 {
 	drm_mem_stats_t *mem;
+
+#ifdef __NetBSD__
+	malloc_type_attach(DRM(M_DRM));
+#endif
 
 	DRM_SPININIT(DRM(mem_lock), "drm memory");
 
@@ -164,11 +168,7 @@ void *DRM(alloc)(size_t size, int area)
 		return NULL;
 	}
 
-#ifdef __FreeBSD__
 	if (!(pt = malloc(size, DRM(M_DRM), M_NOWAIT))) {
-#elif defined(__NetBSD__)
-	if (!(pt = malloc(size, M_DEVBUF, M_NOWAIT))) {
-#endif
 		DRM_SPINLOCK(&DRM(mem_lock));
 		++DRM(mem_stats)[area].fail_count;
 		DRM_SPINUNLOCK(&DRM(mem_lock));
@@ -218,13 +218,10 @@ void DRM(free)(void *pt, size_t size, int area)
 	int alloc_count;
 	int free_count;
 
-	if (!pt) DRM_MEM_ERROR(area, "Attempt to free NULL pointer\n");
+	if (!pt)
+		DRM_MEM_ERROR(area, "Attempt to free NULL pointer\n");
 	else
-#ifdef __FreeBSD__
-	free(pt, DRM(M_DRM));
-#elif defined(__NetBSD__)
-	free(pt, M_DEVBUF);
-#endif
+		free(pt, DRM(M_DRM));
 	DRM_SPINLOCK(&DRM(mem_lock));
 	DRM(mem_stats)[area].bytes_freed += size;
 	free_count  = ++DRM(mem_stats)[area].free_count;

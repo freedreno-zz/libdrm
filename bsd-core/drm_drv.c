@@ -125,13 +125,8 @@
 #define DRIVER_NUM_CARDS 1
 #endif
 
-#ifdef __FreeBSD__
 static int DRM(init)(device_t nbdev);
 static void DRM(cleanup)(device_t nbdev);
-#elif defined(__NetBSD__)
-static int DRM(init)(drm_device_t *);
-static void DRM(cleanup)(drm_device_t *);
-#endif
 
 #ifdef __FreeBSD__
 #define DRIVER_SOFTC(unit) \
@@ -337,13 +332,7 @@ static int DRM(lkmhandle)(struct lkm_table *lkmtp, int cmd)
 	case LKM_E_LOAD:
 		if (lkmexists(lkmtp))
 			return EEXIST;
-#if defined(__NetBSD__) && (__NetBSD_Version__ > 106080000)
-		error = devsw_attach(args->lkm_devname,
-		    args->lkm_bdev, &args->lkm_bdevmaj,
-		    args->lkm_cdev, &args->lkm_cdevmaj);
-		if(error != 0)
-			return error;
-#endif
+
 		if(DRM(modprobe)())
 			return 0;
 
@@ -352,10 +341,6 @@ static int DRM(lkmhandle)(struct lkm_table *lkmtp, int cmd)
 	case LKM_E_UNLOAD:
 		if (DRM(refcnt) > 0)
 			return (EBUSY);
-
-#if defined(__NetBSD__) && (__NetBSD_Version__ > 106080000)
-		devsw_detach(args->lkm_bdev, args->lkm_cdev);
-#endif
 		break;
 	case LKM_E_STAT:
 		break;
@@ -364,6 +349,7 @@ static int DRM(lkmhandle)(struct lkm_table *lkmtp, int cmd)
 		error = EIO;
 		break;
 	}
+	
 	return error;
 }
 
@@ -372,6 +358,7 @@ int DRM(modprobe)() {
 	int error = 0;
 	if((error = pci_find_device(&pa, DRM(probe))) != 0)
 		DRM(attach)(&pa, 0);
+
 	return error;
 }
 
@@ -381,16 +368,21 @@ int DRM(probe)(struct pci_attach_args *pa)
 
 	desc = DRM(find_description)(PCI_VENDOR(pa->pa_id), PCI_PRODUCT(pa->pa_id));
 	if (desc != NULL) {
-		return 10;
+		return 1;
 	}
 
 	return 0;
 }
 
 void DRM(attach)(struct pci_attach_args *pa, dev_t kdev)
- {
+{
 	int i;
-	DRM_DEVICE;
+	drm_device_t *dev;
+
+	config_makeroom(kdev, &DRM(cd));
+	DRM(cd).cd_devs[(kdev)] = DRM(alloc)(sizeof(drm_device_t),
+	    DRM_MEM_DRIVER);
+	dev = DRIVER_SOFTC(kdev);
 
 	memset(dev, 0, sizeof(drm_device_t));
 	memcpy(&dev->pa, pa, sizeof(dev->pa));
@@ -728,15 +720,13 @@ static int DRM(takedown)( drm_device_t *dev )
  *        linux/init/main.c (this is not currently supported).
  * bsd:   drm_init is called via the attach function per device.
  */
-#ifdef __FreeBSD__
 static int DRM(init)( device_t nbdev )
-#elif defined(__NetBSD__)
-static int DRM(init)( drm_device_t *dev )
-#endif
 {
 	int unit;
 #ifdef __FreeBSD__
 	drm_device_t *dev;
+#elif defined(__NetBSD__)
+	drm_device_t *dev = nbdev;
 #endif
 #if __HAVE_CTX_BITMAP
 	int retcode;
@@ -832,21 +822,16 @@ static int DRM(init)( drm_device_t *dev )
  * bsd:   drm_cleanup is called per device at module unload time.
  * FIXME: NetBSD
  */
-#ifdef __FreeBSD__
 static void DRM(cleanup)(device_t nbdev)
-#elif defined(__NetBSD__)
-static void DRM(cleanup)(drm_device_t *dev)
-#endif
 {
-#ifdef __FreeBSD__
 	drm_device_t *dev;
-#endif
-#if __REALLY_HAVE_MTRR
 #ifdef __NetBSD__
+#if __REALLY_HAVE_MTRR
 	struct mtrr mtrrmap;
 	int one = 1;
-#endif /* __NetBSD__ */
 #endif /* __REALLY_HAVE_MTRR */
+	dev = nbdev;
+#endif /* __NetBSD__ */
 
 	DRM_DEBUG( "\n" );
 

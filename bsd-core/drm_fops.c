@@ -182,8 +182,8 @@ int DRM(write_string)(drm_device_t *dev, const char *s)
 		selwakeup(&dev->buf_sel);
 	}
 		
-	DRM_DEBUG("dev->buf_sigio=%p\n", dev->buf_sigio);
 #ifdef __FreeBSD__
+	DRM_DEBUG("dev->buf_sigio=%p\n", dev->buf_sigio);
 	if (dev->buf_sigio) {
 		DRM_DEBUG("dev->buf_sigio->sio_pgid=%d\n", dev->buf_sigio->sio_pgid);
 #if __FreeBSD_version >= 500000

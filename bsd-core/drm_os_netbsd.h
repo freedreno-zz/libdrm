@@ -42,15 +42,21 @@
 #include <sys/agpio.h>
 #endif
 
-typedef drm_device_t *device_t;
-
-extern struct cfdriver DRM(cd);
+#include <opt_drm.h>
 
 #if DRM_DEBUG
 #undef  DRM_DEBUG_CODE
 #define DRM_DEBUG_CODE 2
 #endif
 #undef DRM_DEBUG
+
+#if DRM_LINUX
+#undef DRM_LINUX	/* FIXME: Linux compat has not been ported yet */
+#endif
+
+typedef drm_device_t *device_t;
+
+extern struct cfdriver DRM(cd);
 
 #define DRM_TIME_SLICE	      (hz/20)  /* Time slice for GLXContexts	  */
 
@@ -75,9 +81,15 @@ extern struct cfdriver DRM(cd);
 #define DRM_TASKQUEUE_ARGS	void *dev, int pending
 #define DRM_IRQ_ARGS		void *arg
 #define DRM_DEVICE		drm_device_t *dev = device_lookup(&DRM(cd), minor(kdev))
+/* XXX Not sure if this is the 'right' version.. */
+#if __NetBSD_Version__ >= 106140000
+MALLOC_DECLARE(DRM(M_DRM));
+#else
+/* XXX Make sure this works */
+extern const int DRM(M_DRM) = M_DEVBUF;
+#endif /* __NetBSD_Version__ */
 #define DRM_MALLOC(size)	malloc( size, DRM(M_DRM), M_NOWAIT )
-/* XXX Get netbsd to add a M_DRM malloc type. */
-#define DRM_FREE(pt)		free( pt, M_AGP )
+#define DRM_FREE(pt)		free( pt, DRM(M_DRM) )
 #define DRM_VTOPHYS(addr)	vtophys(addr)
 
 #define DRM_READ8(map, offset)		bus_space_read_1(  (map)->iot, (map)->ioh, (offset) )
@@ -265,7 +277,7 @@ do { \
 #define DRM_DEBUG(fmt, arg...)						  \
 	do {								  \
 		if (DRM(flags) & DRM_FLAG_DEBUG)			  \
-			printf("[" DRM_NAME ":%s] " fmt , __FUNCTION__,## arg); \
+			printf("[" DRM_NAME ":%s] " fmt , __FUNCTION__ ,## arg); \
 	} while (0)
 #else
 #define DRM_DEBUG(fmt, arg...)		 do { } while (0)
