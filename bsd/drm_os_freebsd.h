@@ -133,7 +133,7 @@ typedef struct drm_chipinfo
 	char *name;
 } drm_chipinfo_t;
 
-typedef unsigned long atomic_t;
+typedef u_int32_t atomic_t;
 typedef u_int32_t cycles_t;
 typedef u_int32_t spinlock_t;
 typedef u_int32_t u32;
@@ -141,14 +141,14 @@ typedef u_int16_t u16;
 typedef u_int8_t u8;
 #define atomic_set(p, v)	(*(p) = (v))
 #define atomic_read(p)		(*(p))
-#define atomic_inc(p)		atomic_add_long(p, 1)
-#define atomic_dec(p)		atomic_subtract_long(p, 1)
-#define atomic_add(n, p)	atomic_add_long(p, n)
-#define atomic_sub(n, p)	atomic_subtract_long(p, n)
+#define atomic_inc(p)		atomic_add_int(p, 1)
+#define atomic_dec(p)		atomic_subtract_int(p, 1)
+#define atomic_add(n, p)	atomic_add_int(p, n)
+#define atomic_sub(n, p)	atomic_subtract_int(p, n)
 
 /* Fake this */
-static __inline unsigned int
-test_and_set_bit(int b, volatile unsigned long *p)
+static __inline atomic_t
+test_and_set_bit(int b, atomic_t *p)
 {
 	int s = splhigh();
 	unsigned int m = 1<<b;
@@ -159,25 +159,25 @@ test_and_set_bit(int b, volatile unsigned long *p)
 }
 
 static __inline void
-clear_bit(int b, volatile unsigned long *p)
+clear_bit(int b, atomic_t *p)
 {
-    atomic_clear_long(p + (b >> 5), 1 << (b & 0x1f));
+    atomic_clear_int(p + (b >> 5), 1 << (b & 0x1f));
 }
 
 static __inline void
-set_bit(int b, volatile unsigned long *p)
+set_bit(int b, atomic_t *p)
 {
-    atomic_set_long(p + (b >> 5), 1 << (b & 0x1f));
+    atomic_set_int(p + (b >> 5), 1 << (b & 0x1f));
 }
 
 static __inline int
-test_bit(int b, volatile unsigned long *p)
+test_bit(int b, atomic_t *p)
 {
     return p[b >> 5] & (1 << (b & 0x1f));
 }
 
 static __inline int
-find_first_zero_bit(volatile unsigned long *p, int max)
+find_first_zero_bit(atomic_t *p, int max)
 {
     int b;
 
@@ -223,7 +223,7 @@ find_first_zero_bit(volatile unsigned long *p, int max)
 	} while (0)
 
 /* Redefinitions to make templating easy */
-#define wait_queue_head_t	long
+#define wait_queue_head_t	atomic_t
 #define agp_memory		void
 #define jiffies			ticks
 

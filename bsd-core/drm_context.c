@@ -112,7 +112,7 @@ int DRM(ctxbitmap_init)( drm_device_t *dev )
    	int temp;
 
 	DRM_OS_LOCK;
-	dev->ctx_bitmap = (unsigned long *) DRM(alloc)( PAGE_SIZE,
+	dev->ctx_bitmap = (atomic_t *) DRM(alloc)( PAGE_SIZE,
 							DRM_MEM_CTXBITMAP );
 	if ( dev->ctx_bitmap == NULL ) {
 		DRM_OS_UNLOCK;

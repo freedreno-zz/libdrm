@@ -440,9 +440,9 @@ struct drm_device {
 	int		  irq;		/* Interrupt used by board	   */
 	struct resource   *irqr;	/* Resource for interrupt used by board	   */
 	void		  *irqh;	/* Handle from bus_setup_intr      */
-	__volatile__ long context_flag;	/* Context swapping flag	   */
-	__volatile__ long interrupt_flag; /* Interruption handler flag	   */
-	__volatile__ long dma_flag;	/* DMA dispatch flag		   */
+	atomic_t	  context_flag;	/* Context swapping flag	   */
+	atomic_t	  interrupt_flag; /* Interruption handler flag	   */
+	atomic_t	  dma_flag;	/* DMA dispatch flag		   */
 	struct callout    timer;	/* Timer for delaying ctx switch   */
 	wait_queue_head_t context_wait; /* Processes waiting on ctx switch */
 	int		  last_checked;	/* Last context checked for DMA	   */
@@ -484,7 +484,7 @@ struct drm_device {
 #endif
 #endif
 	drm_sg_mem_t      *sg;  /* Scatter gather memory */
-	unsigned long     *ctx_bitmap;
+	atomic_t          *ctx_bitmap;
 	void		  *dev_private;
 	drm_sigdata_t     sigdata; /* For block_all_signals */
 	sigset_t          sigmask;
