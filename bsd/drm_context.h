@@ -189,7 +189,7 @@ int DRM(setsareactx)( DRM_OS_IOCTL )
 
 bad:
 	DRM_OS_UNLOCK;
-	return -EINVAL;
+	return DRM_OS_ERR(EINVAL);
 
 found:
 	map = list->map;
