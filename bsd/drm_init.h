@@ -31,7 +31,7 @@
 
 #include "drmP.h"
 
-#if 0 && DRM_DEBUG_CODE
+#if 1 && DRM_DEBUG_CODE
 int DRM(flags) = DRM_FLAG_DEBUG;
 #else
 int DRM(flags) = 0;
