@@ -767,7 +767,12 @@ static void r128_cce_dispatch_indices( drm_device_t *dev,
 
 	if(dma->flags == _DRM_DMA_USE_SG)
 		offset = dev_priv->buffers->offset - dev->sg->handle;
-	else offset = dev_priv->buffers->offset - dev->agp->base;
+	else
+#if defined(CONFIG_AGP) || defined(CONFIG_AGP_MODULE)
+		offset = dev_priv->buffers->offset - dev->agp->base;
+#else
+		printk("WARNING: trying to use AGP without kernel support!\n");
+#endif
 
 	r128_update_ring_snapshot( dev_priv );
 

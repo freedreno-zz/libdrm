@@ -343,7 +343,11 @@ static void r128_cce_init_ring_buffer( drm_device_t *dev )
 	 * means it's an offset from the start of AGP space.
 	 */
 	if ( !dev_priv->is_pci ) {
+#if defined(CONFIG_AGP) || defined(CONFIG_AGP_MODULE)
 		ring_start = dev_priv->cce_ring->offset - dev->agp->base;
+#else
+		printk("WARNING: Trying to use AGP without kernel support!\n");
+#endif
 	} else {
 		ring_start = dev_priv->cce_ring->offset - dev->sg->handle;
 	}

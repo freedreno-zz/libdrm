@@ -140,6 +140,7 @@ MGAHEADERS=	mga_drv.h $(DRMHEADERS)
 
 I810OBJS=	i810_drv.o i810_dma.o i810_bufs.o i810_context.o
 I810HEADERS=	i810_drv.h $(DRMHEADERS)
+endif
 
 R128OBJS=	r128_drv.o r128_cce.o r128_bufs.o r128_context.o r128_state.o \
 		r128_pcigart.o
@@ -148,7 +149,6 @@ R128HEADERS=	r128_drv.h r128_drm.h $(DRMHEADERS)
 RADEONOBJS=	radeon_drv.o radeon_cp.o radeon_bufs.o radeon_context.o \
 		radeon_state.o
 RADEONHEADERS=	radeon_drv.h radeon_drm.h $(DRMHEADERS)
-endif
 
 ifeq ($(SIS),1)
 # It appears that the SiS driver makes calls to sis_malloc and sis_free, and
@@ -224,6 +224,7 @@ i810_drv.o: i810_drv.c
 	$(CC) $(MODCFLAGS) -DEXPORT_SYMTAB -I$(TREE) -c $< -o $@
 i810.o: $(I810OBJS) $(LIBS)
 	$(LD) -r $^ -o $@
+endif
 
 r128_drv.o: r128_drv.c
 	$(CC) $(MODCFLAGS) -DEXPORT_SYMTAB -I$(TREE) -c $< -o $@
@@ -234,7 +235,6 @@ radeon_drv.o: radeon_drv.c
 	$(CC) $(MODCFLAGS) -DEXPORT_SYMTAB -I$(TREE) -c $< -o $@
 radeon.o: $(RADEONOBJS) $(LIBS)
 	$(LD) -r $^ -o $@
-endif
 
 .PHONY: ChangeLog
 ChangeLog:
@@ -255,9 +255,9 @@ $(TDFXOBJS): $(TDFXHEADERS)
 ifeq ($(AGP),1)
 $(MGAOBJS): $(MGAHEADERS)
 $(I810OBJS): $(I810HEADERS)
+endif
 $(R128OBJS): $(R128HEADERS)
 $(RADEONOBJS): $(RADEONHEADERS)
-endif
 
 clean:
 	rm -f *.o *.a *~ core
