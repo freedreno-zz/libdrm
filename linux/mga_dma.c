@@ -149,6 +149,8 @@ static int mga_dma_initialize(drm_device_t *dev, drm_mga_init_t *init) {
 	printk("temp : %x\n", temp);
 	printk("dev->agp->base: %lx\n", dev->agp->base);
 	printk("init->reserved_map_agpstart: %x\n", init->reserved_map_agpstart);
+
+
 	dev_priv->ioremap = drm_ioremap(dev->agp->base + init->reserved_map_agpstart, 
 					temp);
 	if(dev_priv->ioremap == NULL) {
@@ -156,6 +158,9 @@ static int mga_dma_initialize(drm_device_t *dev, drm_mga_init_t *init) {
 		mga_dma_cleanup(dev);
 		return -ENOMEM;
 	}
+
+
+
 	dev_priv->prim_head = (u32 *)dev_priv->ioremap;
 	printk("dev_priv->prim_head : %p\n", dev_priv->prim_head);
 	dev_priv->current_dma_ptr = dev_priv->prim_head;
@@ -163,6 +168,7 @@ static int mga_dma_initialize(drm_device_t *dev, drm_mga_init_t *init) {
 	dev_priv->prim_max_dwords = dev_priv->primary_size / 4;
    
 	printk("dma initialization\n");
+
 	/* Private is now filled in, initialize the hardware */
 	{
 		PRIMLOCALS;
@@ -177,6 +183,7 @@ static int mga_dma_initialize(drm_device_t *dev, drm_mga_init_t *init) {
 		/* Poll for the first buffer to insure that
 		 * the status register will be correct
 		 */
+	   	printk(KERN_INFO "phys_head : %lx\n", phys_head);
    
 		MGA_WRITE(MGAREG_DWGSYNC, MGA_SYNC_TAG);
 
@@ -184,6 +191,7 @@ static int mga_dma_initialize(drm_device_t *dev, drm_mga_init_t *init) {
 			int i;
 			for(i = 0 ; i < 4096; i++) mga_delay();
 		}
+
 
 		MGA_WRITE(MGAREG_PRIMEND, ((phys_head + num_dwords * 4) | 
 					   PDEA_pagpxfer_enable));
@@ -422,6 +430,7 @@ static inline void mga_dma_quiescent(drm_device_t *dev)
 {
    	drm_mga_private_t *dev_priv = (drm_mga_private_t *)dev->dev_private;
 
+
    	while(1) {
 	   atomic_inc(&dev_priv->dispatch_lock);
 	   if(atomic_read(&dev_priv->dispatch_lock) == 1) {
@@ -430,9 +439,11 @@ static inline void mga_dma_quiescent(drm_device_t *dev)
 	      atomic_dec(&dev_priv->dispatch_lock);
 	   }
 	}
+#if 0
 	while((MGA_READ(MGAREG_STATUS) & 0x00020001) != 0x00020000) ;
       	MGA_WRITE(MGAREG_DWGSYNC, MGA_SYNC_TAG);
    	while(MGA_READ(MGAREG_DWGSYNC) != MGA_SYNC_TAG) ;
+#endif
    	atomic_dec(&dev_priv->dispatch_lock);
 }
 

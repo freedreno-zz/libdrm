@@ -32,27 +32,27 @@
 #ifndef _MGA_DRM_PUBLIC_H_
 #define _MGA_DRM_PUBLIC_H_
 
-#define MGA_A  0x1		/* alpha */
-#define MGA_F  0x2		/* fog */
+#define MGA_F  0x1		/* fog */
+#define MGA_A  0x2		/* alpha */
 #define MGA_S  0x4		/* specular */
 #define MGA_T2 0x8		/* multitexture */
 
 #define MGA_WARP_TGZ            0
-#define MGA_WARP_TGZA           (MGA_A)
 #define MGA_WARP_TGZF           (MGA_F)
-#define MGA_WARP_TGZFA          (MGA_F|MGA_A)
+#define MGA_WARP_TGZA           (MGA_A)
+#define MGA_WARP_TGZAF          (MGA_F|MGA_A)
 #define MGA_WARP_TGZS           (MGA_S)
-#define MGA_WARP_TGZSA          (MGA_S|MGA_A)
 #define MGA_WARP_TGZSF          (MGA_S|MGA_F)
-#define MGA_WARP_TGZSFA         (MGA_S|MGA_F|MGA_A)
+#define MGA_WARP_TGZSA          (MGA_S|MGA_A)
+#define MGA_WARP_TGZSAF         (MGA_S|MGA_F|MGA_A)
 #define MGA_WARP_T2GZ           (MGA_T2)
-#define MGA_WARP_T2GZA          (MGA_T2|MGA_A)
 #define MGA_WARP_T2GZF          (MGA_T2|MGA_F)
-#define MGA_WARP_T2GZFA         (MGA_T2|MGA_A|MGA_F)
+#define MGA_WARP_T2GZA          (MGA_T2|MGA_A)
+#define MGA_WARP_T2GZAF         (MGA_T2|MGA_A|MGA_F)
 #define MGA_WARP_T2GZS          (MGA_T2|MGA_S)
-#define MGA_WARP_T2GZSA         (MGA_T2|MGA_S|MGA_A)
 #define MGA_WARP_T2GZSF         (MGA_T2|MGA_S|MGA_F)
-#define MGA_WARP_T2GZSFA        (MGA_T2|MGA_S|MGA_F|MGA_A)
+#define MGA_WARP_T2GZSA         (MGA_T2|MGA_S|MGA_A)
+#define MGA_WARP_T2GZSAF        (MGA_T2|MGA_S|MGA_F|MGA_A)
 
 
 #define MGA_MAX_G400_PIPES 16
@@ -196,6 +196,7 @@ typedef struct
 	mgaTexRegion texList[MGA_NR_TEX_REGIONS+1];
 	int texAge;	                            
 } drm_mga_sarea_t;	
+
 
 
  

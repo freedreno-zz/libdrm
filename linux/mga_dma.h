@@ -66,6 +66,9 @@ typedef struct {
 
 
 
+#define VERBO 1
+
+
 /* Primary buffer versions of above -- pretty similar really.
  */
 #define PRIMLOCALS	u8 tempIndex[4]; u32 *dma_ptr; u32 phys_head; \
@@ -88,15 +91,20 @@ typedef struct {
 	dev_priv->current_dma_ptr = dma_ptr;	\
 } while (0)
 
-#define PRIMOUTREG(reg, val) do {		\
-	tempIndex[outcount]=ADRINDEX(reg);	\
-	dma_ptr[1+outcount] = val;		\
-	if( ++outcount == 4) {			\
-		outcount = 0;			\
-		dma_ptr[0] = *(u32 *)tempIndex;	\
-		dma_ptr+=5;			\
-		num_dwords += 5;		\
-	}					\
+#define PRIMOUTREG(reg, val) do {					\
+	tempIndex[outcount]=ADRINDEX(reg);				\
+	dma_ptr[1+outcount] = val;					\
+	if( ++outcount == 4) {						\
+		outcount = 0;						\
+		dma_ptr[0] = *(u32 *)tempIndex;				\
+		dma_ptr+=5;						\
+		num_dwords += 5;					\
+	}								\
+	if (VERBO) 							\
+		printk(KERN_INFO 					\
+		       "OUT %x val %x dma_ptr %p nr_dwords %d\n",	\
+		       outcount, ADRINDEX(reg), dma_ptr, 		\
+		       num_dwords);   					\
 }while (0)
 
 
