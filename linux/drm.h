@@ -1,4 +1,4 @@
-/* drm.h -- Header for Direct Rendering Manager -*- linux-c -*-
+z/* drm.h -- Header for Direct Rendering Manager -*- linux-c -*-
  * Created: Mon Jan  4 10:05:05 1999 by faith@precisioninsight.com
  *
  * Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
@@ -45,9 +45,14 @@
 #define DRM_IOC_READWRITE	_IOC_READ|_IOC_WRITE
 #define DRM_IOC(dir, group, nr, size) _IOC(dir, group, nr, size)
 #elif defined(__FreeBSD__) || defined(__NetBSD__)
+#if defined(__FreeBSD__) && defined(XFree86Server)
+/* Prevent name collision when including sys/ioccom.h */
 #undef ioctl
 #include <sys/ioccom.h>
 #define ioctl(a,b,c)		xf86ioctl(a,b,c)
+#else
+#include <sys/ioccom.h>
+#endif /* __FreeBSD__ && xf86ioctl */
 #define DRM_IOCTL_NR(n)		((n) & 0xff)
 #define DRM_IOC_VOID		IOC_VOID
 #define DRM_IOC_READ		IOC_OUT

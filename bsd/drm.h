@@ -45,9 +45,14 @@
 #define DRM_IOC_READWRITE	_IOC_READ|_IOC_WRITE
 #define DRM_IOC(dir, group, nr, size) _IOC(dir, group, nr, size)
 #elif defined(__FreeBSD__) || defined(__NetBSD__)
+#if defined(__FreeBSD__) && defined(XFree86Server)
+/* Prevent name collision when including sys/ioccom.h */
 #undef ioctl
 #include <sys/ioccom.h>
 #define ioctl(a,b,c)		xf86ioctl(a,b,c)
+#else
+#include <sys/ioccom.h>
+#endif /* __FreeBSD__ && xf86ioctl */
 #define DRM_IOCTL_NR(n)		((n) & 0xff)
 #define DRM_IOC_VOID		IOC_VOID
 #define DRM_IOC_READ		IOC_OUT
@@ -80,7 +85,7 @@
 #define DRM_NAME	"drm"	  /* Name in kernel, /dev, and /proc	    */
 #define DRM_MIN_ORDER	5	  /* At least 2^5 bytes = 32 bytes	    */
 #define DRM_MAX_ORDER	22	  /* Up to 2^22 bytes = 4MB		    */
-#define DRM_RAM_PERCENT 50	  /* How much system ram can we lock?	    */
+#define DRM_RAM_PERCENT 10	  /* How much system ram can we lock?	    */
 
 #define _DRM_LOCK_HELD	0x80000000 /* Hardware lock is held		    */
 #define _DRM_LOCK_CONT	0x40000000 /* Hardware lock is contended	    */
