@@ -119,8 +119,8 @@ static void mgaG200EmitTex( drm_mga_private_t *dev_priv,
 	PRIMOUTREG(0x2d00 + 24*4, regs[MGA_TEXREG_WIDTH] );
 
 	PRIMOUTREG(0x2d00 + 34*4, regs[MGA_TEXREG_HEIGHT] );
-	PRIMOUTREG( MGAREG_DMAPAD, 0 );
-	PRIMOUTREG( MGAREG_DMAPAD, 0 );
+	PRIMOUTREG( MGAREG_TEXTRANS, 0xffff );
+	PRIMOUTREG( MGAREG_TEXTRANSHIGH, 0xffff );
 	PRIMOUTREG( MGAREG_DMAPAD, 0 );
 
 	PRIMADVANCE( dev_priv );  
@@ -153,19 +153,20 @@ static void mgaG400EmitTex0( drm_mga_private_t *dev_priv,
 	PRIMOUTREG(0x2d00 + 57*4, 0);
 	PRIMOUTREG(0x2d00 + 53*4, 0);
 	PRIMOUTREG(0x2d00 + 61*4, 0);
+	PRIMOUTREG( MGAREG_DMAPAD, 0 );
 
 	if (!multitex) {
 		PRIMOUTREG(0x2d00 + 52*4, 0x40 ); 
 		PRIMOUTREG(0x2d00 + 60*4, 0x40 );
+		PRIMOUTREG( MGAREG_DMAPAD, 0 );
+		PRIMOUTREG( MGAREG_DMAPAD, 0 );
 	} 
 
-	PRIMOUTREG(0x2d00 + 54*4, regs[MGA_TEXREG_WIDTH] | 0x40 );
-	PRIMOUTREG(0x2d00 + 62*4, regs[MGA_TEXREG_HEIGHT] | 0x40 );
+	PRIMOUTREG( 0x2d00 + 54*4, regs[MGA_TEXREG_WIDTH] | 0x40 );
+	PRIMOUTREG( 0x2d00 + 62*4, regs[MGA_TEXREG_HEIGHT] | 0x40 );
+	PRIMOUTREG( MGAREG_TEXTRANS, 0xffff );
+	PRIMOUTREG( MGAREG_TEXTRANSHIGH, 0xffff );
 
-	PRIMOUTREG( MGAREG_DMAPAD, 0 );
-	PRIMOUTREG( MGAREG_DMAPAD, 0 );	/* some of these will be truncated */
-	PRIMOUTREG( MGAREG_DMAPAD, 0 );
-	PRIMOUTREG( MGAREG_DMAPAD, 0 );
 
 	PRIMADVANCE( dev_priv );  
 }
@@ -203,9 +204,9 @@ static void mgaG400EmitTex1( drm_mga_private_t *dev_priv,
 	PRIMOUTREG(0x2d00 + 52*4, regs[MGA_TEXREG_WIDTH] | 0x40 ); 
 
 	PRIMOUTREG(0x2d00 + 60*4, regs[MGA_TEXREG_HEIGHT] | 0x40 );
+	PRIMOUTREG( MGAREG_TEXTRANS, 0xffff );
+	PRIMOUTREG( MGAREG_TEXTRANSHIGH, 0xffff );
 	PRIMOUTREG(MGAREG_TEXCTL2, regs[MGA_TEXREG_CTL2] );
-	PRIMOUTREG(MGAREG_DMAPAD, 0);
-	PRIMOUTREG(MGAREG_DMAPAD, 0 );
 
 	PRIMADVANCE( dev_priv ); /* padded */
 }
@@ -298,26 +299,26 @@ void mgaEmitState( drm_mga_private_t *dev_priv, drm_mga_buf_priv_t *buf_priv )
 	unsigned int dirty = buf_priv->dirty;
 
 	if (dev_priv->chipset == MGA_CARD_TYPE_G400) {	   
+		if (dirty & MGA_UPLOAD_PIPE) 
+			mgaG400EmitPipe( dev_priv, buf_priv );
+
 		if (dirty & MGA_UPLOAD_CTX)
 			mgaEmitContext( dev_priv, buf_priv );
 
-		if (dirty & MGA_UPLOAD_TEX1)
-			mgaG400EmitTex1( dev_priv, buf_priv );
-	   
 		if (dirty & MGA_UPLOAD_TEX0)
 			mgaG400EmitTex0( dev_priv, buf_priv );
 
-		if (dirty & MGA_UPLOAD_PIPE) 
-			mgaG400EmitPipe( dev_priv, buf_priv );
+		if (dirty & MGA_UPLOAD_TEX1)
+			mgaG400EmitTex1( dev_priv, buf_priv );
 	} else {
+		if (dirty & MGA_UPLOAD_PIPE) 
+			mgaG200EmitPipe( dev_priv, buf_priv );
+
 		if (dirty & MGA_UPLOAD_CTX)
 			mgaEmitContext( dev_priv, buf_priv );
 
 		if (dirty & MGA_UPLOAD_TEX0)
 			mgaG200EmitTex( dev_priv, buf_priv );
-
-		if (dirty & MGA_UPLOAD_PIPE) 
-			mgaG200EmitPipe( dev_priv, buf_priv );
 	}	  
 }
 

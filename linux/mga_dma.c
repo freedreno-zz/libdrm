@@ -462,17 +462,15 @@ static void mga_dma_dispatch_vertex(drm_device_t *dev, drm_buf_t *buf)
 	PRIMRESET(dev_priv);
 	
 	count = buf_priv->nbox;
-	if (count == 0) 
-		count = 1;
 
-	mgaEmitState( dev_priv, buf_priv );
+	if (count)
+	   mgaEmitState( dev_priv, buf_priv );
 
    	printk("dispatch vertex addr 0x%lx, length 0x%x nbox %d\n", 
 	       address, length, buf_priv->nbox);
 
 	for (i = 0 ; i < count ; i++) {		
-		if (i < buf_priv->nbox)
-			mgaEmitClipRect( dev_priv, &buf_priv->boxes[i] );
+		mgaEmitClipRect( dev_priv, &buf_priv->boxes[i] );
 
 		PRIMGETPTR(dev_priv);
 		PRIMOUTREG( MGAREG_DMAPAD, 0);
@@ -481,7 +479,6 @@ static void mga_dma_dispatch_vertex(drm_device_t *dev, drm_buf_t *buf)
 		PRIMOUTREG( MGAREG_SECEND, (((__u32)(address + length)) | 
 					    use_agp));
 		PRIMADVANCE( dev_priv );
-
 	}
 
 	PRIMGETPTR(dev_priv);
