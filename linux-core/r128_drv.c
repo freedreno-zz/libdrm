@@ -1,6 +1,6 @@
-/* tdfx.c -- tdfx driver -*- linux-c -*-
- * Created: Thu Oct  7 10:38:32 1999 by faith@precisioninsight.com
- * Revised: Tue Oct 12 08:51:35 1999 by faith@precisioninsight.com
+/* r128_drv.c -- ATI Rage 128 driver -*- linux-c -*-
+ * Created: Mon Dec 13 09:47:27 1999 by faith@precisioninsight.com
+ * Revised: Mon Dec 13 14:12:33 1999 by faith@precisioninsight.com
  *
  * Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
  * All Rights Reserved.
@@ -31,38 +31,38 @@
 
 #define EXPORT_SYMTAB
 #include "drmP.h"
-#include "tdfx_drv.h"
-EXPORT_SYMBOL(tdfx_init);
-EXPORT_SYMBOL(tdfx_cleanup);
+#include "r128_drv.h"
+EXPORT_SYMBOL(r128_init);
+EXPORT_SYMBOL(r128_cleanup);
 
-#define TDFX_NAME	 "tdfx"
-#define TDFX_DESC	 "tdfx"
-#define TDFX_DATE	 "19991009"
-#define TDFX_MAJOR	 0
-#define TDFX_MINOR	 0
-#define TDFX_PATCHLEVEL  1
+#define R128_NAME	 "r128"
+#define R128_DESC	 "r128"
+#define R128_DATE	 "19991213"
+#define R128_MAJOR	 0
+#define R128_MINOR	 0
+#define R128_PATCHLEVEL  1
 
-static drm_device_t	      tdfx_device;
-drm_ctx_t	              tdfx_res_ctx;
+static drm_device_t	      r128_device;
+drm_ctx_t	              r128_res_ctx;
 
-static struct file_operations tdfx_fops = {
-	open:	 tdfx_open,
+static struct file_operations r128_fops = {
+	open:	 r128_open,
 	flush:	 drm_flush,
-	release: tdfx_release,
-	ioctl:	 tdfx_ioctl,
+	release: r128_release,
+	ioctl:	 r128_ioctl,
 	mmap:	 drm_mmap,
 	read:	 drm_read,
 	fasync:	 drm_fasync,
 };
 
-static struct miscdevice      tdfx_misc = {
+static struct miscdevice      r128_misc = {
 	minor: MISC_DYNAMIC_MINOR,
-	name:  TDFX_NAME,
-	fops:  &tdfx_fops,
+	name:  R128_NAME,
+	fops:  &r128_fops,
 };
 
-static drm_ioctl_desc_t	      tdfx_ioctls[] = {
-	[DRM_IOCTL_NR(DRM_IOCTL_VERSION)]    = { tdfx_version,	  0, 0 },
+static drm_ioctl_desc_t	      r128_ioctls[] = {
+	[DRM_IOCTL_NR(DRM_IOCTL_VERSION)]    = { r128_version,	  0, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_GET_UNIQUE)] = { drm_getunique,	  0, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_GET_MAGIC)]  = { drm_getmagic,	  0, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_IRQ_BUSID)]  = { drm_irq_busid,	  0, 1 },
@@ -73,47 +73,47 @@ static drm_ioctl_desc_t	      tdfx_ioctls[] = {
 	[DRM_IOCTL_NR(DRM_IOCTL_AUTH_MAGIC)] = { drm_authmagic,	  1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_ADD_MAP)]    = { drm_addmap,	  1, 1 },
 	
-	[DRM_IOCTL_NR(DRM_IOCTL_ADD_CTX)]    = { tdfx_addctx,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_RM_CTX)]     = { tdfx_rmctx,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_MOD_CTX)]    = { tdfx_modctx,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_GET_CTX)]    = { tdfx_getctx,	  1, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_SWITCH_CTX)] = { tdfx_switchctx,  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_NEW_CTX)]    = { tdfx_newctx,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_RES_CTX)]    = { tdfx_resctx,	  1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_ADD_CTX)]    = { r128_addctx,	  1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_RM_CTX)]     = { r128_rmctx,	  1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_MOD_CTX)]    = { r128_modctx,	  1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_GET_CTX)]    = { r128_getctx,	  1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_SWITCH_CTX)] = { r128_switchctx,  1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_NEW_CTX)]    = { r128_newctx,	  1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_RES_CTX)]    = { r128_resctx,	  1, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_ADD_DRAW)]   = { drm_adddraw,	  1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_RM_DRAW)]    = { drm_rmdraw,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_LOCK)]	     = { tdfx_lock,	  1, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_UNLOCK)]     = { tdfx_unlock,	  1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_LOCK)]	     = { r128_lock,	  1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_UNLOCK)]     = { r128_unlock,	  1, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_FINISH)]     = { drm_finish,	  1, 0 },
 };
-#define TDFX_IOCTL_COUNT DRM_ARRAY_SIZE(tdfx_ioctls)
+#define R128_IOCTL_COUNT DRM_ARRAY_SIZE(r128_ioctls)
 
 #ifdef MODULE
 int			      init_module(void);
 void			      cleanup_module(void);
-static char		      *tdfx = NULL;
+static char		      *r128 = NULL;
 
 MODULE_AUTHOR("Precision Insight, Inc., Cedar Park, Texas.");
-MODULE_DESCRIPTION("tdfx");
-MODULE_PARM(tdfx, "s");
+MODULE_DESCRIPTION("r128");
+MODULE_PARM(r128, "s");
 
 /* init_module is called when insmod is used to load the module */
 
 int init_module(void)
 {
-	return tdfx_init();
+	return r128_init();
 }
 
 /* cleanup_module is called when rmmod is used to unload the module */
 
 void cleanup_module(void)
 {
-	tdfx_cleanup();
+	r128_cleanup();
 }
 #endif
 
 #ifndef MODULE
-/* tdfx_setup is called by the kernel to parse command-line options passed
+/* r128_setup is called by the kernel to parse command-line options passed
  * via the boot-loader (e.g., LILO).  It calls the insmod option routine,
  * drm_parse_drm.
  *
@@ -121,7 +121,7 @@ void cleanup_module(void)
  * linux/init/main.c. */
  
 
-void __init tdfx_setup(char *str, int *ints)
+void __init r128_setup(char *str, int *ints)
 {
 	if (ints[0] != 0) {
 		DRM_ERROR("Illegal command line format, ignored\n");
@@ -131,7 +131,7 @@ void __init tdfx_setup(char *str, int *ints)
 }
 #endif
 
-static int tdfx_setup(drm_device_t *dev)
+static int r128_setup(drm_device_t *dev)
 {
 	int i;
 	
@@ -184,7 +184,7 @@ static int tdfx_setup(drm_device_t *dev)
 	init_waitqueue_head(&dev->buf_readers);
 	init_waitqueue_head(&dev->buf_writers);
 
-	tdfx_res_ctx.handle=-1;
+	r128_res_ctx.handle=-1;
 			
 	DRM_DEBUG("\n");
 			
@@ -198,7 +198,7 @@ static int tdfx_setup(drm_device_t *dev)
 }
 
 
-static int tdfx_takedown(drm_device_t *dev)
+static int r128_takedown(drm_device_t *dev)
 {
 	int		  i;
 	drm_magic_entry_t *pt, *next;
@@ -282,13 +282,13 @@ static int tdfx_takedown(drm_device_t *dev)
 	return 0;
 }
 
-/* tdfx_init is called via init_module at module load time, or via
+/* r128_init is called via init_module at module load time, or via
  * linux/init/main.c (this is not currently supported). */
 
-int tdfx_init(void)
+int r128_init(void)
 {
 	int		      retcode;
-	drm_device_t	      *dev = &tdfx_device;
+	drm_device_t	      *dev = &r128_device;
 
 	DRM_DEBUG("\n");
 
@@ -297,48 +297,50 @@ int tdfx_init(void)
 	sema_init(&dev->struct_sem, 1);
 	
 #ifdef MODULE
-	drm_parse_options(tdfx);
+	drm_parse_options(r128);
 #endif
 
-	if ((retcode = misc_register(&tdfx_misc))) {
-		DRM_ERROR("Cannot register \"%s\"\n", TDFX_NAME);
+	if ((retcode = misc_register(&r128_misc))) {
+		DRM_ERROR("Cannot register \"%s\"\n", R128_NAME);
 		return retcode;
 	}
-	dev->device = MKDEV(MISC_MAJOR, tdfx_misc.minor);
-	dev->name   = TDFX_NAME;
+	dev->device = MKDEV(MISC_MAJOR, r128_misc.minor);
+	dev->name   = R128_NAME;
 
 	drm_mem_init();
 	drm_proc_init(dev);
 
 	DRM_INFO("Initialized %s %d.%d.%d %s on minor %d\n",
-		 TDFX_NAME,
-		 TDFX_MAJOR,
-		 TDFX_MINOR,
-		 TDFX_PATCHLEVEL,
-		 TDFX_DATE,
-		 tdfx_misc.minor);
+		 R128_NAME,
+		 R128_MAJOR,
+		 R128_MINOR,
+		 R128_PATCHLEVEL,
+		 R128_DATE,
+		 r128_misc.minor);
+
+	dev->agp    = drm_agp_init();
 	
 	return 0;
 }
 
-/* tdfx_cleanup is called via cleanup_module at module unload time. */
+/* r128_cleanup is called via cleanup_module at module unload time. */
 
-void tdfx_cleanup(void)
+void r128_cleanup(void)
 {
-	drm_device_t	      *dev = &tdfx_device;
+	drm_device_t	      *dev = &r128_device;
 
 	DRM_DEBUG("\n");
 	
 	drm_proc_cleanup();
-	if (misc_deregister(&tdfx_misc)) {
+	if (misc_deregister(&r128_misc)) {
 		DRM_ERROR("Cannot unload module\n");
 	} else {
 		DRM_INFO("Module unloaded\n");
 	}
-	tdfx_takedown(dev);
+	r128_takedown(dev);
 }
 
-int tdfx_version(struct inode *inode, struct file *filp, unsigned int cmd,
+int r128_version(struct inode *inode, struct file *filp, unsigned int cmd,
 		  unsigned long arg)
 {
 	drm_version_t version;
@@ -357,13 +359,13 @@ int tdfx_version(struct inode *inode, struct file *filp, unsigned int cmd,
 		copy_to_user_ret(name, value, len, -EFAULT); \
 	}
 
-	version.version_major	   = TDFX_MAJOR;
-	version.version_minor	   = TDFX_MINOR;
-	version.version_patchlevel = TDFX_PATCHLEVEL;
+	version.version_major	   = R128_MAJOR;
+	version.version_minor	   = R128_MINOR;
+	version.version_patchlevel = R128_PATCHLEVEL;
 
-	DRM_COPY(version.name, TDFX_NAME);
-	DRM_COPY(version.date, TDFX_DATE);
-	DRM_COPY(version.desc, TDFX_DESC);
+	DRM_COPY(version.name, R128_NAME);
+	DRM_COPY(version.date, R128_DATE);
+	DRM_COPY(version.desc, R128_DESC);
 
 	copy_to_user_ret((drm_version_t *)arg,
 			 &version,
@@ -372,9 +374,9 @@ int tdfx_version(struct inode *inode, struct file *filp, unsigned int cmd,
 	return 0;
 }
 
-int tdfx_open(struct inode *inode, struct file *filp)
+int r128_open(struct inode *inode, struct file *filp)
 {
-	drm_device_t  *dev    = &tdfx_device;
+	drm_device_t  *dev    = &r128_device;
 	int	      retcode = 0;
 	
 	DRM_DEBUG("open_count = %d\n", dev->open_count);
@@ -384,14 +386,14 @@ int tdfx_open(struct inode *inode, struct file *filp)
 		spin_lock(&dev->count_lock);
 		if (!dev->open_count++) {
 			spin_unlock(&dev->count_lock);
-			return tdfx_setup(dev);
+			return r128_setup(dev);
 		}
 		spin_unlock(&dev->count_lock);
 	}
 	return retcode;
 }
 
-int tdfx_release(struct inode *inode, struct file *filp)
+int r128_release(struct inode *inode, struct file *filp)
 {
 	drm_file_t    *priv   = filp->private_data;
 	drm_device_t  *dev    = priv->dev;
@@ -411,16 +413,16 @@ int tdfx_release(struct inode *inode, struct file *filp)
 				return -EBUSY;
 			}
 			spin_unlock(&dev->count_lock);
-			return tdfx_takedown(dev);
+			return r128_takedown(dev);
 		}
 		spin_unlock(&dev->count_lock);
 	}
 	return retcode;
 }
 
-/* tdfx_ioctl is called whenever a process performs an ioctl on /dev/drm. */
+/* r128_ioctl is called whenever a process performs an ioctl on /dev/drm. */
 
-int tdfx_ioctl(struct inode *inode, struct file *filp, unsigned int cmd,
+int r128_ioctl(struct inode *inode, struct file *filp, unsigned int cmd,
 		unsigned long arg)
 {
 	int		 nr	 = DRM_IOCTL_NR(cmd);
@@ -437,10 +439,10 @@ int tdfx_ioctl(struct inode *inode, struct file *filp, unsigned int cmd,
 	DRM_DEBUG("pid = %d, cmd = 0x%02x, nr = 0x%02x, dev 0x%x, auth = %d\n",
 		  current->pid, cmd, nr, dev->device, priv->authenticated);
 
-	if (nr >= TDFX_IOCTL_COUNT) {
+	if (nr >= R128_IOCTL_COUNT) {
 		retcode = -EINVAL;
 	} else {
-		ioctl	  = &tdfx_ioctls[nr];
+		ioctl	  = &r128_ioctls[nr];
 		func	  = ioctl->func;
 
 		if (!func) {
@@ -458,7 +460,7 @@ int tdfx_ioctl(struct inode *inode, struct file *filp, unsigned int cmd,
 	return retcode;
 }
 
-int tdfx_lock(struct inode *inode, struct file *filp, unsigned int cmd,
+int r128_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 	      unsigned long arg)
 {
         drm_file_t        *priv   = filp->private_data;
@@ -486,7 +488,7 @@ int tdfx_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 
 #if 0
 				/* dev->queue_count == 0 right now for
-                                   tdfx.  FIXME? */
+                                   r128.  FIXME? */
         if (lock.context < 0 || lock.context >= dev->queue_count)
                 return -EINVAL;
 #endif
@@ -497,7 +499,7 @@ int tdfx_lock(struct inode *inode, struct file *filp, unsigned int cmd,
                     != lock.context) {
                         long j = jiffies - dev->lock.lock_time;
 
-                        if (lock.context == tdfx_res_ctx.handle &&
+                        if (lock.context == r128_res_ctx.handle &&
 				j >= 0 && j < DRM_LOCK_SLICE) {
                                 /* Can't take lock if we just had it and
                                    there is contention. */
@@ -544,12 +546,12 @@ int tdfx_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 
 #if 0
 	if (!ret && dev->last_context != lock.context &&
-		lock.context != tdfx_res_ctx.handle &&
-		dev->last_context != tdfx_res_ctx.handle) {
+		lock.context != r128_res_ctx.handle &&
+		dev->last_context != r128_res_ctx.handle) {
 		add_wait_queue(&dev->context_wait, &entry);
 	        current->state = TASK_INTERRUPTIBLE;
                 /* PRE: dev->last_context != lock.context */
-	        tdfx_context_switch(dev, dev->last_context, lock.context);
+	        r128_context_switch(dev, dev->last_context, lock.context);
 		/* POST: we will wait for the context
                    switch and will dispatch on a later call
                    when dev->last_context == lock.context
@@ -575,7 +577,7 @@ int tdfx_lock(struct inode *inode, struct file *filp, unsigned int cmd,
                 if (lock.flags & _DRM_LOCK_QUIESCENT) {
 				/* Make hardware quiescent */
 #if 0
-                        tdfx_quiescent(dev);
+                        r128_quiescent(dev);
 #endif
 		}
         }
@@ -584,7 +586,7 @@ int tdfx_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 	DRM_ERROR("pid = %5d, old counter = %5ld\n", 
 		current->pid, current->counter);
 #endif
-	if (lock.context != tdfx_res_ctx.handle) {
+	if (lock.context != r128_res_ctx.handle) {
 		current->counter = 5;
 		current->priority = DEF_PRIORITY/4;
 	}
@@ -604,7 +606,7 @@ int tdfx_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 }
 
 
-int tdfx_unlock(struct inode *inode, struct file *filp, unsigned int cmd,
+int r128_unlock(struct inode *inode, struct file *filp, unsigned int cmd,
 		 unsigned long arg)
 {
 	drm_file_t	  *priv	  = filp->private_data;
@@ -640,7 +642,7 @@ int tdfx_unlock(struct inode *inode, struct file *filp, unsigned int cmd,
 	schedule_timeout(1000);
 #endif
 
-	if (lock.context != tdfx_res_ctx.handle) {
+	if (lock.context != r128_res_ctx.handle) {
 		current->counter = 5;
 		current->priority = DEF_PRIORITY;
 	}

@@ -1,6 +1,6 @@
-/* tdfx_drv.h -- Private header for tdfx driver -*- linux-c -*-
- * Created: Thu Oct  7 10:40:04 1999 by faith@precisioninsight.com
- * Revised: Sat Oct  9 23:38:19 1999 by faith@precisioninsight.com
+/* r128_drv.h -- Private header for r128 driver -*- linux-c -*-
+ * Created: Mon Dec 13 09:51:11 1999 by faith@precisioninsight.com
+ * Revised: Mon Dec 13 09:51:39 1999 by faith@precisioninsight.com
  *
  * Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
  * All rights reserved.
@@ -29,40 +29,40 @@
  * 
  */
 
-#ifndef _TDFX_DRV_H_
-#define _TDFX_DRV_H_
+#ifndef _R128_DRV_H_
+#define _R128_DRV_H_
 
-				/* tdfx_drv.c */
-extern int  tdfx_init(void);
-extern void tdfx_cleanup(void);
-extern int  tdfx_version(struct inode *inode, struct file *filp,
+				/* r128_drv.c */
+extern int  r128_init(void);
+extern void r128_cleanup(void);
+extern int  r128_version(struct inode *inode, struct file *filp,
 			  unsigned int cmd, unsigned long arg);
-extern int  tdfx_open(struct inode *inode, struct file *filp);
-extern int  tdfx_release(struct inode *inode, struct file *filp);
-extern int  tdfx_ioctl(struct inode *inode, struct file *filp,
+extern int  r128_open(struct inode *inode, struct file *filp);
+extern int  r128_release(struct inode *inode, struct file *filp);
+extern int  r128_ioctl(struct inode *inode, struct file *filp,
 			unsigned int cmd, unsigned long arg);
-extern int  tdfx_lock(struct inode *inode, struct file *filp,
+extern int  r128_lock(struct inode *inode, struct file *filp,
 		       unsigned int cmd, unsigned long arg);
-extern int  tdfx_unlock(struct inode *inode, struct file *filp,
+extern int  r128_unlock(struct inode *inode, struct file *filp,
 			 unsigned int cmd, unsigned long arg);
 
-				/* tdfx_context.c */
+				/* r128_context.c */
 
-extern int  tdfx_resctx(struct inode *inode, struct file *filp,
+extern int  r128_resctx(struct inode *inode, struct file *filp,
 			unsigned int cmd, unsigned long arg);
-extern int  tdfx_addctx(struct inode *inode, struct file *filp,
+extern int  r128_addctx(struct inode *inode, struct file *filp,
 		        unsigned int cmd, unsigned long arg);
-extern int  tdfx_modctx(struct inode *inode, struct file *filp,
+extern int  r128_modctx(struct inode *inode, struct file *filp,
 		        unsigned int cmd, unsigned long arg);
-extern int  tdfx_getctx(struct inode *inode, struct file *filp,
+extern int  r128_getctx(struct inode *inode, struct file *filp,
 		        unsigned int cmd, unsigned long arg);
-extern int  tdfx_switchctx(struct inode *inode, struct file *filp,
+extern int  r128_switchctx(struct inode *inode, struct file *filp,
 			   unsigned int cmd, unsigned long arg);
-extern int  tdfx_newctx(struct inode *inode, struct file *filp,
+extern int  r128_newctx(struct inode *inode, struct file *filp,
 			unsigned int cmd, unsigned long arg);
-extern int  tdfx_rmctx(struct inode *inode, struct file *filp,
+extern int  r128_rmctx(struct inode *inode, struct file *filp,
 		       unsigned int cmd, unsigned long arg);
 
-extern int  tdfx_context_switch(drm_device_t *dev, int old, int new);
-extern int  tdfx_context_switch_complete(drm_device_t *dev, int new);
+extern int  r128_context_switch(drm_device_t *dev, int old, int new);
+extern int  r128_context_switch_complete(drm_device_t *dev, int new);
 #endif
