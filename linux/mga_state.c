@@ -50,6 +50,8 @@ void mgaEmitClipRect( drm_mga_private_t *dev_priv, xf86drmClipRectRec *box )
 	 * circumstances is by inserting TWO dwgsync commands.
 	 */
  	if (dev_priv->chipset == MGA_CARD_TYPE_G400) { 
+		PRIMOUTREG( MGAREG_DMAPAD, 0 );
+		PRIMOUTREG( MGAREG_DMAPAD, 0 );
 		PRIMOUTREG( MGAREG_DWGSYNC, 0 );
 		PRIMOUTREG( MGAREG_DWGSYNC, 0 );
 	}
@@ -57,6 +59,8 @@ void mgaEmitClipRect( drm_mga_private_t *dev_priv, xf86drmClipRectRec *box )
 	PRIMOUTREG( MGAREG_CXBNDRY, ((box->x2)<<16)|(box->x1) );
 	PRIMOUTREG( MGAREG_YTOP, box->y1 * dev_priv->stride );
 	PRIMOUTREG( MGAREG_YBOT, box->y2 * dev_priv->stride );
+	PRIMOUTREG( MGAREG_DMAPAD, 0 );
+
 	PRIMADVANCE( dev_priv );
 }
 
@@ -68,21 +72,28 @@ static void mgaEmitContext(drm_mga_private_t *dev_priv,
 	PRIMLOCALS;
 	
 	PRIMGETPTR( dev_priv );
+
 	PRIMOUTREG( MGAREG_DSTORG, regs[MGA_CTXREG_DSTORG] );
 	PRIMOUTREG( MGAREG_MACCESS, regs[MGA_CTXREG_MACCESS] );
 	PRIMOUTREG( MGAREG_PLNWT, regs[MGA_CTXREG_PLNWT] );
 	PRIMOUTREG( MGAREG_DWGCTL, regs[MGA_CTXREG_DWGCTL] );
+
 	PRIMOUTREG( MGAREG_ALPHACTRL, regs[MGA_CTXREG_ALPHACTRL] );
 	PRIMOUTREG( MGAREG_FOGCOL, regs[MGA_CTXREG_FOGCOLOR] );
 	PRIMOUTREG( MGAREG_WFLAG, regs[MGA_CTXREG_WFLAG] );
+
+	
+	PRIMOUTREG( MGAREG_ZORG, dev_priv->depthOffset );
+/*  	PRIMOUTREG( MGAREG_DMAPAD, 0 ); */
 
  	if (dev_priv->chipset == MGA_CARD_TYPE_G400) { 
 		PRIMOUTREG( MGAREG_WFLAG1, regs[MGA_CTXREG_WFLAG] );
 		PRIMOUTREG( MGAREG_TDUALSTAGE0, regs[MGA_CTXREG_TDUAL0] );
 		PRIMOUTREG( MGAREG_TDUALSTAGE1, regs[MGA_CTXREG_TDUAL1] );      
+		PRIMOUTREG( MGAREG_DMAPAD, 0 );
 	}   
    
-	PRIMADVANCE( dev_priv );
+	PRIMADVANCE( dev_priv ); /* padded */
 }
 
 static void mgaG200EmitTex( drm_mga_private_t *dev_priv, 
@@ -92,20 +103,26 @@ static void mgaG200EmitTex( drm_mga_private_t *dev_priv,
 	PRIMLOCALS;
 
 	PRIMGETPTR( dev_priv );
+
 	PRIMOUTREG(MGAREG_TEXCTL2, regs[MGA_TEXREG_CTL2] );
 	PRIMOUTREG(MGAREG_TEXCTL, regs[MGA_TEXREG_CTL] );
 	PRIMOUTREG(MGAREG_TEXFILTER, regs[MGA_TEXREG_FILTER] );
 	PRIMOUTREG(MGAREG_TEXBORDERCOL, regs[MGA_TEXREG_BORDERCOL] );
+
 	PRIMOUTREG(MGAREG_TEXORG, regs[MGA_TEXREG_ORG] );
 	PRIMOUTREG(MGAREG_TEXORG1, regs[MGA_TEXREG_ORG1] );
 	PRIMOUTREG(MGAREG_TEXORG2, regs[MGA_TEXREG_ORG2] );
 	PRIMOUTREG(MGAREG_TEXORG3, regs[MGA_TEXREG_ORG3] );
+
 	PRIMOUTREG(MGAREG_TEXORG4, regs[MGA_TEXREG_ORG4] );		
 	PRIMOUTREG(MGAREG_TEXWIDTH, regs[MGA_TEXREG_WIDTH] );
-	PRIMOUTREG(MGAREG_TEXHEIGHT, regs[MGA_TEXREG_HEIGHT] );
-   
+	PRIMOUTREG(MGAREG_TEXHEIGHT, regs[MGA_TEXREG_HEIGHT] );   
 	PRIMOUTREG(0x2d00 + 24*4, regs[MGA_TEXREG_WIDTH] );
+
 	PRIMOUTREG(0x2d00 + 34*4, regs[MGA_TEXREG_HEIGHT] );
+	PRIMOUTREG( MGAREG_DMAPAD, 0 );
+	PRIMOUTREG( MGAREG_DMAPAD, 0 );
+	PRIMOUTREG( MGAREG_DMAPAD, 0 );
 
 	PRIMADVANCE( dev_priv );  
 }
@@ -123,15 +140,17 @@ static void mgaG400EmitTex0( drm_mga_private_t *dev_priv,
 	PRIMOUTREG(MGAREG_TEXCTL, regs[MGA_TEXREG_CTL] );
 	PRIMOUTREG(MGAREG_TEXFILTER, regs[MGA_TEXREG_FILTER] );
 	PRIMOUTREG(MGAREG_TEXBORDERCOL, regs[MGA_TEXREG_BORDERCOL] );
+
 	PRIMOUTREG(MGAREG_TEXORG, regs[MGA_TEXREG_ORG] );
 	PRIMOUTREG(MGAREG_TEXORG1, regs[MGA_TEXREG_ORG1] );
 	PRIMOUTREG(MGAREG_TEXORG2, regs[MGA_TEXREG_ORG2] );
 	PRIMOUTREG(MGAREG_TEXORG3, regs[MGA_TEXREG_ORG3] );
+
 	PRIMOUTREG(MGAREG_TEXORG4, regs[MGA_TEXREG_ORG4] );		
 	PRIMOUTREG(MGAREG_TEXWIDTH, regs[MGA_TEXREG_WIDTH] );
-	PRIMOUTREG(MGAREG_TEXHEIGHT, regs[MGA_TEXREG_HEIGHT] );
-   
+	PRIMOUTREG(MGAREG_TEXHEIGHT, regs[MGA_TEXREG_HEIGHT] );   
 	PRIMOUTREG(0x2d00 + 49*4, 0);
+
 	PRIMOUTREG(0x2d00 + 57*4, 0);
 	PRIMOUTREG(0x2d00 + 53*4, 0);
 	PRIMOUTREG(0x2d00 + 61*4, 0);
@@ -143,6 +162,11 @@ static void mgaG400EmitTex0( drm_mga_private_t *dev_priv,
 
 	PRIMOUTREG(0x2d00 + 54*4, regs[MGA_TEXREG_WIDTH] | 0x40 );
 	PRIMOUTREG(0x2d00 + 62*4, regs[MGA_TEXREG_HEIGHT] | 0x40 );
+
+	PRIMOUTREG( MGAREG_DMAPAD, 0 );
+	PRIMOUTREG( MGAREG_DMAPAD, 0 );	/* some of these will be truncated */
+	PRIMOUTREG( MGAREG_DMAPAD, 0 );
+	PRIMOUTREG( MGAREG_DMAPAD, 0 );
 
 	PRIMADVANCE( dev_priv );  
 }
@@ -163,25 +187,28 @@ static void mgaG400EmitTex1( drm_mga_private_t *dev_priv,
 	PRIMOUTREG(MGAREG_TEXCTL, regs[MGA_TEXREG_CTL] );
 	PRIMOUTREG(MGAREG_TEXFILTER, regs[MGA_TEXREG_FILTER] );
 	PRIMOUTREG(MGAREG_TEXBORDERCOL, regs[MGA_TEXREG_BORDERCOL] );
+
 	PRIMOUTREG(MGAREG_TEXORG, regs[MGA_TEXREG_ORG] );
 	PRIMOUTREG(MGAREG_TEXORG1, regs[MGA_TEXREG_ORG1] );
 	PRIMOUTREG(MGAREG_TEXORG2, regs[MGA_TEXREG_ORG2] );
 	PRIMOUTREG(MGAREG_TEXORG3, regs[MGA_TEXREG_ORG3] );
+
 	PRIMOUTREG(MGAREG_TEXORG4, regs[MGA_TEXREG_ORG4] );		
 	PRIMOUTREG(MGAREG_TEXWIDTH, regs[MGA_TEXREG_WIDTH] );
-	PRIMOUTREG(MGAREG_TEXHEIGHT, regs[MGA_TEXREG_HEIGHT] );
-   
+	PRIMOUTREG(MGAREG_TEXHEIGHT, regs[MGA_TEXREG_HEIGHT] );   
 	PRIMOUTREG(0x2d00 + 49*4, 0);
+
 	PRIMOUTREG(0x2d00 + 57*4, 0);
 	PRIMOUTREG(0x2d00 + 53*4, 0);
 	PRIMOUTREG(0x2d00 + 61*4, 0);
-
 	PRIMOUTREG(0x2d00 + 52*4, regs[MGA_TEXREG_WIDTH] | 0x40 ); 
+
 	PRIMOUTREG(0x2d00 + 60*4, regs[MGA_TEXREG_HEIGHT] | 0x40 );
-
 	PRIMOUTREG(MGAREG_TEXCTL2, regs[MGA_TEXREG_CTL2] );
+	PRIMOUTREG(MGAREG_DMAPAD, 0);
+	PRIMOUTREG(MGAREG_DMAPAD, 0 );
 
-	PRIMADVANCE( dev_priv );     
+	PRIMADVANCE( dev_priv ); /* padded */
 }
 
 
@@ -193,22 +220,26 @@ static void mgaG400EmitPipe(drm_mga_private_t *dev_priv,
 	float fParam = 12800.0f;
 	PRIMLOCALS;
    
+	printk("emit g400 pipe %x\n", pipe);
+
 	PRIMGETPTR(dev_priv);
-	PRIMOUTREG(MGAREG_WIADDR2, WIA_wmode_suspend);
+
    
 	/* Establish vertex size.  
 	 */
 	if (pipe & MGA_T2) {
+		PRIMOUTREG(MGAREG_WIADDR2, WIA_wmode_suspend);
 		PRIMOUTREG(MGAREG_WVRTXSZ, 0x00001e09);
 		PRIMOUTREG(MGAREG_WACCEPTSEQ, 0x1e000000);
+		PRIMOUTREG(MGAREG_WFLAG, 0);
 	} else {
+		PRIMOUTREG(MGAREG_WIADDR2, WIA_wmode_suspend);
 		PRIMOUTREG(MGAREG_WVRTXSZ, 0x00001807);
 		PRIMOUTREG(MGAREG_WACCEPTSEQ, 0x18000000);
-	}
-   
-	PRIMOUTREG(MGAREG_WFLAG, 0);
-	PRIMOUTREG(MGAREG_WFLAG1, 0);
-   
+		PRIMOUTREG(MGAREG_WFLAG, 0);
+	}   
+
+	PRIMOUTREG(MGAREG_WFLAG1, 0);   
 	PRIMOUTREG(0x2d00 + 56*4, *((u32 *)(&fParam)));
 	PRIMOUTREG(MGAREG_DMAPAD, 0);
 	PRIMOUTREG(MGAREG_DMAPAD, 0);
@@ -239,7 +270,10 @@ static void mgaG200EmitPipe( drm_mga_private_t *dev_priv,
 	unsigned int pipe = sarea_priv->WarpPipe;
 	PRIMLOCALS;
 
+	printk("emit g200 pipe %x\n", pipe);
+
 	PRIMGETPTR(dev_priv);
+
 	PRIMOUTREG(MGAREG_WIADDR, WIA_wmode_suspend);
 	PRIMOUTREG(MGAREG_WVRTXSZ, 7);
 	PRIMOUTREG(MGAREG_WFLAG, 0);
@@ -265,25 +299,25 @@ void mgaEmitState( drm_mga_private_t *dev_priv, drm_mga_buf_priv_t *buf_priv )
 	unsigned int dirty = buf_priv->dirty;
 
 	if (dev_priv->chipset == MGA_CARD_TYPE_G400) {	   
-		if (dirty & MGASAREA_NEW_CONTEXT)
+		if (dirty & MGA_UPLOAD_CTX)
 			mgaEmitContext( dev_priv, buf_priv );
 
-		if (dirty & MGASAREA_NEW_TEX1)
+		if (dirty & MGA_UPLOAD_TEX1)
 			mgaG400EmitTex1( dev_priv, buf_priv );
 	   
-		if (dirty & MGASAREA_NEW_TEX0)
+		if (dirty & MGA_UPLOAD_TEX0)
 			mgaG400EmitTex0( dev_priv, buf_priv );
 
-		if (dirty & MGASAREA_NEW_PIPE) 
+		if (dirty & MGA_UPLOAD_PIPE) 
 			mgaG400EmitPipe( dev_priv, buf_priv );
 	} else {
-		if (dirty & MGASAREA_NEW_CONTEXT)
+		if (dirty & MGA_UPLOAD_CTX)
 			mgaEmitContext( dev_priv, buf_priv );
 
-		if (dirty & MGASAREA_NEW_TEX0)
+		if (dirty & MGA_UPLOAD_TEX0)
 			mgaG200EmitTex( dev_priv, buf_priv );
 
-		if (dirty & MGASAREA_NEW_PIPE) 
+		if (dirty & MGA_UPLOAD_PIPE) 
 			mgaG200EmitPipe( dev_priv, buf_priv );
 	}	  
 }
@@ -297,13 +331,23 @@ static int mgaCopyContext(drm_mga_private_t *dev_priv,
 {
 	drm_mga_sarea_t *sarea_priv = dev_priv->sarea_priv;
 	unsigned int *regs = sarea_priv->ContextState;
+	int i;
+
+	for (i = 0 ; i < MGA_CTX_SETUP_SIZE ; i++)
+		printk("ctx %d: %x\n", i, regs[i]);
+
 	
 	if (regs[MGA_CTXREG_DSTORG] != dev_priv->frontOrg &&
-	    regs[MGA_CTXREG_DSTORG] != dev_priv->backOrg)
+	    regs[MGA_CTXREG_DSTORG] != dev_priv->backOrg) {
+		printk("BAD DSTORG: %x (front %x, back %x)\n\n", 
+		       regs[MGA_CTXREG_DSTORG], dev_priv->frontOrg,
+		       dev_priv->backOrg);
 		return -1;
+	}
+	else
+		printk("DSTORG OK: %x\n", regs[MGA_CTXREG_DSTORG]);
 
-	memcpy(buf_priv->ContextState, sarea_priv->ContextState,
-	       sizeof(buf_priv->ContextState));
+	memcpy(buf_priv->ContextState, regs, sizeof(buf_priv->ContextState));
 	return 0;
 }
 
@@ -316,8 +360,16 @@ static int mgaCopyTex(drm_mga_private_t *dev_priv,
 {
 	drm_mga_sarea_t *sarea_priv = dev_priv->sarea_priv;
 
-	if ((sarea_priv->TexState[unit][MGA_TEXREG_ORG] & 0x3) == 0x1)
+	if ((sarea_priv->TexState[unit][MGA_TEXREG_ORG] & 0x3) == 0x1) {
+		printk("BAD TEXREG_ORG: %x, unit %d\n", 
+		       sarea_priv->TexState[unit][MGA_TEXREG_ORG],
+		       unit);
 		return -1;
+	} 
+	else 
+		printk("using texreg_org: %x unit %d\n", 
+		       sarea_priv->TexState[unit][MGA_TEXREG_ORG],
+		       unit);
 
 	memcpy(buf_priv->TexState[unit], sarea_priv->TexState[unit],
 	       sizeof(buf_priv->TexState[0]));
@@ -336,25 +388,32 @@ int mgaCopyAndVerifyState( drm_mga_private_t *dev_priv,
 	buf_priv->dirty = sarea_priv->dirty;
 	buf_priv->WarpPipe = sarea_priv->WarpPipe;
 
-	if (dirty & MGASAREA_NEW_CONTEXT)
+	if ((buf_priv->nbox = sarea_priv->nbox) != 0) 
+	   memcpy( buf_priv->boxes, 
+		   sarea_priv->boxes,
+		   buf_priv->nbox * sizeof(xf86drmClipRectRec));
+
+	if (dirty & MGA_UPLOAD_CTX)
 		rv |= mgaCopyContext( dev_priv, buf_priv );
 
-	if (dirty & MGASAREA_NEW_TEX0)
+	if (dirty & MGA_UPLOAD_TEX0)
 		rv |= mgaCopyTex( dev_priv, buf_priv, 0 );
 
 	if (dev_priv->chipset == MGA_CARD_TYPE_G400) 
 	{	   
-		if (dirty & MGASAREA_NEW_TEX1)
+		if (dirty & MGA_UPLOAD_TEX1)
 			rv |= mgaCopyTex( dev_priv, buf_priv, 1 );
 	   
-		if (dirty & MGASAREA_NEW_PIPE) 
+		if (dirty & MGA_UPLOAD_PIPE) 
 			rv |= (buf_priv->WarpPipe > MGA_MAX_G400_PIPES); 
 	} 
 	else 
 	{
-		if (dirty & MGASAREA_NEW_PIPE) 
+		if (dirty & MGA_UPLOAD_PIPE) 
 			rv |= (buf_priv->WarpPipe > MGA_MAX_G200_PIPES); 
 	}	  
+
+
 
 	return rv == 0;
 }

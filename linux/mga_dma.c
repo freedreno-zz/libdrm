@@ -88,6 +88,7 @@ int mga_dma_cleanup(drm_device_t *dev)
 static int mga_alloc_kernel_queue(drm_device_t *dev)
 {
 	drm_queue_t *queue = NULL;
+
 				/* Allocate a new queue */
 	down(&dev->struct_sem);
 	
@@ -148,6 +149,7 @@ static int mga_dma_initialize(drm_device_t *dev, drm_mga_init_t *init) {
 	drm_map_t *prim_map = NULL;
 	drm_map_t *sarea_map = NULL;
 	int temp;
+	int i;
 
 
 	dev_priv = drm_alloc(sizeof(drm_mga_private_t), DRM_MEM_DRIVER);
@@ -185,7 +187,7 @@ static int mga_dma_initialize(drm_device_t *dev, drm_mga_init_t *init) {
 				  PAGE_SIZE) * PAGE_SIZE;
 	dev_priv->warp_ucode_size = init->warp_ucode_size;
 	dev_priv->chipset = init->chipset;
-	dev_priv->fbOffset = init->fbOffset;
+	dev_priv->fbOffset = init->frontOffset;
 	dev_priv->backOffset = init->backOffset;
 	dev_priv->depthOffset = init->depthOffset;
 	dev_priv->textureOffset = init->textureOffset;
@@ -194,16 +196,31 @@ static int mga_dma_initialize(drm_device_t *dev, drm_mga_init_t *init) {
 	dev_priv->sgram = init->sgram;
 	dev_priv->stride = init->stride;
 
-	dev_priv->frontOrg = init->frontOrg;
-	dev_priv->backOrg = init->backOrg;
-	dev_priv->depthOrg = init->depthOrg;
 	dev_priv->mAccess = init->mAccess;
 	
+
+	printk("chipset: %d ucode_size: %d backOffset: %x depthOffset: %x\n",
+	       dev_priv->chipset, dev_priv->warp_ucode_size, 
+	       dev_priv->backOffset, dev_priv->depthOffset);
+	printk("cpp: %d sgram: %d stride: %d maccess: %x\n",
+	       dev_priv->cpp, dev_priv->sgram, dev_priv->stride, 
+	       dev_priv->mAccess);
+
    
 	printk("memcpy\n");
 	memcpy(&dev_priv->WarpIndex, &init->WarpIndex, 
 	       sizeof(mgaWarpIndex) * MGA_MAX_WARP_PIPES);
 	printk("memcpy done\n");
+
+
+	for (i = 0 ; i < MGA_MAX_WARP_PIPES ; i++) 
+	   printk("warp pipe %d: installed: %d phys_addr: %lx size: %x\n",
+		  i, 
+		  dev_priv->WarpIndex[i].installed,
+		  dev_priv->WarpIndex[i].phys_addr,
+		  dev_priv->WarpIndex[i].size);
+		  
+
 	prim_map = dev->maplist[init->reserved_map_idx];
 	dev_priv->prim_phys_head = dev->agp->base + init->reserved_map_agpstart;
 	temp = init->warp_ucode_size + dev_priv->primary_size;
@@ -236,11 +253,14 @@ static int mga_dma_initialize(drm_device_t *dev, drm_mga_init_t *init) {
 	{
 		PRIMLOCALS;
 		PRIMRESET( dev_priv );
+
 		PRIMGETPTR( dev_priv );
+
 		PRIMOUTREG(MGAREG_DMAPAD, 0);
 		PRIMOUTREG(MGAREG_DMAPAD, 0);
 		PRIMOUTREG(MGAREG_DWGSYNC, 0);
 		PRIMOUTREG(MGAREG_SOFTRAP, 0);
+
 		PRIMADVANCE( dev_priv );
 
 		/* Poll for the first buffer to insure that
@@ -251,7 +271,6 @@ static int mga_dma_initialize(drm_device_t *dev, drm_mga_init_t *init) {
 		MGA_WRITE(MGAREG_DWGSYNC, MGA_SYNC_TAG);
 
 		while(MGA_READ(MGAREG_DWGSYNC) != MGA_SYNC_TAG) {
-			int i;
 			for(i = 0 ; i < 4096; i++) mga_delay();
 		}
 
@@ -261,7 +280,6 @@ static int mga_dma_initialize(drm_device_t *dev, drm_mga_init_t *init) {
 					   PDEA_pagpxfer_enable));
 
 		while(MGA_READ(MGAREG_DWGSYNC) == MGA_SYNC_TAG) {
-			int i;
 			for(i = 0; i < 4096; i++) mga_delay();
 		}
 
@@ -301,7 +319,7 @@ static void __mga_iload_small(drm_device_t *dev,
 {
    	drm_mga_private_t *dev_priv = dev->dev_private;
    	drm_mga_buf_priv_t *buf_priv = buf->dev_private;
-      	drm_mga_sarea_t *sarea_priv = dev_priv->sarea_priv;
+/*        	drm_mga_sarea_t *sarea_priv = dev_priv->sarea_priv; */
    	unsigned long address = (unsigned long)buf->bus_address;
 	int length = buf->used;
 	int y1 = buf_priv->boxes[0].y1;
@@ -319,22 +337,27 @@ static void __mga_iload_small(drm_device_t *dev,
    	PRIMOUTREG(MGAREG_MACCESS, maccess);
    	PRIMOUTREG(MGAREG_PITCH, (1 << 15));
    	PRIMOUTREG(MGAREG_YDST, y1 * (x2 - x1));   
+
    	PRIMOUTREG(MGAREG_LEN, 1);
    	PRIMOUTREG(MGAREG_FXBNDRY, ((x2 - x1) * (y2 - y1) - 1) << 16);
    	PRIMOUTREG(MGAREG_AR0, (x2 - x1) * (y2 - y1) - 1);
    	PRIMOUTREG(MGAREG_AR3, 0);
+
    	PRIMOUTREG(MGAREG_DMAPAD, 0);
    	PRIMOUTREG(MGAREG_DMAPAD, 0);
    	PRIMOUTREG(MGAREG_DMAPAD, 0);
    	PRIMOUTREG(MGAREG_DWGCTL+MGAREG_MGA_EXEC, MGA_ILOAD_CMD);
+
    	PRIMOUTREG(MGAREG_DMAPAD, 0);
    	PRIMOUTREG(MGAREG_DMAPAD, 0);
    	PRIMOUTREG(MGAREG_SECADDRESS, address | TT_BLIT);
    	PRIMOUTREG(MGAREG_SECEND, (address + length) | use_agp);
+
    	PRIMOUTREG(MGAREG_DMAPAD, 0);
    	PRIMOUTREG(MGAREG_DMAPAD, 0);
    	PRIMOUTREG(MGAREG_DMAPAD, 0);
    	PRIMOUTREG(MGAREG_SOFTRAP, 0);
+
    	PRIMADVANCE(dev_priv);
 #if 0
    	/* For now we need to set this in the ioctl */
@@ -351,7 +374,7 @@ static void __mga_iload_xy(drm_device_t *dev,
 {
       	drm_mga_private_t *dev_priv = dev->dev_private;
    	drm_mga_buf_priv_t *buf_priv = buf->dev_private;
-      	drm_mga_sarea_t *sarea_priv = dev_priv->sarea_priv;
+/*        	drm_mga_sarea_t *sarea_priv = dev_priv->sarea_priv; */
 	unsigned long address = (unsigned long)buf->bus_address;
    	int length = buf->used;
 	int y1 = buf_priv->boxes[0].y1;
@@ -426,6 +449,9 @@ static void mga_dma_dispatch_iload(drm_device_t *dev, drm_buf_t *buf)
 	int x1 = buf_priv->boxes[0].x1;
 	int x2 = buf_priv->boxes[0].x2;
    
+
+   	printk("dispatch iload!\n");
+
    	if((x2 - x1) < 32) {
 	   	printk("using iload small\n");
 	   	__mga_iload_small(dev, buf, use_agp);
@@ -452,6 +478,10 @@ static void mga_dma_dispatch_vertex(drm_device_t *dev, drm_buf_t *buf)
 		count = 1;
 
 	mgaEmitState( dev_priv, buf_priv );
+
+
+   	printk("dispatch vertex addr 0x%x, length 0x%x nbox %d\n", 
+	       address, length, buf_priv->nbox);
 
 	for (i = 0 ; i < count ; i++) {		
 		if (i < buf_priv->nbox)
@@ -487,6 +517,9 @@ static void mga_dma_dispatch_general(drm_device_t *dev, drm_buf_t *buf)
 	int length = buf->used;
 	int use_agp = PDEA_pagpxfer_enable;
    	PRIMLOCALS;
+
+
+   	printk("dispatch general!\n");
 
 	PRIMRESET(dev_priv);
    	PRIMGETPTR(dev_priv);
@@ -653,7 +686,6 @@ static int mga_do_dma(drm_device_t *dev, int locked)
 
 	buf_priv = buf->dev_private;
 
-   	printk("dispatch!\n");
 	switch (buf_priv->dma_type) {
 	case MGA_DMA_GENERAL:
 		mga_dma_dispatch_general(dev, buf);
@@ -703,10 +735,10 @@ static int mga_do_dma(drm_device_t *dev, int locked)
 	return retcode;
 }
 
-static void mga_dma_schedule_timer_wrapper(unsigned long dev)
-{
-	mga_dma_schedule((drm_device_t *)dev, 0);
-}
+/*  static void mga_dma_schedule_timer_wrapper(unsigned long dev) */
+/*  { */
+/*  	mga_dma_schedule((drm_device_t *)dev, 0); */
+/*  } */
 
 static void mga_dma_schedule_tq_wrapper(void *dev)
 {

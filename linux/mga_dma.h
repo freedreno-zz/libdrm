@@ -41,22 +41,36 @@ typedef struct {
 /* Macros for inserting commands into a secondary dma buffer.
  */
 
+
+#define VERBO 1
+
+
+
 #define DMALOCALS	u8 tempIndex[4]; u32 *dma_ptr; \
 			int outcount, num_dwords;
 
-#define	DMAGETPTR(buf) do {			\
+#define	DMAGETPTR(buf) do {				\
   dma_ptr = (u32 *)((u8 *)buf->address + buf->used);	\
-  outcount = 0;					\
-  num_dwords = buf->used / 4;			\
+  outcount = 0;						\
+  num_dwords = buf->used / 4;				\
+  if (VERBO)						\
+	printk(KERN_INFO "DMAGETPTR in %s, start %d\n",		\
+	       __FUNCTION__, num_dwords);				\
 } while(0)
 
 #define DMAADVANCE(buf)	do {			\
+  if (VERBO)					\
+	printk(KERN_INFO "DMAADVANCE\n");			\
   buf->used = num_dwords * 4;			\
 } while(0)
 
 #define DMAOUTREG(reg, val) do {		\
   tempIndex[outcount]=ADRINDEX(reg);		\
   dma_ptr[++outcount] = val;			\
+  if (VERBO)					\
+	printk(KERN_INFO			\
+	       "   DMAOUT %d: 0x%x -- 0x%x\n",	\
+	       num_dwords +1+outcount, ADRINDEX(reg), val);	\
   if (outcount == 4) {				\
      outcount = 0;				\
      dma_ptr[0] = *(u32 *)tempIndex;		\
@@ -65,9 +79,6 @@ typedef struct {
   }						\
 }while (0)
 
-
-
-#define VERBO 0
 
 
 /* Primary buffer versions of above -- pretty similar really.
@@ -80,32 +91,51 @@ typedef struct {
    	dev_priv->current_dma_ptr = dev_priv->prim_head;	\
 } while (0)
 	
-#define	PRIMGETPTR(dev_priv) do {		\
-	dma_ptr = dev_priv->current_dma_ptr;	\
-	phys_head = dev_priv->prim_phys_head;	\
-	num_dwords = dev_priv->prim_num_dwords;	\
-	outcount = 0;				\
+#define	PRIMGETPTR(dev_priv) do {			\
+	dma_ptr = dev_priv->current_dma_ptr;		\
+	phys_head = dev_priv->prim_phys_head;		\
+	num_dwords = dev_priv->prim_num_dwords;		\
+	outcount = 0;					\
+	if (VERBO)					\
+		printk(KERN_INFO "PRIMGETPTR in %s, start %d\n",	\
+		       __FUNCTION__, num_dwords);			\
 } while (0)
 
-#define PRIMADVANCE(dev_priv)	do {		\
-	dev_priv->prim_num_dwords = num_dwords;	\
-	dev_priv->current_dma_ptr = dma_ptr;	\
+#define PRIMADVANCEPAD(dev_priv)	do {			\
+        while(outcount & 3) {				\
+	    if (VERBO)					\
+      	        printk(KERN_INFO "PAD %d\n",		\
+                       num_dwords + 1 + outcount);	\
+	    tempIndex[outcount++]=0x15;			\
+        }						\
+							\
+	if (VERBO)					\
+		printk(KERN_INFO "PRIMADVANCEPAD\n");	\
+	dev_priv->prim_num_dwords = num_dwords;		\
+	dev_priv->current_dma_ptr = dma_ptr;		\
 } while (0)
+
+#define PRIMADVANCE(dev_priv)	do {			\
+	if (VERBO)					\
+		printk(KERN_INFO "PRIMADVANCE\n");	\
+	dev_priv->prim_num_dwords = num_dwords;		\
+	dev_priv->current_dma_ptr = dma_ptr;		\
+} while (0)
+
 
 #define PRIMOUTREG(reg, val) do {					\
 	tempIndex[outcount]=ADRINDEX(reg);				\
 	dma_ptr[1+outcount] = val;					\
+	if (VERBO) 							\
+		printk(KERN_INFO 					\
+		       "   PRIMOUT %d: 0x%x -- 0x%x\n",	\
+		       num_dwords + 1 + outcount, ADRINDEX(reg), val);			\
 	if( ++outcount == 4) {						\
 		outcount = 0;						\
 		dma_ptr[0] = *(u32 *)tempIndex;				\
 		dma_ptr+=5;						\
 		num_dwords += 5;					\
 	}								\
-	if (VERBO) 							\
-		printk(KERN_INFO 					\
-		       "OUT %x val %x dma_ptr %p nr_dwords %d\n",	\
-		       outcount, ADRINDEX(reg), dma_ptr, 		\
-		       num_dwords);   					\
 }while (0)
 
 

@@ -82,7 +82,7 @@ typedef struct drm_mga_init {
    	int sarea_priv_offset;
    	int primary_size;
    	int warp_ucode_size;
-   	int fbOffset;
+   	int frontOffset;
    	int backOffset;
    	int depthOffset;
    	int textureOffset;
@@ -95,9 +95,6 @@ typedef struct drm_mga_init {
 
 	/* Redundant?
 	 */
-	int frontOrg;
-	int backOrg;
-	int depthOrg;
 	int mAccess;
 } drm_mga_init_t;
 
@@ -147,13 +144,21 @@ typedef struct _xf86drmClipRectRec {
 #define MGA_TEX_SETUP_SIZE    11
 
 
+
 /* What needs to be changed for the current vertex dma buffer?
  */
-#define MGASAREA_NEW_CONTEXT    0x1
-#define MGASAREA_NEW_TEX0       0x2
-#define MGASAREA_NEW_TEX1       0x4
-#define MGASAREA_NEW_PIPE       0x8
-#define MGASAREA_NEW_2D 	0x10
+#define MGA_UPLOAD_CTX        0x1
+#define MGA_UPLOAD_TEX0       0x2
+#define MGA_UPLOAD_TEX1       0x4
+#define MGA_UPLOAD_PIPE       0x8
+#define MGA_UPLOAD_TEX0IMAGE  0x10
+#define MGA_UPLOAD_TEX1IMAGE  0x20
+#define MGA_UPLOAD_2D 	      0x40
+#define MGA_REQUIRE_QUIESCENT 0x80
+
+
+#define MGA_DMA_BUF_SZ        65536
+#define MGA_DMA_BUF_NR        63
 
 
 /* Keep this small for testing
@@ -185,7 +190,8 @@ typedef struct
 	/* kernel doesn't touch from here down */
    	int ctxOwner;		
 	mgaTexRegion texList[MGA_NR_TEX_REGIONS+1];
-	int texAge;	                            
+	int texAge;	      
+                      
 } drm_mga_sarea_t;	
 
 
@@ -203,7 +209,7 @@ typedef struct {
 } drm_mga_swap_t;
 
 typedef struct {
-	unsigned int destOrg;
+	unsigned int destOrg;	
 	unsigned int mAccess;
    	unsigned int pitch;
 	xf86drmClipRectRec texture;
