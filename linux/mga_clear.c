@@ -233,7 +233,7 @@ static int mgaIload(drm_device_t *dev, drm_mga_iload_t *args)
    	buf_priv->ContextState[MGA_CTXREG_MACCESS] = args->mAccess;
 	buf_priv->nbox = 1;   
    	sarea_priv->dirty |= MGASAREA_NEW_CONTEXT;
-   
+   	buf->used = args->used;
 	d.context = DRM_KERNEL_CONTEXT;
 	d.send_count = 1;
 	d.send_indices = &buf->idx;

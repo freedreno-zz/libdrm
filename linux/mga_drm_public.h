@@ -127,6 +127,7 @@ typedef struct {
 	unsigned int mAccess;
 	xf86drmClipRectRec texture;
    	int idx;
+   	int used;
 } drm_mga_iload_t;
 
 /* Each context has a state:
