@@ -1,5 +1,5 @@
-/* mga_drm.c -- Matrox G200/G400 core DRM -*- linux-c -*-
- * Created: Mon Dec 13 01:56:22 1999 by gareth@valinux.com
+/* tdfx.h -- 3dfx DRM template customization -*- linux-c -*-
+ * Created: Wed Feb 14 12:32:32 2001 by gareth@valinux.com
  *
  * Copyright 2000 VA Linux Systems, Inc., Sunnyvale, California.
  * All Rights Reserved.
@@ -27,25 +27,15 @@
  *    Gareth Hughes <gareth@valinux.com>
  */
 
-#define __NO_VERSION__
-#include "mga.h"
-#include "drmP.h"
-#include "mga_drv.h"
+#ifndef __TDFX_H__
+#define __TDFX_H__
 
-#define DRIVER_DEV_PRIV_T	drm_mga_private_t
-#define DRIVER_AGP_BUFFER_MAP	dev_priv->buffers
+/* This remains constant for all DRM template files.
+ */
+#define DRM(x) tdfx_##x
 
-#include "drm_agpsupport.h"
-#include "drm_auth.h"
-#include "drm_bufs.h"
-#include "drm_context.h"
-#include "drm_dma.h"
-#include "drm_drawable.h"
-#include "drm_fops.h"
-#include "drm_init.h"
-#include "drm_ioctl.h"
-#include "drm_lock.h"
-#include "drm_memory.h"
-#include "drm_proc.h"
-#include "drm_vm.h"
-#include "drm_stub.h"
+#define __HAVE_AGP		1
+#define __HAVE_MTRR		1
+#define __HAVE_CTX_BITMAP	1
+
+#endif

@@ -637,6 +637,17 @@ extern int	     DRM(flags);
 extern void	     DRM(parse_options)( char *s );
 extern int           DRM(cpu_valid)( void );
 
+				/* Driver support (drm_drv.h) */
+extern int           DRM(version)(struct inode *inode, struct file *filp,
+				  unsigned int cmd, unsigned long arg);
+extern int           DRM(open)(struct inode *inode, struct file *filp);
+extern int           DRM(release)(struct inode *inode, struct file *filp);
+extern int           DRM(ioctl)(struct inode *inode, struct file *filp,
+				unsigned int cmd, unsigned long arg);
+extern int           DRM(lock)(struct inode *inode, struct file *filp,
+			       unsigned int cmd, unsigned long arg);
+extern int           DRM(unlock)(struct inode *inode, struct file *filp,
+				 unsigned int cmd, unsigned long arg);
 
 				/* Device support (fops.c) */
 extern int	     DRM(open_helper)(struct inode *inode, struct file *filp,
@@ -748,6 +759,8 @@ extern int	     DRM(newctx)( struct inode *inode, struct file *filp,
 extern int	     DRM(rmctx)( struct inode *inode, struct file *filp,
 				 unsigned int cmd, unsigned long arg );
 
+extern int	     DRM(context_switch)(drm_device_t *dev, int old, int new);
+extern int	     DRM(context_switch_complete)(drm_device_t *dev, int new);
 
 				/* Drawable IOCTL support (drawable.c) */
 extern int	     DRM(adddraw)(struct inode *inode, struct file *filp,
@@ -816,8 +829,6 @@ extern int	     DRM(dma_setup)(drm_device_t *dev);
 extern void	     DRM(dma_takedown)(drm_device_t *dev);
 extern void	     DRM(free_buffer)(drm_device_t *dev, drm_buf_t *buf);
 extern void	     DRM(reclaim_buffers)(drm_device_t *dev, pid_t pid);
-extern int	     DRM(context_switch)(drm_device_t *dev, int old, int new);
-extern int	     DRM(context_switch_complete)(drm_device_t *dev, int new);
 extern void	     DRM(clear_next_buffer)(drm_device_t *dev);
 extern int	     DRM(select_queue)(drm_device_t *dev,
 				       void (*wrapper)(unsigned long));

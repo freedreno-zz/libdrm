@@ -36,6 +36,9 @@
 #define __HAVE_PCI_DMA		0
 #endif
 
+#ifndef DRIVER_DEV_PRIV_T
+#define DRIVER_DEV_PRIV_T	u32
+#endif
 #ifndef DRIVER_BUF_PRIV_T
 #define DRIVER_BUF_PRIV_T	u32
 #endif
@@ -160,6 +163,8 @@ int DRM(addmap)( struct inode *inode, struct file *filp,
 	}
 	return 0;
 }
+
+#if __HAVE_DMA
 
 #if __REALLY_HAVE_AGP
 int DRM(addbufs_agp)( struct inode *inode, struct file *filp,
@@ -747,3 +752,5 @@ int DRM(mapbufs)( struct inode *inode, struct file *filp,
 
 	return retcode;
 }
+
+#endif /* __HAVE_DMA */

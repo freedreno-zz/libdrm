@@ -49,7 +49,7 @@
 
 #MODS=           gamma.o tdfx.o r128.o radeon.o
 #LIBS=           libdrm.a
-MODS=
+MODS=           tdfx.o
 LIBS=
 
 #DRMOBJS=	init.o memory.o proc.o auth.o context.o drawable.o bufs.o \
@@ -63,7 +63,7 @@ DRMHEADERS=	drm.h drmP.h compat-pre24.h
 GAMMAOBJS=      gamma_drv.o gamma_drm.o gamma_dma.o gamma_context.o
 GAMMAHEADERS=   gamma_drv.h $(DRMHEADERS) $(DRMTEMPLATES)
 
-TDFXOBJS=       tdfx_drv.o tdfx_context.o
+TDFXOBJS=       tdfx_drv.o tdfx_drm.o
 TDFXHEADERS=    tdfx_drv.h $(DRMHEADERS)
 
 INC=		/usr/include

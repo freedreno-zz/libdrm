@@ -1,7 +1,7 @@
-/* mga_drm.c -- Matrox G200/G400 core DRM -*- linux-c -*-
- * Created: Mon Dec 13 01:56:22 1999 by gareth@valinux.com
+/* tdfx_drm.c -- 3dfx core DRM -*- linux-c -*-
+ * Created: Wed Feb 14 12:32:06 2001 by gareth@valinux.com
  *
- * Copyright 2000 VA Linux Systems, Inc., Sunnyvale, California.
+ * Copyright 2001 VA Linux Systems, Inc., Sunnyvale, California.
  * All Rights Reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -28,12 +28,8 @@
  */
 
 #define __NO_VERSION__
-#include "mga.h"
+#include "tdfx.h"
 #include "drmP.h"
-#include "mga_drv.h"
-
-#define DRIVER_DEV_PRIV_T	drm_mga_private_t
-#define DRIVER_AGP_BUFFER_MAP	dev_priv->buffers
 
 #include "drm_agpsupport.h"
 #include "drm_auth.h"

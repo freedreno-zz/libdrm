@@ -425,13 +425,12 @@ static int DRM(takedown)( drm_device_t *dev )
 			  DRM_MEM_QUEUES );
 		dev->queuelist = NULL;
 	}
+	dev->queue_count = 0;
 #endif
 
 #if __HAVE_DMA
 	DRM(dma_takedown)( dev );
 #endif
-
-	dev->queue_count = 0;
 	if ( dev->lock.hw_lock ) {
 		dev->lock.hw_lock = NULL; /* SHM removed */
 		dev->lock.pid = 0;
@@ -447,11 +446,10 @@ static int DRM(takedown)( drm_device_t *dev )
  */
 static int __init drm_init( void )
 {
+	drm_device_t *dev = &DRM(device);
 #if __HAVE_CTX_BITMAP
 	int retcode;
 #endif
-	drm_device_t *dev = &DRM(device);
-
 	DRM_DEBUG( "\n" );
 
 	memset( (void *)dev, 0, sizeof(*dev) );
