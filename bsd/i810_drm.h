@@ -98,8 +98,13 @@ typedef struct _drm_i810_init {
 		I810_INIT_DMA = 0x01,
 		I810_CLEANUP_DMA = 0x02
 	} func;
+#if CONFIG_XFREE86_VERSION < XFREE86_VERSION(4,1,0,0)
 	int ring_map_idx;
 	int buffer_map_idx;
+#else
+	unsigned int mmio_offset;
+	unsigned int buffers_offset;
+#endif
 	int sarea_priv_offset;
 	unsigned int ring_start;
 	unsigned int ring_end;
@@ -107,6 +112,8 @@ typedef struct _drm_i810_init {
 	unsigned int front_offset;
 	unsigned int back_offset;
 	unsigned int depth_offset;
+	unsigned int overlay_offset;
+	unsigned int overlay_physical;
 	unsigned int w;
 	unsigned int h;
 	unsigned int pitch;
@@ -177,6 +184,12 @@ typedef struct _drm_i810_vertex {
 	int used;		/* nr bytes in use */
 	int discard;		/* client is finished with the buffer? */
 } drm_i810_vertex_t;
+
+typedef struct _drm_i810_copy_t {
+   	int idx;		/* buffer index */
+	int used;		/* nr bytes in use */
+	void *address;		/* Address to copy from */
+} drm_i810_copy_t;
 
 typedef struct drm_i810_dma {
 	void *virtual;
