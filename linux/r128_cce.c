@@ -342,15 +342,13 @@ static void r128_cce_init_ring_buffer( drm_device_t *dev )
 	/* The manual (p. 2) says this address is in "VM space".  This
 	 * means it's an offset from the start of AGP space.
 	 */
-	if ( !dev_priv->is_pci ) {
 #if defined(CONFIG_AGP) || defined(CONFIG_AGP_MODULE)
+	if ( !dev_priv->is_pci )
 		ring_start = dev_priv->cce_ring->offset - dev->agp->base;
-#else
-		printk("WARNING: Trying to use AGP without kernel support!\n");
+	else
 #endif
-	} else {
 		ring_start = dev_priv->cce_ring->offset - dev->sg->handle;
-	}
+
 	R128_WRITE( R128_PM4_BUFFER_OFFSET, ring_start | R128_AGP_OFFSET );
 
 	R128_WRITE( R128_PM4_BUFFER_DL_WPTR, 0 );
@@ -405,12 +403,8 @@ static int r128_do_init_cce( drm_device_t *dev, drm_r128_init_t *init )
 
 	dev_priv->is_pci = init->is_pci;
 
-	/* GH: We don't support PCI cards until PCI GART is implemented.
-	 * Fail here so we can remove all checks for PCI cards around
-	 * the CCE ring code.
-	 */
-
-	if ( dev_priv->is_pci && !dev->sg) {
+	if ( dev_priv->is_pci && !dev->sg ) {
+		DRM_ERROR( "PCI GART memory not allocated!\n" );
 		drm_free( dev_priv, sizeof(*dev_priv), DRM_MEM_DRIVER );
 		dev->dev_private = NULL;
 		return -EINVAL;
@@ -511,21 +505,25 @@ static int r128_do_init_cce( drm_device_t *dev, drm_r128_init_t *init )
 		(drm_r128_sarea_t *)((u8 *)dev_priv->sarea->handle +
 				     init->sarea_priv_offset);
 
-	if(dev_priv->is_pci) {
-		dev_priv->cce_ring->handle = 
-			(void *)dev_priv->cce_ring->offset;
-		dev_priv->ring_rptr->handle = 
-			(void *)dev_priv->ring_rptr->offset;
-		dev_priv->buffers->handle = (void *)dev_priv->buffers->offset;
-	} else {
+	if ( !dev_priv->is_pci ) {
 		DO_IOREMAP( dev_priv->cce_ring );
 		DO_IOREMAP( dev_priv->ring_rptr );
 		DO_IOREMAP( dev_priv->buffers );
+	} else {
+		dev_priv->cce_ring->handle =
+			(void *)dev_priv->cce_ring->offset;
+		dev_priv->ring_rptr->handle =
+			(void *)dev_priv->ring_rptr->offset;
+		dev_priv->buffers->handle = (void *)dev_priv->buffers->offset;
 	}
 
-	if ( !dev_priv->is_pci ) {
-		DO_IOREMAP( dev_priv->agp_textures );
-	}
+#if defined(CONFIG_AGP) || defined(CONFIG_AGP_MODULE)
+	if ( !dev_priv->is_pci )
+		dev_priv->cce_buffers_offset = dev->agp->base;
+	else
+#endif
+		dev_priv->cce_buffers_offset = dev->sg->handle;
+
 
 	dev_priv->ring.head = ((__volatile__ u32 *)
 			       dev_priv->ring_rptr->handle);
@@ -546,10 +544,9 @@ static int r128_do_init_cce( drm_device_t *dev, drm_r128_init_t *init )
 	R128_WRITE( R128_LAST_DISPATCH_REG,
 		    dev_priv->sarea_priv->last_dispatch );
 
-	if ( dev_priv->is_pci && r128_pcigart_init( dev ) < 0) {
-		DRM_ERROR( "failed to init PCIGART!\n" );
-		drm_free( dev_priv, sizeof(*dev_priv),
-			  DRM_MEM_DRIVER );
+	if ( dev_priv->is_pci && r128_pcigart_init( dev ) < 0 ) {
+		DRM_ERROR( "failed to init PCI GART!\n" );
+		drm_free( dev_priv, sizeof(*dev_priv), DRM_MEM_DRIVER );
 		dev->dev_private = NULL;
 		return -EINVAL;
 	}
@@ -611,10 +608,10 @@ static int r128_do_init_cce( drm_device_t *dev, drm_r128_init_t *init )
 
 		r128_do_wait_for_idle( dev_priv );
 		r128_do_engine_reset( dev );
-		r128_do_wait_for_idle( dev_priv );		
+		r128_do_wait_for_idle( dev_priv );
 	}
 #endif
-     
+
 	return 0;
 }
 
@@ -623,14 +620,13 @@ static int r128_do_cleanup_cce( drm_device_t *dev )
 	if ( dev->dev_private ) {
 		drm_r128_private_t *dev_priv = dev->dev_private;
 
-		if(!dev_priv->is_pci) {
+		if ( !dev_priv->is_pci ) {
 			DO_IOREMAPFREE( dev_priv->cce_ring );
 			DO_IOREMAPFREE( dev_priv->ring_rptr );
 			DO_IOREMAPFREE( dev_priv->buffers );
-			DO_IOREMAPFREE( dev_priv->agp_textures );
+		} else {
+			r128_pcigart_cleanup( dev );
 		}
-
-		r128_pcigart_cleanup(dev);
 
 		drm_free( dev->dev_private, sizeof(drm_r128_private_t),
 			  DRM_MEM_DRIVER );

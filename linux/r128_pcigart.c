@@ -25,36 +25,28 @@
  *
  * Authors:
  *   Gareth Hughes <gareth@valinux.com>
- *
  */
 
 #define __NO_VERSION__
 #include "drmP.h"
 #include "r128_drv.h"
 
-#include <linux/interrupt.h>	/* For task queue support */
-#include <linux/delay.h>
 
-
-
-
-static unsigned long r128_alloc_pages( void )
+static unsigned long r128_alloc_pcigart_table( void )
 {
 	unsigned long address;
-	unsigned long addr_end;
 	struct page *page;
-
+	int i;
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
-	address = __get_free_pages( GFP_KERNEL, 3 );
+	address = __get_free_pages( GFP_KERNEL, R128_PCIGART_TABLE_ORDER );
 	if ( address == 0UL ) {
 		return 0;
 	}
 
-	addr_end = address + ((PAGE_SIZE * (1 << 3)) - 1);
-	for (page = virt_to_page(address); 
-	     page <= virt_to_page(addr_end);
-	     page++) {
+	page = virt_to_page( address );
+
+	for ( i = 0 ; i <= R128_PCIGART_TABLE_PAGES ; i++, page++ ) {
 		atomic_inc( &page->count );
 		SetPageReserved( page );
 	}
@@ -63,24 +55,22 @@ static unsigned long r128_alloc_pages( void )
 	return address;
 }
 
-static void r128_free_pages( unsigned long address )
+static void r128_free_pcigart_table( unsigned long address )
 {
-	unsigned long addr_end;
 	struct page *page;
-
+	int i;
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
+
 	if ( !address ) return;
 
-	addr_end = address + ((PAGE_SIZE * (1 << 3)) - 1);
+	page = virt_to_page( address );
 
-	for (page = virt_to_page(address); 
-	     page <= virt_to_page(addr_end);
-	     page++) {
+	for ( i = 0 ; i <= R128_PCIGART_TABLE_PAGES ; i++, page++ ) {
 		atomic_dec( &page->count );
 		ClearPageReserved( page );
 	}
 
-	free_pages( address , 3 );
+	free_pages( address, R128_PCIGART_TABLE_ORDER );
 }
 
 int r128_pcigart_init( drm_device_t *dev )
@@ -89,50 +79,36 @@ int r128_pcigart_init( drm_device_t *dev )
 	drm_sg_mem_t *entry = dev->sg;
 	unsigned long address;
 	unsigned long pages;
-	unsigned long *pci_gart;
+	u32 *pci_gart;
 	int i;
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
-
-#if 0
-	dev_priv->phys_pci_gart_page = 0;
-	dev_priv->pci_gart_page = NULL;
-
-	return 0;
-#endif
 
 	if ( !entry ) {
 		DRM_ERROR( "no scatter/gather memory!\n" );
 		return -EINVAL;
 	}
 
-	/* 32 MB aperture is the largest size */
-	pages = ( entry->pages <= 8192 )
-		? entry->pages : 8192;
-
-	address = r128_alloc_pages();
-
-	
+	address = r128_alloc_pcigart_table();
 	if ( !address ) {
 		DRM_ERROR( "cannot allocate PCI GART page!\n" );
 		return -ENOMEM;
 	}
 
-	dev_priv->phys_pci_gart_page = address;
-	dev_priv->pci_gart_page = (unsigned long *)address;
+	dev_priv->phys_pci_gart = address;
 
-	DRM_DEBUG( "%s: phys=0x%08lx virt=%p\n",
-		  __FUNCTION__, dev_priv->phys_pci_gart_page,
-		  dev_priv->pci_gart_page );
+	pci_gart = (u32 *)dev_priv->phys_pci_gart;
 
-	pci_gart = (unsigned long *)dev_priv->pci_gart_page;
+	pages = ( entry->pages <= R128_MAX_PCIGART_PAGES )
+		? entry->pages : R128_MAX_PCIGART_PAGES;
 
-	for ( i = 0; i < 8192 ; i++) pci_gart[i] = 0;
+	memset( pci_gart, 0, R128_MAX_PCIGART_PAGES * sizeof(u32) );
+
 	for ( i = 0 ; i < pages ; i++ ) {
-		pci_gart[i] = virt_to_bus( entry->pagelist[i]->virtual );
+		pci_gart[i] = (u32) virt_to_bus( entry->pagelist[i]->virtual );
 	}
 
 	DRM_DEBUG( "%s: writing PCI_GART_PAGE...\n", __FUNCTION__ );
-	R128_WRITE( R128_PCI_GART_PAGE, virt_to_bus((void *)address) );
+	R128_WRITE( R128_PCI_GART_PAGE, virt_to_bus( (void *)address ) );
 	DRM_DEBUG( "%s: writing PCI_GART_PAGE... done.\n", __FUNCTION__ );
 
 #if __i386__
@@ -149,10 +125,9 @@ int r128_pcigart_cleanup( drm_device_t *dev )
 	drm_r128_private_t *dev_priv = dev->dev_private;
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
-	if ( dev_priv->phys_pci_gart_page ) {
-		r128_free_pages( dev_priv->phys_pci_gart_page );
+	if ( dev_priv->phys_pci_gart ) {
+		r128_free_pcigart_table( dev_priv->phys_pci_gart );
 	}
 
 	return 0;
 }
-

@@ -11,11 +11,11 @@
  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
  * and/or sell copies of the Software, and to permit persons to whom the
  * Software is furnished to do so, subject to the following conditions:
- * 
+ *
  * The above copyright notice and this permission notice (including the next
  * paragraph) shall be included in all copies or substantial portions of the
  * Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
@@ -23,7 +23,7 @@
  * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
- * 
+ *
  * Authors:
  *    Rickard E. (Rik) Faith <faith@valinux.com>
  *
@@ -51,7 +51,7 @@ int drm_addmap(struct inode *inode, struct file *filp, unsigned int cmd,
 	drm_file_t	*priv	= filp->private_data;
 	drm_device_t	*dev	= priv->dev;
 	drm_map_t	*map;
-	
+
 	if (!(filp->f_mode & 3)) return -EACCES; /* Require read/write */
 
 	map	     = drm_alloc(sizeof(*map), DRM_MEM_MAPS);
@@ -89,7 +89,7 @@ int drm_addmap(struct inode *inode, struct file *filp, unsigned int cmd,
 #endif
 		map->handle = drm_ioremap(map->offset, map->size);
 		break;
-			
+
 
 	case _DRM_SHM:
 		map->handle = (void *)drm_alloc_pages(drm_order(map->size)
@@ -112,7 +112,10 @@ int drm_addmap(struct inode *inode, struct file *filp, unsigned int cmd,
 		break;
 #endif
 	case _DRM_SCATTER_GATHER:
-		if(!dev->sg) return -EINVAL;
+		if (!dev->sg) {
+			drm_free(map, sizeof(*map), DRM_MEM_MAPS);
+			return -EINVAL;
+		}
 		map->offset = map->offset + dev->sg->handle;
 		break;
 	default:
@@ -144,7 +147,7 @@ int drm_addmap(struct inode *inode, struct file *filp, unsigned int cmd,
 				 &map->offset,
 				 sizeof(map->offset)))
 			return -EFAULT;
-	}		
+	}
 	return 0;
 }
 
@@ -179,7 +182,7 @@ int drm_addbufs(struct inode *inode, struct file *filp, unsigned int cmd,
 	count	   = request.count;
 	order	   = drm_order(request.size);
 	size	   = 1 << order;
-	
+
 	DRM_DEBUG("count = %d, size = %d (%d), order = %d, queue_count = %d\n",
 		  request.count, request.size, size, order, dev->queue_count);
 
@@ -197,7 +200,7 @@ int drm_addbufs(struct inode *inode, struct file *filp, unsigned int cmd,
 	}
 	atomic_inc(&dev->buf_alloc);
 	spin_unlock(&dev->count_lock);
-	
+
 	down(&dev->struct_sem);
 	entry = &dma->bufs[order];
 	if (entry->buf_count) {
@@ -205,7 +208,7 @@ int drm_addbufs(struct inode *inode, struct file *filp, unsigned int cmd,
 		atomic_dec(&dev->buf_alloc);
 		return -ENOMEM;	/* May only call once for each order */
 	}
-	
+
 	entry->buflist = drm_alloc(count * sizeof(*entry->buflist),
 				   DRM_MEM_BUFS);
 	if (!entry->buflist) {
@@ -289,12 +292,12 @@ int drm_addbufs(struct inode *inode, struct file *filp, unsigned int cmd,
 	dma->seg_count	+= entry->seg_count;
 	dma->page_count += entry->seg_count << page_order;
 	dma->byte_count += PAGE_SIZE * (entry->seg_count << page_order);
-	
+
 	drm_freelist_create(&entry->freelist, entry->buf_count);
 	for (i = 0; i < entry->buf_count; i++) {
 		drm_freelist_put(dev, &entry->freelist, &entry->buflist[i]);
 	}
-	
+
 	up(&dev->struct_sem);
 
 	request.count = entry->buf_count;
@@ -304,7 +307,7 @@ int drm_addbufs(struct inode *inode, struct file *filp, unsigned int cmd,
 			 &request,
 			 sizeof(request)))
 		return -EFAULT;
-	
+
 	atomic_dec(&dev->buf_alloc);
 	return 0;
 }
@@ -337,9 +340,9 @@ int drm_infobufs(struct inode *inode, struct file *filp, unsigned int cmd,
 	for (i = 0, count = 0; i < DRM_MAX_ORDER+1; i++) {
 		if (dma->bufs[i].buf_count) ++count;
 	}
-	
+
 	DRM_DEBUG("count = %d\n", count);
-	
+
 	if (request.count >= count) {
 		for (i = 0, count = 0; i < DRM_MAX_ORDER+1; i++) {
 			if (dma->bufs[i].buf_count) {
@@ -379,7 +382,7 @@ int drm_infobufs(struct inode *inode, struct file *filp, unsigned int cmd,
 			 &request,
 			 sizeof(request)))
 		return -EFAULT;
-	
+
 	return 0;
 }
 
@@ -413,7 +416,7 @@ int drm_markbufs(struct inode *inode, struct file *filp, unsigned int cmd,
 
 	entry->freelist.low_mark  = request.low_mark;
 	entry->freelist.high_mark = request.high_mark;
-	
+
 	return 0;
 }
 
@@ -454,7 +457,7 @@ int drm_freebufs(struct inode *inode, struct file *filp, unsigned int cmd,
 		}
 		drm_free_buffer(dev, buf);
 	}
-	
+
 	return 0;
 }
 
@@ -472,7 +475,7 @@ int drm_mapbufs(struct inode *inode, struct file *filp, unsigned int cmd,
 	int		 i;
 
 	if (!dma) return -EINVAL;
-	
+
 	DRM_DEBUG("\n");
 
 	spin_lock(&dev->count_lock);

@@ -24,24 +24,25 @@
  * DEALINGS IN THE SOFTWARE.
  *
  * Authors:
- *	Gareth Hughes <gareth@valinux.com>
- *
+ *   Gareth Hughes <gareth@valinux.com>
  */
 
 #define __NO_VERSION__
 #include <linux/config.h>
 #include <linux/vmalloc.h>
 #include "drmP.h"
-#include <linux/wrapper.h>
 
 #define DEBUG_SCATTER 0
 
 void drm_sg_cleanup( drm_sg_mem_t *entry )
 {
+	struct page *page;
 	int i;
 
 	for ( i = 0 ; i < entry->pages ; i++ ) {
-		ClearPageReserved( entry->pagelist[i] );
+		page = entry->pagelist[i];
+		if ( page )
+			ClearPageReserved( page );
 	}
 
 	vfree( entry->virtual );
@@ -52,15 +53,6 @@ void drm_sg_cleanup( drm_sg_mem_t *entry )
 	drm_free( entry,
 		  sizeof(*entry),
 		  DRM_MEM_SGLISTS );
-}
-
-static inline long usec( void )
-{
-   struct timeval tv;
-
-   do_gettimeofday( &tv );
-
-   return (tv.tv_sec & 0x7ff) * 1000000 + tv.tv_usec;
 }
 
 int drm_sg_alloc( struct inode *inode, struct file *filp,
@@ -77,7 +69,8 @@ int drm_sg_alloc( struct inode *inode, struct file *filp,
 
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
-	if ( dev->sg ) return -EINVAL;
+	if ( dev->sg )
+		return -EINVAL;
 
 	if ( copy_from_user( &request,
 			     (drm_scatter_gather_t *)arg,
@@ -85,7 +78,8 @@ int drm_sg_alloc( struct inode *inode, struct file *filp,
 		return -EFAULT;
 
 	entry = drm_alloc( sizeof(*entry), DRM_MEM_SGLISTS );
-	if ( !entry ) return -ENOMEM;
+	if ( !entry )
+		return -ENOMEM;
 
    	memset( entry, 0, sizeof(*entry) );
 
@@ -100,11 +94,7 @@ int drm_sg_alloc( struct inode *inode, struct file *filp,
 		return -ENOMEM;
 	}
 
-	/* FIXME: We should really have a kernel call for this...
-	 */
-	entry->virtual = __vmalloc( (pages << PAGE_SHIFT),
-				    GFP_KERNEL,
-				    PAGE_KERNEL);
+	entry->virtual = vmalloc_32( pages << PAGE_SHIFT );
 	if ( !entry->virtual ) {
 		drm_free( entry->pagelist,
 			  entry->pages * sizeof(*entry->pagelist),
@@ -127,30 +117,20 @@ int drm_sg_alloc( struct inode *inode, struct file *filp,
 
 	for ( i = entry->handle, j = 0 ; j < pages ; i += PAGE_SIZE, j++ ) {
 		pgd = pgd_offset_k( i );
+		if ( !pgd_present( *pgd ) )
+			goto failed;
 
-		if ( pgd_present( *pgd ) && ( pmd = pmd_offset( pgd, i ) )
-				&& pmd_present( *pmd ) && ( pte = pte_offset( pmd, i ) )
-				&& pte_present( *pte ) )
-			entry->pagelist[j] = pte_page( *pte );
-		else
-		{
-			vfree( entry->virtual );
-			drm_free( entry->pagelist,
-				  entry->pages * sizeof(*entry->pagelist),
-				  DRM_MEM_PAGES );
-			drm_free( entry,
-				  sizeof(*entry),
-				  DRM_MEM_SGLISTS );
-			return -ENOMEM;
-		}
+		pmd = pmd_offset( pgd, i );
+		if ( !pmd_present( *pmd ) )
+			goto failed;
+
+		pte = pte_offset( pmd, i );
+		if ( !pte_present( *pte ) )
+			goto failed;
+
+		entry->pagelist[j] = pte_page( *pte );
 
 		SetPageReserved( entry->pagelist[j] );
-
-		if ( j < 16 ) {
-			DRM_DEBUG("0x%08lx (page %lu) => 0x%08lx\n",
-				  i, j,
-				  (unsigned long)entry->pagelist[j]->virtual);
-		}
 	}
 
 	request.handle = entry->handle;
@@ -165,7 +145,7 @@ int drm_sg_alloc( struct inode *inode, struct file *filp,
 	dev->sg = entry;
 
 #if DEBUG_SCATTER
-	/* Verify that each page points to its virtual address, and vice 
+	/* Verify that each page points to its virtual address, and vice
 	 * versa.
 	 */
 	{
@@ -178,7 +158,7 @@ int drm_sg_alloc( struct inode *inode, struct file *filp,
 		for(j = 0; j < PAGE_SIZE / sizeof(unsigned long); j++, tmp++) {
 			*tmp = 0xcafebabe;
 		}
-		tmp = (unsigned long *)((u8 *)entry->virtual + 
+		tmp = (unsigned long *)((u8 *)entry->virtual +
 					(PAGE_SIZE * i));
 		for(j = 0; j < PAGE_SIZE / sizeof(unsigned long); j++, tmp++) {
 			if(*tmp != 0xcafebabe && error == 0) {
@@ -197,6 +177,10 @@ int drm_sg_alloc( struct inode *inode, struct file *filp,
 #endif
 
 	return 0;
+
+ failed:
+	drm_sg_cleanup( entry );
+	return -ENOMEM;
 }
 
 int drm_sg_free( struct inode *inode, struct file *filp,
@@ -215,7 +199,8 @@ int drm_sg_free( struct inode *inode, struct file *filp,
 	entry = dev->sg;
 	dev->sg = NULL;
 
-	if ( !entry || entry->handle != request.handle ) return -EINVAL;
+	if ( !entry || entry->handle != request.handle )
+		return -EINVAL;
 
 	DRM_DEBUG( "sg free virtual  = %p\n", entry->virtual );
 

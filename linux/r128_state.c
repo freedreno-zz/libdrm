@@ -616,9 +616,6 @@ static void r128_cce_dispatch_vertex( drm_device_t *dev,
 	drm_r128_sarea_t *sarea_priv = dev_priv->sarea_priv;
 	int format = sarea_priv->vc_format;
 	int offset = buf->bus_address;
-/*
-	int offset = dev_priv->buffers->offset + buf->offset - dev->agp->base;
- */
 	int size = buf->used;
 	int prim = buf_priv->prim;
 	int i = 0;
@@ -685,9 +682,6 @@ static void r128_cce_dispatch_vertex( drm_device_t *dev,
 	sarea_priv->nbox = 0;
 }
 
-
-
-
 static void r128_cce_dispatch_indirect( drm_device_t *dev,
 					drm_buf_t *buf,
 					int start, int end )
@@ -752,27 +746,17 @@ static void r128_cce_dispatch_indices( drm_device_t *dev,
 				       int start, int end,
 				       int count )
 {
-      	drm_device_dma_t *dma = dev->dma;
 	drm_r128_private_t *dev_priv = dev->dev_private;
 	drm_r128_buf_priv_t *buf_priv = buf->dev_private;
 	drm_r128_sarea_t *sarea_priv = dev_priv->sarea_priv;
 	int format = sarea_priv->vc_format;
-	int offset;
+	int offset = dev_priv->buffers->offset - dev_priv->cce_buffers_offset;
 	int prim = buf_priv->prim;
 	u32 *data;
 	int dwords;
 	int i = 0;
 	RING_LOCALS;
 	DRM_DEBUG( "indices: s=%d e=%d c=%d\n", start, end, count );
-
-	if(dma->flags == _DRM_DMA_USE_SG)
-		offset = dev_priv->buffers->offset - dev->sg->handle;
-	else
-#if defined(CONFIG_AGP) || defined(CONFIG_AGP_MODULE)
-		offset = dev_priv->buffers->offset - dev->agp->base;
-#else
-		printk("WARNING: trying to use AGP without kernel support!\n");
-#endif
 
 	r128_update_ring_snapshot( dev_priv );
 
@@ -1436,10 +1420,8 @@ int r128_cce_vertex( struct inode *inode, struct file *filp,
 		DRM_ERROR( "%s called without lock held\n", __FUNCTION__ );
 		return -EINVAL;
 	}
-	if ( !dev_priv ) {
-		DRM_ERROR( "%s called with a PCI card\n", __FUNCTION__ );
+	if ( !dev_priv )
 		return -EINVAL;
-	}
 
 	if ( copy_from_user( &vertex, (drm_r128_vertex_t *)arg,
 			     sizeof(vertex) ) )
@@ -1501,10 +1483,8 @@ int r128_cce_indices( struct inode *inode, struct file *filp,
 		DRM_ERROR( "%s called without lock held\n", __FUNCTION__ );
 		return -EINVAL;
 	}
-	if ( !dev_priv ) {
-		DRM_ERROR( "%s called with a PCI card\n", __FUNCTION__ );
+	if ( !dev_priv )
 		return -EINVAL;
-	}
 
 	if ( copy_from_user( &elts, (drm_r128_indices_t *)arg,
 			     sizeof(elts) ) )

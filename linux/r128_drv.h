@@ -62,6 +62,7 @@ typedef struct drm_r128_private {
 	int cce_fifo_size;
 	int cce_secure;
 	int cce_running;
+	u32 cce_buffers_offset;
 
    	drm_r128_freelist_t *head;
    	drm_r128_freelist_t *tail;
@@ -92,8 +93,7 @@ typedef struct drm_r128_private {
 	u32 depth_pitch_offset_c;
 	u32 span_pitch_offset_c;
 
-	void *pci_gart_page;
-	unsigned long phys_pci_gart_page;
+	unsigned long phys_pci_gart;
 
 	drm_map_t *sarea;
 	drm_map_t *fb;
@@ -404,13 +404,16 @@ extern int r128_pcigart_init(drm_device_t *dev);
 #define R128_WATERMARK_N		8
 #define R128_WATERMARK_K		128
 
-#define R128_MAX_USEC_TIMEOUT	100000	/* 100 ms */
+#define R128_MAX_USEC_TIMEOUT		100000	/* 100 ms */
 
 #define R128_LAST_FRAME_REG		R128_GUI_SCRATCH_REG0
 #define R128_LAST_DISPATCH_REG		R128_GUI_SCRATCH_REG1
 #define R128_MAX_VB_AGE			0x7fffffff
-
 #define R128_MAX_VB_VERTS		(0xffff)
+
+#define R128_PCIGART_TABLE_ORDER	3
+#define R128_PCIGART_TABLE_PAGES	(1 << 3)
+#define R128_MAX_PCIGART_PAGES		8192	/* 32 MB aperture */
 
 
 #define R128_BASE(reg)		((u32)(dev_priv->mmio->handle))

@@ -11,11 +11,11 @@
  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
  * and/or sell copies of the Software, and to permit persons to whom the
  * Software is furnished to do so, subject to the following conditions:
- * 
+ *
  * The above copyright notice and this permission notice (including the next
  * paragraph) shall be included in all copies or substantial portions of the
  * Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
@@ -23,7 +23,7 @@
  * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
- * 
+ *
  * Authors:
  *    Rickard E. (Rik) Faith <faith@valinux.com>
  *
@@ -213,7 +213,6 @@ struct page *drm_vm_sg_nopage(struct vm_area_struct *vma,
 	page = entry->pagelist[page_offset];
 	atomic_inc(&page->count);                       /* Dec. by kernel */
 
-
 #if LINUX_VERSION_CODE < 0x020317
 	return (unsigned long)virt_to_phys(page->virtual);
 #else
@@ -289,7 +288,7 @@ int drm_mmap_dma(struct file *filp, struct vm_area_struct *vma)
 	drm_device_t	 *dev;
 	drm_device_dma_t *dma;
 	unsigned long	 length	 = vma->vm_end - vma->vm_start;
-	
+
 	lock_kernel();
 	dev	 = priv->dev;
 	dma	 = dev->dma;
@@ -305,7 +304,7 @@ int drm_mmap_dma(struct file *filp, struct vm_area_struct *vma)
 
 	vma->vm_ops   = &drm_vm_dma_ops;
 	vma->vm_flags |= VM_LOCKED | VM_SHM; /* Don't swap */
-	
+
 #if LINUX_VERSION_CODE < 0x020203 /* KERNEL_VERSION(2,2,3) */
 				/* In Linux 2.2.3 and above, this is
 				   handled in do_mmap() in mm/mmap.c. */
@@ -322,7 +321,7 @@ int drm_mmap(struct file *filp, struct vm_area_struct *vma)
 	drm_device_t	*dev	= priv->dev;
 	drm_map_t	*map	= NULL;
 	int		i;
-	
+
 	DRM_DEBUG("start = 0x%lx, end = 0x%lx, offset = 0x%lx\n",
 		  vma->vm_start, vma->vm_end, VM_OFFSET(vma));
 
@@ -339,14 +338,14 @@ int drm_mmap(struct file *filp, struct vm_area_struct *vma)
 		map = dev->maplist[i];
 		if (map->offset == VM_OFFSET(vma)) break;
 	}
-	
+
 	if (i >= dev->map_count) return -EINVAL;
 	if (!map || ((map->flags&_DRM_RESTRICTED) && !capable(CAP_SYS_ADMIN)))
 		return -EPERM;
 
 				/* Check for valid size. */
 	if (map->size != vma->vm_end - vma->vm_start) return -EINVAL;
-	
+
 	if (!capable(CAP_SYS_ADMIN) && (map->flags & _DRM_READ_ONLY)) {
 		vma->vm_flags &= VM_MAYWRITE;
 #if defined(__i386__)
@@ -360,12 +359,6 @@ int drm_mmap(struct file *filp, struct vm_area_struct *vma)
 #endif
 	}
 
-	if (map->type == _DRM_SCATTER_GATHER) {
-		DRM_DEBUG("%s: scatter/gather\n", __FUNCTION__);
-		DRM_DEBUG("start = 0x%lx, end = 0x%lx, offset = 0x%lx\n",
-			  vma->vm_start, vma->vm_end, VM_OFFSET(vma));
-	}
-
 	switch (map->type) {
 	case _DRM_FRAME_BUFFER:
 	case _DRM_REGISTERS:
@@ -377,10 +370,12 @@ int drm_mmap(struct file *filp, struct vm_area_struct *vma)
 				pgprot_val(vma->vm_page_prot) &= ~_PAGE_PWT;
 			}
 #elif defined(__powerpc__)
-			pgprot_val(vma->vm_page_prot) |= _PAGE_NO_CACHE|_PAGE_GUARDED;
+			pgprot_val(vma->vm_page_prot) |=
+				_PAGE_NO_CACHE | _PAGE_GUARDED;
 #elif defined(__ia64__)
 			if (map->type != _DRM_AGP)
-				vma->vm_page_prot = pgprot_writecombine(vma->vm_page_prot);
+				vma->vm_page_prot =
+					pgprot_writecombine(vma->vm_page_prot);
 #endif
 			vma->vm_flags |= VM_IO;	/* not in core dump */
 		}
@@ -432,9 +427,5 @@ int drm_mmap(struct file *filp, struct vm_area_struct *vma)
 #endif
 	vma->vm_file  =	 filp;	/* Needed for drm_vm_open() */
 	drm_vm_open(vma);
-
-	if(map->type == _DRM_SCATTER_GATHER) {
-		DRM_DEBUG("%s: scatter/gather done.\n", __FUNCTION__);
-	}
 	return 0;
 }

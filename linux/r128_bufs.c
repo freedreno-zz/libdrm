@@ -351,16 +351,16 @@ int r128_addbufs(struct inode *inode, struct file *filp, unsigned int cmd,
 		return -EINVAL;
 	if (!dev_priv->is_pci && (request.flags & _DRM_SG_BUFFER))
 		return -EINVAL;
-	if (request.flags & _DRM_AGP_BUFFER)
+
 #if defined(CONFIG_AGP) || defined(CONFIG_AGP_MODULE)
+	if (request.flags & _DRM_AGP_BUFFER)
 		return r128_addbufs_agp(inode, filp, cmd, arg);
-#else
-		printk("WARNING: trying to use AGP without kernel support!\n");
 #endif
-	if (request.flags & _DRM_SG_BUFFER)
+	if (request.flags & _DRM_SG_BUFFER) {
 		return r128_addbufs_sg(inode, filp, cmd, arg);
-	else
+	} else {
 		return -EINVAL;
+	}
 }
 
 int r128_mapbufs(struct inode *inode, struct file *filp, unsigned int cmd,

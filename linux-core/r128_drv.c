@@ -37,7 +37,7 @@
 
 #define R128_NAME		"r128"
 #define R128_DESC		"ATI Rage 128"
-#define R128_DATE		"20010101"
+#define R128_DATE		"20010123"
 #define R128_MAJOR		2
 #define R128_MINOR		1
 #define R128_PATCHLEVEL		4
@@ -312,7 +312,7 @@ static int r128_takedown(drm_device_t *dev)
                                    handled in the AGP/GART driver. */
 				break;
 			case _DRM_SCATTER_GATHER:
-				if(dev->sg) {
+				if (dev->sg) {
 					drm_sg_cleanup(dev->sg);
 					dev->sg = NULL;
 				}

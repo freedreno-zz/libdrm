@@ -23,7 +23,7 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
-# 
+#
 #
 # ***** NOTE NOTE NOTE NOTE NOTE *****
 # To override the automatic Linux source tree determination, pass the
@@ -47,7 +47,7 @@
 
 # **** End of SMP/MODVERSIONS detection
 CC=		gcc
-MODS=           gamma.o tdfx.o
+MODS=           gamma.o tdfx.o r128.o
 LIBS=           libdrm.a
 
 DRMOBJS=	init.o memory.o proc.o auth.o context.o drawable.o bufs.o \
@@ -129,7 +129,7 @@ endif
 ifeq ($(AGP),1)
 MODCFLAGS += -DCONFIG_AGP -DCONFIG_AGP_MODULE
 DRMOBJS += agpsupport.o
-MODS += mga.o r128.o radeon.o
+MODS += mga.o radeon.o
 ifeq ($(MACHINE),i386)
 MODS += i810.o
 endif
