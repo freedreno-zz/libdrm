@@ -49,13 +49,13 @@ static inline void radeon_emit_clip_rect( drm_radeon_private_t *dev_priv,
 		   box->x1, box->y1, box->x2, box->y2 );
 
 #if 1
-       BEGIN_RING( 4 );
-       OUT_RING( CP_PACKET0( RADEON_RE_TOP_LEFT, 0 ) );
-       OUT_RING( (box->y1 << 16) | box->x1 );
-       OUT_RING( CP_PACKET0( RADEON_RE_WIDTH_HEIGHT, 0 ) );
+	BEGIN_RING( 4 );
+	OUT_RING( CP_PACKET0( RADEON_RE_TOP_LEFT, 0 ) );
+	OUT_RING( (box->y1 << 16) | box->x1 );
+	OUT_RING( CP_PACKET0( RADEON_RE_WIDTH_HEIGHT, 0 ) );
 /*     OUT_RING( ((box->y2 - 1) << 16) | (box->x2 - 1) );*/
-       OUT_RING( (box->y2 << 16) | box->x2 );
-       ADVANCE_RING();
+	OUT_RING( (box->y2 << 16) | box->x2 );
+	ADVANCE_RING();
 #else
         BEGIN_RING( 3 );
         OUT_RING( CP_PACKET3( RADEON_CCE_SET_SCISSORS, 1 ));
@@ -1256,15 +1256,18 @@ int radeon_cp_clear( struct inode *inode, struct file *filp,
 static int radeon_do_init_pageflip( drm_device_t *dev )
 {
 	drm_radeon_private_t *dev_priv = dev->dev_private;
+	RING_LOCALS;
+
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
-	dev_priv->crtc_offset =      RADEON_READ( RADEON_CRTC_OFFSET );
 	dev_priv->crtc_offset_cntl = RADEON_READ( RADEON_CRTC_OFFSET_CNTL );
 
-	RADEON_WRITE( RADEON_CRTC_OFFSET, dev_priv->front_offset );
-	RADEON_WRITE( RADEON_CRTC_OFFSET_CNTL,
-		      dev_priv->crtc_offset_cntl |
-		      RADEON_CRTC_OFFSET_FLIP_CNTL );
+	BEGIN_RING( 4 );
+	RADEON_WAIT_UNTIL_3D_IDLE();
+	OUT_RING( CP_PACKET0( RADEON_CRTC_OFFSET_CNTL, 0 ) );
+	OUT_RING( dev_priv->crtc_offset_cntl | RADEON_CRTC_OFFSET_FLIP_CNTL );
+	ADVANCE_RING();
+
 
 	dev_priv->page_flipping = 1;
 	dev_priv->current_page = 0;
@@ -1273,21 +1276,19 @@ static int radeon_do_init_pageflip( drm_device_t *dev )
 	return 0;
 }
 
-/* This manages to bop things back to normal when the pageflipping client
- * exits...  What does it do if there is more than one client?
- */
 int radeon_do_cleanup_pageflip( drm_device_t *dev )
 {
 	drm_radeon_private_t *dev_priv = dev->dev_private;
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
-	RADEON_WRITE( RADEON_CRTC_OFFSET,      dev_priv->crtc_offset );
-	RADEON_WRITE( RADEON_CRTC_OFFSET_CNTL, dev_priv->crtc_offset_cntl );
+	if (dev_priv->current_page != 0)
+		radeon_cp_dispatch_flip( dev );
 
+	/* FIXME: If the X server changes screen resolution, it
+	 * clobbers the value of RADEON_CRTC_OFFSET_CNTL, above,
+	 * leading to a flashing efect.
+	 */
 	dev_priv->page_flipping = 0;
-	dev_priv->current_page = 0;
-	dev_priv->sarea_priv->pfCurrentPage = dev_priv->current_page;
-
 	return 0;
 }
 
@@ -1782,10 +1783,7 @@ static int radeon_emit_packets(
 	int reg = packet[id].start;
 	int *data = (int *)cmdbuf->buf;
 	RING_LOCALS;
-
-
-	DRM_DEBUG("emit packet %s/%d\n", packet[id].name, sz );
-
+   
 	if (sz * sizeof(int) > cmdbuf->bufsz) 
 		return -EINVAL;
 
