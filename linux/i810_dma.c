@@ -790,12 +790,10 @@ static void i810_dma_dispatch_vertex(drm_device_t *dev,
 	if (sarea_priv->dirty)
 	   i810EmitState( dev );
 
-  	DRM_DEBUG("dispatch vertex addr 0x%lx, used 0x%x nbox %d\n",
-		  address, used, nbox);
-
 	if (buf_priv->currently_mapped == I810_BUF_MAPPED) {
-		*(u32 *)buf_priv->virtual = (GFX_OP_PRIMITIVE |
-					     sarea_priv->vertex_prim |
+		unsigned int prim = (sarea_priv->vertex_prim & PR_MASK);
+
+		*(u32 *)buf_priv->virtual = (GFX_OP_PRIMITIVE | prim | 
 					     ((used/4)-2));
 
 		if (used & 4) {
@@ -964,9 +962,6 @@ int i810_dma_vertex(struct inode *inode, struct file *filp,
 		DRM_ERROR("i810_dma_vertex called without lock held\n");
 		return -EINVAL;
 	}
-
-	DRM_DEBUG("i810 dma vertex, idx %d used %d discard %d\n",
-		  vertex.idx, vertex.used, vertex.discard);
 
 	if(vertex.idx < 0 || vertex.idx > dma->buf_count) return -EINVAL;
 

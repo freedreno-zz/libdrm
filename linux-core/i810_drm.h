@@ -191,14 +191,15 @@ typedef struct _drm_i810_copy_t {
 	void *address;		/* Address to copy from */
 } drm_i810_copy_t;
 
-#define PR_TRIANGLES         (0x0)
-#define PR_TRISTRIP_0        (0x1)
-#define PR_TRISTRIP_1        (0x2)
-#define PR_TRIFAN            (0x3)
-#define PR_POLYGON           (0x4)
-#define PR_LINES             (0x5)
-#define PR_LINESTRIP         (0x6)
-#define PR_RECTS             (0x7)
+#define PR_TRIANGLES         (0x0<<18)
+#define PR_TRISTRIP_0        (0x1<<18)
+#define PR_TRISTRIP_1        (0x2<<18)
+#define PR_TRIFAN            (0x3<<18)
+#define PR_POLYGON           (0x4<<18)
+#define PR_LINES             (0x5<<18)
+#define PR_LINESTRIP         (0x6<<18)
+#define PR_RECTS             (0x7<<18)
+#define PR_MASK              (0x7<<18)
 
 
 typedef struct drm_i810_dma {
