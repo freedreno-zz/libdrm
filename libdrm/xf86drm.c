@@ -766,14 +766,16 @@ int drmAgpEnable(int fd, unsigned long mode)
     return 0;
 }
 
-unsigned long drmAgpAlloc(int fd, unsigned long size)
+int drmAgpAlloc(int fd, unsigned long size, unsigned long *handle)
 {
     drm_agp_buffer_t b;
 
+    *handle  = 0;
     b.size   = size;
     b.handle = 0;
-    if (ioctl(fd, DRM_IOCTL_AGP_ALLOC, &b)) return 0;
-    return b.handle;
+    if (ioctl(fd, DRM_IOCTL_AGP_ALLOC, &b)) return -errno;
+    *handle  = b.handle;
+    return 0;
 }
 
 int drmAgpFree(int fd, unsigned long handle)
@@ -786,12 +788,12 @@ int drmAgpFree(int fd, unsigned long handle)
     return 0;
 }
 
-unsigned long drmAgpBind(int fd, unsigned long handle, unsigned long offset)
+int drmAgpBind(int fd, unsigned long handle, unsigned long offset)
 {
     drm_agp_binding_t b;
 
-    b.handle = handle;
-    b.offset = offset;
+    b.handle     = handle;
+    b.offset     = offset;
     if (ioctl(fd, DRM_IOCTL_AGP_BIND, &b)) return -errno;
     return 0;
 }
