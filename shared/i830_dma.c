@@ -149,24 +149,21 @@ int i830_wait_ring( drm_device_t *dev, int n, const char *caller )
    	drm_i830_private_t *dev_priv = dev->dev_private;
    	drm_i830_ring_buffer_t *ring = &(dev_priv->ring);
 	u32 last_head = I830_READ(LP_RING + RING_HEAD) & HEAD_ADDR;
-	int i;
+	int i, j;
 
-	for ( i = 0 ; i < 3000 ; i++ ) {
-		u32 head = I830_READ(LP_RING + RING_HEAD) & HEAD_ADDR;
-
+	for ( i = j = 0 ; i < 100000 ; i++, j++ ) {
+		ring->head = I830_READ(LP_RING + RING_HEAD) & HEAD_ADDR;
 	   	ring->space = ring->head - (ring->tail+8);
 		if (ring->space < 0) ring->space += ring->Size;
-		if ( ring->space > n )
+		if ( ring->space >= n )
 			return 0;
 		
 		dev_priv->sarea_priv->perf_boxes |= I830_BOX_WAIT;
 
-		if (head != last_head)
+		if (ring->head != last_head) 
 			i = 0;
 
-		last_head = head;
-
-		DRM_UDELAY( 1 );
+		last_head = ring->head;
 	}
 
 	return DRM_ERR(EBUSY);
@@ -1353,9 +1350,6 @@ static int i830_dma_dispatch_vertex2(drm_device_t *dev,
 		ADVANCE_LP_RING();
 	}
 
-	if (0)
-		i830_wait_ring( dev, dev_priv->ring.Size - 8, __FUNCTION__ );
-
 	return 0;
 }
 
@@ -1395,7 +1389,7 @@ int i830_flush_ioctl( DRM_IOCTL_ARGS )
 		return DRM_ERR(EINVAL);
 	}
 
-   	i830_dma_quiescent(dev);
+    	i830_dma_quiescent(dev); 
    	return 0;
 }
 
