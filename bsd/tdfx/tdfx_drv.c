@@ -34,6 +34,8 @@
 
 #include <pci/pcivar.h>
 
+MODULE_DEPEND(tdfx, drm, 1, 1, 1);
+
 #define TDFX_NAME	 "tdfx"
 #define TDFX_DESC	 "tdfx"
 #define TDFX_DATE	 "19991009"
@@ -289,6 +291,8 @@ tdfx_takedown(drm_device_t *dev)
 					       - PAGE_SHIFT,
 					       DRM_MEM_SAREA);
 				break;
+			case _DRM_AGP:
+				break; /* XXX */
 			}
 			drm_free(map, sizeof(*map), DRM_MEM_MAPS);
 		}
@@ -585,6 +589,8 @@ tdfx_lock(dev_t kdev, u_long cmd, caddr_t data, int flags, struct proc *p)
 				       PZERO|PCATCH,
 				       "drmlk2",
 				       0);
+			if (ret)
+				break;
                 }
         }
 

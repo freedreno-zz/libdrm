@@ -34,6 +34,8 @@
 
 #include <pci/pcivar.h>
 
+MODULE_DEPEND(gamma, drm, 1, 1, 1);
+
 static int gamma_init(device_t nbdev);
 static void gamma_cleanup(device_t nbdev);
 

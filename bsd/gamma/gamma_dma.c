@@ -614,10 +614,12 @@ int gamma_irq_install(drm_device_t *dev, int irq)
 
 	if (!irq)     return EINVAL;
 	
+	lockmgr(&dev->dev_lock, LK_EXCLUSIVE, 0, curproc);
 	if (dev->irq) {
 		lockmgr(&dev->dev_lock, LK_RELEASE, 0, curproc);
 		return EBUSY;
 	}
+	lockmgr(&dev->dev_lock, LK_RELEASE, 0, curproc);
 	
 	DRM_DEBUG("%d\n", irq);
 

@@ -32,6 +32,8 @@
 #define __NO_VERSION__
 #include "drmP.h"
 
+MODULE_VERSION(drm, 1);
+
 int			      drm_flags		= 0;
 
 /* drm_parse_option parses a single option.  See description for

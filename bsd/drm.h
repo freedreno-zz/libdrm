@@ -109,7 +109,8 @@ typedef struct drm_control {
 typedef enum drm_map_type {
 	_DRM_FRAME_BUFFER = 0,	  /* WC (no caching), no core dump	    */
 	_DRM_REGISTERS	  = 1,	  /* no caching, no core dump		    */
-	_DRM_SHM	  = 2	  /* shared, cached			    */
+	_DRM_SHM	  = 2,	  /* shared, cached			    */
+	_DRM_AGP	  = 3	  /* AGP/GART				    */
 } drm_map_type_t;
 
 typedef enum drm_map_flags {
@@ -321,11 +322,11 @@ typedef struct drm_agp_info {
 
 #define DRM_IOCTL_AGP_ACQUIRE DRM_IO(  0x30)
 #define DRM_IOCTL_AGP_RELEASE DRM_IO(  0x31)
-#define DRM_IOCTL_AGP_ENABLE  DRM_IOR( 0x32, drm_agp_mode_t)
-#define DRM_IOCTL_AGP_INFO    DRM_IOW( 0x33, drm_agp_info_t)
+#define DRM_IOCTL_AGP_ENABLE  DRM_IOW( 0x32, drm_agp_mode_t)
+#define DRM_IOCTL_AGP_INFO    DRM_IOR( 0x33, drm_agp_info_t)
 #define DRM_IOCTL_AGP_ALLOC   DRM_IOWR(0x34, drm_agp_buffer_t)
 #define DRM_IOCTL_AGP_FREE    DRM_IOW( 0x35, drm_agp_buffer_t)
-#define DRM_IOCTL_AGP_BIND    DRM_IOWR(0x36, drm_agp_binding_t)
+#define DRM_IOCTL_AGP_BIND    DRM_IOW( 0x36, drm_agp_binding_t)
 #define DRM_IOCTL_AGP_UNBIND  DRM_IOW( 0x37, drm_agp_binding_t)
 
 /* Mga specific ioctls */

@@ -321,3 +321,128 @@ void drm_ioremapfree(void *pt, unsigned long size)
 			      free_count, alloc_count);
 	}
 }
+
+#ifdef DRM_AGP
+void *drm_alloc_agp(int pages, u_int32_t type)
+{
+	device_t dev = agp_find_device();
+	void *handle;
+
+	if (!dev)
+		return NULL;
+
+	if (!pages) {
+		DRM_MEM_ERROR(DRM_MEM_TOTALAGP, "Allocating 0 pages\n");
+		return NULL;
+	}
+	
+	if ((handle = agp_alloc_memory(dev, type, pages << AGP_PAGE_SHIFT))) {
+		spin_lock(&drm_mem_lock);
+		++drm_mem_stats[DRM_MEM_TOTALAGP].succeed_count;
+		drm_mem_stats[DRM_MEM_TOTALAGP].bytes_allocated
+			+= pages << PAGE_SHIFT;
+		spin_unlock(&drm_mem_lock);
+		return handle;
+	}
+	spin_lock(&drm_mem_lock);
+	++drm_mem_stats[DRM_MEM_TOTALAGP].fail_count;
+	spin_unlock(&drm_mem_lock);
+	return NULL;
+}
+
+int drm_free_agp(agp_memory *handle, int pages)
+{
+	device_t dev = agp_find_device();
+	int           alloc_count;
+	int           free_count;
+	int           retval = EINVAL;
+
+	if (!dev)
+		return EINVAL;
+
+	if (!handle) {
+		DRM_MEM_ERROR(DRM_MEM_TOTALAGP,
+			      "Attempt to free NULL AGP handle\n");
+		return retval;
+	}
+	
+	agp_free_memory(dev, handle);
+	spin_lock(&drm_mem_lock);
+	free_count  = ++drm_mem_stats[DRM_MEM_TOTALAGP].free_count;
+	alloc_count =   drm_mem_stats[DRM_MEM_TOTALAGP].succeed_count;
+	drm_mem_stats[DRM_MEM_TOTALAGP].bytes_freed
+		+= pages << PAGE_SHIFT;
+	spin_unlock(&drm_mem_lock);
+	if (free_count > alloc_count) {
+		DRM_MEM_ERROR(DRM_MEM_TOTALAGP,
+			      "Excess frees: %d frees, %d allocs\n",
+			      free_count, alloc_count);
+	}
+	return 0;
+}
+
+int drm_bind_agp(agp_memory *handle, unsigned int start)
+{
+	device_t dev = agp_find_device();
+	int retcode  = EINVAL;
+
+	DRM_DEBUG("drm_bind_agp called\n");
+
+	if (!dev)
+		return EINVAL;
+
+	if (!handle) {
+		DRM_MEM_ERROR(DRM_MEM_BOUNDAGP,
+			      "Attempt to bind NULL AGP handle\n");
+		return retcode;
+	}
+
+	if (!(retcode = agp_bind_memory(handle, start << AGP_PAGE_SHIFT))) {
+		spin_lock(&drm_mem_lock);
+		++drm_mem_stats[DRM_MEM_BOUNDAGP].succeed_count;
+		drm_mem_stats[DRM_MEM_BOUNDAGP].bytes_allocated
+			+= handle->page_count << PAGE_SHIFT;
+		spin_unlock(&drm_mem_lock);
+		DRM_DEBUG("drm_agp.bind_memory: retcode %d\n", retcode);
+		return retcode;
+	}
+	spin_lock(&drm_mem_lock);
+	++drm_mem_stats[DRM_MEM_BOUNDAGP].fail_count;
+	spin_unlock(&drm_mem_lock);
+	return retcode;
+}
+
+int drm_unbind_agp(agp_memory *handle)
+{
+	device_t dev = agp_find_device();
+	int alloc_count;
+	int free_count;
+	int retcode = EINVAL;
+	struct agp_memory_info info;
+	
+	if (!dev)
+		return EINVAL;
+
+	if (!handle) {
+		DRM_MEM_ERROR(DRM_MEM_BOUNDAGP,
+			      "Attempt to unbind NULL AGP handle\n");
+		return retcode;
+	}
+
+	
+	agp_memory_info(dev, handle, &info);
+	if ((retcode = agp_unbind_memory(dev, handle)))
+		return retcode;
+	spin_lock(&drm_mem_lock);
+	free_count  = ++drm_mem_stats[DRM_MEM_BOUNDAGP].free_count;
+	alloc_count = drm_mem_stats[DRM_MEM_BOUNDAGP].succeed_count;
+	drm_mem_stats[DRM_MEM_BOUNDAGP].bytes_freed += info.ami_size;
+	spin_unlock(&drm_mem_lock);
+	if (free_count > alloc_count) {
+		DRM_MEM_ERROR(DRM_MEM_BOUNDAGP,
+			      "Excess frees: %d frees, %d allocs\n",
+			      free_count, alloc_count);
+	}
+	return retcode;
+}
+#endif

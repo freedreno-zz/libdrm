@@ -49,6 +49,11 @@
 #include <sys/sysctl.h>
 #include <sys/select.h>
 #include <sys/bus.h>
+#include <sys/taskqueue.h>
+
+#ifdef DRM_AGP
+#include <pci/agpvar.h>
+#endif
 
 #include "drm.h"
 
@@ -73,10 +78,18 @@ test_and_set_bit(int b, volatile u_int32_t *p)
 }
 
 #define clear_bit(b, p)		atomic_clear_int(p, 1<<(b))
+#define set_bit(b, p)		atomic_set_int(p, 1<<(b))
+#define test_bit(b, p)		(*(u_int32_t*)p & (1<<(b)))
 
 #define spldrm()		spltty()
 
 #define memset(p, v, s)		bzero(p, s)
+
+/*
+ * Software interrupts for DMA pipe feeding. The FreeBSD kernel apis
+ * are severely lacking here.
+ */
+#define SWI_DRI		(SWI_VM+2)
 
 #define DRM_DEBUG_CODE 2	  /* Include debugging code (if > 1, then
 				     also include looping detection. */
@@ -108,6 +121,10 @@ test_and_set_bit(int b, volatile u_int32_t *p)
 #define DRM_MEM_CMDS	 12
 #define DRM_MEM_MAPPINGS 13
 #define DRM_MEM_BUFLISTS 14
+#define DRM_MEM_AGPLISTS  15
+#define DRM_MEM_TOTALAGP  16
+#define DRM_MEM_BOUNDAGP  17
+#define DRM_MEM_CTXBITMAP 18
 
 				/* Backward compatibility section */
 #ifndef _PAGE_PWT
@@ -207,6 +224,7 @@ typedef struct drm_buf {
 	int		  used;	       /* Amount of buffer in use (for DMA)  */
 	unsigned long	  offset;      /* Byte offset (used internally)	     */
 	void		  *address;    /* Address of buffer		     */
+	unsigned long	  bus_address; /* Bus address of buffer		     */
 	struct drm_buf	  *next;       /* Kernel-only: used for free list    */
 	__volatile__ int  waiting;     /* On kernel DMA queue		     */
 	__volatile__ int  pending;     /* On hardware DMA queue		     */
@@ -222,6 +240,10 @@ typedef struct drm_buf {
 		DRM_LIST_PRIO	 = 4,
 		DRM_LIST_RECLAIM = 5
 	}		  list;	       /* Which list we're on		     */
+
+	void *dev_private;
+	int dev_priv_size;
+
 #if DRM_DMA_HISTOGRAM
 	struct timespec	  time_queued;	   /* Queued to kernel DMA queue     */
 	struct timespec	  time_dispatched; /* Dispatched to hardware	     */
@@ -349,6 +371,9 @@ typedef struct drm_device_dma {
 	int		  page_count;
 	vm_offset_t	  *pagelist;
 	unsigned long	  byte_count;
+	enum {
+	   _DRM_DMA_USE_AGP = 0x01
+	} flags;
 
 				/* DMA support */
 	drm_buf_t	  *this_buffer;	/* Buffer being sent		   */
@@ -356,6 +381,30 @@ typedef struct drm_device_dma {
 	drm_queue_t	  *next_queue;	/* Queue from which buffer selected*/
 	int		   waiting;	/* Processes waiting on free bufs  */
 } drm_device_dma_t;
+
+#ifdef DRM_AGP
+
+typedef struct drm_agp_mem {
+	void               *handle;
+	unsigned long      bound; /* address */
+	int                pages;
+	struct drm_agp_mem *prev;
+	struct drm_agp_mem *next;
+} drm_agp_mem_t;
+
+typedef struct drm_agp_head {
+	device_t	   agpdev;
+	struct agp_info    info;
+	const char         *chipset;
+	drm_agp_mem_t      *memory;
+	unsigned long      mode;
+	int                enabled;
+	int                acquired;
+	unsigned long      base;
+   	int 		   agp_mtrr;
+} drm_agp_head_t;
+
+#endif
 
 typedef struct drm_device {
 	const char	  *name;	/* Simple driver name		   */
@@ -422,9 +471,7 @@ typedef struct drm_device {
 	int		  last_checked;	/* Last context checked for DMA	   */
 	int		  last_context;	/* Last current context		   */
 	int		  last_switch;	/* Time at last context switch  */
-#if 0
-	struct tq_struct  tq;
-#endif
+	struct task	  task;
 	struct timespec	  ctx_start;
 	struct timespec	  lck_start;
 #if DRM_DMA_HISTOGRAM
@@ -445,6 +492,12 @@ typedef struct drm_device {
 
 				/* Sysctl support */
 	struct drm_sysctl_info *sysctl;
+
+#ifdef DRM_AGP
+	drm_agp_head_t    *agp;
+#endif
+	unsigned long     *ctx_bitmap;
+	void		  *dev_private;
 } drm_device_t;
 
 
@@ -505,6 +558,13 @@ extern void	     drm_free_pages(unsigned long address, int order,
 				    int area);
 extern void	     *drm_ioremap(unsigned long offset, unsigned long size);
 extern void	     drm_ioremapfree(void *pt, unsigned long size);
+
+#ifdef DRM_AGP
+extern void	    *drm_alloc_agp(int pages, u_int32_t type);
+extern int           drm_free_agp(void *handle, int pages);
+extern int           drm_bind_agp(void *handle, unsigned int start);
+extern int           drm_unbind_agp(void *handle);
+#endif
 
 				/* Buffer management support (bufs.c) */
 extern int	     drm_order(unsigned long size);
@@ -592,5 +652,24 @@ extern int	     drm_flush_unblock(drm_device_t *dev, int context,
 				       drm_lock_flags_t flags);
 extern int	     drm_flush_block_and_flush(drm_device_t *dev, int context,
 					       drm_lock_flags_t flags);
+
+				/* Context Bitmap support (ctxbitmap.c) */
+extern int	     drm_ctxbitmap_init(drm_device_t *dev);
+extern void	     drm_ctxbitmap_cleanup(drm_device_t *dev);
+extern int	     drm_ctxbitmap_next(drm_device_t *dev);
+extern void	     drm_ctxbitmap_free(drm_device_t *dev, int ctx_handle);
+
+#ifdef DRM_AGP
+				/* AGP/GART support (agpsupport.c) */
+extern drm_agp_head_t *drm_agp_init(void);
+extern d_ioctl_t     drm_agp_acquire;
+extern d_ioctl_t     drm_agp_release;
+extern d_ioctl_t     drm_agp_enable;
+extern d_ioctl_t     drm_agp_info;
+extern d_ioctl_t     drm_agp_alloc;
+extern d_ioctl_t     drm_agp_free;
+extern d_ioctl_t     drm_agp_unbind;
+extern d_ioctl_t     drm_agp_bind;
+#endif
 #endif
 #endif
