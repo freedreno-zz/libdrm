@@ -1,7 +1,7 @@
 /* agpsupport.c -- DRM support for AGP/GART backend -*- linux-c -*-
  * Created: Mon Dec 13 09:56:45 1999 by faith@precisioninsight.com
  *
- * Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
+ * Copyright 1999, 2000 Precision Insight, Inc., Cedar Park, Texas.
  * All Rights Reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -203,6 +203,7 @@ int drm_agp_unbind(struct inode *inode, struct file *filp, unsigned int cmd,
 	if (!(entry = drm_agp_lookup_entry(dev, request.handle)))
 		return -EINVAL;
 	if (!entry->bound) return -EINVAL;
+	entry->bound = 0;
 	return drm_unbind_agp(entry->memory);
 }
 
@@ -242,8 +243,9 @@ int drm_agp_free(struct inode *inode, struct file *filp, unsigned int cmd,
 	if (!(entry = drm_agp_lookup_entry(dev, request.handle)))
 		return -EINVAL;
 	if (entry->bound) drm_unbind_agp(entry->memory);
-	entry->prev->next = entry->next;
-	entry->next->prev = entry->prev;
+	if (entry->prev) entry->prev->next = entry->next;
+	else             dev->agp->memory  = entry->next;
+	if (entry->next) entry->next->prev = entry->prev;
 	drm_free_agp(entry->memory, entry->pages);
 	drm_free(entry, sizeof(*entry), DRM_MEM_AGPLISTS);
 	return 0;
