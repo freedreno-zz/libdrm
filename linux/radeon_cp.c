@@ -394,7 +394,7 @@ static int radeon_do_wait_for_idle( drm_radeon_private_t *dev_priv )
 	int i, ret;
 
 	ret = radeon_do_wait_for_fifo( dev_priv, 64 );
-	if ( ret ) return ret;
+	if ( ret < 0 ) return ret;
 
 	for ( i = 0 ; i < dev_priv->usec_timeout ; i++ ) {
 		if ( !(RADEON_READ( RADEON_RBBM_STATUS )
@@ -736,13 +736,17 @@ static int radeon_do_init_cp( drm_device_t *dev, drm_radeon_init_t *init )
 	dev_priv->ring.tail_mask =
 		(dev_priv->ring.size / sizeof(u32)) - 1;
 
+#if 0
 	/* Initialize the scratch register pointer.  This will cause
 	 * the scratch register values to be written out to memory
 	 * whenever they are updated.
+	 * FIXME: This doesn't quite work yet, so we're disabling it
+	 * for the release.
 	 */
 	RADEON_WRITE( RADEON_SCRATCH_ADDR, (dev_priv->ring_rptr->offset +
 					    RADEON_SCRATCH_REG_OFFSET) );
 	RADEON_WRITE( RADEON_SCRATCH_UMSK, 0x7 );
+#endif
 
 	dev_priv->scratch = ((__volatile__ u32 *)
 			     dev_priv->ring_rptr->handle +
@@ -1102,7 +1106,12 @@ drm_buf_t *radeon_freelist_get( drm_device_t *dev )
 	start = dev_priv->last_buf;
 #endif
 	for ( t = 0 ; t < dev_priv->usec_timeout ; t++ ) {
+#if 0
+		/* FIXME: Disable this for now */
 		u32 done_age = dev_priv->scratch[RADEON_LAST_DISPATCH];
+#else
+		u32 done_age = RADEON_READ( RADEON_LAST_DISPATCH_REG );
+#endif
 #if ROTATE_BUFS
 		for ( i = start ; i < dma->buf_count ; i++ ) {
 #else
