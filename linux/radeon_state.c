@@ -628,40 +628,40 @@ static void radeon_cp_dispatch_vertex( drm_device_t *dev,
 		  prim->numverts);
 
 	switch (prim->prim & RADEON_PRIM_TYPE_MASK) {
-	case RADEON_CP_VC_CNTL_PRIM_TYPE_NONE:
-	case RADEON_CP_VC_CNTL_PRIM_TYPE_POINT:
+	case RADEON_PRIM_TYPE_NONE:
+	case RADEON_PRIM_TYPE_POINT:
 		if (prim->numverts < 1) {
 			DRM_ERROR( "Bad nr verts for line %d\n",
 				   prim->numverts);
 			return;
 		}
 		break;
-	case RADEON_CP_VC_CNTL_PRIM_TYPE_LINE:
-		if (prim->numverts & 1) {
+	case RADEON_PRIM_TYPE_LINE:
+		if ((prim->numverts & 1) || prim->numverts == 0) {
 			DRM_ERROR( "Bad nr verts for line %d\n",
 				   prim->numverts);
 			return;
 		}
 		break;
-	case RADEON_CP_VC_CNTL_PRIM_TYPE_LINE_STRIP:
+	case RADEON_PRIM_TYPE_LINE_STRIP:
 		if (prim->numverts < 2) {
 			DRM_ERROR( "Bad nr verts for line_strip %d\n",
 				   prim->numverts);
 			return;
 		}
 		break;
-	case RADEON_CP_VC_CNTL_PRIM_TYPE_TRI_LIST:
-	case RADEON_CP_VC_CNTL_PRIM_TYPE_3VRT_POINT_LIST:
-	case RADEON_CP_VC_CNTL_PRIM_TYPE_3VRT_LINE_LIST:
-	case RADEON_CP_VC_CNTL_PRIM_TYPE_RECT_LIST:
-		if (prim->numverts % 3) {
+	case RADEON_PRIM_TYPE_TRI_LIST:
+	case RADEON_PRIM_TYPE_3VRT_POINT_LIST:
+	case RADEON_PRIM_TYPE_3VRT_LINE_LIST:
+	case RADEON_PRIM_TYPE_RECT_LIST:
+		if (prim->numverts % 3 || prim->numverts == 0) {
 			DRM_ERROR( "Bad nr verts for tri %d\n",
 				   prim->numverts);
 			return;
 		}
 		break;
-	case RADEON_CP_VC_CNTL_PRIM_TYPE_TRI_FAN:
-	case RADEON_CP_VC_CNTL_PRIM_TYPE_TRI_STRIP:
+	case RADEON_PRIM_TYPE_TRI_FAN:
+	case RADEON_PRIM_TYPE_TRI_STRIP:
 		if (prim->numverts < 3) {
 			DRM_ERROR( "Bad nr verts for strip/fan %d\n",
 				   prim->numverts);
@@ -791,39 +791,39 @@ static void radeon_cp_dispatch_indices( drm_device_t *dev,
 		  prim->numverts * 64);
 
 	switch (prim->prim & RADEON_PRIM_TYPE_MASK) {
-	case RADEON_CP_VC_CNTL_PRIM_TYPE_NONE:
-	case RADEON_CP_VC_CNTL_PRIM_TYPE_POINT:
+	case RADEON_PRIM_TYPE_NONE:
+	case RADEON_PRIM_TYPE_POINT:
 		if (count < 1) {
 			DRM_ERROR( "Bad nr verts for line %d\n",
 				   count);
 			return;
 		}
 		break;
-	case RADEON_CP_VC_CNTL_PRIM_TYPE_LINE:
-		if (count & 1) {
+	case RADEON_PRIM_TYPE_LINE:
+		if ((count & 1) || count == 0) {
 			DRM_ERROR( "Bad nr verts for line %d\n",
 				   count);
 			return;
 		}
 		break;
-	case RADEON_CP_VC_CNTL_PRIM_TYPE_LINE_STRIP:
+	case RADEON_PRIM_TYPE_LINE_STRIP:
 		if (count < 2) {
 			DRM_ERROR( "Bad nr verts for line_strip %d\n",
 				   count);
 			return;
 		}
 		break;
-	case RADEON_CP_VC_CNTL_PRIM_TYPE_TRI_LIST:
-	case RADEON_CP_VC_CNTL_PRIM_TYPE_3VRT_POINT_LIST:
-	case RADEON_CP_VC_CNTL_PRIM_TYPE_3VRT_LINE_LIST:
-	case RADEON_CP_VC_CNTL_PRIM_TYPE_RECT_LIST:
-		if (count % 3) {
+	case RADEON_PRIM_TYPE_TRI_LIST:
+	case RADEON_PRIM_TYPE_3VRT_POINT_LIST:
+	case RADEON_PRIM_TYPE_3VRT_LINE_LIST:
+	case RADEON_PRIM_TYPE_RECT_LIST:
+		if (count % 3 || count == 0) {
 			DRM_ERROR( "Bad nr verts for tri %d\n", count);
 			return;
 		}
 		break;
-	case RADEON_CP_VC_CNTL_PRIM_TYPE_TRI_FAN:
-	case RADEON_CP_VC_CNTL_PRIM_TYPE_TRI_STRIP:
+	case RADEON_PRIM_TYPE_TRI_FAN:
+	case RADEON_PRIM_TYPE_TRI_STRIP:
 		if (count < 3) {
 			DRM_ERROR( "Bad nr verts for strip/fan %d\n", count);
 			return;
@@ -1199,33 +1199,36 @@ int radeon_cp_vertex( struct inode *inode, struct file *filp,
 		return -EINVAL;
 	}
 
-	buf->used = vertex.count; /* not used? */
-
-	if ( sarea_priv->dirty & ~RADEON_UPLOAD_CLIPRECTS ) {
-		radeon_emit_state( dev_priv,
-				   &sarea_priv->context_state,
-				   sarea_priv->tex_state,
-				   sarea_priv->dirty );
-
-		sarea_priv->dirty &= ~(RADEON_UPLOAD_TEX0IMAGES |
-				       RADEON_UPLOAD_TEX1IMAGES |
-				       RADEON_UPLOAD_TEX2IMAGES |
-				       RADEON_REQUIRE_QUIESCENCE);
-	}
-
 	/* Build up a prim_t record:
 	 */
-	prim.start = 0;
-	prim.finish = vertex.count; /* unused */
-	prim.prim = vertex.prim;
-	prim.numverts = vertex.count;
-	prim.vc_format = dev_priv->sarea_priv->vc_format;
-	
-	radeon_cp_dispatch_vertex( dev, buf, &prim,
-				   dev_priv->sarea_priv->boxes,
-				   dev_priv->sarea_priv->nbox );
+	if (vertex.count) {
+		buf->used = vertex.count; /* not used? */
+
+		if ( sarea_priv->dirty & ~RADEON_UPLOAD_CLIPRECTS ) {
+			radeon_emit_state( dev_priv,
+					   &sarea_priv->context_state,
+					   sarea_priv->tex_state,
+					   sarea_priv->dirty );
+			
+			sarea_priv->dirty &= ~(RADEON_UPLOAD_TEX0IMAGES |
+					       RADEON_UPLOAD_TEX1IMAGES |
+					       RADEON_UPLOAD_TEX2IMAGES |
+					       RADEON_REQUIRE_QUIESCENCE);
+		}
+
+		prim.start = 0;
+		prim.finish = vertex.count; /* unused */
+		prim.prim = vertex.prim;
+		prim.numverts = vertex.count;
+		prim.vc_format = dev_priv->sarea_priv->vc_format;
+		
+		radeon_cp_dispatch_vertex( dev, buf, &prim,
+					   dev_priv->sarea_priv->boxes,
+					   dev_priv->sarea_priv->nbox );
+	}
+
 	if (vertex.discard) {
-	   radeon_cp_discard_buffer( dev, buf );
+		radeon_cp_discard_buffer( dev, buf );
 	}
 
 	return 0;
@@ -1317,16 +1320,16 @@ int radeon_cp_indices( struct inode *inode, struct file *filp,
 	/* Build up a prim_t record:
 	 */
 	prim.start = elts.start;
-	prim.finish = elts.end; /* unused */
+	prim.finish = elts.end; 
 	prim.prim = elts.prim;
-	prim.numverts = count;
+	prim.numverts = 0;	/* offset from start of dma buffers */
 	prim.vc_format = dev_priv->sarea_priv->vc_format;
 	
 	radeon_cp_dispatch_indices( dev, buf, &prim,
 				   dev_priv->sarea_priv->boxes,
 				   dev_priv->sarea_priv->nbox );
 	if (elts.discard) {
-	   radeon_cp_discard_buffer( dev, buf );
+		radeon_cp_discard_buffer( dev, buf );
 	}
 
 	return 0;
@@ -1460,7 +1463,7 @@ int radeon_cp_indirect( struct inode *inode, struct file *filp,
 	 */
 	radeon_cp_dispatch_indirect( dev, buf, indirect.start, indirect.end );
 	if (indirect.discard) {
-	   radeon_cp_discard_buffer( dev, buf );
+		radeon_cp_discard_buffer( dev, buf );
 	}
 
 
