@@ -2,6 +2,7 @@
  * Created: Mon Dec 13 01:50:01 1999 by jhartmann@precisioninsight.com
  *
  * Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
+ * Copyright 2000 VA Linux Systems, Inc., Sunnyvale, California.
  * All Rights Reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -23,11 +24,9 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
  *
- * Authors: Rickard E. (Rik) Faith <faith@precisioninsight.com>
- *	    Jeff Hartmann <jhartmann@precisioninsight.com>
- *          Keith Whitwell <keithw@precisioninsight.com>
- *
- * $XFree86$
+ * Authors: Rickard E. (Rik) Faith <faith@valinux.com>
+ *	    Jeff Hartmann <jhartmann@valinux.com>
+ *          Keith Whitwell <keithw@valinux.com>
  *
  */
 
@@ -36,6 +35,11 @@
 #include "i810_drv.h"
 
 #include <linux/interrupt.h>	/* For task queue support */
+
+/* in case we don't have a 2.3.99-pre6 kernel or later: */
+#ifndef VM_DONTCOPY
+#define VM_DONTCOPY 0
+#endif
 
 #define I810_BUF_FREE		2
 #define I810_BUF_CLIENT		1

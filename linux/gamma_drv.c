@@ -1,8 +1,8 @@
 /* gamma.c -- 3dlabs GMX 2000 driver -*- linux-c -*-
  * Created: Mon Jan  4 08:58:31 1999 by faith@precisioninsight.com
- * Revised: Tue Oct 12 08:51:36 1999 by faith@precisioninsight.com
  *
  * Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
+ * Copyright 2000 VA Linux Systems, Inc., Sunnyvale, California.
  * All Rights Reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -24,22 +24,31 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
  * 
- * $XFree86: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/kernel/gamma_drv.c,v 1.4 2000/02/23 04:47:28 martin Exp $
+ * Authors:
+ *    Rickard E. (Rik) Faith <faith@valinux.com>
  *
  */
 
 #define EXPORT_SYMTAB
 #include "drmP.h"
 #include "gamma_drv.h"
+#include <linux/pci.h>
 EXPORT_SYMBOL(gamma_init);
 EXPORT_SYMBOL(gamma_cleanup);
 
+#ifndef PCI_DEVICE_ID_3DLABS_GAMMA
+#define PCI_DEVICE_ID_3DLABS_GAMMA 0x0008
+#endif
+#ifndef PCI_DEVICE_ID_3DLABS_MX
+#define PCI_DEVICE_ID_3DLABS_MX 0x0006
+#endif
+
 #define GAMMA_NAME	 "gamma"
 #define GAMMA_DESC	 "3dlabs GMX 2000"
-#define GAMMA_DATE	 "19990830"
-#define GAMMA_MAJOR	 0
+#define GAMMA_DATE	 "20000606"
+#define GAMMA_MAJOR	 1
 #define GAMMA_MINOR	 0
-#define GAMMA_PATCHLEVEL 5
+#define GAMMA_PATCHLEVEL 0
 
 static drm_device_t	      gamma_device;
 
@@ -98,10 +107,13 @@ static drm_ioctl_desc_t	      gamma_ioctls[] = {
 int			      init_module(void);
 void			      cleanup_module(void);
 static char		      *gamma = NULL;
+static int 		      devices = 0;
 
 MODULE_AUTHOR("Precision Insight, Inc., Cedar Park, Texas.");
 MODULE_DESCRIPTION("3dlabs GMX 2000");
 MODULE_PARM(gamma, "s");
+MODULE_PARM(devices, "i");
+MODULE_PARM_DESC(devices, "devices=x, where x is the number of MX chips on your card\n");
 
 /* init_module is called when insmod is used to load the module */
 
@@ -121,7 +133,7 @@ void cleanup_module(void)
 #ifndef MODULE
 /* gamma_setup is called by the kernel to parse command-line options passed
  * via the boot-loader (e.g., LILO).  It calls the insmod option routine,
- * drm_parse_drm.
+ * drm_parse_options.
  *
  * This is not currently supported, since it requires changes to
  * linux/init/main.c. */
@@ -271,10 +283,12 @@ static int gamma_takedown(drm_device_t *dev)
 					       - PAGE_SHIFT,
 					       DRM_MEM_SAREA);
 				break;
+#ifdef DRM_AGP
 			case _DRM_AGP:
 				/* Do nothing here, because this is all
                                    handled in the AGP/GART driver. */
 				break;
+#endif
 			}
 			drm_free(map, sizeof(*map), DRM_MEM_MAPS);
 		}
@@ -314,6 +328,34 @@ static int gamma_takedown(drm_device_t *dev)
 	return 0;
 }
 
+int gamma_found(void)
+{
+	return devices;
+}
+
+int gamma_find_devices(void)
+{
+	struct pci_dev *d = NULL, *one = NULL, *two = NULL;
+
+	d = pci_find_device(PCI_VENDOR_ID_3DLABS,PCI_DEVICE_ID_3DLABS_GAMMA,d);
+	if (!d) return 0;
+
+	one = pci_find_device(PCI_VENDOR_ID_3DLABS,PCI_DEVICE_ID_3DLABS_MX,d);
+	if (!one) return 0;
+
+	/* Make sure it's on the same card, if not - no MX's found */
+	if (PCI_SLOT(d->devfn) != PCI_SLOT(one->devfn)) return 0;
+
+	two = pci_find_device(PCI_VENDOR_ID_3DLABS,PCI_DEVICE_ID_3DLABS_MX,one);
+	if (!two) return 1;
+
+	/* Make sure it's on the same card, if not - only 1 MX found */
+	if (PCI_SLOT(d->devfn) != PCI_SLOT(two->devfn)) return 1;
+
+	/* Two MX's found - we don't currently support more than 2 */
+	return 2;
+}
+
 /* gamma_init is called via init_module at module load time, or via
  * linux/init/main.c (this is not currently supported). */
 
@@ -331,6 +373,8 @@ int gamma_init(void)
 #ifdef MODULE
 	drm_parse_options(gamma);
 #endif
+	devices = gamma_find_devices();
+	if (devices == 0) return -1;
 
 	if ((retcode = misc_register(&gamma_misc))) {
 		DRM_ERROR("Cannot register \"%s\"\n", GAMMA_NAME);
@@ -342,13 +386,14 @@ int gamma_init(void)
 	drm_mem_init();
 	drm_proc_init(dev);
 
-	DRM_INFO("Initialized %s %d.%d.%d %s on minor %d\n",
+	DRM_INFO("Initialized %s %d.%d.%d %s on minor %d with %d MX devices\n",
 		 GAMMA_NAME,
 		 GAMMA_MAJOR,
 		 GAMMA_MINOR,
 		 GAMMA_PATCHLEVEL,
 		 GAMMA_DATE,
-		 gamma_misc.minor);
+		 gamma_misc.minor,
+		 devices);
 	
 	return 0;
 }
