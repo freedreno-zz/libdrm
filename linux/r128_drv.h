@@ -46,8 +46,18 @@ typedef struct drm_r128_private {
 	u32              *ring_start;
 	u32              *ring_end;
 	int               ring_size;
+	int               ring_sizel2qw;
 	int               ring_entries;
+
+	int               submit_age;
+
+	int               usec_timeout;
 } drm_r128_private_t;
+
+typedef struct drm_r128_buf_priv {
+	u32               age;
+} drm_r128_buf_priv_t;
+
 				/* r128_drv.c */
 extern int  r128_init(void);
 extern void r128_cleanup(void);
@@ -65,12 +75,20 @@ extern int  r128_unlock(struct inode *inode, struct file *filp,
 				/* r128_dma.c */
 extern int r128_init_cce(struct inode *inode, struct file *filp,
 			 unsigned int cmd, unsigned long arg);
-extern int r128_engine_reset(struct inode *inode, struct file *filp,
-			     unsigned int cmd, unsigned long arg);
-extern int r128_submit_packets(struct inode *inode, struct file *filp,
-			       unsigned int cmd, unsigned long arg);
-extern int r128_wait_for_idle(struct inode *inode, struct file *filp,
-			      unsigned int cmd, unsigned long arg);
+extern int r128_eng_reset(struct inode *inode, struct file *filp,
+			  unsigned int cmd, unsigned long arg);
+extern int r128_submit_pkt(struct inode *inode, struct file *filp,
+			   unsigned int cmd, unsigned long arg);
+extern int r128_wait_idle(struct inode *inode, struct file *filp,
+			  unsigned int cmd, unsigned long arg);
+extern int r128_vertex_buf(struct inode *inode, struct file *filp,
+			   unsigned int cmd, unsigned long arg);
+
+				/* r128_bufs.c */
+extern int r128_addbufs(struct inode *inode, struct file *filp,
+			unsigned int cmd, unsigned long arg);
+extern int r128_mapbufs(struct inode *inode, struct file *filp,
+			unsigned int cmd, unsigned long arg);
 
 				/* r128_context.c */
 extern int  r128_resctx(struct inode *inode, struct file *filp,
@@ -90,4 +108,119 @@ extern int  r128_rmctx(struct inode *inode, struct file *filp,
 
 extern int  r128_context_switch(drm_device_t *dev, int old, int new);
 extern int  r128_context_switch_complete(drm_device_t *dev, int new);
+
+
+/* Register definitions, register access macros and drmAddMap constants
+ * for Rage 128 kernel driver.
+ */
+
+#define R128_PC_NGUI_CTLSTAT	0x0184
+#       define R128_PC_FLUSH_ALL	0x00ff
+#       define R128_PC_BUSY		(1 << 31)
+
+#define R128_CLOCK_CNTL_INDEX	0x0008
+#define R128_CLOCK_CNTL_DATA	0x000c
+#       define R128_PLL_WR_EN		(1 << 7)
+
+#define R128_MCLK_CNTL		0x000f
+#       define R128_FORCE_GCP		(1 << 16)
+#       define R128_FORCE_PIPE3D_CPP	(1 << 17)
+
+#define R128_GEN_RESET_CNTL	0x00f0
+#       define R128_SOFT_RESET_GUI	(1 <<  0)
+
+#define R128_PM4_BUFFER_CNTL	0x0704
+#       define R128_PM4_NONPM4			(0  << 28)
+#       define R128_PM4_192PIO			(1  << 28)
+#       define R128_PM4_192BM			(2  << 28)
+#       define R128_PM4_128PIO_64INDBM		(3  << 28)
+#       define R128_PM4_128BM_64INDBM		(4  << 28)
+#       define R128_PM4_64PIO_128INDBM		(5  << 28)
+#       define R128_PM4_64BM_128INDBM		(6  << 28)
+#       define R128_PM4_64PIO_64VCBM_64INDBM	(7  << 28)
+#       define R128_PM4_64BM_64VCBM_64INDBM	(8  << 28)
+#       define R128_PM4_64PIO_64VCPIO_64INDPIO	(15 << 28)
+
+
+#define R128_PM4_BUFFER_DL_RPTR	0x0710
+#define R128_PM4_BUFFER_DL_WPTR	0x0714
+#       define R128_PM4_BUFFER_DL_DONE		(1 << 31)
+
+#define R128_PM4_VC_FPU_SETUP	0x071c
+
+#define R128_PM4_STAT		0x07b8
+#       define R128_PM4_FIFOCNT_MASK		0x0fff
+#       define R128_PM4_BUSY			(1 << 16)
+#       define R128_PM4_GUI_ACTIVE		(1 << 31)
+
+#define R128_PM4_BUFFER_ADDR	0x07f0
+#define R128_PM4_MICRO_CNTL	0x07fc
+#       define R128_PM4_MICRO_FREERUN		(1 << 30)
+
+#define R128_PM4_FIFO_DATA_EVEN	0x1000
+#define R128_PM4_FIFO_DATA_ODD	0x1004
+
+#define R128_GUI_SCRATCH_REG0	0x15e0
+#define R128_GUI_SCRATCH_REG1	0x15e4
+#define R128_GUI_SCRATCH_REG2	0x15e8
+#define R128_GUI_SCRATCH_REG3	0x15ec
+#define R128_GUI_SCRATCH_REG4	0x15f0
+#define R128_GUI_SCRATCH_REG5	0x15f4
+
+#define R128_GUI_STAT		0x1740
+#       define R128_GUI_FIFOCNT_MASK		0x0fff
+#       define R128_GUI_ACTIVE			(1 << 31)
+
+
+/* CCE command packets */
+#define R128_CCE_PACKET0	0x00000000
+#define R128_CCE_PACKET1	0x40000000
+#define R128_CCE_PACKET2	0x80000000
+#       define R128_CCE_PACKET_MASK		0xC0000000
+#       define R128_CCE_PACKET_COUNT_MASK	0x3fff0000
+#       define R128_CCE_PACKET0_REG_MASK	0x000007ff
+#       define R128_CCE_PACKET1_REG0_MASK	0x000007ff
+#       define R128_CCE_PACKET1_REG1_MASK	0x003ff800
+
+
+#define R128_MAX_USEC_TIMEOUT	100000	/* 100 ms */
+
+/* WARNING!!! MAGIC NUMBERS!!!  The number of regions already added to
+   the kernel must be specified here.  This must match the order the X
+   server uses for instantiating register regions, or must be passed in
+   a new ioctl. */
+#define R128_SAREA()		0
+#define R128_FB()		1
+#define R128_AGP_RING()		2
+#define R128_AGP_READ_PTR()	3
+#define R128_AGP_VERTBUFS()	4
+#define R128_AGP_INDIRECTBUFS()	5
+#define R128_AGP_TEXTURES()	6
+#define R128_REG(reg)		7
+
+#define R128_BASE(reg)                                                       \
+		((u32)((drm_device_t *)dev)->maplist[R128_REG(reg)]->handle)
+#define R128_ADDR(reg)		(R128_BASE(reg) + reg)
+
+#define R128_DEREF(reg)		*(__volatile__ int *)R128_ADDR(reg)
+#define R128_READ(reg)		R128_DEREF(reg)
+#define R128_WRITE(reg,val)	do { R128_DEREF(reg) = val; } while (0)
+
+#define R128_DEREF8(reg)	*(__volatile__ char *)R128_ADDR(reg)
+#define R128_READ8(reg)		R128_DEREF8(reg)
+#define R128_WRITE8(reg,val)	do { R128_DEREF8(reg) = val; } while (0)
+
+#define R128_WRITE_PLL(addr,val)                                              \
+do {                                                                          \
+	R128_WRITE8(R128_CLOCK_CNTL_INDEX, ((addr) & 0x1f) | R128_PLL_WR_EN); \
+	R128_WRITE(R128_CLOCK_CNTL_DATA, (val));                              \
+} while (0)
+
+extern int R128_READ_PLL(drm_device_t *dev, int addr);
+
+#define R128CCE0(p,r,n)   ((p) | ((n) << 16) | ((r) >> 2))
+#define R128CCE1(p,r1,r2) ((p) | (((r2) >> 2) << 11) | ((r1) >> 2))
+#define R128CCE2(p)       ((p))
+#define R128CCE3(p,n)     ((p) | ((n) << 16))
+
 #endif

@@ -38,10 +38,10 @@ EXPORT_SYMBOL(r128_cleanup);
 
 #define R128_NAME	 "r128"
 #define R128_DESC	 "r128"
-#define R128_DATE	 "20000405"
+#define R128_DATE	 "20000415"
 #define R128_MAJOR	 0
 #define R128_MINOR	 0
-#define R128_PATCHLEVEL  2
+#define R128_PATCHLEVEL  4
 
 static drm_device_t	      r128_device;
 drm_ctx_t	              r128_res_ctx;
@@ -74,6 +74,11 @@ static drm_ioctl_desc_t	      r128_ioctls[] = {
 	[DRM_IOCTL_NR(DRM_IOCTL_UNBLOCK)]     = { drm_unblock,	   1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_AUTH_MAGIC)]  = { drm_authmagic,   1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_ADD_MAP)]     = { drm_addmap,	   1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_ADD_BUFS)]    = { r128_addbufs,	   1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_MARK_BUFS)]   = { drm_markbufs,    1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_INFO_BUFS)]   = { drm_infobufs,    1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_MAP_BUFS)]    = { r128_mapbufs,	   1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_FREE_BUFS)]   = { drm_freebufs,    1, 0 },
 
 	[DRM_IOCTL_NR(DRM_IOCTL_ADD_CTX)]     = { r128_addctx,	   1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_RM_CTX)]      = { r128_rmctx,	   1, 1 },
@@ -97,10 +102,11 @@ static drm_ioctl_desc_t	      r128_ioctls[] = {
 	[DRM_IOCTL_NR(DRM_IOCTL_AGP_BIND)]    = { drm_agp_bind,    1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_AGP_UNBIND)]  = { drm_agp_unbind,  1, 1 },
 
-	[DRM_IOCTL_NR(DRM_IOCTL_R128_INIT)]           = { r128_init_cce,        1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_R128_ENGINE_RESET)]   = { r128_engine_reset,    1, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_R128_SUBMIT_PACKETS)] = { r128_submit_packets,  1, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_R128_WAIT_FOR_IDLE)]  = { r128_wait_for_idle,   1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_R128_INIT)]   = { r128_init_cce,   1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_R128_RESET)]  = { r128_eng_reset,  1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_R128_PACKET)] = { r128_submit_pkt, 1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_R128_W4IDLE)] = { r128_wait_idle,  1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_R128_VERTEX)] = { r128_vertex_buf, 1, 0 },
 };
 #define R128_IOCTL_COUNT DRM_ARRAY_SIZE(r128_ioctls)
 
@@ -156,6 +162,8 @@ static int r128_setup(drm_device_t *dev)
 	dev->buf_use	  = 0;
 	atomic_set(&dev->buf_alloc, 0);
 
+	drm_dma_setup(dev);
+
 	atomic_set(&dev->total_open, 0);
 	atomic_set(&dev->total_close, 0);
 	atomic_set(&dev->total_ioctl, 0);
@@ -182,7 +190,6 @@ static int r128_setup(drm_device_t *dev)
 	dev->irq	    = 0;
 	dev->context_flag   = 0;
 	dev->interrupt_flag = 0;
-	dev->dma            = 0;
 	dev->dma_flag	    = 0;
 	dev->last_context   = 0;
 	dev->last_switch    = 0;
@@ -314,6 +321,9 @@ static int r128_takedown(drm_device_t *dev)
 		dev->map_count = 0;
 	}
 	
+	drm_dma_takedown(dev);
+
+	dev->queue_count     = 0;
 	if (dev->lock.hw_lock) {
 		dev->lock.hw_lock    = NULL; /* SHM removed */
 		dev->lock.pid	     = 0;

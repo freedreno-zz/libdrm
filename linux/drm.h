@@ -1,6 +1,6 @@
 /* drm.h -- Header for Direct Rendering Manager -*- linux-c -*-
  * Created: Mon Jan  4 10:05:05 1999 by faith@precisioninsight.com
- * Revised: Sun Apr  9 20:33:27 2000 by kevin@precisioninsight.com
+ * Revised: Sat Apr 15 01:40:31 2000 by kevin@precisioninsight.com
  *
  * Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
  * All rights reserved.
@@ -351,9 +351,10 @@ typedef struct drm_agp_info {
 #define DRM_IOCTL_I810_GETAGE  DRM_IO ( 0x44)
 
 /* Rage 128 specific ioctls */
-#define DRM_IOCTL_R128_INIT		DRM_IOW( 0x40, drm_r128_init_t)
-#define DRM_IOCTL_R128_ENGINE_RESET	DRM_IO(  0x41)
-#define DRM_IOCTL_R128_SUBMIT_PACKETS	DRM_IOW( 0x42, drm_r128_packet_t)
-#define DRM_IOCTL_R128_WAIT_FOR_IDLE	DRM_IO(  0x43)
+#define DRM_IOCTL_R128_INIT	DRM_IOW( 0x40, drm_r128_init_t)
+#define DRM_IOCTL_R128_RESET	DRM_IO(  0x41)
+#define DRM_IOCTL_R128_W4IDLE	DRM_IO(  0x42)
+#define DRM_IOCTL_R128_PACKET	DRM_IOW( 0x43, drm_r128_packet_t)
+#define DRM_IOCTL_R128_VERTEX	DRM_IOW( 0x44, drm_r128_vertex_t)
 
 #endif

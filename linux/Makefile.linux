@@ -123,7 +123,7 @@ MGAHEADERS=	mga_drv.h $(DRMHEADERS)
 I810OBJS=	i810_drv.o i810_dma.o i810_bufs.o i810_context.o
 I810HEADERS=	i810_drv.h $(DRMHEADERS)
 
-R128OBJS=	r128_drv.o r128_dma.o r128_context.o
+R128OBJS=	r128_drv.o r128_dma.o r128_bufs.o r128_context.o
 R128HEADERS=	r128_drv.h r128_drm.h $(DRMHEADERS)
 endif
 

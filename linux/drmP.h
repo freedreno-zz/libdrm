@@ -1,6 +1,6 @@
 /* drmP.h -- Private header for Direct Rendering Manager -*- linux-c -*-
  * Created: Mon Jan  4 10:05:05 1999 by faith@precisioninsight.com
- * Revised: Sun Feb 13 23:34:30 2000 by kevin@precisioninsight.com
+ * Revised: Thu Apr 13 10:32:41 2000 by kevin@precisioninsight.com
  *
  * Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
  * All rights reserved.
@@ -228,8 +228,8 @@ typedef struct drm_magic_entry {
 } drm_magic_entry_t;
 
 typedef struct drm_magic_head {
-       struct drm_magic_entry *head;
-       struct drm_magic_entry *tail;
+	struct drm_magic_entry *head;
+	struct drm_magic_entry *tail;
 } drm_magic_head_t;
 
 typedef struct drm_vma_entry {
@@ -262,16 +262,15 @@ typedef struct drm_buf {
 		DRM_LIST_RECLAIM = 5
 	}		  list;	       /* Which list we're on		     */
 
-
-	void *dev_private;
-	int dev_priv_size;
-
 #if DRM_DMA_HISTOGRAM
 	cycles_t	  time_queued;	   /* Queued to kernel DMA queue     */
 	cycles_t	  time_dispatched; /* Dispatched to hardware	     */
 	cycles_t	  time_completed;  /* Completed by hardware	     */
 	cycles_t	  time_freed;	   /* Back on freelist		     */
 #endif
+
+	int		  dev_priv_size; /* Size of buffer private stoarge   */
+	void		  *dev_private;  /* Per-buffer private storage       */
 } drm_buf_t;
 
 #if DRM_DMA_HISTOGRAM

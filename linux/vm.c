@@ -1,6 +1,6 @@
 /* vm.c -- Memory mapping for DRM -*- linux-c -*-
  * Created: Mon Jan  4 08:58:31 1999 by faith@precisioninsight.com
- * Revised: Tue Apr 11 01:55:12 2000 by kevin@precisioninsight.com
+ * Revised: Sat Apr 15 00:12:30 2000 by kevin@precisioninsight.com
  *
  * Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
  * All Rights Reserved.
@@ -246,6 +246,18 @@ int drm_mmap(struct file *filp, struct vm_area_struct *vma)
 				/* Check for valid size. */
 	if (map->size != vma->vm_end - vma->vm_start) return -EINVAL;
 	
+	if (!capable(CAP_SYS_ADMIN) && (map->flags & _DRM_READ_ONLY)) {
+		vma->vm_flags &= VM_MAYWRITE;
+#if defined(__i386__)
+		pgprot_val(vma->vm_page_prot) &= ~_PAGE_RW;
+#else
+				/* Ye gads this is ugly.  With more thought
+                                   we could move this up higher and use
+                                   `protection_map' instead.  */
+		vma->vm_page_prot = __pgprot(pte_val(pte_wrprotect(
+			__pte(pgprot_val(vma->vm_page_prot)))));
+#endif
+	}
 
 	switch (map->type) {
 	case _DRM_FRAME_BUFFER:
@@ -281,19 +293,7 @@ int drm_mmap(struct file *filp, struct vm_area_struct *vma)
 		return -EINVAL;	/* This should never happen. */
 	}
 	vma->vm_flags |= VM_LOCKED | VM_SHM; /* Don't swap */
-	if (map->flags & _DRM_READ_ONLY) {
-#if defined(__i386__)
-		pgprot_val(vma->vm_page_prot) &= ~_PAGE_RW;
-#else
-				/* Ye gads this is ugly.  With more thought
-                                   we could move this up higher and use
-                                   `protection_map' instead.  */
-		vma->vm_page_prot = __pgprot(pte_val(pte_wrprotect(
-			__pte(pgprot_val(vma->vm_page_prot)))));
-#endif
-	}
 
-	
 #if LINUX_VERSION_CODE < 0x020203 /* KERNEL_VERSION(2,2,3) */
 				/* In Linux 2.2.3 and above, this is
 				   handled in do_mmap() in mm/mmap.c. */

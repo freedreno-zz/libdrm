@@ -35,15 +35,16 @@
  * defines in the Xserver file (xf86drmR128.h)
  */
 typedef struct drm_r128_init {
-   	enum { 
-	   	R128_INIT_CCE    = 0x01,
-	       	R128_CLEANUP_CCE = 0x02
+	enum { 
+		R128_INIT_CCE    = 0x01,
+		R128_CLEANUP_CCE = 0x02
 	} func;
 	int sarea_priv_offset;
 	int cce_mode;
 	int cce_fifo_size;
 	int cce_secure;
 	int ring_size;
+	int usec_timeout;
 } drm_r128_init_t;
 
 typedef struct drm_r128_packet {
@@ -51,6 +52,30 @@ typedef struct drm_r128_packet {
 	int            count;
 	int            flags;
 } drm_r128_packet_t;
+
+typedef enum drm_r128_prim {
+	_DRM_R128_PRIM_NONE		= 0x0001,
+	_DRM_R128_PRIM_POINT		= 0x0002,
+	_DRM_R128_PRIM_LINE		= 0x0004,
+	_DRM_R128_PRIM_POLY_LINE	= 0x0008,
+	_DRM_R128_PRIM_TRI_LIST		= 0x0010,
+	_DRM_R128_PRIM_TRI_FAN		= 0x0020,
+	_DRM_R128_PRIM_TRI_STRIP	= 0x0040,
+	_DRM_R128_PRIM_TRI_TYPE2	= 0x0080
+} drm_r128_prim_t;
+
+typedef struct drm_r128_vertex {
+				/* Indices here refer to the offset into
+				   buflist in drm_buf_get_t.  */
+	int		send_count;	  /* Number of buffers to send	    */
+	int		*send_indices;	  /* List of handles to buffers	    */
+	int		*send_sizes;	  /* Lengths of data to send	    */
+	drm_r128_prim_t	prim;		  /* Primitive type		    */
+	int		request_count;	  /* Number of buffers requested    */
+	int		*request_indices; /* Buffer information		    */
+	int		*request_sizes;
+	int		granted_count;	  /* Number of buffers granted	    */
+} drm_r128_vertex_t;
 
 /* WARNING: If you change any of these defines, make sure to change the
  * defines in the Xserver file (r128_sarea.h)
