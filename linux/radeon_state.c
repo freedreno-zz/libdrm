@@ -227,21 +227,12 @@ static inline void radeon_emit_setup( drm_radeon_private_t *dev_priv )
 	 * with triangles.  In the future, we probably won't need this
 	 * optimization.
 	 */
-#if 0
-	/* Why doesn't CP_PACKET1 work? */
-	BEGIN_RING( 3 );
-
-	OUT_RING( CP_PACKET1( RADEON_SE_CNTL, RADEON_SE_CNTL_STATUS ) );
-	OUT_RING( ctx->se_cntl );
-	OUT_RING( ctx->se_cntl_status );
-#else
 	BEGIN_RING( 4 );
 
 	OUT_RING( CP_PACKET0( RADEON_SE_CNTL, 0 ) );
 	OUT_RING( ctx->se_cntl );
 	OUT_RING( CP_PACKET0( RADEON_SE_CNTL_STATUS, 0 ) );
 	OUT_RING( ctx->se_cntl_status );
-#endif
 
 	ADVANCE_RING();
 }
@@ -541,15 +532,13 @@ static void radeon_print_dirty( const char *msg, unsigned int flags )
 }
 
 static void radeon_cp_dispatch_clear( drm_device_t *dev,
-				      unsigned int flags,
-				      int cx, int cy, int cw, int ch,
-				      unsigned int clear_color,
-				      unsigned int clear_depth )
+				      drm_radeon_clear_t *clear )
 {
 	drm_radeon_private_t *dev_priv = dev->dev_private;
 	drm_radeon_sarea_t *sarea_priv = dev_priv->sarea_priv;
 	int nbox = sarea_priv->nbox;
 	drm_clip_rect_t *pbox = sarea_priv->boxes;
+	unsigned int flags = clear->flags;
 	u32 fb_bpp, depth_bpp;
 	int i;
 	RING_LOCALS;
@@ -585,8 +574,6 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 		if ( tmp & RADEON_BACK )  flags |= RADEON_FRONT;
 	}
 
-	RADEON_WAIT_UNTIL_3D_IDLE();
-
 	for ( i = 0 ; i < nbox ; i++ ) {
 		int x = pbox[i].x1;
 		int y = pbox[i].y1;
@@ -598,7 +585,12 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 			   pbox[i].y2, flags );
 
 		if ( flags & (RADEON_FRONT | RADEON_BACK) ) {
-			BEGIN_RING( 2 );
+			BEGIN_RING( 4 );
+
+			/* Ensure the 3D stream is idle before doing a
+			 * 2D fill to clear the front or back buffer.
+			 */
+			RADEON_WAIT_UNTIL_3D_IDLE();
 
 			OUT_RING( CP_PACKET0( RADEON_DP_WRITE_MASK, 0 ) );
 			OUT_RING( sarea_priv->context_state.rb3d_planemask );
@@ -618,7 +610,7 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 				  RADEON_GMC_CLR_CMP_CNTL_DIS );
 
 			OUT_RING( dev_priv->front_pitch_offset );
-			OUT_RING( clear_color );
+			OUT_RING( clear->clear_color );
 
 			OUT_RING( (x << 16) | y );
 			OUT_RING( (w << 16) | h );
@@ -638,7 +630,7 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 				  RADEON_GMC_CLR_CMP_CNTL_DIS );
 
 			OUT_RING( dev_priv->back_pitch_offset );
-			OUT_RING( clear_color );
+			OUT_RING( clear->clear_color );
 
 			OUT_RING( (x << 16) | y );
 			OUT_RING( (w << 16) | h );
@@ -647,117 +639,61 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 		}
 
 		if ( flags & RADEON_DEPTH ) {
-#if 0
-			BEGIN_RING( 6 );
-
-			OUT_RING( CP_PACKET3( RADEON_CNTL_PAINT_MULTI, 4 ) );
-			OUT_RING( RADEON_GMC_DST_PITCH_OFFSET_CNTL |
-				  RADEON_GMC_BRUSH_SOLID_COLOR |
-				  depth_bpp |
-				  RADEON_GMC_SRC_DATATYPE_COLOR |
-				  RADEON_ROP3_P |
-				  RADEON_GMC_CLR_CMP_CNTL_DIS |
-				  RADEON_GMC_WR_MSK_DIS );
-
-			OUT_RING( dev_priv->depth_pitch_offset );
-			OUT_RING( clear_depth );
-
-			OUT_RING( (x << 16) | y );
-			OUT_RING( (w << 16) | h );
-
-			ADVANCE_RING();
-#else
-			int dx = x;
-			int dy = y;
 			drm_radeon_context_regs_t *ctx =
-				&sarea_priv->context_state;
+			   &sarea_priv->context_state;
 			u32 rb3d_cntl = ctx->rb3d_cntl;
 			u32 rb3d_zstencilcntl = ctx->rb3d_zstencilcntl;
 			u32 se_cntl = ctx->se_cntl;
 
-			rb3d_cntl |= ( RADEON_PLANE_MASK_ENABLE |
-				       RADEON_Z_ENABLE );
+			/* FIXME: Do re really need to do this?  Why
+			 * not just precalculate all the values?
+			 */
+			rb3d_cntl |= (RADEON_PLANE_MASK_ENABLE |
+				      RADEON_Z_ENABLE);
 
-			rb3d_zstencilcntl &= ~RADEON_Z_TEST_MASK;
-			rb3d_zstencilcntl |= ( RADEON_Z_TEST_ALWAYS |
-					       RADEON_Z_WRITE_ENABLE );
+			rb3d_zstencilcntl |= (RADEON_Z_TEST_ALWAYS |
+					      RADEON_Z_WRITE_ENABLE);
 
-			se_cntl &= ~( RADEON_VPORT_XY_XFORM_ENABLE |
-				      RADEON_VPORT_Z_XFORM_ENABLE |
-				      RADEON_FFACE_CULL_MASK |
-				      RADEON_BFACE_CULL_MASK );
-			se_cntl |= ( RADEON_FFACE_SOLID |
-				     RADEON_BFACE_SOLID );
+			se_cntl &= ~(RADEON_VPORT_XY_XFORM_ENABLE |
+				     RADEON_VPORT_Z_XFORM_ENABLE);
+			se_cntl |= (RADEON_FFACE_SOLID |
+				    RADEON_BFACE_SOLID);
 
-			BEGIN_RING( 28 );
+			/* FIXME: Render a rectangle to clear the depth
+			 * buffer.  So much for those "fast Z clears"...
+			 */
+			BEGIN_RING( 20 );
 
 			OUT_RING( CP_PACKET0( RADEON_RB3D_CNTL, 0 ) );
 			OUT_RING( rb3d_cntl );
-
 			OUT_RING( CP_PACKET0( RADEON_RB3D_ZSTENCILCNTL, 0 ) );
 			OUT_RING( rb3d_zstencilcntl );
-
 			OUT_RING( CP_PACKET0( RADEON_RB3D_PLANEMASK, 0 ) );
 			OUT_RING( 0x00000000 );
-
 			OUT_RING( CP_PACKET0( RADEON_SE_CNTL, 0 ) );
 			OUT_RING( se_cntl );
 
-			/* Draw rectangle */
 			OUT_RING( CP_PACKET3( RADEON_3D_DRAW_IMMD, 10 ) );
-			OUT_RING( RADEON_CP_VC_FRMT_XY |
-				  RADEON_CP_VC_FRMT_Z );
-			OUT_RING( RADEON_CP_VC_CNTL_VTX_FMT_RADEON_MODE |
-				  RADEON_CP_VC_CNTL_MAOS_ENABLE |
-				  RADEON_CP_VC_CNTL_PRIM_WALK_RING |
-				  RADEON_CP_VC_CNTL_PRIM_TYPE_RECT_LIST |
-				  ( 3 << RADEON_CP_VC_CNTL_NUM_SHIFT ) );
-			{
-				union {
-					float f;
-					u32 u;
-				} val;
+			OUT_RING( RADEON_VTX_Z_PRESENT );
+			OUT_RING( (RADEON_PRIM_TYPE_RECT_LIST |
+				   RADEON_PRIM_WALK_RING |
+				   RADEON_MAOS_ENABLE |
+				   RADEON_VTX_FMT_RADEON_MODE |
+				   (3 << RADEON_NUM_VERTICES_SHIFT)) );
 
+			OUT_RING( clear->rect.ui[CLEAR_X1] );
+			OUT_RING( clear->rect.ui[CLEAR_Y1] );
+			OUT_RING( clear->rect.ui[CLEAR_DEPTH] );
 
+			OUT_RING( clear->rect.ui[CLEAR_X1] );
+			OUT_RING( clear->rect.ui[CLEAR_Y2] );
+			OUT_RING( clear->rect.ui[CLEAR_DEPTH] );
 
-	/*
-	 * *************************************************************
-	 *
-	 * FIXME: GET RID OF THIS!!!  WE MUST NOT USE THE FPU IN THE
-	 * KERNEL, EVER!!!
-	 *
-	 * *************************************************************
-	 */
-
-
-
-				val.f = dx;          OUT_RING( val.u );
-				val.f = dy;          OUT_RING( val.u );
-				val.f = clear_depth; OUT_RING( val.u );
-
-				val.f = dx;          OUT_RING( val.u );
-				val.f = dy + h;      OUT_RING( val.u );
-				val.f = clear_depth; OUT_RING( val.u );
-
-				val.f = dx + w;      OUT_RING( val.u );
-				val.f = dy + h;      OUT_RING( val.u );
-				val.f = clear_depth; OUT_RING( val.u );
-			}
-
-			OUT_RING( CP_PACKET0( RADEON_RB3D_CNTL, 0 ) );
-			OUT_RING( ctx->rb3d_cntl );
-
-			OUT_RING( CP_PACKET0( RADEON_RB3D_ZSTENCILCNTL, 0 ) );
-			OUT_RING( ctx->rb3d_zstencilcntl );
-
-			OUT_RING( CP_PACKET0( RADEON_RB3D_PLANEMASK, 0 ) );
-			OUT_RING( ctx->rb3d_planemask );
-
-			OUT_RING( CP_PACKET0( RADEON_SE_CNTL, 0 ) );
-			OUT_RING( ctx->se_cntl );
+			OUT_RING( clear->rect.ui[CLEAR_X2] );
+			OUT_RING( clear->rect.ui[CLEAR_Y2] );
+			OUT_RING( clear->rect.ui[CLEAR_DEPTH] );
 
 			ADVANCE_RING();
-#endif
 		}
 	}
 
@@ -767,8 +703,12 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 	 */
 	dev_priv->sarea_priv->last_clear++;
 
+	BEGIN_RING( 4 );
+
 	RADEON_CLEAR_AGE( dev_priv->sarea_priv->last_clear );
 	RADEON_WAIT_UNTIL_2D_IDLE();
+
+	ADVANCE_RING();
 }
 
 static void radeon_cp_dispatch_swap( drm_device_t *dev )
@@ -803,7 +743,11 @@ static void radeon_cp_dispatch_swap( drm_device_t *dev )
 		break;
 	}
 
+	BEGIN_RING( 2 );
+
 	RADEON_WAIT_UNTIL_3D_IDLE();
+
+	ADVANCE_RING();
 
 	for ( i = 0 ; i < nbox ; i++ ) {
 		int x = pbox[i].x1;
@@ -840,8 +784,12 @@ static void radeon_cp_dispatch_swap( drm_device_t *dev )
 	 */
 	dev_priv->sarea_priv->last_frame++;
 
+	BEGIN_RING( 4 );
+
 	RADEON_FRAME_AGE( dev_priv->sarea_priv->last_frame );
 	RADEON_WAIT_UNTIL_2D_IDLE();
+
+	ADVANCE_RING();
 }
 
 static void radeon_cp_dispatch_flip( drm_device_t *dev )
@@ -858,10 +806,10 @@ static void radeon_cp_dispatch_flip( drm_device_t *dev )
 	radeon_cp_performance_boxes( dev_priv );
 #endif
 
+	BEGIN_RING( 6 );
+
 	RADEON_WAIT_UNTIL_3D_IDLE();
 	RADEON_WAIT_UNTIL_PAGE_FLIPPED();
-
-	BEGIN_RING( 2 );
 
 	OUT_RING( CP_PACKET0( RADEON_CRTC_OFFSET, 0 ) );
 
@@ -881,7 +829,11 @@ static void radeon_cp_dispatch_flip( drm_device_t *dev )
 	 */
 	dev_priv->sarea_priv->last_frame++;
 
+	BEGIN_RING( 2 );
+
 	RADEON_FRAME_AGE( dev_priv->sarea_priv->last_frame );
+
+	ADVANCE_RING();
 }
 
 static void radeon_cp_dispatch_vertex( drm_device_t *dev,
@@ -925,10 +877,10 @@ static void radeon_cp_dispatch_vertex( drm_device_t *dev,
 			OUT_RING( offset );
 			OUT_RING( size );
 			OUT_RING( format );
-			OUT_RING( prim | RADEON_CP_VC_CNTL_PRIM_WALK_LIST |
-				  RADEON_CP_VC_CNTL_COLOR_ORDER_RGBA |
-				  RADEON_CP_VC_CNTL_VTX_FMT_RADEON_MODE |
-				  (size << RADEON_CP_VC_CNTL_NUM_SHIFT) );
+			OUT_RING( prim | RADEON_PRIM_WALK_LIST |
+				  RADEON_COLOR_ORDER_RGBA |
+				  RADEON_VTX_FMT_RADEON_MODE |
+				  (size << RADEON_NUM_VERTICES_SHIFT) );
 
 			ADVANCE_RING();
 
@@ -940,7 +892,9 @@ static void radeon_cp_dispatch_vertex( drm_device_t *dev,
 		buf_priv->age = dev_priv->sarea_priv->last_dispatch;
 
 		/* Emit the vertex buffer age */
+		BEGIN_RING( 2 );
 		RADEON_DISPATCH_AGE( buf_priv->age );
+		ADVANCE_RING();
 
 		buf->pending = 1;
 		buf->used = 0;
@@ -999,7 +953,9 @@ static void radeon_cp_dispatch_indirect( drm_device_t *dev,
 		buf_priv->age = dev_priv->sarea_priv->last_dispatch;
 
 		/* Emit the indirect buffer age */
+		BEGIN_RING( 2 );
 		RADEON_DISPATCH_AGE( buf_priv->age );
+		ADVANCE_RING();
 
 		buf->pending = 1;
 		buf->used = 0;
@@ -1049,10 +1005,10 @@ static void radeon_cp_dispatch_indices( drm_device_t *dev,
 		data[1] = offset;
 		data[2] = RADEON_MAX_VB_VERTS;
 		data[3] = format;
-		data[4] = (prim | RADEON_CP_VC_CNTL_PRIM_WALK_IND |
-			   RADEON_CP_VC_CNTL_COLOR_ORDER_RGBA |
-			   RADEON_CP_VC_CNTL_VTX_FMT_RADEON_MODE |
-			   (count << RADEON_CP_VC_CNTL_NUM_SHIFT) );
+		data[4] = (prim | RADEON_PRIM_WALK_IND |
+			   RADEON_COLOR_ORDER_RGBA |
+			   RADEON_VTX_FMT_RADEON_MODE |
+			   (count << RADEON_NUM_VERTICES_SHIFT) );
 
 		if ( count & 0x1 ) {
 			data[dwords-1] &= 0x0000ffff;
@@ -1076,7 +1032,9 @@ static void radeon_cp_dispatch_indices( drm_device_t *dev,
 		buf_priv->age = dev_priv->sarea_priv->last_dispatch;
 
 		/* Emit the vertex buffer age */
+		BEGIN_RING( 2 );
 		RADEON_DISPATCH_AGE( buf_priv->age );
+		ADVANCE_RING();
 
 		buf->pending = 1;
 		/* FIXME: Check dispatched field */
@@ -1137,8 +1095,12 @@ static int radeon_cp_dispatch_blit( drm_device_t *dev,
 	 * up with the texture data from the host data blit, otherwise
 	 * part of the texture image may be corrupted.
 	 */
-	RADEON_WAIT_UNTIL_3D_IDLE();
+	BEGIN_RING( 4 );
+
 	RADEON_FLUSH_CACHE();
+	RADEON_WAIT_UNTIL_3D_IDLE();
+
+	ADVANCE_RING();
 
 	/* Dispatch the indirect buffer.
 	 */
@@ -1187,8 +1149,12 @@ static int radeon_cp_dispatch_blit( drm_device_t *dev,
 	 * the texture data is written out to memory before rendering
 	 * continues.
 	 */
-	RADEON_WAIT_UNTIL_2D_IDLE();
+	BEGIN_RING( 4 );
+
 	RADEON_FLUSH_CACHE();
+	RADEON_WAIT_UNTIL_2D_IDLE();
+
+	ADVANCE_RING();
 
 	return 0;
 }
@@ -1221,9 +1187,7 @@ int radeon_cp_clear( struct inode *inode, struct file *filp,
 	if ( sarea_priv->nbox > RADEON_NR_SAREA_CLIPRECTS )
 		sarea_priv->nbox = RADEON_NR_SAREA_CLIPRECTS;
 
-	radeon_cp_dispatch_clear( dev, clear.flags,
-				  clear.x, clear.y, clear.w, clear.h,
-				  clear.clear_color, clear.clear_depth );
+	radeon_cp_dispatch_clear( dev, &clear );
 
 	/* Make sure we restore the 3D state next time.
 	 */
@@ -1297,7 +1261,7 @@ int radeon_cp_vertex( struct inode *inode, struct file *filp,
 		return -EINVAL;
 	}
 	if ( vertex.prim < 0 ||
-	     vertex.prim > RADEON_CP_VC_CNTL_PRIM_TYPE_3VRT_LINE_LIST ) {
+	     vertex.prim > RADEON_PRIM_TYPE_3VRT_LINE_LIST ) {
 		DRM_ERROR( "buffer prim %d\n", vertex.prim );
 		return -EINVAL;
 	}
@@ -1362,7 +1326,7 @@ int radeon_cp_indices( struct inode *inode, struct file *filp,
 		return -EINVAL;
 	}
 	if ( elts.prim < 0 ||
-	     elts.prim > RADEON_CP_VC_CNTL_PRIM_TYPE_3VRT_LINE_LIST ) {
+	     elts.prim > RADEON_PRIM_TYPE_3VRT_LINE_LIST ) {
 		DRM_ERROR( "buffer prim %d\n", elts.prim );
 		return -EINVAL;
 	}
@@ -1512,8 +1476,19 @@ int radeon_cp_indirect( struct inode *inode, struct file *filp,
 	buf->used = indirect.end;
 	buf_priv->discard = indirect.discard;
 
+	/* Wait for the 3D stream to idle before the indirect buffer
+	 * containing 2D acceleration commands is processed.
+	 */
+	BEGIN_RING( 2 );
+
 	RADEON_WAIT_UNTIL_3D_IDLE();
 
+	ADVANCE_RING();
+
+	/* Dispatch the indirect buffer full of commands from the
+	 * X server.  This is insecure and is thus only available to
+	 * privileged clients.
+	 */
 	radeon_cp_dispatch_indirect( dev, buf, indirect.start, indirect.end );
 
 	return 0;

@@ -221,20 +221,23 @@ extern int  radeon_context_switch_complete(drm_device_t *dev, int new);
 #	define RADEON_CRTC_TILE_EN		(1 << 15)
 #	define RADEON_CRTC_OFFSET_FLIP_CNTL	(1 << 16)
 
+#define RADEON_RB3D_DEPTHCLEARVALUE	0x1c30
+#define RADEON_RB3D_DEPTHXY_OFFSET	0x1c60
+
 #define RADEON_DP_GUI_MASTER_CNTL	0x146c
-#       define RADEON_GMC_SRC_PITCH_OFFSET_CNTL	(1    <<  0)
-#       define RADEON_GMC_DST_PITCH_OFFSET_CNTL	(1    <<  1)
-#	define RADEON_GMC_BRUSH_SOLID_COLOR	(13   <<  4)
-#	define RADEON_GMC_BRUSH_NONE		(15   <<  4)
-#	define RADEON_GMC_DST_16BPP		(4    <<  8)
-#	define RADEON_GMC_DST_24BPP		(5    <<  8)
-#	define RADEON_GMC_DST_32BPP		(6    <<  8)
-#       define RADEON_GMC_DST_DATATYPE_SHIFT	8
-#	define RADEON_GMC_SRC_DATATYPE_COLOR	(3    << 12)
-#	define RADEON_DP_SRC_SOURCE_MEMORY	(2    << 24)
-#	define RADEON_DP_SRC_SOURCE_HOST_DATA	(3    << 24)
-#	define RADEON_GMC_CLR_CMP_CNTL_DIS	(1    << 28)
-#	define RADEON_GMC_WR_MSK_DIS		(1    << 30)
+#	define RADEON_GMC_SRC_PITCH_OFFSET_CNTL	(1 << 0)
+#	define RADEON_GMC_DST_PITCH_OFFSET_CNTL	(1 << 1)
+#	define RADEON_GMC_BRUSH_SOLID_COLOR	(13 << 4)
+#	define RADEON_GMC_BRUSH_NONE		(15 << 4)
+#	define RADEON_GMC_DST_16BPP		(4 << 8)
+#	define RADEON_GMC_DST_24BPP		(5 << 8)
+#	define RADEON_GMC_DST_32BPP		(6 << 8)
+#	define RADEON_GMC_DST_DATATYPE_SHIFT	8
+#	define RADEON_GMC_SRC_DATATYPE_COLOR	(3 << 12)
+#	define RADEON_DP_SRC_SOURCE_MEMORY	(2 << 24)
+#	define RADEON_DP_SRC_SOURCE_HOST_DATA	(3 << 24)
+#	define RADEON_GMC_CLR_CMP_CNTL_DIS	(1 << 28)
+#	define RADEON_GMC_WR_MSK_DIS		(1 << 30)
 #	define RADEON_ROP3_S			0x00cc0000
 #	define RADEON_ROP3_P			0x00f00000
 #define RADEON_DP_WRITE_MASK		0x16cc
@@ -288,8 +291,18 @@ extern int  radeon_context_switch_complete(drm_device_t *dev, int new);
 #	define RADEON_RB2D_DC_FLUSH_ALL		0xf
 #	define RADEON_RB2D_DC_BUSY		(1 << 31)
 #define RADEON_RB3D_CNTL		0x1c3c
+#	define RADEON_ALPHA_BLEND_ENABLE	(1 << 0)
 #	define RADEON_PLANE_MASK_ENABLE		(1 << 1)
+#	define RADEON_DITHER_ENABLE		(1 << 2)
+#	define RADEON_ROUND_ENABLE		(1 << 3)
+#	define RADEON_SCALE_DITHER_ENABLE	(1 << 4)
+#	define RADEON_DITHER_INIT		(1 << 5)
+#	define RADEON_ROP_ENABLE		(1 << 6)
+#	define RADEON_STENCIL_ENABLE		(1 << 7)
 #	define RADEON_Z_ENABLE			(1 << 8)
+#	define RADEON_DEPTH_XZ_OFFEST_ENABLE	(1 << 9)
+#	define RADEON_ZBLOCK8			(0 << 15)
+#	define RADEON_ZBLOCK16			(1 << 15)
 #define RADEON_RB3D_DEPTHOFFSET		0x1c24
 #define RADEON_RB3D_PLANEMASK		0x1d84
 #define RADEON_RB3D_STENCILREFMASK	0x1d7c
@@ -299,8 +312,12 @@ extern int  radeon_context_switch_complete(drm_device_t *dev, int new);
 #	define RADEON_RB3D_ZC_FREE		(1 << 2)
 #	define RADEON_RB3D_ZC_BUSY		(1 << 31)
 #define RADEON_RB3D_ZSTENCILCNTL	0x1c2c
-#	define RADEON_Z_TEST_MASK		(7 <<  4)
-#	define RADEON_Z_TEST_ALWAYS		(7 <<  4)
+#	define RADEON_Z_TEST_MASK		(7 << 4)
+#	define RADEON_Z_TEST_ALWAYS		(7 << 4)
+#	define RADEON_STENCIL_TEST_ALWAYS	(7 << 12)
+#	define RADEON_STENCIL_S_FAIL_KEEP	(0 << 16)
+#	define RADEON_STENCIL_ZPASS_KEEP	(0 << 20)
+#	define RADEON_STENCIL_ZFAIL_KEEP	(0 << 20)
 #	define RADEON_Z_WRITE_ENABLE		(1 << 30)
 #define RADEON_RBBM_SOFT_RESET		0x00f0
 #	define RADEON_SOFT_RESET_CP		(1 <<  0)
@@ -325,12 +342,19 @@ extern int  radeon_context_switch_complete(drm_device_t *dev, int new);
 #define RADEON_SCISSOR_BR_2		0x1cec
 #define RADEON_SE_COORD_FMT		0x1c50
 #define RADEON_SE_CNTL			0x1c4c
-#	define RADEON_BFACE_SOLID		(3 <<  1)
-#	define RADEON_BFACE_CULL_MASK		(3 <<  1)
-#	define RADEON_FFACE_SOLID		(3 <<  3)
-#	define RADEON_FFACE_CULL_MASK		(3 <<  3)
+#	define RADEON_FFACE_CULL_CW		(0 << 0)
+#	define RADEON_BFACE_SOLID		(3 << 1)
+#	define RADEON_FFACE_SOLID		(3 << 3)
+#	define RADEON_FLAT_SHADE_VTX_LAST	(3 << 6)
+#	define RADEON_DIFFUSE_SHADE_GOURAUD	(2 << 8)
+#	define RADEON_ALPHA_SHADE_GOURAUD	(2 << 10)
+#	define RADEON_SPECULAR_SHADE_GOURAUD	(2 << 12)
+#	define RADEON_FOG_SHADE_GOURAUD		(2 << 14)
 #	define RADEON_VPORT_XY_XFORM_ENABLE	(1 << 24)
 #	define RADEON_VPORT_Z_XFORM_ENABLE	(1 << 25)
+#	define RADEON_VTX_PIX_CENTER_OGL	(1 << 27)
+#	define RADEON_ROUND_MODE_TRUNC		(0 << 28)
+#	define RADEON_ROUND_PREC_8TH_PIX	(1 << 30)
 #define RADEON_SE_CNTL_STATUS		0x2140
 #define RADEON_SE_LINE_WIDTH		0x1db8
 #define RADEON_SE_VPORT_XSCALE		0x1d98
@@ -384,6 +408,11 @@ extern int  radeon_context_switch_complete(drm_device_t *dev, int new);
 #	define RADEON_WAIT_3D_IDLECLEAN		(1 << 17)
 #	define RADEON_WAIT_HOST_IDLECLEAN	(1 << 18)
 
+#define RADEON_RB3D_ZMASKOFFSET		0x1c34
+#define RADEON_RB3D_ZSTENCILCNTL	0x1c2c
+#	define RADEON_DEPTH_FORMAT_16BIT_INT_Z	(0 << 0)
+#	define RADEON_DEPTH_FORMAT_24BIT_INT_Z	(2 << 0)
+
 
 /* CP registers */
 #define RADEON_CP_ME_RAM_ADDR		0x07d4
@@ -405,12 +434,12 @@ extern int  radeon_context_switch_complete(drm_device_t *dev, int new);
 
 #define RADEON_CP_CSQ_CNTL		0x0740
 #	define RADEON_CSQ_CNT_PRIMARY_MASK	(0xff << 0)
-#	define RADEON_CSQ_PRIDIS_INDDIS		(0    << 28)
-#	define RADEON_CSQ_PRIPIO_INDDIS		(1    << 28)
-#	define RADEON_CSQ_PRIBM_INDDIS		(2    << 28)
-#	define RADEON_CSQ_PRIPIO_INDBM		(3    << 28)
-#	define RADEON_CSQ_PRIBM_INDBM		(4    << 28)
-#	define RADEON_CSQ_PRIPIO_INDPIO		(15   << 28)
+#	define RADEON_CSQ_PRIDIS_INDDIS		(0 << 28)
+#	define RADEON_CSQ_PRIPIO_INDDIS		(1 << 28)
+#	define RADEON_CSQ_PRIBM_INDDIS		(2 << 28)
+#	define RADEON_CSQ_PRIPIO_INDBM		(3 << 28)
+#	define RADEON_CSQ_PRIBM_INDBM		(4 << 28)
+#	define RADEON_CSQ_PRIPIO_INDPIO		(15 << 28)
 
 #define RADEON_AIC_CNTL			0x01d0
 #	define RADEON_PCIGART_TRANSLATE_EN	(1 << 0)
@@ -423,6 +452,7 @@ extern int  radeon_context_switch_complete(drm_device_t *dev, int new);
 #	define RADEON_3D_RNDR_GEN_INDX_PRIM	0x00002300
 #	define RADEON_WAIT_FOR_IDLE		0x00002600
 #	define RADEON_3D_DRAW_IMMD		0x00002900
+#	define RADEON_3D_CLEAR_ZMASK		0x00003200
 #	define RADEON_CNTL_HOSTDATA_BLT		0x00009400
 #	define RADEON_CNTL_PAINT_MULTI		0x00009A00
 #	define RADEON_CNTL_BITBLT_MULTI		0x00009B00
@@ -433,29 +463,28 @@ extern int  radeon_context_switch_complete(drm_device_t *dev, int new);
 #define RADEON_CP_PACKET1_REG0_MASK	0x000007ff
 #define RADEON_CP_PACKET1_REG1_MASK	0x003ff800
 
-#define RADEON_CP_VC_FRMT_XY				0x00000000
-#define RADEON_CP_VC_FRMT_Z				0x80000000
+#define RADEON_VTX_Z_PRESENT			(1 << 31)
 
-#define RADEON_CP_VC_CNTL_PRIM_TYPE_NONE		0x00000000
-#define RADEON_CP_VC_CNTL_PRIM_TYPE_POINT		0x00000001
-#define RADEON_CP_VC_CNTL_PRIM_TYPE_LINE		0x00000002
-#define RADEON_CP_VC_CNTL_PRIM_TYPE_LINE_STRIP		0x00000003
-#define RADEON_CP_VC_CNTL_PRIM_TYPE_TRI_LIST		0x00000004
-#define RADEON_CP_VC_CNTL_PRIM_TYPE_TRI_FAN		0x00000005
-#define RADEON_CP_VC_CNTL_PRIM_TYPE_TRI_STRIP		0x00000006
-#define RADEON_CP_VC_CNTL_PRIM_TYPE_TRI_TYPE2		0x00000007
-#define RADEON_CP_VC_CNTL_PRIM_TYPE_RECT_LIST		0x00000008
-#define RADEON_CP_VC_CNTL_PRIM_TYPE_3VRT_POINT_LIST	0x00000009
-#define RADEON_CP_VC_CNTL_PRIM_TYPE_3VRT_LINE_LIST	0x0000000a
-#define RADEON_CP_VC_CNTL_PRIM_WALK_IND			0x00000010
-#define RADEON_CP_VC_CNTL_PRIM_WALK_LIST		0x00000020
-#define RADEON_CP_VC_CNTL_PRIM_WALK_RING		0x00000030
-#define RADEON_CP_VC_CNTL_COLOR_ORDER_BGRA		0x00000000
-#define RADEON_CP_VC_CNTL_COLOR_ORDER_RGBA		0x00000040
-#define RADEON_CP_VC_CNTL_MAOS_ENABLE			0x00000080
-#define RADEON_CP_VC_CNTL_VTX_FMT_NON_RADEON_MODE	0x00000000
-#define RADEON_CP_VC_CNTL_VTX_FMT_RADEON_MODE		0x00000100
-#define RADEON_CP_VC_CNTL_NUM_SHIFT			16
+#define RADEON_PRIM_TYPE_NONE			(0 << 0)
+#define RADEON_PRIM_TYPE_POINT			(1 << 0)
+#define RADEON_PRIM_TYPE_LINE			(2 << 0)
+#define RADEON_PRIM_TYPE_LINE_STRIP		(3 << 0)
+#define RADEON_PRIM_TYPE_TRI_LIST		(4 << 0)
+#define RADEON_PRIM_TYPE_TRI_FAN		(5 << 0)
+#define RADEON_PRIM_TYPE_TRI_STRIP		(6 << 0)
+#define RADEON_PRIM_TYPE_TRI_TYPE2		(7 << 0)
+#define RADEON_PRIM_TYPE_RECT_LIST		(8 << 0)
+#define RADEON_PRIM_TYPE_3VRT_POINT_LIST	(9 << 0)
+#define RADEON_PRIM_TYPE_3VRT_LINE_LIST		(10 << 0)
+#define RADEON_PRIM_WALK_IND			(1 << 4)
+#define RADEON_PRIM_WALK_LIST			(2 << 4)
+#define RADEON_PRIM_WALK_RING			(3 << 4)
+#define RADEON_COLOR_ORDER_BGRA			(0 << 6)
+#define RADEON_COLOR_ORDER_RGBA			(1 << 6)
+#define RADEON_MAOS_ENABLE			(1 << 7)
+#define RADEON_VTX_FMT_R128_MODE		(0 << 8)
+#define RADEON_VTX_FMT_RADEON_MODE		(1 << 8)
+#define RADEON_NUM_VERTICES_SHIFT		16
 
 #define RADEON_COLOR_FORMAT_CI8		2
 #define RADEON_COLOR_FORMAT_ARGB1555	3
@@ -511,7 +540,7 @@ extern int RADEON_READ_PLL(drm_device_t *dev, int addr);
 #define CP_PACKET0( reg, n )						\
 	(RADEON_CP_PACKET0 | ((n) << 16) | ((reg) >> 2))
 #define CP_PACKET1( reg0, reg1 )					\
-	(RADEON_CP_PACKET1 | (((reg1) >> 2) << 11) | ((reg0) >> 2))
+	(RADEON_CP_PACKET1 | (((reg1) >> 2) << 15) | ((reg0) >> 2))
 #define CP_PACKET2()							\
 	(RADEON_CP_PACKET2)
 #define CP_PACKET3( pkt, n )						\
@@ -524,62 +553,48 @@ extern int RADEON_READ_PLL(drm_device_t *dev, int addr);
 
 #define RADEON_WAIT_UNTIL_2D_IDLE()					\
 do {									\
-	BEGIN_RING( 2 );						\
 	OUT_RING( CP_PACKET0( RADEON_WAIT_UNTIL, 0 ) );			\
 	OUT_RING( (RADEON_WAIT_2D_IDLECLEAN |				\
 		   RADEON_WAIT_HOST_IDLECLEAN) );			\
-	ADVANCE_RING();							\
 } while (0)
 
 #define RADEON_WAIT_UNTIL_3D_IDLE()					\
 do {									\
-	BEGIN_RING( 2 );						\
 	OUT_RING( CP_PACKET0( RADEON_WAIT_UNTIL, 0 ) );			\
 	OUT_RING( (RADEON_WAIT_3D_IDLECLEAN |				\
 		   RADEON_WAIT_HOST_IDLECLEAN) );			\
-	ADVANCE_RING();							\
 } while (0)
 
 #define RADEON_WAIT_UNTIL_IDLE()					\
 do {									\
-	BEGIN_RING( 2 );						\
 	OUT_RING( CP_PACKET0( RADEON_WAIT_UNTIL, 0 ) );			\
 	OUT_RING( (RADEON_WAIT_2D_IDLECLEAN |				\
 		   RADEON_WAIT_3D_IDLECLEAN |				\
 		   RADEON_WAIT_HOST_IDLECLEAN) );			\
-	ADVANCE_RING();							\
 } while (0)
 
 #define RADEON_WAIT_UNTIL_PAGE_FLIPPED()				\
 do {									\
-	BEGIN_RING( 2 );						\
 	OUT_RING( CP_PACKET0( RADEON_WAIT_UNTIL, 0 ) );			\
 	OUT_RING( RADEON_WAIT_CRTC_PFLIP );				\
-	ADVANCE_RING();							\
 } while (0)
 
 #define RADEON_FLUSH_CACHE()						\
 do {									\
-	BEGIN_RING( 2 );						\
 	OUT_RING( CP_PACKET0( RADEON_RB2D_DSTCACHE_CTLSTAT, 0 ) );	\
 	OUT_RING( RADEON_RB2D_DC_FLUSH );				\
-	ADVANCE_RING();							\
 } while (0)
 
 #define RADEON_PURGE_CACHE()						\
 do {									\
-	BEGIN_RING( 2 );						\
 	OUT_RING( CP_PACKET0( RADEON_RB2D_DSTCACHE_CTLSTAT, 0 ) );	\
 	OUT_RING( RADEON_RB2D_DC_FLUSH_ALL );				\
-	ADVANCE_RING();							\
 } while (0)
 
 #define RADEON_FLUSH_ZCACHE()						\
 do {									\
-	BEGIN_RING( 2 );						\
 	OUT_RING( CP_PACKET0( RADEON_RB3D_ZCACHE_CTLSTAT, 0 ) );	\
 	OUT_RING( RADEON_RB3D_ZC_FLUSH );				\
-	ADVANCE_RING();							\
 } while (0)
 
 
@@ -600,26 +615,20 @@ do {									\
 
 #define RADEON_DISPATCH_AGE( age )					\
 do {									\
-	BEGIN_RING( 2 );						\
 	OUT_RING( CP_PACKET0( RADEON_LAST_DISPATCH_REG, 0 ) );		\
 	OUT_RING( age );						\
-	ADVANCE_RING();							\
 } while (0)
 
 #define RADEON_FRAME_AGE( age )						\
 do {									\
-	BEGIN_RING( 2 );						\
 	OUT_RING( CP_PACKET0( RADEON_LAST_FRAME_REG, 0 ) );		\
 	OUT_RING( age );						\
-	ADVANCE_RING();							\
 } while (0)
 
 #define RADEON_CLEAR_AGE( age )						\
 do {									\
-	BEGIN_RING( 2 );						\
 	OUT_RING( CP_PACKET0( RADEON_LAST_CLEAR_REG, 0 ) );		\
 	OUT_RING( age );						\
-	ADVANCE_RING();							\
 } while (0)
 
 

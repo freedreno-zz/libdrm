@@ -466,9 +466,13 @@ static void radeon_do_cp_start( drm_radeon_private_t *dev_priv )
 
 	dev_priv->cp_running = 1;
 
-	RADEON_WAIT_UNTIL_IDLE();
+	BEGIN_RING( 6 );
+
 	RADEON_FLUSH_CACHE();
 	RADEON_FLUSH_ZCACHE();
+	RADEON_WAIT_UNTIL_IDLE();
+
+	ADVANCE_RING();
 }
 
 /* Reset the Concurrent Command Engine.  This will not flush any pending
