@@ -78,6 +78,7 @@ extern int xf86RemoveSIGIOHandler(int fd);
 #include "r128_drm.h"
 #include "radeon_drm.h"
 #include "sis_drm.h"
+#include "i830_drm.h"
 
 
 /* WARNING: Do not change, or add, anything to this file.  It is only provided
@@ -1018,6 +1019,52 @@ Bool drmSiSAgpInit(int driSubFD, int offset, int size)
    ioctl(driSubFD, SIS_IOCTL_AGP_INIT, &agp);
 
    return 1; /* TRUE */
+}
+
+/* I830 */
+
+Bool drmI830CleanupDma(int driSubFD)
+{
+   drm_i830_init_t init;
+
+   memset(&init, 0, sizeof(drm_i830_init_t));
+   init.func = I810_CLEANUP_DMA;
+
+   if(ioctl(driSubFD, DRM_IOCTL_I830_INIT, &init)) {
+      return FALSE;
+   }
+
+   return TRUE;
+}
+
+Bool drmI830InitDma(int driSubFD, drmCompatI830Init *info)
+{
+   drm_i830_init_t init;
+
+   memset(&init, 0, sizeof(drm_i830_init_t));
+
+   init.func = I810_INIT_DMA;
+   init.mmio_offset = info->mmio_offset;
+   init.buffers_offset = info->buffers_offset;
+   init.ring_start = info->start;
+   init.ring_end = info->end;
+   init.ring_size = info->size;
+   init.sarea_priv_offset = info->sarea_off;
+   init.front_offset = info->front_offset;
+   init.back_offset = info->back_offset;
+   init.depth_offset = info->depth_offset;
+   init.w = info->w;
+   init.h = info->h;
+   init.pitch = info->pitch;
+   init.pitch_bits = info->pitch_bits;
+   init.back_pitch = info->pitch;
+   init.depth_pitch = info->pitch;
+   init.cpp = info->cpp;
+
+   if(ioctl(driSubFD, DRM_IOCTL_I830_INIT, &init)) {
+      return FALSE;
+   }
+   return TRUE;
 }
 
 /* WARNING: Do not change, or add, anything to this file.  It is only provided
