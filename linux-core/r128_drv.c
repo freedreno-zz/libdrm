@@ -62,29 +62,38 @@ static struct miscdevice      r128_misc = {
 };
 
 static drm_ioctl_desc_t	      r128_ioctls[] = {
-	[DRM_IOCTL_NR(DRM_IOCTL_VERSION)]    = { r128_version,	  0, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_GET_UNIQUE)] = { drm_getunique,	  0, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_GET_MAGIC)]  = { drm_getmagic,	  0, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_IRQ_BUSID)]  = { drm_irq_busid,	  0, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_VERSION)]     = { r128_version,	   0, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_GET_UNIQUE)]  = { drm_getunique,   0, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_GET_MAGIC)]   = { drm_getmagic,	   0, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_IRQ_BUSID)]   = { drm_irq_busid,   0, 1 },
 
-	[DRM_IOCTL_NR(DRM_IOCTL_SET_UNIQUE)] = { drm_setunique,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_BLOCK)]	     = { drm_block,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_UNBLOCK)]    = { drm_unblock,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_AUTH_MAGIC)] = { drm_authmagic,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_ADD_MAP)]    = { drm_addmap,	  1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_SET_UNIQUE)]  = { drm_setunique,   1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_BLOCK)]	      = { drm_block,	   1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_UNBLOCK)]     = { drm_unblock,	   1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_AUTH_MAGIC)]  = { drm_authmagic,   1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_ADD_MAP)]     = { drm_addmap,	   1, 1 },
 	
-	[DRM_IOCTL_NR(DRM_IOCTL_ADD_CTX)]    = { r128_addctx,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_RM_CTX)]     = { r128_rmctx,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_MOD_CTX)]    = { r128_modctx,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_GET_CTX)]    = { r128_getctx,	  1, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_SWITCH_CTX)] = { r128_switchctx,  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_NEW_CTX)]    = { r128_newctx,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_RES_CTX)]    = { r128_resctx,	  1, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_ADD_DRAW)]   = { drm_adddraw,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_RM_DRAW)]    = { drm_rmdraw,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_LOCK)]	     = { r128_lock,	  1, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_UNLOCK)]     = { r128_unlock,	  1, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_FINISH)]     = { drm_finish,	  1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_ADD_CTX)]     = { r128_addctx,	   1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_RM_CTX)]      = { r128_rmctx,	   1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_MOD_CTX)]     = { r128_modctx,	   1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_GET_CTX)]     = { r128_getctx,	   1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_SWITCH_CTX)]  = { r128_switchctx,  1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_NEW_CTX)]     = { r128_newctx,	   1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_RES_CTX)]     = { r128_resctx,	   1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_ADD_DRAW)]    = { drm_adddraw,	   1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_RM_DRAW)]     = { drm_rmdraw,	   1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_LOCK)]	      = { r128_lock,	   1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_UNLOCK)]      = { r128_unlock,	   1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_FINISH)]      = { drm_finish,	   1, 0 },
+	
+	[DRM_IOCTL_NR(DRM_IOCTL_AGP_ACQUIRE)] = { drm_agp_acquire, 1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_AGP_RELEASE)] = { drm_agp_release, 1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_AGP_ENABLE)]  = { drm_agp_enable,  1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_AGP_INFO)]    = { drm_agp_info,    1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_AGP_ALLOC)]   = { drm_agp_alloc,   1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_AGP_FREE)]    = { drm_agp_free,    1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_AGP_BIND)]    = { drm_agp_bind,    1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_AGP_UNBIND)]  = { drm_agp_unbind,  1, 1 },
 };
 #define R128_IOCTL_COUNT DRM_ARRAY_SIZE(r128_ioctls)
 
@@ -231,9 +240,24 @@ static int r128_takedown(drm_device_t *dev)
 
 				/* Clear AGP information */
 	if (dev->agp) {
-				/* FIXME -- free other information, too */
-		drm_free(dev->agp, sizeof(*dev->agp), DRM_MEM_AGPLISTS);
-		dev->agp = NULL;
+		drm_agp_mem_t *entry;
+		drm_agp_mem_t *nexte;
+		
+				/* Remove AGP resources, but leave dev->agp
+                                   intact until r128_cleanup is called. */
+		for (entry = dev->agp->memory; entry; entry = nexte) {
+			nexte = entry->next;
+			if (entry->bound) drm_unbind_agp(entry->memory);
+			drm_free_agp(entry->memory, entry->pages);
+			drm_free(entry, sizeof(*entry), DRM_MEM_AGPLISTS);
+		}
+		dev->agp->memory = NULL;
+		
+		if (dev->agp->acquired && drm_agp.release)
+			(*drm_agp.release)();
+		
+		dev->agp->acquired = 0;
+		dev->agp->enabled  = 0;
 	}
 	
 				/* Clear vma list (only built for debugging) */
@@ -349,6 +373,11 @@ void r128_cleanup(void)
 		DRM_INFO("Module unloaded\n");
 	}
 	r128_takedown(dev);
+	if (dev->agp) {
+				/* FIXME -- free other information, too */
+		drm_free(dev->agp, sizeof(*dev->agp), DRM_MEM_AGPLISTS);
+		dev->agp = NULL;
+	}
 }
 
 int r128_version(struct inode *inode, struct file *filp, unsigned int cmd,

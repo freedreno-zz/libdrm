@@ -153,7 +153,7 @@ int drm_agp_alloc(struct inode *inode, struct file *filp, unsigned int cmd,
 		return -ENOMEM;
 
 	pages = (request.size + PAGE_SIZE - 1) / PAGE_SIZE;
-	if (!(memory = drm_alloc_agp(request.size))) {
+	if (!(memory = drm_alloc_agp(pages))) {
 		drm_free(entry, sizeof(*entry), DRM_MEM_AGPLISTS);
 		return -ENOMEM;
 	}
@@ -171,7 +171,7 @@ int drm_agp_alloc(struct inode *inode, struct file *filp, unsigned int cmd,
 	if (copy_to_user((drm_agp_buffer_t *)arg, &request, sizeof(request))) {
 		dev->agp->memory       = entry->next;
 		dev->agp->memory->prev = NULL;
-		drm_free_agp(memory, request.size);
+		drm_free_agp(memory, pages);
 		drm_free(entry, sizeof(*entry), DRM_MEM_AGPLISTS);
 		return -EFAULT;
 	}
@@ -189,12 +189,6 @@ static drm_agp_mem_t *drm_agp_lookup_entry(drm_device_t *dev,
 	return NULL;
 }
 
-static int drm_agp_unbind_entry(drm_device_t *dev, drm_agp_mem_t *entry)
-{
-	if (!dev->agp->acquired || !drm_agp.unbind_memory) return -EINVAL;
-	return (*drm_agp.unbind_memory)(entry->memory);
-}
-
 int drm_agp_unbind(struct inode *inode, struct file *filp, unsigned int cmd,
 		   unsigned long arg)
 {
@@ -209,7 +203,7 @@ int drm_agp_unbind(struct inode *inode, struct file *filp, unsigned int cmd,
 	if (!(entry = drm_agp_lookup_entry(dev, request.handle)))
 		return -EINVAL;
 	if (!entry->bound) return -EINVAL;
-	return drm_agp_unbind_entry(dev, entry);
+	return drm_unbind_agp(entry->memory);
 }
 
 int drm_agp_bind(struct inode *inode, struct file *filp, unsigned int cmd,
@@ -229,8 +223,7 @@ int drm_agp_bind(struct inode *inode, struct file *filp, unsigned int cmd,
 		return -EINVAL;
 	if (entry->bound) return -EINVAL;
 	page = (request.offset + PAGE_SIZE - 1) / PAGE_SIZE;
-	if ((retcode = (*drm_agp.bind_memory)(entry->memory, page)))
-		return retcode;
+	if ((retcode = drm_bind_agp(entry->memory, page))) return retcode;
 	entry->bound = dev->agp->base + (page << PAGE_SHIFT);
 	return 0;
 }
@@ -248,7 +241,7 @@ int drm_agp_free(struct inode *inode, struct file *filp, unsigned int cmd,
 			   -EFAULT);
 	if (!(entry = drm_agp_lookup_entry(dev, request.handle)))
 		return -EINVAL;
-	drm_agp_unbind_entry(dev, entry);
+	if (entry->bound) drm_unbind_agp(entry->memory);
 	entry->prev->next = entry->next;
 	entry->next->prev = entry->prev;
 	drm_free_agp(entry->memory, entry->pages);
@@ -272,6 +265,7 @@ drm_agp_head_t *drm_agp_init(void)
 	if (agp_available) {
 		if (!(head = drm_alloc(sizeof(*head), DRM_MEM_AGPLISTS)))
 			return NULL;
+		memset((void *)head, 0, sizeof(*head));
 		(*drm_agp.copy_info)(&head->agp_info);
 		head->memory = NULL;
 		switch (head->agp_info.chipset) {

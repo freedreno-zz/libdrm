@@ -104,7 +104,7 @@ int drm_addmap(struct inode *inode, struct file *filp, unsigned int cmd,
 		}
 		break;
 	case _DRM_AGP:
-		map->handle = (void *)(map->offset + dev->agp->base);
+		map->offset = map->offset + dev->agp->base;
 		break;
 	default:
 		drm_free(map, sizeof(*map), DRM_MEM_MAPS);
