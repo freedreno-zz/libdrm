@@ -463,7 +463,7 @@ do {									\
 	drm_r128_ring_buffer_t *ring = &dev_priv->ring; int i;		\
 	if ( ring->space < ring->high_mark ) {				\
 		for ( i = 0 ; i < dev_priv->usec_timeout ; i++ ) {	\
-			ring->space = *ring->head - ring->tail;		\
+			ring->space = GET_RING_HEAD( ring ) - ring->tail;	\
 			if ( ring->space <= 0 )				\
 				ring->space += ring->size;		\
 			if ( ring->space >= ring->high_mark )		\
@@ -538,7 +538,7 @@ do {									\
 	write &= tail_mask;						\
 } while (0)
 
-#define GET_RING_HEAD( dev_priv )	le32_to_cpu( *dev_priv->ring.head )
-#define SET_RING_HEAD( dev_priv, val )	*dev_priv->ring.head = cpu_to_le32( val )
+#define GET_RING_HEAD( ring )		le32_to_cpu( *(ring)->head )
+#define SET_RING_HEAD( ring, val )	*(ring)->head = cpu_to_le32( val )
 
 #endif /* __R128_DRV_H__ */
