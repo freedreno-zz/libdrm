@@ -368,7 +368,7 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 	}
 
 
-	if ( 0 & flags & (RADEON_FRONT | RADEON_BACK) ) {
+	if ( flags & (RADEON_FRONT | RADEON_BACK) ) {
 
 		BEGIN_RING( 4 );
 
@@ -476,7 +476,6 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 				   (0x9 << SE_VAP_CNTL__VF_MAX_VTX_NUM__SHIFT));
 
 		tempRB3D_PLANEMASK = 0x0;
-		tempRB3D_PLANEMASK = 0xffffffff; 
 
 		tempRE_AUX_SCISSOR_CNTL = 0x0;
 
@@ -486,7 +485,6 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 
 		/* Vertex format (X, Y, Z, W)*/
 		tempSE_VTX_FMT_0 =
-  			(1 << SE_VTX_FMT_0__VTX_COLOR_0_FMT__SHIFT) |  
 			SE_VTX_FMT_0__VTX_Z0_PRESENT_MASK |
 			SE_VTX_FMT_0__VTX_W0_PRESENT_MASK;
 		tempSE_VTX_FMT_1 = 0x0;
@@ -532,8 +530,6 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 		OUT_RING_REG( R200_SE_VAP_CNTL, tempSE_VAP_CNTL );
 		OUT_RING_REG( R200_RE_AUX_SCISSOR_CNTL, 
 			      tempRE_AUX_SCISSOR_CNTL );
-/*  		OUT_RING_REG( RADEON_RB3D_DEPTHOFFSET, 0 );  */
-/*  		OUT_RING_REG( RADEON_RB3D_DEPTHPITCH, 0x740 );  */
 		ADVANCE_RING();
 
 		/* Make sure we restore the 3D state next time.
@@ -548,8 +544,8 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 			radeon_emit_clip_rect( dev_priv,
 					       &sarea_priv->boxes[i] );
 
-			BEGIN_RING( 17 );
-			OUT_RING( CP_PACKET3( R200_3D_DRAW_IMMD_2, 15 ) );
+			BEGIN_RING( 14 );
+			OUT_RING( CP_PACKET3( R200_3D_DRAW_IMMD_2, 12 ) );
 			OUT_RING( (RADEON_PRIM_TYPE_RECT_LIST |
 				   RADEON_PRIM_WALK_RING |
 				   (3 << RADEON_NUM_VERTICES_SHIFT)) );
@@ -557,17 +553,14 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 			OUT_RING( depth_boxes[i].ui[CLEAR_Y1] );
 			OUT_RING( depth_boxes[i].ui[CLEAR_DEPTH] );
 			OUT_RING( 0x3f800000 );
-  			OUT_RING( 0xFF33FF33 );  
 			OUT_RING( depth_boxes[i].ui[CLEAR_X1] );
 			OUT_RING( depth_boxes[i].ui[CLEAR_Y2] );
 			OUT_RING( depth_boxes[i].ui[CLEAR_DEPTH] );
 			OUT_RING( 0x3f800000 );
-  			OUT_RING( 0xFF33FF33 );  
 			OUT_RING( depth_boxes[i].ui[CLEAR_X2] );
 			OUT_RING( depth_boxes[i].ui[CLEAR_Y2] );
 			OUT_RING( depth_boxes[i].ui[CLEAR_DEPTH] );
 			OUT_RING( 0x3f800000 );
-  			OUT_RING( 0xFF33FF33 );  
 			ADVANCE_RING();
 		}
 	} 
