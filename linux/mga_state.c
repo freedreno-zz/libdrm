@@ -502,9 +502,10 @@ static inline void mga_dma_dispatch_vertex(drm_device_t *dev,
 
 
    	dev_priv->last_sync_tag = mga_create_sync_tag(dev);
-   	if(real_idx == idx) 
-		buf_priv->age = dev_priv->last_sync_tag;
-
+   	if(real_idx == idx) { 
+		buf_priv->my_freelist->age = dev_priv->last_sync_tag;
+	   	mga_freelist_put(dev, buf);
+	}
 
 	/* Overestimating this doesn't hurt.
 	 */
@@ -564,7 +565,8 @@ static inline void mga_dma_dispatch_general(drm_device_t *dev, drm_buf_t *buf)
    	PRIMGETPTR(dev_priv);
 
       	dev_priv->last_sync_tag = mga_create_sync_tag(dev);
-   	buf_priv->age = dev_priv->last_sync_tag;
+   	buf_priv->my_freelist->age = dev_priv->last_sync_tag;
+   	mga_freelist_put(dev, buf);
 
 	PRIMOUTREG( MGAREG_DMAPAD, 0);
 	PRIMOUTREG( MGAREG_DMAPAD, 0);
@@ -813,14 +815,17 @@ int mga_vertex(struct inode *inode, struct file *filp,
    	buf_priv = buf->dev_private;
    
 	if (!mgaVerifyState(dev_priv)) {
-	   if(vertex.real_idx == vertex.idx) 
-	     	buf_priv->age = dev_priv->last_sync_tag;
+	   if(vertex.real_idx == vertex.idx) { 
+	     	buf_priv->my_freelist->age = dev_priv->last_sync_tag;
+	      	mga_freelist_put(dev, buf);
+	   }
 	   return -EINVAL;
 	}
 
 	buf->used = vertex.real_used;
    	if(vertex.discard) {
-	      	buf_priv->age = dev_priv->last_sync_tag;
+	      	buf_priv->my_freelist->age = dev_priv->last_sync_tag;
+	   	mga_freelist_put(dev, buf);
 	} else {
 	   	mga_dma_dispatch_vertex(dev, buf, vertex.real_idx, 
 					vertex.idx);

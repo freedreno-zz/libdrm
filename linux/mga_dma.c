@@ -95,17 +95,79 @@ static void mga_flush_write_combine(void)
 #define MGA_BUF_USED 	0xffffffff
 #define MGA_BUF_FREE	0
 
-static void mga_freelist_init(drm_device_t *dev)
+static void mga_freelist_debug(drm_mga_freelist_t *item)
+{
+   	if(item->buf != NULL) {
+     		printk("buf index : %d\n", item->buf->idx);
+	} else {
+	   	printk("Freelist head\n");
+	}
+   	printk("item->age : %x\n", item->age);
+   	printk("item->next : %p\n", item->next);
+   	printk("item->prev : %p\n", item->prev);
+}
+
+static int mga_freelist_init(drm_device_t *dev)
 {
       	drm_device_dma_t *dma = dev->dma;
+   	drm_buf_t *buf;
+   	drm_mga_buf_priv_t *buf_priv;
+      	drm_mga_private_t *dev_priv = (drm_mga_private_t *)dev->dev_private;
+   	drm_mga_freelist_t *item;
    	int i;
    
+   	dev_priv->head = drm_alloc(sizeof(drm_mga_freelist_t), DRM_MEM_DRIVER);
+	if(dev_priv->head == NULL) return -ENOMEM;
+   	memset(dev_priv->head, 0, sizeof(drm_mga_freelist_t));
+   	dev_priv->head->age = MGA_BUF_USED;
+   
    	for (i = 0; i < dma->buf_count; i++) {
-	   	drm_buf_t *buf = dma->buflist[ i ];
-	   	drm_mga_buf_priv_t *buf_priv = buf->dev_private;
-	   
-	   	buf_priv->age = MGA_BUF_FREE;
+	   	buf = dma->buflist[ i ];
+	        buf_priv = buf->dev_private;
+		item = drm_alloc(sizeof(drm_mga_freelist_t),
+				 DRM_MEM_DRIVER);
+	   	if(item == NULL) return -ENOMEM;
+	   	memset(item, 0, sizeof(drm_mga_freelist_t));
+	  	item->age = MGA_BUF_FREE;
+	   	item->prev = dev_priv->head;
+	   	item->next = dev_priv->head->next;
+	   	if(dev_priv->head->next != NULL)
+	   	dev_priv->head->next->prev = item;
+	   	if(item->next == NULL) dev_priv->tail = item;
+	   	item->buf = buf;
+	   	buf_priv->my_freelist = item;
+	   	dev_priv->head->next = item;
 	}
+   
+   	item = dev_priv->head;
+   	while(item) {
+	   mga_freelist_debug(item);
+	   item = item->next;
+	}
+   	printk("Head\n");
+   	mga_freelist_debug(dev_priv->head);
+   	printk("Tail\n");
+   	mga_freelist_debug(dev_priv->tail);
+   
+   	return 0;
+}
+
+static void mga_freelist_cleanup(drm_device_t *dev)
+{
+      	drm_mga_private_t *dev_priv = (drm_mga_private_t *)dev->dev_private;
+   	drm_mga_freelist_t *item;
+   	drm_mga_freelist_t *prev;
+
+   	item = dev_priv->head;
+   	while(item) {
+	   	prev = item;
+	   	item = item->next;
+	   	drm_free(prev, 
+			 sizeof(drm_mga_freelist_t), 
+			 DRM_MEM_DRIVER);
+	}
+   
+   	dev_priv->head = dev_priv->tail = NULL;
 }
 
 void mga_wait_usec(int waittime)
@@ -175,6 +237,9 @@ static inline void mga_dma_quiescent(drm_device_t *dev)
    	clear_bit(0, &dev_priv->dispatch_lock);
 }
 
+#define FREELIST_INITIAL (MGA_DMA_BUF_NR * 2)
+#define FREELIST_COMPARE(age) ((((age >> 2) - 2) << 2))
+
 unsigned int mga_create_sync_tag(drm_device_t *dev)
 {
       	drm_mga_private_t *dev_priv = 
@@ -182,13 +247,14 @@ unsigned int mga_create_sync_tag(drm_device_t *dev)
    	unsigned int temp;
    
    	dev_priv->sync_tag++;
+   	if(dev_priv->sync_tag < FREELIST_INITIAL) {
+	   	dev_priv->sync_tag = FREELIST_INITIAL;
+	}
    	if(dev_priv->sync_tag > 0x3fffffff) {
-	   	/* Make sure we are always at least 1 */
 		mga_flush_queue(dev);
 	   	mga_dma_quiescent(dev);
 	   	
-	   	dev_priv->sync_tag = 1;
-	   	/* Do a full dma flush */
+	   	dev_priv->sync_tag = FREELIST_INITIAL;
 	}
    	temp = dev_priv->sync_tag << 2;
 
@@ -198,38 +264,63 @@ unsigned int mga_create_sync_tag(drm_device_t *dev)
    	return temp;
 }
 
+/* Least recently used :
+ * These operations are not atomic b/c they are protected by the 
+ * hardware lock */
+
 drm_buf_t *mga_freelist_get(drm_device_t *dev)
 {
-   	drm_device_dma_t *dma = dev->dma;
    	drm_mga_private_t *dev_priv = 
      		(drm_mga_private_t *) dev->dev_private;
    	__volatile__ unsigned int *status = 
      		(__volatile__ unsigned int *)dev_priv->status_page;
-	int		 i;
+	drm_mga_freelist_t *prev;
+   	drm_mga_freelist_t *next;
    
-	/* Linear search might not be the best solution */
+   	if(dev_priv->tail->age < FREELIST_COMPARE(status[1])) {
+	   	drm_mga_buf_priv_t *buf_priv;
 
-   	for (i = 0; i < dma->buf_count; i++) {
-	   	drm_buf_t *buf = dma->buflist[ i ];
-	   	drm_mga_buf_priv_t *buf_priv = buf->dev_private;
-	   	if (buf_priv->age < status[1]) {
-		   	buf_priv->age = MGA_BUF_USED;
-		   	return buf;
-		}
+		prev = dev_priv->tail->prev;
+	   	next = dev_priv->tail;
+	   	prev->next = NULL;
+	   	next->prev = next->next = NULL;
+	   	dev_priv->tail = prev;
+	   	next->age = MGA_BUF_USED;
+	   	return next->buf;
 	}
    	return NULL;
 }
 
 int mga_freelist_put(drm_device_t *dev, drm_buf_t *buf)
 {
+      	drm_mga_private_t *dev_priv = 
+     		(drm_mga_private_t *) dev->dev_private;
    	drm_mga_buf_priv_t *buf_priv = buf->dev_private;
-   
-   	/* In use is already a pointer */
-   	if(buf_priv->age != MGA_BUF_USED) {
-	   	DRM_ERROR("Freeing buffer thats not in use : %d\n", buf->idx);
-	   	return -EINVAL;
+	drm_mga_freelist_t *prev;
+   	drm_mga_freelist_t *head;
+   	drm_mga_freelist_t *next;
+
+   	if(buf_priv->my_freelist->age == MGA_BUF_USED) {
+	   /* Discarded buffer, put it on the tail */
+	   next = buf_priv->my_freelist;
+	   next->age = MGA_BUF_FREE;
+	   prev = dev_priv->tail;
+	   prev->next = next;
+	   next->prev = prev;
+	   next->next = NULL;
+	   dev_priv->tail = next;
+	} else {
+	   /* Normally aged buffer, put it on the head + 1,
+	    * as the real head is a sentinal element
+	    */
+	   next = buf_priv->my_freelist;
+	   head = dev_priv->head;
+	   prev = head->next;
+	   head->next = next;
+	   prev->prev = next;
+	   next->prev = head;
+	   next->next = prev;
 	}
-   	buf_priv->age = MGA_BUF_FREE;
    
    	return 0;
 }
@@ -266,7 +357,6 @@ static int mga_init_primary_bufs(drm_device_t *dev, drm_mga_init_t *init)
    	DRM_DEBUG("dev->agp->base: %lx\n", dev->agp->base);
    	DRM_DEBUG("init->reserved_map_agpstart: %x\n", 
 		  init->reserved_map_agpstart);
-	/* Make sure that ioremap is u8 type */
    	DRM_DEBUG("ioremap\n");
 	dev_priv->ioremap = drm_ioremap(dev->agp->base + offset, 
 					temp);
@@ -549,6 +639,9 @@ int mga_dma_cleanup(drm_device_t *dev)
 				 (MGA_NUM_PRIM_BUFS + 1), 
 				 DRM_MEM_DRIVER);
 		}
+		if(dev_priv->head != NULL) {
+		   	mga_freelist_cleanup(dev);
+		}
 
 
 		drm_free(dev->dev_private, sizeof(drm_mga_private_t), 
@@ -689,7 +782,11 @@ static int mga_dma_initialize(drm_device_t *dev, drm_mga_init_t *init) {
 	   
 	}
 
-	mga_freelist_init(dev);
+	if(mga_freelist_init(dev) != 0) {
+	   	DRM_ERROR("Could not initialize freelist\n");
+	   	mga_dma_cleanup(dev);
+	   	return -ENOMEM;
+	}
    	DRM_DEBUG("dma init was successful\n");
 	return 0;
 }
@@ -856,8 +953,8 @@ void mga_reclaim_buffers(drm_device_t *dev, pid_t pid)
 		   	if(buf_priv == NULL) return;
 		   	/* Only buffers that need to get reclaimed ever 
 			 * get set to free */
-			if(buf_priv->age == MGA_BUF_USED) 
-		     		buf_priv->age = MGA_BUF_FREE;
+			if(buf_priv->my_freelist->age == MGA_BUF_USED) 
+		     		buf_priv->my_freelist->age = MGA_BUF_FREE;
 		}
 	}
 }

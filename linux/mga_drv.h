@@ -46,6 +46,13 @@ typedef struct {
    	atomic_t force_fire;
 } drm_mga_prim_buf_t;
 
+typedef struct _drm_mga_freelist {
+   	unsigned int age;
+   	drm_buf_t *buf;
+   	struct _drm_mga_freelist *next;
+   	struct _drm_mga_freelist *prev;
+} drm_mga_freelist_t;
+
 typedef struct _drm_mga_private {
    	int reserved_map_idx;
    	int buffer_map_idx;
@@ -80,6 +87,8 @@ typedef struct _drm_mga_private {
    	drm_mga_prim_buf_t *current_prim;
    	int current_prim_idx;
    	struct pci_dev *device;
+   	drm_mga_freelist_t *head;
+   	drm_mga_freelist_t *tail;
    	wait_queue_head_t flush_queue;	/* Processes waiting until flush    */
       	wait_queue_head_t wait_queue;	/* Processes waiting until interrupt */
 

@@ -10,7 +10,7 @@ typedef enum {
 } transferType_t;
 
 typedef struct {
-        unsigned int age;
+   	drm_mga_freelist_t *my_freelist;
 } drm_mga_buf_priv_t;
 
 #define MGA_DMA_GENERAL 0	/* not used */
