@@ -82,17 +82,8 @@ int DRM(ati_pcigart_init)( drm_device_t *dev,
 		goto done;
 	}
 
-	/* FIXME non-vtophys==bustophys-arches */
+	/* XXX: we need to busdma this */
 	bus_address = vtophys( address );
-	/*pci_map_single(dev->pdev, (void *)address,
-				  ATI_PCIGART_TABLE_PAGES * PAGE_SIZE,
-				  PCI_DMA_TODEVICE);*/
-/*	if (bus_address == 0) {
-		DRM_ERROR( "unable to map PCIGART pages!\n" );
-		DRM(ati_free_pcigart_table)( (unsigned long)address );
-		address = 0;
-		goto done;
-	}*/
 
 	pci_gart = (u32 *)address;
 
@@ -102,16 +93,7 @@ int DRM(ati_pcigart_init)( drm_device_t *dev,
 	bzero( pci_gart, ATI_MAX_PCIGART_PAGES * sizeof(u32) );
 
 	for ( i = 0 ; i < pages ; i++ ) {
-		/* we need to support large memory configurations */
-		/* FIXME non-vtophys==vtobus-arches */
 		entry->busaddr[i] = vtophys( entry->handle + (i*PAGE_SIZE) );
-/*		if (entry->busaddr[i] == 0) {
-			DRM_ERROR( "unable to map PCIGART pages!\n" );
-			DRM(ati_pcigart_cleanup)( dev, (unsigned long)address, bus_address );
-			address = 0;
-			bus_address = 0;
-			goto done;
-		}*/
 		page_base = (u32) entry->busaddr[i];
 
 		for (j = 0; j < (PAGE_SIZE / ATI_PCIGART_PAGE_SIZE); j++) {
@@ -122,7 +104,7 @@ int DRM(ati_pcigart_init)( drm_device_t *dev,
 
 	ret = 1;
 
-	DRM_READMEMORYBARRIER();
+	/*DRM_READMEMORYBARRIER();*/
 
 done:
 	*addr = address;
