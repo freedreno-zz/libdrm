@@ -48,9 +48,8 @@
 #define I810_BUF_UNMAPPED 0
 #define I810_BUF_MAPPED   1
 
-#define I810_REG(reg)		2
 #define I810_BASE(reg)		((unsigned long) \
-				dev->maplist[I810_REG(reg)]->handle)
+				dev_priv->mmio_map->handle)
 #define I810_ADDR(reg)		(I810_BASE(reg) + reg)
 #define I810_DEREF(reg)		*(__volatile__ int *)I810_ADDR(reg)
 #define I810_READ(reg)		I810_DEREF(reg)
@@ -407,23 +406,26 @@ static int i810_dma_initialize(drm_device_t *dev,
 			       drm_i810_private_t *dev_priv,
 			       drm_i810_init_t *init)
 {
-	drm_map_t *sarea_map;
+	struct list_head *list;
 
    	dev->dev_private = (void *) dev_priv;
    	memset(dev_priv, 0, sizeof(drm_i810_private_t));
 
-   	if (init->ring_map_idx >= dev->map_count ||
-	    init->buffer_map_idx >= dev->map_count) {
-	   	i810_dma_cleanup(dev);
-	   	DRM_ERROR("ring_map or buffer_map are invalid\n");
-	   	return -EINVAL;
-	}
+	list_for_each(list, &dev->maplist->head) {
+		drm_map_list_t *r_list = (drm_map_list_t *)list;
+		if( r_list->map &&
+		    r_list->map->type == _DRM_SHM &&
+		    r_list->map->flags & _DRM_CONTAINS_LOCK ) {
+			dev_priv->sarea_map = r_list->map;
+ 			break;
+ 		}
+ 	}
 
-   	dev_priv->ring_map_idx = init->ring_map_idx;
-   	dev_priv->buffer_map_idx = init->buffer_map_idx;
-	sarea_map = dev->maplist[0];
+	DRM_FIND_MAP( dev_priv->mmio_map, init->mmio_offset );
+	DRM_FIND_MAP( dev_priv->buffer_map, init->buffers_offset );
+
 	dev_priv->sarea_priv = (drm_i810_sarea_t *)
-		((u8 *)sarea_map->handle +
+		((u8 *)dev_priv->sarea_map->handle +
 		 init->sarea_priv_offset);
 
    	atomic_set(&dev_priv->flush_done, 0);
@@ -876,6 +878,7 @@ static void i810_dma_dispatch_vertex(drm_device_t *dev,
 static void i810_dma_service(int irq, void *device, struct pt_regs *regs)
 {
 	drm_device_t	 *dev = (drm_device_t *)device;
+      	drm_i810_private_t *dev_priv = (drm_i810_private_t *)dev->dev_private;
    	u16 temp;
 
 	atomic_inc(&dev->counts[_DRM_STAT_IRQ]);
@@ -901,6 +904,7 @@ static void i810_dma_task_queue(void *device)
 
 int i810_irq_install(drm_device_t *dev, int irq)
 {
+      	drm_i810_private_t *dev_priv = (drm_i810_private_t *)dev->dev_private;
 	int retcode;
 	u16 temp;
 
@@ -963,6 +967,7 @@ int i810_irq_install(drm_device_t *dev, int irq)
 
 int i810_irq_uninstall(drm_device_t *dev)
 {
+      	drm_i810_private_t *dev_priv = (drm_i810_private_t *)dev->dev_private;
 	int irq;
    	u16 temp;
 
