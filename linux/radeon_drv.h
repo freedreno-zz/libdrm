@@ -178,6 +178,9 @@ extern int radeon_cp_indirect( struct inode *inode, struct file *filp,
 			       unsigned int cmd, unsigned long arg );
 extern int radeon_cp_vertex2( struct inode *inode, struct file *filp,
 			      unsigned int cmd, unsigned long arg );
+extern int radeon_cp_cmdbuf( struct inode *inode, struct file *filp,
+			      unsigned int cmd, unsigned long arg );
+
 
 
 /* Register definitions, register access macros and drmAddMap constants
@@ -206,8 +209,6 @@ extern int radeon_cp_vertex2( struct inode *inode, struct file *filp,
 #	define RADEON_CRTC_OFFSET_FLIP_CNTL	(1 << 16)
 
 #define RADEON_RB3D_COLORPITCH		0x1c48
-#define RADEON_RB3D_DEPTHCLEARVALUE	0x1c30
-#define RADEON_RB3D_DEPTHXY_OFFSET	0x1c60
 
 #define RADEON_DP_GUI_MASTER_CNTL	0x146c
 #	define RADEON_GMC_SRC_PITCH_OFFSET_CNTL	(1 << 0)
@@ -292,9 +293,6 @@ extern int radeon_cp_vertex2( struct inode *inode, struct file *filp,
 #	define RADEON_ROP_ENABLE		(1 << 6)
 #	define RADEON_STENCIL_ENABLE		(1 << 7)
 #	define RADEON_Z_ENABLE			(1 << 8)
-#	define RADEON_DEPTH_XZ_OFFEST_ENABLE	(1 << 9)
-#	define RADEON_ZBLOCK8			(0 << 15)
-#	define RADEON_ZBLOCK16			(1 << 15)
 #define RADEON_RB3D_DEPTHOFFSET		0x1c24
 #define RADEON_RB3D_PLANEMASK		0x1d84
 #define RADEON_RB3D_STENCILREFMASK	0x1d7c
@@ -360,6 +358,15 @@ extern int radeon_cp_vertex2( struct inode *inode, struct file *filp,
 #define RADEON_SE_LINE_WIDTH		0x1db8
 #define RADEON_SE_VPORT_XSCALE		0x1d98
 #define RADEON_SE_ZBIAS_FACTOR		0x1db0
+#define RADEON_SE_TCL_MATERIAL_EMMISSIVE_RED 0x2210
+#define RADEON_SE_TCL_OUTPUT_VTX_FMT         0x2254
+#define RADEON_SE_TCL_VECTOR_INDX_REG        0x2200
+#       define RADEON_VEC_INDX_OCTWORD_STRIDE_SHIFT  16
+#       define RADEON_VEC_INDX_DWORD_COUNT_SHIFT     28
+#define RADEON_SE_TCL_VECTOR_DATA_REG       0x2204
+#define RADEON_SE_TCL_SCALAR_INDX_REG       0x2208
+#       define RADEON_SCAL_INDX_DWORD_STRIDE_SHIFT  16
+#define RADEON_SE_TCL_SCALAR_DATA_REG       0x220C
 #define RADEON_SURFACE_ACCESS_FLAGS	0x0bf8
 #define RADEON_SURFACE_ACCESS_CLR	0x0bfc
 #define RADEON_SURFACE_CNTL		0x0b00

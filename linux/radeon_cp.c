@@ -744,8 +744,7 @@ static int radeon_do_init_cp( drm_device_t *dev, drm_radeon_init_t *init )
 	 * and screwing with the clear operation.
 	 */
 	dev_priv->depth_clear.rb3d_cntl = (RADEON_PLANE_MASK_ENABLE |
-					   (dev_priv->color_fmt << 10) |
-					   RADEON_ZBLOCK16);
+					   (dev_priv->color_fmt << 10));
 
 	dev_priv->depth_clear.rb3d_zstencilcntl = 
 		(dev_priv->depth_fmt |
