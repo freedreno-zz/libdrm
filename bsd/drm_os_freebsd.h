@@ -285,17 +285,17 @@ find_first_zero_bit(atomic_t *p, int max)
 
 				/* Macros to make printf easier */
 #define DRM_ERROR(fmt, arg...) \
-	printf("error: " "[" DRM_NAME ":%s] *ERROR* " fmt , __FUNCTION__, ##arg)
+	printf("error: " "[" DRM_NAME ":%s] *ERROR* " fmt , __FUNCTION__, ## arg)
 #define DRM_MEM_ERROR(area, fmt, arg...) \
 	printf("error: " "[" DRM_NAME ":%s:%s] *ERROR* " fmt , \
 		__FUNCTION__, DRM(mem_stats)[area].name , ##arg)
-#define DRM_INFO(fmt, arg...)  printf("info: " "[" DRM_NAME "] " fmt , ##arg)
+#define DRM_INFO(fmt, arg...)  printf("info: " "[" DRM_NAME "] " fmt , ## arg)
 
 #if DRM_DEBUG_CODE
 #define DRM_DEBUG(fmt, arg...)						  \
 	do {								  \
 		if (DRM(flags) & DRM_FLAG_DEBUG)			  \
-			printf("[" DRM_NAME ":%s] " fmt , __FUNCTION__, ##arg); \
+			printf("[" DRM_NAME ":%s] " fmt , __FUNCTION__, ## arg); \
 	} while (0)
 #else
 #define DRM_DEBUG(fmt, arg...)		 do { } while (0)
