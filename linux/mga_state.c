@@ -482,7 +482,7 @@ static int mga_verify_state( drm_mga_private_t *dev_priv )
 			ret |= ( sarea_priv->warp_pipe > MGA_MAX_G400_PIPES );
 	} else {
 		if ( dirty & MGA_UPLOAD_PIPE )
-			ret |= (sarea_priv->warp_pipe > MGA_MAX_G200_PIPES);
+			ret |= ( sarea_priv->warp_pipe > MGA_MAX_G200_PIPES );
 	}
 
 	return ( ret == 0 );
@@ -525,6 +525,7 @@ static void mga_dma_dispatch_clear( drm_device_t *dev,
 	DMA_LOCALS;
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
+#if 1
 	for ( i = 0 ; i < nbox ; i++ ) {
 		unsigned int height = pbox[i].y2 - pbox[i].y1;
 
@@ -571,6 +572,7 @@ static void mga_dma_dispatch_clear( drm_device_t *dev,
 
 		ADVANCE_DMA();
 	}
+#endif
 }
 
 static void mga_dma_dispatch_swap( drm_device_t *dev )
@@ -585,6 +587,7 @@ static void mga_dma_dispatch_swap( drm_device_t *dev )
 	DMA_LOCALS;
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
+#if 1
 	BEGIN_DMA( 2 + nbox );
 
 	DMA_BLOCK( MGA_MACCESS,	dev_priv->maccess,
@@ -609,6 +612,7 @@ static void mga_dma_dispatch_swap( drm_device_t *dev )
 	}
 
 	ADVANCE_DMA();
+#endif
 }
 
 
@@ -628,7 +632,7 @@ static void mga_dma_dispatch_vertex( drm_device_t *dev, drm_buf_t *buf )
 
 	if ( buf->used ) {
 		buf_priv->dispatched = 1;
-
+#if 1
 		MGA_EMIT_STATE( dev_priv, sarea_priv->dirty );
 
 		do {
@@ -648,9 +652,11 @@ static void mga_dma_dispatch_vertex( drm_device_t *dev, drm_buf_t *buf )
 
 			ADVANCE_DMA();
 		} while ( ++i < sarea_priv->nbox );
+#endif
 	}
 
 	if ( buf_priv->discard ) {
+#if 0
 		if ( buf_priv->dispatched == 1 ) {
 			buf_priv->list_entry->age = sarea_priv->last_dispatch;
 
@@ -665,6 +671,7 @@ static void mga_dma_dispatch_vertex( drm_device_t *dev, drm_buf_t *buf )
 
 			sarea_priv->last_dispatch += 4;
 		}
+#endif
 
 		buf->pending = 0;
 		buf->used = 0;

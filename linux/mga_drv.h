@@ -136,6 +136,9 @@ typedef struct drm_mga_private {
 
 	drm_mga_primary_buffer_t prim;
 
+	volatile long interrupt_flag;	/* Interruption handler flag	   */
+	volatile long dma_flag;		/* DMA dispatch flag		   */
+
 	unsigned int warp_pipe;
 	unsigned long warp_pipe_phys[MGA_MAX_WARP_PIPES];
 
