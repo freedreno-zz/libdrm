@@ -44,55 +44,6 @@
 #define MGA_DEFAULT_USEC_TIMEOUT	10000
 
 
-#define DO_IOREMAP( _map )						\
-do {									\
-	(_map)->handle = DRM(ioremap)( (_map)->offset, (_map)->size );	\
-} while (0)
-
-#define DO_IOREMAPFREE( _map )						\
-do {									\
-	if ( (_map)->handle && (_map)->size )				\
-		DRM(ioremapfree)( (_map)->handle, (_map)->size );	\
-} while (0)
-
-#define DO_FIND_MAP( _map, _offset )					\
-do {									\
-	int _i;								\
-	for ( _i = 0 ; _i < dev->map_count ; _i++ ) {			\
-		if ( dev->maplist[_i]->offset == _offset ) {		\
-			_map = dev->maplist[_i];			\
-			break;						\
-		}							\
-	}								\
-} while (0)
-
-
-
-static unsigned long mga_alloc_page( void )
-{
-	unsigned long address;
-
-	address = __get_free_page( GFP_KERNEL );
-	if ( !address )
-		return 0;
-
-	atomic_inc( &virt_to_page(address)->count );
-	set_bit( PG_reserved, &virt_to_page(address)->flags );
-
-	return address;
-}
-
-static void mga_free_page( unsigned long address )
-{
-	if ( !address )
-		return;
-
-	atomic_dec( &virt_to_page(address)->count );
-	clear_bit( PG_reserved, &virt_to_page(address)->flags );
-	free_page( address );
-}
-
-
 /* ================================================================
  * Engine control
  */
@@ -318,7 +269,7 @@ static void mga_freelist_print( drm_device_t *dev )
 	DRM_INFO( "\n" );
 	DRM_INFO( "current dispatch: last=0x%x done=0x%x\n",
 		  dev_priv->sarea_priv->last_dispatch,
-		  dev_priv->prim.status[1] );
+		  *dev_priv->prim.head - dev_priv->primary->offset );
 	DRM_INFO( "current freelist:\n" );
 
 	for ( entry = dev_priv->head->next ; entry ; entry = entry->next ) {
@@ -337,7 +288,8 @@ static int mga_freelist_init( drm_device_t *dev )
 	drm_mga_buf_priv_t *buf_priv;
 	drm_mga_freelist_t *entry;
 	int i;
-	DRM_DEBUG( "%s\n", __FUNCTION__ );
+	DRM_INFO( "%s: count=%d\n",
+		  __FUNCTION__, dma->buf_count );
 
 	dev_priv->head = DRM(alloc)( sizeof(drm_mga_freelist_t),
 				     DRM_MEM_DRIVER );
@@ -418,19 +370,17 @@ static drm_buf_t *mga_freelist_get( drm_device_t *dev )
 	drm_mga_freelist_t *prev;
 	drm_mga_freelist_t *tail = dev_priv->tail;
 	u32 head, wrap;
-	DRM_DEBUG( "%s\n", __FUNCTION__ );
+	DRM_DEBUG( "%s:\n", __FUNCTION__ );
 
 	head = *dev_priv->prim.head;
 	wrap = dev_priv->sarea_priv->last_wrap;
 
-	DRM_DEBUG( "%s: tail=0x%06lx %d\n",
-		  __FUNCTION__,
-		  tail->age.head ?
-		  tail->age.head - dev_priv->primary->offset : 0,
-		  tail->age.wrap );
-	DRM_DEBUG( "%s: head=0x%06lx %d\n",
-		  __FUNCTION__,
-		  head - dev_priv->primary->offset, wrap );
+	DRM_DEBUG( "   tail=0x%06lx %d\n",
+		   tail->age.head ?
+		   tail->age.head - dev_priv->primary->offset : 0,
+		   tail->age.wrap );
+	DRM_DEBUG( "   head=0x%06lx %d\n",
+		   head - dev_priv->primary->offset, wrap );
 
 	if ( TEST_AGE( &tail->age, head, wrap ) ) {
 		prev = dev_priv->tail->prev;
@@ -516,24 +466,21 @@ static int mga_do_init_dma( drm_device_t *dev, drm_mga_init_t *init )
 
 	dev_priv->sarea = dev->maplist[0];
 
-	DO_FIND_MAP( dev_priv->fb, init->fb_offset );
-	DO_FIND_MAP( dev_priv->mmio, init->mmio_offset );
-	DO_FIND_MAP( dev_priv->status, init->status_offset );
+	DRM_FIND_MAP( dev_priv->fb, init->fb_offset );
+	DRM_FIND_MAP( dev_priv->mmio, init->mmio_offset );
+	DRM_FIND_MAP( dev_priv->status, init->status_offset );
 
-	DRM_INFO( "status handle = 0x%08lx\n", dev_priv->status->handle );
-	DRM_INFO( "status offset = 0x%08lx\n", dev_priv->status->offset );
-
-	DO_FIND_MAP( dev_priv->warp, init->warp_offset );
-	DO_FIND_MAP( dev_priv->primary, init->primary_offset );
-	DO_FIND_MAP( dev_priv->buffers, init->buffers_offset );
+	DRM_FIND_MAP( dev_priv->warp, init->warp_offset );
+	DRM_FIND_MAP( dev_priv->primary, init->primary_offset );
+	DRM_FIND_MAP( dev_priv->buffers, init->buffers_offset );
 
 	dev_priv->sarea_priv =
 		(drm_mga_sarea_t *)((u8 *)dev_priv->sarea->handle +
 				    init->sarea_priv_offset);
 
-	DO_IOREMAP( dev_priv->warp );
-	DO_IOREMAP( dev_priv->primary );
-	DO_IOREMAP( dev_priv->buffers );
+	DRM_IOREMAP( dev_priv->warp );
+	DRM_IOREMAP( dev_priv->primary );
+	DRM_IOREMAP( dev_priv->buffers );
 
 	ret = mga_warp_install_microcode( dev );
 	if ( ret < 0 ) {
@@ -602,9 +549,9 @@ int mga_do_cleanup_dma( drm_device_t *dev )
 	if ( dev->dev_private ) {
 		drm_mga_private_t *dev_priv = dev->dev_private;
 
-		DO_IOREMAPFREE( dev_priv->warp );
-		DO_IOREMAPFREE( dev_priv->primary );
-		DO_IOREMAPFREE( dev_priv->buffers );
+		DRM_IOREMAPFREE( dev_priv->warp );
+		DRM_IOREMAPFREE( dev_priv->primary );
+		DRM_IOREMAPFREE( dev_priv->buffers );
 
 		if ( dev_priv->head != NULL ) {
 			mga_freelist_cleanup( dev );

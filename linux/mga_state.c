@@ -676,8 +676,7 @@ static void mga_dma_dispatch_vertex( drm_device_t *dev, drm_buf_t *buf )
 	}
 
 	if ( buf_priv->discard ) {
-		if ( buf_priv->dispatched == 1 )
-			AGE_BUFFER( buf_priv );
+		AGE_BUFFER( buf_priv );
 		buf->pending = 0;
 		buf->used = 0;
 		buf_priv->dispatched = 0;
@@ -723,8 +722,7 @@ static void mga_dma_dispatch_indices( drm_device_t *dev, drm_buf_t *buf,
 	}
 
 	if ( buf_priv->discard ) {
-		if ( buf_priv->dispatched == 1 )
-			AGE_BUFFER( buf_priv );
+		AGE_BUFFER( buf_priv );
 		buf->pending = 0;
 		buf->used = 0;
 		buf_priv->dispatched = 0;
@@ -747,7 +745,6 @@ static void mga_dma_dispatch_iload( drm_device_t *dev, drm_buf_t *buf,
 	u32 srcorg = buf->bus_address | MGA_SRCACC_AGP | MGA_SRCMAP_SYSMEM;
 	u32 y2;
 	DMA_LOCALS;
-
 	DRM_DEBUG( "%s: buf=%d used=%d\n",
 		   __FUNCTION__, buf->idx, buf->used );
 
@@ -779,7 +776,10 @@ static void mga_dma_dispatch_iload( drm_device_t *dev, drm_buf_t *buf,
 
 	AGE_BUFFER( buf_priv );
 
-	buf_priv->discard = 1;
+	buf->pending = 0;
+	buf->used = 0;
+	buf_priv->dispatched = 0;
+
 	mga_freelist_put( dev, buf );
 
 	FLUSH_DMA();
@@ -795,6 +795,7 @@ static void mga_dma_dispatch_blit( drm_device_t *dev,
 	int nbox = sarea_priv->nbox;
 	u32 scandir = 0, i;
 	DMA_LOCALS;
+	DRM_DEBUG( __FUNCTION__ ":\n" );
 
 	BEGIN_DMA( 4 + nbox );
 
