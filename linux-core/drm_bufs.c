@@ -191,6 +191,7 @@ int DRM(rmmap)(struct inode *inode, struct file *filp,
 
 	down(&dev->struct_sem);
 	list = &dev->maplist->head;
+	r_list = NULL;
 	list_for_each(list, &dev->maplist->head) {
 		r_list = (drm_map_list_t *) list;
 

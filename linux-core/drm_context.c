@@ -178,6 +178,7 @@ int DRM(setsareactx)(struct inode *inode, struct file *filp,
 		return -EFAULT;
 
 	down(&dev->struct_sem);
+	r_list = NULL;
 	list_for_each(list, &dev->maplist->head) {
 		r_list = (drm_map_list_t *)list;
 		if(r_list->map &&

@@ -175,7 +175,6 @@ static int gamma_do_dma(drm_device_t *dev, int locked)
 	unsigned long	 length;
 	drm_buf_t	 *buf;
 	int		 retcode = 0;
-	drm_gamma_private_t *dev_priv = dev->dev_private;
 	drm_device_dma_t *dma = dev->dma;
 #if DRM_DMA_HISTOGRAM
 	cycles_t	 dma_start, dma_stop;
@@ -634,9 +633,7 @@ static int gamma_do_init_dma( drm_device_t *dev, drm_gamma_init_t *init )
 	drm_gamma_private_t *dev_priv;
 	drm_device_dma_t    *dma = dev->dma;
 	drm_buf_t	    *buf;
-	unsigned int        *pagebuf;
-	unsigned int	    physbuf;
-	int ret, i;
+	int i;
 	unsigned int	    *pgt;
 
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
@@ -738,9 +735,7 @@ int gamma_dma_init( struct inode *inode, struct file *filp,
 static int gamma_do_copy_dma( drm_device_t *dev, drm_gamma_copy_t *copy )
 {
 	drm_device_dma_t    *dma = dev->dma;
-	drm_buf_t	    *buf;
 	unsigned int        *screenbuf;
-	drm_gamma_private_t *dev_priv;
 
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
@@ -782,6 +777,8 @@ static int gamma_do_copy_dma( drm_device_t *dev, drm_gamma_copy_t *copy )
 #endif
 
 	/* need to dispatch it now */
+
+	return 0; /* XXX just a guess.. -DaveM XXX */
 }
 
 int gamma_dma_copy( struct inode *inode, struct file *filp,
@@ -845,6 +842,7 @@ int gamma_setsareactx(struct inode *inode, struct file *filp,
 		return -EFAULT;
 
 	down(&dev->struct_sem);
+	r_list = NULL;
 	list_for_each(list, &dev->maplist->head) {
 		r_list = (drm_map_list_t *)list;
 		if(r_list->map &&
