@@ -841,7 +841,7 @@ static int r128_freelist_init( drm_device_t *dev )
 	dev_priv->head = DRM(alloc)( sizeof(drm_r128_freelist_t),
 				     DRM_MEM_DRIVER );
 	if ( dev_priv->head == NULL )
-		return -ENOMEM;
+		return DRM_OS_ERR(ENOMEM);
 
 	memset( dev_priv->head, 0, sizeof(drm_r128_freelist_t) );
 	dev_priv->head->age = R128_BUFFER_USED;
@@ -852,7 +852,7 @@ static int r128_freelist_init( drm_device_t *dev )
 
 		entry = DRM(alloc)( sizeof(drm_r128_freelist_t),
 				    DRM_MEM_DRIVER );
-		if ( !entry ) return -ENOMEM;
+		if ( !entry ) return DRM_OS_ERR(ENOMEM);
 
 		entry->age = R128_BUFFER_FREE;
 		entry->buf = buf;

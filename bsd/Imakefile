@@ -20,8 +20,20 @@ all::
 clean::
 	$(MAKE) -f Makefile.bsd clean
 
+LinkSourceFile(mga.h,$(XF86OSSRC)/shared/drm/kernel)
+LinkSourceFile(mga_dma.c,$(XF86OSSRC)/shared/drm/kernel)
+LinkSourceFile(mga_drm.h,$(XF86OSSRC)/shared/drm/kernel)
+LinkSourceFile(mga_drv.h,$(XF86OSSRC)/shared/drm/kernel)
+LinkSourceFile(mga_state.c,$(XF86OSSRC)/shared/drm/kernel)
+LinkSourceFile(mga_ucode.h,$(XF86OSSRC)/shared/drm/kernel)
+LinkSourceFile(mga_warp.c,$(XF86OSSRC)/shared/drm/kernel)
 LinkSourceFile(r128.h,$(XF86OSSRC)/shared/drm/kernel)
 LinkSourceFile(r128_cce.c,$(XF86OSSRC)/shared/drm/kernel)
 LinkSourceFile(r128_drm.h,$(XF86OSSRC)/shared/drm/kernel)
 LinkSourceFile(r128_drv.h,$(XF86OSSRC)/shared/drm/kernel)
 LinkSourceFile(r128_state.c,$(XF86OSSRC)/shared/drm/kernel)
+LinkSourceFile(radeon.h,$(XF86OSSRC)/shared/drm/kernel)
+LinkSourceFile(radeon_cp.c,$(XF86OSSRC)/shared/drm/kernel)
+LinkSourceFile(radeon_drm.h,$(XF86OSSRC)/shared/drm/kernel)
+LinkSourceFile(radeon_drv.h,$(XF86OSSRC)/shared/drm/kernel)
+LinkSourceFile(radeon_state.c,$(XF86OSSRC)/shared/drm/kernel)

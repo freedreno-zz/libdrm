@@ -30,6 +30,14 @@
 	copy_from_user(arg1, arg2, arg3)
 #define DRM_OS_COPYTOUSR(arg1, arg2, arg3) \
 	copy_to_user(arg1, arg2, arg3)
+/* Macros for checking readability once */
+#define DRM_OS_VERIFYAREA_READ( uaddr, size ) 		\
+	verify_area( VERIFY_READ, uaddr, size )
+#define DRM_OS_COPYFROMUSR_NC(arg1, arg2, arg3) 	\
+	__copy_from_user(arg1, arg2, arg3)
+#define DRM_OS_FETCHU_32_NC(val, uaddr)			\
+	__get_user(val, uaddr)
+
 
 /* malloc/free without the overhead of DRM(alloc) */
 #define DRM_OS_MALLOC(x) kmalloc(x, GFP_KERNEL)

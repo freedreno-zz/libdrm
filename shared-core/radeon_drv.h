@@ -31,8 +31,8 @@
 #ifndef __RADEON_DRV_H__
 #define __RADEON_DRV_H__
 
-#define GET_RING_HEAD(ring)		readl( (volatile u32 *) (ring)->head )
-#define SET_RING_HEAD(ring,val)		writel( (val), (volatile u32 *) (ring)->head )
+#define GET_RING_HEAD(ring)		DRM_OS_READ32(  (volatile u32 *) (ring)->head )
+#define SET_RING_HEAD(ring,val)		DRM_OS_WRITE32( (volatile u32 *) (ring)->head , (val))
 
 typedef struct drm_radeon_freelist {
    	unsigned int age;
@@ -119,29 +119,21 @@ typedef struct drm_radeon_buf_priv {
 } drm_radeon_buf_priv_t;
 
 				/* radeon_cp.c */
-extern int radeon_cp_init( struct inode *inode, struct file *filp,
-			   unsigned int cmd, unsigned long arg );
-extern int radeon_cp_start( struct inode *inode, struct file *filp,
-			    unsigned int cmd, unsigned long arg );
-extern int radeon_cp_stop( struct inode *inode, struct file *filp,
-			   unsigned int cmd, unsigned long arg );
-extern int radeon_cp_reset( struct inode *inode, struct file *filp,
-			    unsigned int cmd, unsigned long arg );
-extern int radeon_cp_idle( struct inode *inode, struct file *filp,
-			   unsigned int cmd, unsigned long arg );
-extern int radeon_engine_reset( struct inode *inode, struct file *filp,
-				unsigned int cmd, unsigned long arg );
-extern int radeon_fullscreen( struct inode *inode, struct file *filp,
-			      unsigned int cmd, unsigned long arg );
-extern int radeon_cp_buffers( struct inode *inode, struct file *filp,
-			      unsigned int cmd, unsigned long arg );
+extern int radeon_cp_init( DRM_OS_IOCTL );
+extern int radeon_cp_start( DRM_OS_IOCTL );
+extern int radeon_cp_stop( DRM_OS_IOCTL );
+extern int radeon_cp_reset( DRM_OS_IOCTL );
+extern int radeon_cp_idle( DRM_OS_IOCTL );
+extern int radeon_engine_reset( DRM_OS_IOCTL );
+extern int radeon_fullscreen( DRM_OS_IOCTL );
+extern int radeon_cp_buffers( DRM_OS_IOCTL );
 
 extern void radeon_freelist_reset( drm_device_t *dev );
 extern drm_buf_t *radeon_freelist_get( drm_device_t *dev );
 
 extern int radeon_wait_ring( drm_radeon_private_t *dev_priv, int n );
 
-static inline void
+static __inline__ void
 radeon_update_ring_snapshot( drm_radeon_ring_buffer_t *ring )
 {
 	ring->space = (GET_RING_HEAD(ring) - ring->tail) * sizeof(u32);
@@ -154,28 +146,17 @@ extern int radeon_do_cleanup_cp( drm_device_t *dev );
 extern int radeon_do_cleanup_pageflip( drm_device_t *dev );
 
 				/* radeon_state.c */
-extern int radeon_cp_clear( struct inode *inode, struct file *filp,
-			    unsigned int cmd, unsigned long arg );
-extern int radeon_cp_swap( struct inode *inode, struct file *filp,
-			   unsigned int cmd, unsigned long arg );
-extern int radeon_cp_vertex( struct inode *inode, struct file *filp,
-			     unsigned int cmd, unsigned long arg );
-extern int radeon_cp_indices( struct inode *inode, struct file *filp,
-			      unsigned int cmd, unsigned long arg );
-extern int radeon_cp_texture( struct inode *inode, struct file *filp,
-			      unsigned int cmd, unsigned long arg );
-extern int radeon_cp_stipple( struct inode *inode, struct file *filp,
-			      unsigned int cmd, unsigned long arg );
-extern int radeon_cp_indirect( struct inode *inode, struct file *filp,
-			       unsigned int cmd, unsigned long arg );
-extern int radeon_cp_vertex2( struct inode *inode, struct file *filp,
-			      unsigned int cmd, unsigned long arg );
-extern int radeon_cp_cmdbuf( struct inode *inode, struct file *filp,
-			      unsigned int cmd, unsigned long arg );
-extern int radeon_cp_getparam( struct inode *inode, struct file *filp,
-			      unsigned int cmd, unsigned long arg );
-extern int radeon_cp_flip( struct inode *inode, struct file *filp,
-			   unsigned int cmd, unsigned long arg );
+extern int radeon_cp_clear( DRM_OS_IOCTL );
+extern int radeon_cp_swap( DRM_OS_IOCTL );
+extern int radeon_cp_vertex( DRM_OS_IOCTL );
+extern int radeon_cp_indices( DRM_OS_IOCTL );
+extern int radeon_cp_texture( DRM_OS_IOCTL );
+extern int radeon_cp_stipple( DRM_OS_IOCTL );
+extern int radeon_cp_indirect( DRM_OS_IOCTL );
+extern int radeon_cp_vertex2( DRM_OS_IOCTL );
+extern int radeon_cp_cmdbuf( DRM_OS_IOCTL );
+extern int radeon_cp_getparam( DRM_OS_IOCTL );
+extern int radeon_cp_flip( DRM_OS_IOCTL );
 
 
 
@@ -543,11 +524,11 @@ extern int radeon_cp_flip( struct inode *inode, struct file *filp,
 #define RADEON_BASE(reg)	((unsigned long)(dev_priv->mmio->handle))
 #define RADEON_ADDR(reg)	(RADEON_BASE( reg ) + reg)
 
-#define RADEON_READ(reg)	readl( (volatile u32 *) RADEON_ADDR(reg) )
-#define RADEON_WRITE(reg,val)	writel( (val), (volatile u32 *) RADEON_ADDR(reg) )
+#define RADEON_READ(reg)	DRM_OS_READ32(  (volatile u32 *) RADEON_ADDR(reg) )
+#define RADEON_WRITE(reg,val)	DRM_OS_WRITE32( (volatile u32 *) RADEON_ADDR(reg), (val) )
 
-#define RADEON_READ8(reg)	readb( (volatile u8 *) RADEON_ADDR(reg) )
-#define RADEON_WRITE8(reg,val)	writeb( (val), (volatile u8 *) RADEON_ADDR(reg) )
+#define RADEON_READ8(reg)	DRM_OS_READ8(  (volatile u8 *) RADEON_ADDR(reg) )
+#define RADEON_WRITE8(reg,val)	DRM_OS_WRITE8( (volatile u8 *) RADEON_ADDR(reg), (val) )
 
 #define RADEON_WRITE_PLL( addr, val )					\
 do {									\
@@ -627,10 +608,9 @@ extern int RADEON_READ_PLL( drm_device_t *dev, int addr );
 #define LOCK_TEST_WITH_RETURN( dev )					\
 do {									\
 	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||		\
-	     dev->lock.pid != current->pid ) {				\
-		DRM_ERROR( "%s called without lock held\n",		\
-			   __FUNCTION__ );				\
-		return -EINVAL;						\
+	     dev->lock.pid != DRM_OS_CURRENTPID ) {			\
+		DRM_ERROR( "%s called without lock held\n", __func__ );	\
+		return DRM_OS_ERR(EINVAL);				\
 	}								\
 } while (0)
 
@@ -642,7 +622,7 @@ do {									\
 			radeon_update_ring_snapshot( ring );		\
 			if ( ring->space >= ring->high_mark )		\
 				goto __ring_space_done;			\
-			udelay( 1 );					\
+			DRM_OS_DELAY( 1 );				\
 		}							\
 		DRM_ERROR( "ring space check from memory failed, reading register...\n" );	\
 		/* If ring space check fails from RAM, try reading the	\
@@ -654,9 +634,10 @@ do {									\
 			goto __ring_space_done;				\
 									\
 		DRM_ERROR( "ring space check failed!\n" );		\
-		return -EBUSY;						\
+		return DRM_OS_ERR(EBUSY);				\
 	}								\
  __ring_space_done:							\
+	;								\
 } while (0)
 
 #define VB_AGE_TEST_WITH_RETURN( dev_priv )				\
@@ -664,7 +645,7 @@ do {									\
 	drm_radeon_sarea_t *sarea_priv = dev_priv->sarea_priv;		\
 	if ( sarea_priv->last_dispatch >= RADEON_MAX_VB_AGE ) {		\
 		int __ret = radeon_do_cp_idle( dev_priv );		\
-		if ( __ret < 0 ) return __ret;				\
+		if ( __ret ) return __ret;				\
 		sarea_priv->last_dispatch = 0;				\
 		radeon_freelist_reset( dev );				\
 	}								\
@@ -699,12 +680,12 @@ do {									\
 
 #define RADEON_VERBOSE	0
 
-#define RING_LOCALS	int write, _nr; unsigned int mask; volatile u32 *ring;
+#define RING_LOCALS	int write, _nr; unsigned int mask; u32 *ring;
 
 #define BEGIN_RING( n ) do {						\
 	if ( RADEON_VERBOSE ) {						\
 		DRM_INFO( "BEGIN_RING( %d ) in %s\n",			\
-			   n, __FUNCTION__ );				\
+			   n, __func__ );				\
 	}								\
 	if ( dev_priv->ring.space <= (n) * sizeof(u32) ) {		\
                 COMMIT_RING();						\
@@ -755,17 +736,17 @@ do {									\
 								\
 	if (write + _size > mask) {				\
 		int i = (mask+1) - write;			\
-		if (__copy_from_user( (int *)(ring+write),	\
+		if (DRM_OS_COPYFROMUSR_NC( (int *)(ring+write),	\
 				      _tab, i*4 ))		\
-			return -EFAULT;				\
+			return DRM_OS_ERR(EFAULT);		\
 		write = 0;					\
 		_size -= i;					\
 		_tab += i;					\
 	}							\
 								\
-	if (_size && __copy_from_user( (int *)(ring+write),	\
+	if (_size && DRM_OS_COPYFROMUSR_NC( (int *)(ring+write),	\
 			               _tab, _size*4 ))		\
-		return -EFAULT;					\
+		return DRM_OS_ERR(EFAULT);			\
 								\
 	write += _size;						\
 	write &= mask;						\
