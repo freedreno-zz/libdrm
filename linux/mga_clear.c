@@ -56,6 +56,7 @@ static int mgaClearBuffers(drm_device_t *dev, drm_mga_clear_t *args)
 	buf_priv->clear_color = args->clear_color;
 	buf_priv->clear_zval = args->clear_depth;
 	buf_priv->clear_flags = args->flags;
+	buf_priv->age = args->age;
 
 	if (!mgaCopyAndVerifyState(dev_priv, buf_priv, MGA_UPLOAD_CLIPRECTS)) 
 		buf_priv->dma_type = MGA_DMA_DISCARD;
@@ -96,6 +97,7 @@ int mgaSwapBuffers(drm_device_t *dev, drm_mga_swap_t *args)
 	buf = dma->buflist[ args->idx ];
 	buf_priv = buf->dev_private;
 	buf_priv->dma_type = MGA_DMA_SWAP;
+	buf_priv->age = args->age;
 
 	if (!mgaCopyAndVerifyState(dev_priv, buf_priv, MGA_UPLOAD_CLIPRECTS)) {
 		printk("mgaCopyAndVerifyState faild for swap\n");
@@ -146,6 +148,8 @@ static int mgaIload(drm_device_t *dev, drm_mga_iload_t *args)
    	buf_priv->ContextState[MGA_CTXREG_MACCESS] = args->mAccess;
    	buf_priv->ServerState[MGA_2DREG_PITCH] = args->pitch;
 	buf_priv->nbox = 1;   
+	buf_priv->age = args->age;
+
    	sarea_priv->dirty |= (MGA_UPLOAD_CTX | MGA_UPLOAD_2D);
    	switch((args->mAccess & 0x00000003)) {
 	 	case 0:
@@ -203,6 +207,7 @@ static int mgaDmaVertex(drm_device_t *dev, drm_mga_vertex_t *args)
 	buf_priv = buf->dev_private;
 	buf_priv->dma_type = MGA_DMA_VERTEX;
 	buf_priv->vertex_real_idx = args->real_idx;
+	buf_priv->age = args->age;
 	buf->used = args->real_used;
 
 	if (!mgaCopyAndVerifyState(dev_priv, buf_priv, ~0)) 
