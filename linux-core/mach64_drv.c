@@ -33,7 +33,6 @@
 #include "drm.h"
 #include "mach64_drm.h"
 #include "mach64_drv.h"
-#include "ati_pcigart.h"
 
 #include "drm_agpsupport.h"
 #include "drm_auth.h"
@@ -50,4 +49,3 @@
 #include "drm_proc.h"
 #include "drm_vm.h"
 #include "drm_stub.h"
-#include "drm_scatter.h"
