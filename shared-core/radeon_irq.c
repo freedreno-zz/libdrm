@@ -71,8 +71,8 @@ void DRM(dma_service)( DRM_IRQ_ARGS )
 
 	/* SW interrupt */
 	if (stat & RADEON_SW_INT_TEST) {
-		DRM_WAKEUP( &dev_priv->swi_queue );
 	}
+		DRM_WAKEUP( &dev_priv->swi_queue );
 
 	/* VBLANK interrupt */
 	if (stat & RADEON_CRTC_VBLANK_STAT) {
@@ -126,7 +126,7 @@ int radeon_wait_irq(drm_device_t *dev, int swi_nr)
 	/* This is a hack to work around mysterious freezes on certain
 	 * systems:
 	 */ 
-	radeon_acknowledge_irqs( dev_priv );
+/* 	radeon_acknowledge_irqs( dev_priv ); */
 
 	DRM_WAIT_ON( ret, dev_priv->swi_queue, 3 * DRM_HZ, 
 		     RADEON_READ( RADEON_LAST_SWI_REG ) >= swi_nr );
@@ -152,7 +152,7 @@ int DRM(vblank_wait)(drm_device_t *dev, unsigned int *sequence)
 		return DRM_ERR(EINVAL);
 	}
 
-	radeon_acknowledge_irqs( dev_priv );
+/* 	radeon_acknowledge_irqs( dev_priv ); */
 
 	dev_priv->stats.boxes |= RADEON_BOX_WAIT_IDLE;
 
