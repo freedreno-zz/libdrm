@@ -199,21 +199,15 @@ void mga_do_dma_flush( drm_mga_private_t *dev_priv )
 {
 	drm_mga_primary_buffer_t *primary = &dev_priv->prim;
 	u32 head, tail;
-	unsigned long flags;
 	DMA_LOCALS;
 	DRM_DEBUG( "%s:\n", __FUNCTION__ );
 
-	if ( primary->tail == primary->last_flush + DMA_BLOCK_SIZE ) {
+	if ( primary->tail == primary->last_flush ) {
 		DRM_DEBUG( "   bailing out...\n" );
 		return;
 	}
 
-	spin_lock_irqsave( &primary->flush_lock, flags );
-
 	tail = primary->tail + dev_priv->primary->offset;
-	primary->last_flush = primary->tail;
-
-	spin_unlock_irqrestore( &primary->flush_lock, flags );
 
 	BEGIN_DMA( 1 );
 
@@ -224,6 +218,8 @@ void mga_do_dma_flush( drm_mga_private_t *dev_priv )
 
 	ADVANCE_DMA();
 
+	primary->last_flush = primary->tail;
+
 	head = *primary->head;
 
 	if ( head <= tail ) {
@@ -232,19 +228,9 @@ void mga_do_dma_flush( drm_mga_private_t *dev_priv )
 		primary->space = head - tail;
 	}
 
-	if ( test_bit( 0, &primary->wrap_flag ) ) {
-		DRM_DEBUG( "%s: pending wrap...\n", __FUNCTION__ );
-		spin_unlock_irqrestore( &primary->flush_lock, flags );
-		return;
-	}
-
-#if 0
-	DRM_INFO( "   head = 0x%06lx\n",
-		  head - dev_priv->primary->offset );
-	DRM_INFO( "   tail = 0x%06lx\n",
-		  tail - dev_priv->primary->offset );
-	DRM_INFO( "  space = 0x%06x\n", primary->space );
-#endif
+	DRM_DEBUG( "   head = 0x%06lx\n", head - dev_priv->primary->offset );
+	DRM_DEBUG( "   tail = 0x%06lx\n", tail - dev_priv->primary->offset );
+	DRM_DEBUG( "  space = 0x%06x\n", primary->space );
 
 	mga_flush_write_combine();
 	MGA_WRITE( MGA_PRIMEND, tail | MGA_PRIMNOSTART | MGA_PAGPXFER );
@@ -252,27 +238,27 @@ void mga_do_dma_flush( drm_mga_private_t *dev_priv )
 	DRM_DEBUG( "%s: done.\n", __FUNCTION__ );
 }
 
-void mga_do_dma_wrap( drm_mga_private_t *dev_priv )
+void mga_do_dma_wrap_start( drm_mga_private_t *dev_priv )
 {
 	drm_mga_primary_buffer_t *primary = &dev_priv->prim;
 	u32 head, tail;
-	unsigned long flags;
 	DMA_LOCALS;
 	DRM_DEBUG( "%s:\n", __FUNCTION__ );
-
-	spin_lock_irqsave( &primary->flush_lock, flags );
 
 	BEGIN_DMA_WRAP();
 
 	DMA_BLOCK( MGA_DMAPAD,	0x00000000,
 		   MGA_DMAPAD,	0x00000000,
 		   MGA_DMAPAD,	0x00000000,
-		   MGA_SOFTRAP,	0x00000000 );
+		   MGA_DWGSYNC,	0x12345678 );
 
 	ADVANCE_DMA();
 
 	tail = primary->tail + dev_priv->primary->offset;
+
 	primary->tail = 0;
+	primary->last_flush = 0;
+	primary->last_wrap++;
 
 	head = *primary->head;
 
@@ -282,93 +268,33 @@ void mga_do_dma_wrap( drm_mga_private_t *dev_priv )
 		primary->space = head - dev_priv->primary->offset;
 	}
 
-	primary->last_flush = 0;
-	primary->last_wrap++;
-
-	set_bit( 0, &primary->wrap_flag );
-
-	if ( 0 ) {
-		DRM_INFO( "%s:\n", __FUNCTION__ );
-		DRM_INFO( "   head = 0x%06lx\n",
-			  head - dev_priv->primary->offset );
-		DRM_INFO( "   tail = 0x%06x\n", primary->tail );
-		DRM_INFO( "   wrap = %d\n", primary->last_wrap );
-		DRM_INFO( "  space = 0x%06x\n", primary->space );
-	}
+	DRM_DEBUG( "   head = 0x%06lx\n",
+		  head - dev_priv->primary->offset );
+	DRM_DEBUG( "   tail = 0x%06x\n", primary->tail );
+	DRM_DEBUG( "   wrap = %d\n", primary->last_wrap );
+	DRM_DEBUG( "  space = 0x%06x\n", primary->space );
 
 	mga_flush_write_combine();
 	MGA_WRITE( MGA_PRIMEND, tail | MGA_PRIMNOSTART | MGA_PAGPXFER );
 
-	spin_unlock_irqrestore( &primary->flush_lock, flags );
-
 	DRM_DEBUG( "%s: done.\n", __FUNCTION__ );
-
-	mga_do_wait_for_idle( dev_priv );
 }
 
-
-/* ================================================================
- * DMA interrupt handling
- */
-
-static void mga_dma_service( int irq, void *device, struct pt_regs *regs )
+void mga_do_dma_wrap_end( drm_mga_private_t *dev_priv )
 {
-	drm_device_t *dev = (drm_device_t *)device;
-	drm_mga_private_t *dev_priv = (drm_mga_private_t *)dev->dev_private;
 	drm_mga_primary_buffer_t *primary = &dev_priv->prim;
 	drm_mga_sarea_t *sarea_priv = dev_priv->sarea_priv;
 	u32 head = dev_priv->primary->offset;
-	u32 flush;
+	DRM_DEBUG( "%s:\n", __FUNCTION__ );
 
-	/* Verify the interrupt we're servicing is actually the one we
-	 * want to service.
-	 */
-	if ( (MGA_READ( MGA_STATUS ) & MGA_SOFTRAPEN) != MGA_SOFTRAPEN )
-		return;
-
-	atomic_inc( &dev->counts[_DRM_STAT_IRQ] );
-
-	spin_lock( &primary->flush_lock );
-
-	MGA_WRITE( MGA_ICLEAR, MGA_SOFTRAPICLR );
-
-	flush = primary->last_flush + dev_priv->primary->offset;
 	sarea_priv->last_wrap++;
 
-	clear_bit( 0, &primary->wrap_flag );
-
-#if 0
-	DRM_INFO( "  *** wrap interrupt:\n" );
-	DRM_INFO( "      head = 0x%06lx\n",
-		   head - dev_priv->primary->offset );
-	DRM_INFO( "     flush = 0x%06lx\n", primary->last_flush );
-	DRM_INFO( "      tail = 0x%06lx  %s\n",
-		  primary->tail,
-		  primary->tail != primary->last_flush + DMA_BLOCK_SIZE
-		  ? "***" : "" );
-	DRM_INFO( "      wrap = %d\n", sarea_priv->last_wrap );
-#endif
+	*primary->head = head;
 
 	mga_flush_write_combine();
 	MGA_WRITE( MGA_PRIMADDRESS, head | MGA_DMA_GENERAL );
 
-	if ( primary->last_flush > 0 ) {
-		MGA_WRITE( MGA_PRIMEND, flush | MGA_PAGPXFER );
-	}
-
-	spin_unlock( &primary->flush_lock );
-}
-
-static int mga_dma_task_queue( void *dev )
-{
-	drm_mga_private_t *dev_priv = ((drm_device_t *)dev)->dev_private;
-	drm_mga_primary_buffer_t *primary = &dev_priv->prim;
-
-	spin_lock( &primary->list_lock );
-	mga_do_freelist_wrap( dev );
-	spin_unlock( &primary->list_lock );
-
-	return 0;
+	DRM_DEBUG( "%s: done.\n", __FUNCTION__ );
 }
 
 
@@ -554,30 +480,6 @@ static int mga_freelist_put( drm_device_t *dev, drm_buf_t *buf )
 	return 0;
 }
 
-/* The list spinlock must have been acquired before this can be called...
- */
-void mga_do_freelist_wrap( drm_device_t *dev )
-{
-	drm_mga_private_t *dev_priv = dev->dev_private;
-	drm_mga_freelist_t *entry;
-	u32 head = *dev_priv->prim.head;
-
-	DRM_INFO( "%s:\n", __FUNCTION__ );
-#if 0
-	DRM_DEBUG( "   before...\n" );
-	mga_freelist_print( dev );
-#endif
-
-	for ( entry = dev_priv->head->next ; entry ; entry = entry->next ) {
-		SET_AGE( &entry->age, MGA_BUFFER_FREE, 0 );
-	}
-
-#if 0
-	DRM_DEBUG( "   after...\n" );
-	mga_freelist_print( dev );
-#endif
-}
-
 
 /* ================================================================
  * DMA initialization, cleanup
@@ -677,9 +579,8 @@ static int mga_do_init_dma( drm_device_t *dev, drm_mga_init_t *init )
 
 	dev_priv->prim.last_flush = 0;
 	dev_priv->prim.last_wrap = 0;
-	clear_bit( 0, &dev_priv->prim.wrap_flag );
 
-	dev_priv->prim.high_mark = 0;
+	dev_priv->prim.high_mark = 128 * DMA_BLOCK_SIZE;
 
 	spin_lock_init( &dev_priv->prim.flush_lock );
 	spin_lock_init( &dev_priv->prim.list_lock );
@@ -707,19 +608,9 @@ int mga_do_cleanup_dma( drm_device_t *dev )
 	if ( dev->dev_private ) {
 		drm_mga_private_t *dev_priv = dev->dev_private;
 
-#if 0
-		if ( dev_priv->prim.status_page ) {
-			mga_free_page( dev_priv->prim.status_page );
-		}
-#endif
-
 		DO_IOREMAPFREE( dev_priv->warp );
 		DO_IOREMAPFREE( dev_priv->primary );
 		DO_IOREMAPFREE( dev_priv->buffers );
-
-		/* Make sure we catch this here...
-		 */
-		if ( dev->irq ) mga_irq_uninstall( dev );
 
 		if ( dev_priv->head != NULL ) {
 			mga_freelist_cleanup( dev );
@@ -752,7 +643,6 @@ int mga_dma_init( struct inode *inode, struct file *filp,
 
 	return -EINVAL;
 }
-
 
 
 /* ================================================================
@@ -800,223 +690,6 @@ int mga_dma_reset( struct inode *inode, struct file *filp,
 
 	return mga_do_dma_reset( dev_priv );
 }
-
-
-/* ================================================================
- * IRQ management
- */
-
-int mga_irq_install( drm_device_t *dev, int irq )
-{
-	drm_mga_private_t *dev_priv = dev->dev_private;
-	int ret;
-
-	if ( !irq ) return -EINVAL;
-
-	down( &dev->struct_sem );
-	if ( dev->irq ) {
-		up( &dev->struct_sem );
-		return -EBUSY;
-	}
-	dev->irq = irq;
-	up( &dev->struct_sem );
-
-	DRM_DEBUG( "install irq handler %d\n", irq );
-
-	dev->context_flag = 0;
-	dev->interrupt_flag = 0;
-	dev->dma_flag = 0;
-
-	dev->dma->next_buffer = NULL;
-	dev->dma->next_queue = NULL;
-	dev->dma->this_buffer = NULL;
-
-#if 0
-	INIT_LIST_HEAD(&dev->tq.list);
-	dev->tq.sync = 0;
-	dev->tq.routine = (void (*)(void *))mga_dma_task_queue;
-	dev->tq.data = dev;
-#endif
-
-	/* Before installing handler
-	 */
-	MGA_WRITE( MGA_IEN, 0 );
-
-	/* Install handler
-	 */
-	ret = request_irq( dev->irq,
-			   mga_dma_service,
-			   SA_SHIRQ,
-			   dev->devname,
-			   dev );
-	if ( ret ) {
-		down( &dev->struct_sem );
-		dev->irq = 0;
-		up( &dev->struct_sem );
-		return ret;
-	}
-
-	/* After installing handler
-	 */
-	MGA_WRITE( MGA_ICLEAR, MGA_SOFTRAPICLR );
-	MGA_WRITE( MGA_IEN,    MGA_SOFTRAPIEN );
-
-
-
-
-
-if ( 0 ) {
-	int i;
-	int ret;
-
-	DRM_INFO( "start = %p\n", dev_priv->prim.start );
-	DRM_INFO( "  end = %p\n", dev_priv->prim.end );
-	DRM_INFO( "space = %d \n", dev_priv->prim.space );
-
-#if 0
-	/* Let's lock the board and then recover from it.  Isn't it
-	 * nice to be able to do so?
-	 */
-	dev_priv->prim.head += 4096;
-	dev_priv->prim.tail = 128;
-
-	mga_do_dma_flush( dev_priv );
-
-	ret = mga_do_wait_for_idle( dev_priv );
-	if ( ret < 0 ) {
-		mga_do_engine_reset( dev_priv );
-	}
-#endif
-
-	/* You'll notice that this does not fail.  Cool, eh?
-	 */
-	mga_do_wait_for_idle( dev_priv );
-
-	for ( i = 0 ; i < 256 ; i++ ) {
-		DMA_LOCALS;
-
-		BEGIN_DMA( 8 );
-
-		DMA_BLOCK( MGA_DMAPAD,	0x00000000,
-			   MGA_DMAPAD,	0x00000000,
-			   MGA_DMAPAD,	0x00000000,
-			   MGA_DMAPAD,	0x00000000 );
-
-		DMA_BLOCK( MGA_DMAPAD,	0x00000000,
-			   MGA_DMAPAD,	0x00000000,
-			   MGA_DMAPAD,	0x00000000,
-			   MGA_DMAPAD,	0x00000000 );
-
-		DMA_BLOCK( MGA_DMAPAD,	0x00000000,
-			   MGA_DMAPAD,	0x00000000,
-			   MGA_DMAPAD,	0x00000000,
-			   MGA_DMAPAD,	0x00000000 );
-
-		DMA_BLOCK( MGA_DMAPAD,	0x00000000,
-			   MGA_DMAPAD,	0x00000000,
-			   MGA_DMAPAD,	0x00000000,
-			   MGA_DMAPAD,	0x00000000 );
-
-		DMA_BLOCK( MGA_DMAPAD,	0x00000000,
-			   MGA_DMAPAD,	0x00000000,
-			   MGA_DMAPAD,	0x00000000,
-			   MGA_DMAPAD,	0x00000000 );
-
-		DMA_BLOCK( MGA_DMAPAD,	0x00000000,
-			   MGA_DMAPAD,	0x00000000,
-			   MGA_DMAPAD,	0x00000000,
-			   MGA_DMAPAD,	0x00000000 );
-
-		DMA_BLOCK( MGA_DMAPAD,	0x00000000,
-			   MGA_DMAPAD,	0x00000000,
-			   MGA_DMAPAD,	0x00000000,
-			   MGA_DMAPAD,	0x00000000 );
-
-		DMA_BLOCK( MGA_DMAPAD,	0x00000000,
-			   MGA_DMAPAD,	0x00000000,
-			   MGA_DMAPAD,	0x00000000,
-			   MGA_DWGSYNC,	0x12345678 );
-
-		ADVANCE_DMA();
-
-		mga_do_dma_flush( dev_priv );
-
-		udelay( 5 );
-
-		DRM_INFO( "\n" );
-		DRM_INFO( "head = 0x%08lx 0x%06lx\n",
-			  (unsigned long)dev_priv->prim.status[0],
-			  dev_priv->prim.status[0] -
-			  dev_priv->primary->offset );
-		DRM_INFO( "sync = 0x%08x\n", dev_priv->prim.status[1] );
-		DRM_INFO( "\n" );
-	}
-
-	udelay( 10 );
-
-	ret = 0;
-	if ( mga_do_wait_for_idle( dev_priv ) < 0 )
-		ret = -EINVAL;
-
-	DRM_INFO( "head = 0x%08lx 0x%06lx\n",
-		  (unsigned long)dev_priv->prim.status[0],
-		  dev_priv->prim.status[0] - dev_priv->primary->offset );
-	DRM_INFO( "sync = 0x%08x\n", dev_priv->prim.status[1] );
-	DRM_INFO( "\n" );
-	DRM_INFO( "space = 0x%x / 0x%x\n",
-		  dev_priv->prim.space, dev_priv->prim.size );
-	DRM_INFO( "\n" );
-	DRM_INFO( " irqs = %d\n", atomic_read( &dev->counts[_DRM_STAT_IRQ] ) );
-
-	return ret;
-}
-
-	return 0;
-}
-
-int mga_irq_uninstall( drm_device_t *dev )
-{
-	drm_mga_private_t *dev_priv = dev->dev_private;
-	int irq;
-
-	down( &dev->struct_sem );
-	irq = dev->irq;
-	dev->irq = 0;
-	up( &dev->struct_sem );
-
-	if ( !irq ) return -EINVAL;
-
-	DRM_DEBUG( "remove irq handler %d\n", irq );
-
-	MGA_WRITE( MGA_ICLEAR, MGA_SOFTRAPICLR );
-	MGA_WRITE( MGA_IEN, 0 );
-
-	free_irq( irq, dev );
-
-	return 0;
-}
-
-int mga_control( struct inode *inode, struct file *filp,
-		 unsigned int cmd, unsigned long arg )
-{
-	drm_file_t *priv = filp->private_data;
-	drm_device_t *dev = priv->dev;
-	drm_control_t ctl;
-
-	if ( copy_from_user( &ctl, (drm_control_t *)arg, sizeof(ctl) ) )
-		return -EFAULT;
-
-	switch ( ctl.func ) {
-	case DRM_INST_HANDLER:
-		return mga_irq_install( dev, ctl.irq );
-	case DRM_UNINST_HANDLER:
-		return mga_irq_uninstall( dev );
-	default:
-		return -EINVAL;
-	}
-}
-
-
 
 
 /* ================================================================

@@ -55,17 +55,10 @@
 	[DRM_IOCTL_NR(DRM_IOCTL_MGA_INDICES)] = { mga_dma_indices, 1, 0 }, \
 	[DRM_IOCTL_NR(DRM_IOCTL_MGA_ILOAD)]   = { mga_dma_iload,   1, 0 },
 
-#define __HAVE_DMA_IRQ		1
-
 #define __HAVE_COUNTERS         3
 #define __HAVE_COUNTER6         _DRM_STAT_IRQ
 #define __HAVE_COUNTER7         _DRM_STAT_PRIMARY
 #define __HAVE_COUNTER8         _DRM_STAT_SECONDARY
-
-#if 0
-#define __HAVE_DMA_QUEUE	1
-#define __HAVE_DMA_SCHEDULE	1
-#endif
 
 #define __HAVE_DMA_QUIESCENT	1
 #define DRIVER_DMA_QUIESCENT()						\

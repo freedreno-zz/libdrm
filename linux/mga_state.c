@@ -825,6 +825,8 @@ int mga_dma_clear( struct inode *inode, struct file *filp,
 	if ( sarea_priv->nbox > MGA_NR_SAREA_CLIPRECTS )
 		sarea_priv->nbox = MGA_NR_SAREA_CLIPRECTS;
 
+	WRAP_TEST_WITH_RETURN( dev_priv );
+
 	mga_dma_dispatch_clear( dev, &clear );
 
 	/* Make sure we restore the 3D state next time.
@@ -846,6 +848,8 @@ int mga_dma_swap( struct inode *inode, struct file *filp,
 
 	if ( sarea_priv->nbox > MGA_NR_SAREA_CLIPRECTS )
 		sarea_priv->nbox = MGA_NR_SAREA_CLIPRECTS;
+
+	WRAP_TEST_WITH_RETURN( dev_priv );
 
 	mga_dma_dispatch_swap( dev );
 
@@ -890,6 +894,8 @@ int mga_dma_vertex( struct inode *inode, struct file *filp,
 		return -EINVAL;
 	}
 
+	WRAP_TEST_WITH_RETURN( dev_priv );
+
 	mga_dma_dispatch_vertex( dev, buf );
 
 	return 0;
@@ -929,6 +935,8 @@ int mga_dma_indices( struct inode *inode, struct file *filp,
 		return -EINVAL;
 	}
 
+	WRAP_TEST_WITH_RETURN( dev_priv );
+
 	mga_dma_dispatch_indices( dev, buf, indices.start, indices.end );
 
 	return 0;
@@ -965,6 +973,8 @@ int mga_dma_iload( struct inode *inode, struct file *filp,
 	}
 	DRM_INFO( "   verifying iload... done.\n" );
 #endif
+
+	WRAP_TEST_WITH_RETURN( dev_priv );
 
 	mga_dma_dispatch_iload( dev, buf, iload.dstorg, iload.length );
 

@@ -68,11 +68,9 @@ typedef struct drm_mga_primary_buffer {
 
 	u32 last_flush;
 	u32 last_wrap;
-	__volatile__ long wrap_flag;
 
 	u32 high_mark;
 
-	spinlock_t flush_lock;
 	spinlock_t list_lock;
 } drm_mga_primary_buffer_t;
 
@@ -164,7 +162,8 @@ extern int mga_do_engine_reset( drm_mga_private_t *dev_priv );
 extern int mga_do_cleanup_dma( drm_device_t *dev );
 
 extern void mga_do_dma_flush( drm_mga_private_t *dev_priv );
-extern void mga_do_dma_wrap( drm_mga_private_t *dev_priv );
+extern void mga_do_dma_wrap_start( drm_mga_private_t *dev_priv );
+extern void mga_do_dma_wrap_end( drm_mga_private_t *dev_priv );
 
 extern int mga_irq_uninstall( drm_device_t *dev );
 
@@ -232,6 +231,16 @@ do {									\
 	}								\
 } while (0)
 
+#define WRAP_TEST_WITH_RETURN( dev_priv )				\
+do {									\
+	if ( dev_priv->sarea_priv->last_wrap <				\
+	     dev_priv->prim.last_wrap ) {				\
+		if ( mga_do_wait_for_idle( dev_priv ) < 0 )		\
+			return -EBUSY;					\
+		mga_do_dma_wrap_end( dev_priv );			\
+	}								\
+} while (0)
+
 
 /* ================================================================
  * Primary DMA command stream
@@ -253,7 +262,6 @@ do {									\
 	}								\
 	if ( dev_priv->prim.space < (int)((n) * DMA_BLOCK_SIZE +	\
 					  MGA_DMA_SOFTRAP_SIZE) ) {	\
-		mga_do_dma_wrap( dev_priv );				\
 	}								\
 	prim = dev_priv->prim.start;					\
 	write = dev_priv->prim.tail;					\
@@ -278,19 +286,14 @@ do {									\
 	}								\
 } while (0)
 
-#if 0
 #define FLUSH_DMA()							\
 do {									\
-	if ( dev_priv->prim.space  < (int)(128 * DMA_BLOCK_SIZE +	\
-					   MGA_DMA_SOFTRAP_SIZE) ) {	\
-		mga_do_dma_wrap( dev_priv );				\
+	if ( dev_priv->prim.space < dev_priv->prim.high_mark ) {	\
+		mga_do_dma_wrap_start( dev_priv );			\
 	} else {							\
 		mga_do_dma_flush( dev_priv );				\
 	}								\
 } while (0)
-#else
-#define FLUSH_DMA()	mga_do_dma_flush( dev_priv );
-#endif
 
 /* Never use this, always use DMA_BLOCK(...) for primary DMA output.
  */
@@ -624,101 +627,5 @@ do {									\
 				 (0 << MGA_TRANS_SHIFT) |		\
 				 MGA_BLTMOD_BFCOL |			\
 				 MGA_CLIPDIS)
-
-
-
-
-
-#define MGA_CLEAR_CMD (DC_opcod_trap | DC_arzero_enable | 		\
-		       DC_sgnzero_enable | DC_shftzero_enable | 	\
-		       (0xC << DC_bop_SHIFT) | DC_clipdis_enable | 	\
-		       DC_solid_enable | DC_transc_enable)
-
-
-#define MGA_COPY_CMD (DC_opcod_bitblt | DC_atype_rpl | DC_linear_xy |	\
-		      DC_solid_disable | DC_arzero_disable | 		\
-		      DC_sgnzero_enable | DC_shftzero_enable | 		\
-		      (0xC << DC_bop_SHIFT) | DC_bltmod_bfcol | 	\
-		      DC_pattern_disable | DC_transc_disable | 		\
-		      DC_clipdis_enable)				\
-
-#define MGA_FLUSH_CMD (DC_opcod_texture_trap | (0xF << DC_trans_SHIFT) |\
-		       DC_arzero_enable | DC_sgnzero_enable |		\
-		       DC_atype_i)
-
-
-#define PDEA_pagpxfer_enable			0x2
-
-#define WIA_wmode_suspend			0x0
-#define WIA_wmode_start 			0x3
-#define WIA_wagp_agp				0x4
-
-#define DC_opcod_line_open 			0x0
-#define DC_opcod_autoline_open 			0x1
-#define DC_opcod_line_close 			0x2
-#define DC_opcod_autoline_close 		0x3
-#define DC_opcod_trap 				0x4
-#define DC_opcod_texture_trap 			0x6
-#define DC_opcod_bitblt 			0x8
-#define DC_opcod_iload 				0x9
-#define DC_atype_rpl 				0x0
-#define DC_atype_rstr 				0x10
-#define DC_atype_zi 				0x30
-#define DC_atype_blk 				0x40
-#define DC_atype_i 				0x70
-#define DC_linear_xy 				0x0
-#define DC_linear_linear 			0x80
-#define DC_zmode_nozcmp 			0x0
-#define DC_zmode_ze 				0x200
-#define DC_zmode_zne 				0x300
-#define DC_zmode_zlt 				0x400
-#define DC_zmode_zlte 				0x500
-#define DC_zmode_zgt 				0x600
-#define DC_zmode_zgte 				0x700
-#define DC_solid_disable 			0x0
-#define DC_solid_enable 			0x800
-#define DC_arzero_disable 			0x0
-#define DC_arzero_enable 			0x1000
-#define DC_sgnzero_disable 			0x0
-#define DC_sgnzero_enable 			0x2000
-#define DC_shftzero_disable 			0x0
-#define DC_shftzero_enable 			0x4000
-#define DC_bop_SHIFT 				16
-#define DC_trans_SHIFT 				20
-#define DC_bltmod_bmonolef 			0x0
-#define DC_bltmod_bmonowf 			0x8000000
-#define DC_bltmod_bplan 			0x2000000
-#define DC_bltmod_bfcol 			0x4000000
-#define DC_bltmod_bu32bgr 			0x6000000
-#define DC_bltmod_bu32rgb 			0xe000000
-#define DC_bltmod_bu24bgr 			0x16000000
-#define DC_bltmod_bu24rgb 			0x1e000000
-#define DC_pattern_disable 			0x0
-#define DC_pattern_enable 			0x20000000
-#define DC_transc_disable 			0x0
-#define DC_transc_enable 			0x40000000
-#define DC_clipdis_disable 			0x0
-#define DC_clipdis_enable 			0x80000000
-
-
-#define SETADD_mode_vertlist                   	0x0
-
-
-#define MGA_CLEAR_CMD (DC_opcod_trap | DC_arzero_enable | 		\
-		       DC_sgnzero_enable | DC_shftzero_enable | 	\
-		       (0xC << DC_bop_SHIFT) | DC_clipdis_enable | 	\
-		       DC_solid_enable | DC_transc_enable)
-
-
-#define MGA_COPY_CMD (DC_opcod_bitblt | DC_atype_rpl | DC_linear_xy |	\
-		      DC_solid_disable | DC_arzero_disable | 		\
-		      DC_sgnzero_enable | DC_shftzero_enable | 		\
-		      (0xC << DC_bop_SHIFT) | DC_bltmod_bfcol | 	\
-		      DC_pattern_disable | DC_transc_disable | 		\
-		      DC_clipdis_enable)				\
-
-#define MGA_FLUSH_CMD (DC_opcod_texture_trap | (0xF << DC_trans_SHIFT) |\
-		       DC_arzero_enable | DC_sgnzero_enable |		\
-		       DC_atype_i)
 
 #endif
