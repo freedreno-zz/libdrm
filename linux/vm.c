@@ -376,6 +376,8 @@ int drm_mmap(struct file *filp, struct vm_area_struct *vma)
 				pgprot_val(vma->vm_page_prot) |= _PAGE_PCD;
 				pgprot_val(vma->vm_page_prot) &= ~_PAGE_PWT;
 			}
+#elif defined(__powerpc__)
+			pgprot_val(vma->vm_page_prot) |= _PAGE_NO_CACHE|_PAGE_GUARDED;
 #elif defined(__ia64__)
 			if (map->type != _DRM_AGP)
 				vma->vm_page_prot = pgprot_writecombine(vma->vm_page_prot);

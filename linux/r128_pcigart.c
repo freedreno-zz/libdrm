@@ -135,7 +135,11 @@ int r128_pcigart_init( drm_device_t *dev )
 	R128_WRITE( R128_PCI_GART_PAGE, virt_to_bus((void *)address) );
 	DRM_DEBUG( "%s: writing PCI_GART_PAGE... done.\n", __FUNCTION__ );
 
+#if __i386__
 	asm volatile ( "wbinvd" ::: "memory" );
+#else
+	mb();
+#endif
 
 	return 0;
 }

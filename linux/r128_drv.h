@@ -28,6 +28,7 @@
  *   Rickard E. (Rik) Faith <faith@valinux.com>
  *   Kevin E. Martin <martin@valinux.com>
  *   Gareth Hughes <gareth@valinux.com>
+ *   Michel Dänzer <daenzerm@student.ethz.ch>
  *
  */
 
@@ -415,9 +416,41 @@ extern int r128_pcigart_init(drm_device_t *dev);
 #define R128_BASE(reg)		((u32)(dev_priv->mmio->handle))
 #define R128_ADDR(reg)		(R128_BASE(reg) + reg)
 
+#ifdef __powerpc__
+
+static __inline__ void
+WriteMmio32Le(int *base, const unsigned long offset,
+                  const unsigned long val)
+{
+        __asm__ __volatile__(
+                        "stwbrx %1,%2,%3\n\t"
+                        : "=m" (*(volatile int *)(base+offset))
+                        : "r" (val), "b" (base), "r" (offset));
+}
+
+static __inline__ unsigned int
+ReadMmio32Le(int *base, const unsigned long offset)
+{
+        register unsigned int val;
+        __asm__ __volatile__(
+                        "lwbrx %0,%1,%2\n\t"
+                        "eieio"
+                        : "=r" (val)
+                        : "b" (base), "r" (offset),
+                        "m" (*(volatile int *)(base+offset)));
+        return(val);
+}
+
+#define R128_READ(reg)		ReadMmio32Le((int *)R128_BASE(reg),reg)
+#define R128_WRITE(reg,val)	WriteMmio32Le((int *)R128_BASE(reg),reg,val)
+
+#else	/* ! __powerpc__; FIXME: other big endian machines need their own code here */
+
 #define R128_DEREF(reg)		*(__volatile__ u32 *)R128_ADDR(reg)
 #define R128_READ(reg)		R128_DEREF(reg)
 #define R128_WRITE(reg,val)	do { R128_DEREF(reg) = val; } while (0)
+
+#endif	/* __powerpc__ */
 
 #define R128_DEREF8(reg)	*(__volatile__ u8 *)R128_ADDR(reg)
 #define R128_READ8(reg)		R128_DEREF8(reg)

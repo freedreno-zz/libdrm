@@ -30,6 +30,7 @@
 
 #define __NO_VERSION__
 #include <linux/config.h>
+#include <linux/vmalloc.h>
 #include "drmP.h"
 #include <linux/wrapper.h>
 
@@ -126,10 +127,23 @@ int drm_sg_alloc( struct inode *inode, struct file *filp,
 
 	for ( i = entry->handle, j = 0 ; j < pages ; i += PAGE_SIZE, j++ ) {
 		pgd = pgd_offset_k( i );
-		pmd = pmd_offset( pgd, i );
-		pte = pte_offset( pmd, i );
 
-		entry->pagelist[j]= pte_page( *pte );
+		if ( pgd_present( *pgd ) && ( pmd = pmd_offset( pgd, i ) )
+				&& pmd_present( *pmd ) && ( pte = pte_offset( pmd, i ) )
+				&& pte_present( *pte ) )
+			entry->pagelist[j] = pte_page( *pte );
+		else
+		{
+			vfree( entry->virtual );
+			drm_free( entry->pagelist,
+				  entry->pages * sizeof(*entry->pagelist),
+				  DRM_MEM_PAGES );
+			drm_free( entry,
+				  sizeof(*entry),
+				  DRM_MEM_SGLISTS );
+			return -ENOMEM;
+		}
+
 		SetPageReserved( entry->pagelist[j] );
 
 		if ( j < 16 ) {
