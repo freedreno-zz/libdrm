@@ -1,3 +1,6 @@
+#ifndef _GAMMA_DRM_H_
+#define _GAMMA_DRM_H_
+
 typedef struct _drm_gamma_tex_region {
 	unsigned char next, prev; /* indices to form a circular LRU  */
 	unsigned char in_use;	/* owned by a client, or free? */
@@ -73,3 +76,4 @@ typedef struct drm_gamma_init {
 	unsigned int buffers_offset;
 } drm_gamma_init_t;
 
+#endif _GAMMA_DRM_H_
