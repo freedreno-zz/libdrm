@@ -1410,41 +1410,53 @@ int drmRemoveSIGIOHandler(int fd)
 
 int drmCommandNone(int fd, unsigned long drmCommandIndex)
 {
-  void *data = NULL; /* dummy */
-  unsigned long request;
+    void *data = NULL; /* dummy */
+    unsigned long request;
 
-  request = DRM_IO( DRM_COMMAND_BASE + drmCommandIndex);
+    request = DRM_IO( DRM_COMMAND_BASE + drmCommandIndex);
 
-  return ioctl(fd, request, data);
+    if (ioctl(fd, request, data)) {
+	return -errno;
+    }
+    return 0;
 }
 
 int drmCommandRead(int fd, unsigned long drmCommandIndex,
                    void *data, unsigned long size )
 {
-  unsigned long request;
+    unsigned long request;
 
-  request = DRM_IOR( DRM_COMMAND_BASE + drmCommandIndex, size);
+    request = DRM_IOR( DRM_COMMAND_BASE + drmCommandIndex, size);
 
-  return ioctl(fd, request, data);
+    if (ioctl(fd, request, data)) {
+	return -errno;
+    }
+    return 0;
 }
 
 int drmCommandWrite(int fd, unsigned long drmCommandIndex,
                    void *data, unsigned long size )
 {
-  unsigned long request;
+    unsigned long request;
 
-  request = DRM_IOW( DRM_COMMAND_BASE + drmCommandIndex, size);
+    request = DRM_IOW( DRM_COMMAND_BASE + drmCommandIndex, size);
 
-  return ioctl(fd, request, data);
+    if (ioctl(fd, request, data)) {
+	return -errno;
+    }
+    return 0;
 }
 
 int drmCommandWriteRead(int fd, unsigned long drmCommandIndex,
                    void *data, unsigned long size )
 {
-  unsigned long request;
+    unsigned long request;
 
-  request = DRM_IOWR( DRM_COMMAND_BASE + drmCommandIndex, size);
+    request = DRM_IOWR( DRM_COMMAND_BASE + drmCommandIndex, size);
 
-  return ioctl(fd, request, data);
+    if (ioctl(fd, request, data)) {
+	return -errno;
+    }
+    return 0;
 }
 #endif
