@@ -824,7 +824,7 @@ static void mga_dma_dispatch_blit( drm_device_t *dev,
 	int nbox = sarea_priv->nbox;
 	u32 scandir = 0, i;
 	DMA_LOCALS;
-	DRM_DEBUG( __FUNCTION__ ":\n" );
+	DRM_DEBUG( "\n" );
 
 	BEGIN_DMA( 4 + nbox );
 
