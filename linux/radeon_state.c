@@ -48,7 +48,6 @@ static inline void radeon_emit_clip_rect( drm_radeon_private_t *dev_priv,
 	DRM_DEBUG( "   box:  x1=%d y1=%d  x2=%d y2=%d\n",
 		   box->x1, box->y1, box->x2, box->y2 );
 
-#if 1
 	BEGIN_RING( 4 );
 	OUT_RING( CP_PACKET0( RADEON_RE_TOP_LEFT, 0 ) );
 	OUT_RING( (box->y1 << 16) | box->x1 );
@@ -56,13 +55,6 @@ static inline void radeon_emit_clip_rect( drm_radeon_private_t *dev_priv,
 /*     OUT_RING( ((box->y2 - 1) << 16) | (box->x2 - 1) );*/
 	OUT_RING( (box->y2 << 16) | box->x2 );
 	ADVANCE_RING();
-#else
-        BEGIN_RING( 3 );
-        OUT_RING( CP_PACKET3( RADEON_CCE_SET_SCISSORS, 1 ));
-        OUT_RING( (box->y1 << 16) | box->x1 );
-        OUT_RING( (box->y2 << 16) | box->x2 );
-        ADVANCE_RING();
-#endif
 }
 
 /* Emit 1.1 state
@@ -289,6 +281,7 @@ static struct {
 	{ R200_SE_VAP_CNTL_STATUS, 1, "R200_SE_VAP_CNTL_STATUS" }, 
 	{ R200_SE_VTX_STATE_CNTL, 1, "R200_SE_VTX_STATE_CNTL" }, 
 	{ R200_RE_POINTSIZE, 1, "R200_RE_POINTSIZE" }, 
+	{ R200_SE_TCL_INPUT_VTX_VECTOR_ADDR_0, 4, "R200_SE_TCL_INPUT_VTX_VECTOR_ADDR_0" },
 };
 
 
@@ -384,7 +377,6 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 		if ( tmp & RADEON_FRONT ) flags |= RADEON_BACK;
 		if ( tmp & RADEON_BACK )  flags |= RADEON_FRONT;
 	}
-
 
 	if ( flags & (RADEON_FRONT | RADEON_BACK) ) {
 

@@ -128,7 +128,8 @@
 #define R200_EMIT_SE_VAP_CNTL_STATUS                57 /* cst/1 */
 #define R200_EMIT_SE_VTX_STATE_CNTL                 58 /* cst/1 */
 #define R200_EMIT_RE_POINTSIZE                      59 /* cst/1 */
-#define RADEON_MAX_STATE_PACKETS                    60
+#define R200_EMIT_TCL_INPUT_VTX_VECTOR_ADDR_0       60 /* cst/4 */
+#define RADEON_MAX_STATE_PACKETS                    61
 
 
 /* Commands understood by cmd_buffer ioctl.  More can be added but
