@@ -73,16 +73,7 @@
  * stuff, and rely on a secure implementation of I830_VERTEX.
  */
 
-static struct file_operations i830_buffer_fops = {
-	.open	 = DRM(open),
-	.flush	 = DRM(flush),
-	.release = DRM(release),
-	.ioctl	 = DRM(ioctl),
-	.mmap	 = i830_mmap_buffers,
-	.fasync  = DRM(fasync),
-};
-
-int i830_mmap_buffers(struct file *filp, struct vm_area_struct *vma)
+static int i830_mmap_buffers(struct file *filp, struct vm_area_struct *vma)
 {
 	drm_file_t	    *priv	  = filp->private_data;
 	drm_device_t	    *dev;
@@ -108,6 +99,17 @@ int i830_mmap_buffers(struct file *filp, struct vm_area_struct *vma)
 			     vma->vm_page_prot)) return -EAGAIN;
 	return 0;
 }
+
+static struct file_operations i830_buffer_fops = {
+	.open	 = DRM(open),
+	.flush	 = DRM(flush),
+	.release = DRM(release),
+	.ioctl	 = DRM(ioctl),
+	.mmap	 = i830_mmap_buffers,
+	.fasync  = DRM(fasync),
+};
+
+
 
 static int i830_map_buffer(drm_buf_t *buf, struct file *filp)
 {

@@ -51,6 +51,14 @@ typedef struct _drm_i830_ring_buffer{
 	int space;
 } drm_i830_ring_buffer_t;
 
+struct mem_block {
+	struct mem_block *next;
+	struct mem_block *prev;
+	int start;
+	int size;
+	DRMFILE filp;		/* 0: free, -1: heap, other: real files */
+};
+
 typedef struct drm_i830_private {
 	drm_map_t *sarea_map;
 	drm_map_t *buffer_map;
@@ -88,63 +96,50 @@ typedef struct drm_i830_private {
    	atomic_t irq_emitted;
 
 	int use_mi_batchbuffer_start;
+	int tex_lru_log_granularity;
+	int tex_lru_nr_regions;
+
+	struct mem_block *agp_heap;
 
 } drm_i830_private_t;
 
 				/* i830_dma.c */
 extern int  i830_dma_schedule(drm_device_t *dev, int locked);
-extern int  i830_getbuf(struct inode *inode, struct file *filp,
-			unsigned int cmd, unsigned long arg);
-extern int  i830_getbuf2(struct inode *inode, struct file *filp,
-			unsigned int cmd, unsigned long arg);
-extern int  i830_dma_init(struct inode *inode, struct file *filp,
-			  unsigned int cmd, unsigned long arg);
 extern int  i830_dma_cleanup(drm_device_t *dev);
-extern int  i830_flush_ioctl(struct inode *inode, struct file *filp,
-			     unsigned int cmd, unsigned long arg);
-extern void i830_reclaim_buffers(struct file *filp);
-extern int  i830_getage(struct inode *inode, struct file *filp, unsigned int cmd,
-			unsigned long arg);
-extern int i830_mmap_buffers(struct file *filp, struct vm_area_struct *vma);
-extern int i830_copybuf(struct inode *inode, struct file *filp, 
-			unsigned int cmd, unsigned long arg);
-extern int i830_docopy(struct inode *inode, struct file *filp, 
-		       unsigned int cmd, unsigned long arg);
-
 extern void i830_dma_quiescent(drm_device_t *dev);
+extern void i830_reclaim_buffers( DRMFILE filp);
 
-extern int i830_dma_vertex(struct inode *inode, struct file *filp,
-			  unsigned int cmd, unsigned long arg);
-
-extern int i830_dma_vertex2(struct inode *inode, struct file *filp,
-			  unsigned int cmd, unsigned long arg);
-
-extern int i830_swap_bufs(struct inode *inode, struct file *filp,
-			 unsigned int cmd, unsigned long arg);
-
-extern int i830_clear_bufs(struct inode *inode, struct file *filp,
-			  unsigned int cmd, unsigned long arg);
-
-extern int i830_flip_bufs(struct inode *inode, struct file *filp,
-			 unsigned int cmd, unsigned long arg);
-
-extern int i830_getparam( struct inode *inode, struct file *filp,
-			  unsigned int cmd, unsigned long arg );
-
-extern int i830_setparam( struct inode *inode, struct file *filp,
-			  unsigned int cmd, unsigned long arg );
+extern int i830_getbuf( DRM_IOCTL_ARGS );
+extern int i830_getbuf2( DRM_IOCTL_ARGS );
+extern int i830_dma_init( DRM_IOCTL_ARGS );
+extern int i830_flush_ioctl( DRM_IOCTL_ARGS );
+extern int i830_getage( DRM_IOCTL_ARGS );
+extern int i830_copybuf( DRM_IOCTL_ARGS );
+extern int i830_docopy( DRM_IOCTL_ARGS );
+extern int i830_dma_vertex( DRM_IOCTL_ARGS );
+extern int i830_dma_vertex2( DRM_IOCTL_ARGS );
+extern int i830_swap_bufs( DRM_IOCTL_ARGS );
+extern int i830_clear_bufs( DRM_IOCTL_ARGS );
+extern int i830_flip_bufs( DRM_IOCTL_ARGS );
+extern int i830_getparam(  DRM_IOCTL_ARGS );
+extern int i830_setparam(  DRM_IOCTL_ARGS );
 
 /* i830_irq.c */
-extern int i830_irq_emit( struct inode *inode, struct file *filp, 
-			  unsigned int cmd, unsigned long arg );
-extern int i830_irq_wait( struct inode *inode, struct file *filp,
-			  unsigned int cmd, unsigned long arg );
+extern int i830_irq_emit(  DRM_IOCTL_ARGS );
+extern int i830_irq_wait(  DRM_IOCTL_ARGS );
 extern int i830_wait_irq(drm_device_t *dev, int irq_nr);
 extern int i830_emit_irq(drm_device_t *dev);
 
 
-#define I830_BASE(reg)		((unsigned long) \
-				dev_priv->mmio_map->handle)
+/* i830_mem.c */
+extern int i830_mem_alloc( DRM_IOCTL_ARGS );
+extern int i830_mem_free( DRM_IOCTL_ARGS );
+extern int i830_mem_init_heap( DRM_IOCTL_ARGS );
+extern void i830_mem_takedown( struct mem_block **heap );
+extern void i830_mem_release( drm_device_t *dev, 
+			      DRMFILE filp, struct mem_block *heap );
+
+#define I830_BASE(reg)		((unsigned long) dev_priv->mmio_map->handle)
 #define I830_ADDR(reg)		(I830_BASE(reg) + reg)
 #define I830_DEREF(reg)		*(__volatile__ unsigned int *)I830_ADDR(reg)
 #define I830_READ(reg)		readl((volatile u32 *)I830_ADDR(reg))
@@ -162,7 +157,7 @@ extern int i830_emit_irq(drm_device_t *dev);
 
 #define BEGIN_LP_RING(n) do {				\
 	if (I830_VERBOSE)				\
-		printk("BEGIN_LP_RING(%d) in %s\n",	\
+		DRM_DEBUG("BEGIN_LP_RING(%d) in %s\n",	\
 			  n, __FUNCTION__);		\
 	if (dev_priv->ring.space < n*4)			\
 		i830_wait_ring(dev, n*4, __FUNCTION__);		\
@@ -174,7 +169,7 @@ extern int i830_emit_irq(drm_device_t *dev);
 
 
 #define OUT_RING(n) do {					\
-	if (I830_VERBOSE) printk("   OUT_RING %x\n", (int)(n));	\
+	if (I830_VERBOSE) DRM_DEBUG("   OUT_RING %x\n", (int)(n));	\
 	*(volatile unsigned int *)(virt + outring) = n;		\
         outcount++;						\
 	outring += 4;						\
@@ -182,7 +177,7 @@ extern int i830_emit_irq(drm_device_t *dev);
 } while (0)
 
 #define ADVANCE_LP_RING() do {						\
-	if (I830_VERBOSE) printk("ADVANCE_LP_RING %x\n", outring);	\
+	if (I830_VERBOSE) DRM_DEBUG("ADVANCE_LP_RING %x\n", outring);	\
 	dev_priv->ring.tail = outring;					\
 	dev_priv->ring.space -= outcount * 4;				\
 	I830_WRITE(LP_RING + RING_TAIL, outring);			\

@@ -78,7 +78,11 @@
 	[DRM_IOCTL_NR(DRM_IOCTL_I830_GETPARAM)] = { i830_getparam,  1, 0 }, \
 	[DRM_IOCTL_NR(DRM_IOCTL_I830_SETPARAM)] = { i830_setparam,  1, 0 }, \
 	[DRM_IOCTL_NR(DRM_IOCTL_I830_GETBUF2)] = { i830_getbuf2,    1, 0 }, \
-	[DRM_IOCTL_NR(DRM_IOCTL_I830_VERTEX2)] = { i830_dma_vertex2,  1, 0 }
+	[DRM_IOCTL_NR(DRM_IOCTL_I830_VERTEX2)] = { i830_dma_vertex2, 1, 0 }, \
+        [DRM_IOCTL_NR(DRM_IOCTL_I830_ALLOC)]   = { i830_mem_alloc,  1, 0 }, \
+        [DRM_IOCTL_NR(DRM_IOCTL_I830_FREE)]    = { i830_mem_free,    1, 0 }, \
+        [DRM_IOCTL_NR(DRM_IOCTL_I830_INIT_HEAP)] = { i830_mem_init_heap, 1, 1 },
+
 
 #define __HAVE_COUNTERS         4
 #define __HAVE_COUNTER6         _DRM_STAT_IRQ
@@ -94,8 +98,29 @@
 } while (0)
 
 #define DRIVER_PRETAKEDOWN() do {					\
+	if ( dev->dev_private ) {					\
+		drm_i830_private_t *dev_priv = dev->dev_private;	\
+	        i830_mem_takedown( &(dev_priv->agp_heap) );             \
+ 	}								\
 	i830_dma_cleanup( dev );					\
 } while (0)
+
+
+/* When a client dies:
+ *    - Free any alloced agp memory.
+ *
+ * DRM infrastructure takes care of reclaiming dma buffers.
+ */
+#define DRIVER_PRERELEASE() 						\
+do {									\
+	if ( dev->dev_private ) {					\
+		drm_i830_private_t *dev_priv = dev->dev_private;	\
+                i830_mem_release( dev, filp, dev_priv->agp_heap );	\
+	}								\
+} while (0)
+
+
+
 
 /* DMA customization:
  */

@@ -1196,7 +1196,7 @@ static int i830_dma_dispatch_vertex2(drm_device_t *dev,
  	OUT_RING( (start<<5)  | 1 ); 
  	ADVANCE_LP_RING(); 
 #else
-	/* 845 ONLY: */
+	/* 845 ONLY, and subject to some lockups: */
 	BEGIN_LP_RING(2);
 	OUT_RING( MI_VERTEX_BUFFER );
 	OUT_RING( start );
@@ -1602,6 +1602,12 @@ int i830_setparam( DRM_IOCTL_ARGS )
 	switch( param.param ) {
 	case I830_SETPARAM_USE_MI_BATCHBUFFER_START:
 		dev_priv->use_mi_batchbuffer_start = param.value;
+		break;
+	case I830_SETPARAM_TEX_LRU_LOG_GRANULARITY:
+		dev_priv->tex_lru_log_granularity = param.value;
+		break;
+	case I830_SETPARAM_TEX_LRU_NR_REGIONS:
+		dev_priv->tex_lru_nr_regions = param.value;
 		break;
 	default:
 		return DRM_ERR(EINVAL);

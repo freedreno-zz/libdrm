@@ -267,6 +267,9 @@ typedef struct _drm_i830_sarea {
 #define DRM_IOCTL_I830_SETPARAM         DRM_IOWR(0x4d, drm_i830_setparam_t)
 #define DRM_IOCTL_I830_GETBUF2		DRM_IOWR(0x4e, drm_i830_dma_t)
 #define DRM_IOCTL_I830_VERTEX2		DRM_IOW( 0x4f, drm_i830_vertex_t)
+#define DRM_IOCTL_I830_ALLOC            DRM_IOWR(0x50, drm_i830_mem_alloc_t)
+#define DRM_IOCTL_I830_FREE             DRM_IOW( 0x51, drm_i830_mem_free_t)
+#define DRM_IOCTL_I830_INIT_HEAP        DRM_IOW( 0x52, drm_i830_mem_init_heap_t)
 
 typedef struct _drm_i830_clear {
 	int clear_color;
@@ -327,11 +330,36 @@ typedef struct drm_i830_getparam {
 /* 1.3: New ioctl to set kernel params:
  */
 #define I830_SETPARAM_USE_MI_BATCHBUFFER_START            1
+#define I830_SETPARAM_PERF_BOXES                          2
+#define I830_SETPARAM_TEX_LRU_LOG_GRANULARITY             3
+#define I830_SETPARAM_TEX_LRU_NR_REGIONS                  4
 
 typedef struct drm_i830_setparam {
 	int param;
 	int value;
 } drm_i830_setparam_t;
+
+/* 1.4: Set up a memory manager for regions of shared memory:
+ */
+#define I830_MEM_REGION_AGP 1
+
+typedef struct drm_i830_mem_alloc {
+	int region;
+	int alignment;
+	int size;
+	int *region_offset;	/* offset from start of fb or agp */
+} drm_i830_mem_alloc_t;
+
+typedef struct drm_i830_mem_free {
+	int region;
+	int region_offset;
+} drm_i830_mem_free_t;
+
+typedef struct drm_i830_mem_init_heap {
+	int region;
+	int size;
+	int start;	
+} drm_i830_mem_init_heap_t;
 
 
 #endif /* _I830_DRM_H_ */
