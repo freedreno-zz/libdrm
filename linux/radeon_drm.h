@@ -57,6 +57,7 @@
 #define RADEON_UPLOAD_CLIPRECTS		0x00008000 /* handled client-side */
 #define RADEON_REQUIRE_QUIESCENCE	0x00010000
 #define RADEON_UPLOAD_ALL		0x0001ffff
+#define RADEON_UPLOAD_CONTEXT_ALL       0x000008ff
 
 #define RADEON_FRONT			0x1
 #define RADEON_BACK			0x2
@@ -164,6 +165,7 @@ typedef struct {
 typedef struct {
 	unsigned int start;
 	unsigned int finish;
+	unsigned int dirty;
 	unsigned int prim:8;
 	unsigned int stateidx:8;
 	unsigned int numverts:16; /* overloaded as offset/64 for elt prims */
@@ -180,9 +182,7 @@ typedef struct {
 	unsigned int pp_txcblend;
 	unsigned int pp_txablend;
 	unsigned int pp_tfactor;
-
 	unsigned int pp_border_color;
-
 } drm_radeon_texture_regs_t;
 
 typedef struct {
