@@ -704,7 +704,7 @@ static void r128_cce_dispatch_indices( drm_device_t *dev,
 	drm_r128_buf_priv_t *buf_priv = buf->dev_private;
 	drm_r128_sarea_t *sarea_priv = dev_priv->sarea_priv;
 	int format = sarea_priv->vc_format;
-	int offset = dev_priv->buffers->offset - dev->agp->base;
+	int offset = dev_priv->buffers->offset - dev_priv->cce_buffers_offset;
 	int prim = buf_priv->prim;
 	u32 *data;
 	int dwords;
@@ -1299,8 +1299,8 @@ int r128_cce_vertex( struct inode *inode, struct file *filp,
 
 	LOCK_TEST_WITH_RETURN( dev );
 
-	if ( !dev_priv || dev_priv->is_pci ) {
-		DRM_ERROR( "%s called with a PCI card\n", __FUNCTION__ );
+	if ( !dev_priv ) {
+		DRM_ERROR( "%s called with no initialization\n", __FUNCTION__ );
 		return -EINVAL;
 	}
 
@@ -1362,8 +1362,8 @@ int r128_cce_indices( struct inode *inode, struct file *filp,
 
 	LOCK_TEST_WITH_RETURN( dev );
 
-	if ( !dev_priv || dev_priv->is_pci ) {
-		DRM_ERROR( "%s called with a PCI card\n", __FUNCTION__ );
+	if ( !dev_priv ) {
+		DRM_ERROR( "%s called with no initialization\n", __FUNCTION__ );
 		return -EINVAL;
 	}
 

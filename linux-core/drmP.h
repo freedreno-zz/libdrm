@@ -145,6 +145,7 @@
 #define DRM_MEM_BOUNDAGP  17
 #define DRM_MEM_CTXBITMAP 18
 #define DRM_MEM_STUB      19
+#define DRM_MEM_SGLISTS   20
 
 #define DRM_MAX_CTXBITMAP (PAGE_SIZE * 8)
 
@@ -199,7 +200,7 @@ __cmpxchg_u32(volatile int *m, int old, int new)
 	unsigned long prev, cmp;
 
 	__asm__ __volatile__(
-	"1:	ldl_l %0,%2\n"
+	"1:	ldl_l %0,%5\n"
 	"	cmpeq %0,%3,%1\n"
 	"	beq %1,2f\n"
 	"	mov %4,%1\n"
@@ -210,7 +211,8 @@ __cmpxchg_u32(volatile int *m, int old, int new)
 	"3:	br 1b\n"
 	".previous"
 	: "=&r"(prev), "=&r"(cmp), "=m"(*m)
-	: "r"((long) old), "r"(new), "m"(*m));
+	: "r"((long) old), "r"(new), "m"(*m)
+	: "memory" );
 
 	return prev;
 }
@@ -221,7 +223,7 @@ __cmpxchg_u64(volatile long *m, unsigned long old, unsigned long new)
 	unsigned long prev, cmp;
 
 	__asm__ __volatile__(
-	"1:	ldq_l %0,%2\n"
+	"1:	ldq_l %0,%5\n"
 	"	cmpeq %0,%3,%1\n"
 	"	beq %1,2f\n"
 	"	mov %4,%1\n"
@@ -232,7 +234,8 @@ __cmpxchg_u64(volatile long *m, unsigned long old, unsigned long new)
 	"3:	br 1b\n"
 	".previous"
 	: "=&r"(prev), "=&r"(cmp), "=m"(*m)
-	: "r"((long) old), "r"(new), "m"(*m));
+	: "r"((long) old), "r"(new), "m"(*m)
+	: "memory" );
 
 	return prev;
 }
@@ -547,7 +550,8 @@ typedef struct drm_device_dma {
 	unsigned long	  *pagelist;
 	unsigned long	  byte_count;
 	enum {
-		_DRM_DMA_USE_AGP = 0x01
+		_DRM_DMA_USE_AGP = 0x01,
+		_DRM_DMA_USE_SG  = 0x02
 	} flags;
 
 				/* DMA support */
@@ -578,6 +582,13 @@ typedef struct drm_agp_head {
    	int 		   agp_mtrr;
 } drm_agp_head_t;
 #endif
+
+typedef struct drm_sg_mem {
+	unsigned long   handle;
+	void            *virtual;
+	int             pages;
+	struct page     **pagelist;
+} drm_sg_mem_t;
 
 typedef struct drm_sigdata {
 	int           context;
@@ -667,6 +678,10 @@ typedef struct drm_device {
 #if __REALLY_HAVE_AGP
 	drm_agp_head_t    *agp;
 #endif
+#ifdef __alpha__
+	struct pci_controler *hose;
+#endif
+	drm_sg_mem_t      *sg;  /* Scatter gather memory */
 	unsigned long     *ctx_bitmap;
 	void		  *dev_private;
 	drm_sigdata_t     sigdata; /* For block_all_signals */
@@ -718,6 +733,9 @@ extern unsigned long DRM(vm_shm_nopage)(struct vm_area_struct *vma,
 extern unsigned long DRM(vm_dma_nopage)(struct vm_area_struct *vma,
 					unsigned long address,
 					int write_access);
+extern unsigned long DRM(vm_sg_nopage)(struct vm_area_struct *vma,
+				       unsigned long address,
+				       int write_access);
 #else
 				/* Return type changed in 2.3.23 */
 extern struct page *DRM(vm_nopage)(struct vm_area_struct *vma,
@@ -729,6 +747,9 @@ extern struct page *DRM(vm_shm_nopage)(struct vm_area_struct *vma,
 extern struct page *DRM(vm_dma_nopage)(struct vm_area_struct *vma,
 				       unsigned long address,
 				       int write_access);
+extern struct page *DRM(vm_sg_nopage)(struct vm_area_struct *vma,
+				      unsigned long address,
+				      int write_access);
 #endif
 extern void	     DRM(vm_open)(struct vm_area_struct *vma);
 extern void	     DRM(vm_close)(struct vm_area_struct *vma);
@@ -946,6 +967,17 @@ extern struct proc_dir_entry *DRM(proc_init)(drm_device_t *dev,
 extern int            DRM(proc_cleanup)(int minor,
 					struct proc_dir_entry *root,
 					struct proc_dir_entry *dev_root);
+
+				/* Scatter Gather Support (drm_scatter.h) */
+extern void           DRM(sg_cleanup)(drm_sg_mem_t *entry);
+extern int            DRM(sg_alloc)(struct inode *inode, struct file *filp,
+                                    unsigned int cmd, unsigned long arg);
+extern int	      DRM(sg_free)(struct inode *inode, struct file *filp,
+                                   unsigned int cmd, unsigned long arg);
+
+                               /* ATI Pcigart support (ati_pcigart.h) */
+extern unsigned long  DRM(ati_pcigart_init)(drm_device_t *dev);
+extern int            DRM(ati_pcigart_cleanup)(unsigned long address);
 
 #endif /* __KERNEL__ */
 #endif

@@ -67,6 +67,8 @@ typedef struct drm_r128_private {
 
 	int usec_timeout;
 	int is_pci;
+	unsigned long phys_pci_gart;
+	unsigned long cce_buffers_offset;
 
 	atomic_t idle_count;
 
@@ -248,6 +250,7 @@ extern int r128_cce_indirect( struct inode *inode, struct file *filp,
 #	define R128_PC_FLUSH_ALL		0x00ff
 #	define R128_PC_BUSY			(1 << 31)
 
+#define R128_PCI_GART_PAGE		0x017c
 #define R128_PRIM_TEX_CNTL_C		0x1cb0
 
 #define R128_SCALE_3D_CNTL		0x1a00
@@ -373,17 +376,36 @@ extern int r128_cce_indirect( struct inode *inode, struct file *filp,
 #define R128_PERFORMANCE_BOXES		0
 
 
-#define R128_BASE(reg)		((u32)(dev_priv->mmio->handle))
+#define R128_BASE(reg)		((unsigned long)(dev_priv->mmio->handle))
 #define R128_ADDR(reg)		(R128_BASE( reg ) + reg)
 
 #define R128_DEREF(reg)		*(volatile u32 *)R128_ADDR( reg )
+#ifdef __alpha__
+#define R128_READ(reg)         (_R128_READ((u32 *)R128_ADDR(reg)))
+static inline u32 _R128_READ(u32 *addr) {
+       mb();
+       return *(volatile u32 *)addr;
+}
+#define R128_WRITE(reg,val)	\
+	do { wmb(); R128_DEREF(reg) = val; } while (0)
+#else
 #define R128_READ(reg)		R128_DEREF( reg )
 #define R128_WRITE(reg,val)	do { R128_DEREF( reg ) = val; } while (0)
+#endif
 
 #define R128_DEREF8(reg)	*(volatile u8 *)R128_ADDR( reg )
+#ifdef __alpha__
+#define R128_READ8(reg)		_R128_READ8((u8 *)R128_ADDR(reg))
+static inline u8 _R128_READ8(u8 *addr) {
+	mb();
+	return *(volatile u8 *)addr;
+}
+#define R128_WRITE8(reg,val)   \
+       do { wmb(); R128_DEREF8(reg) = val; } while (0)
+#else
 #define R128_READ8(reg)		R128_DEREF8( reg )
 #define R128_WRITE8(reg,val)	do { R128_DEREF8( reg ) = val; } while (0)
-
+#endif
 
 #define R128_WRITE_PLL(addr,val)                                              \
 do {                                                                          \
@@ -485,7 +507,7 @@ do {									\
 
 #define ADVANCE_RING() do {						\
 	if ( R128_VERBOSE ) {						\
-		DRM_INFO( "ADVANCE_RING() tail=0x%06x wr=0x%06x\n",	\
+		DRM_INFO( "ADVANCE_RING() wr=0x%06x tail=0x%06x\n",	\
 			  write, dev_priv->ring.tail );			\
 	}								\
 	if ( R128_BROKEN_CCE && write < 32 ) {				\
