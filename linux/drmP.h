@@ -263,7 +263,7 @@ typedef struct drm_buf {
 
 
 	void *dev_private;
-
+	int dev_priv_size;
 
 #if DRM_DMA_HISTOGRAM
 	cycles_t	  time_queued;	   /* Queued to kernel DMA queue     */

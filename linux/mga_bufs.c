@@ -133,7 +133,7 @@ int mga_addbufs_agp(struct inode *inode, struct file *filp, unsigned int cmd,
       buf->pid = 0;
 
       buf->dev_private = drm_alloc(sizeof(drm_mga_buf_priv_t), DRM_MEM_BUFS);
-      
+      buf->dev_priv_size = sizeof(drm_mga_buf_priv_t);
 
 #if DRM_DMA_HISTOGRAM
       buf->time_queued = 0;
