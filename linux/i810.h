@@ -69,7 +69,7 @@
  * be cleaner.
  */
 #define __HAVE_DMA_IRQ		1
-#define __HAVE_DMA_IRQ_BH	1 /* ??? */
+#define __HAVE_DMA_IRQ_BH	0 /* ??? */
 #define __HAVE_SHARED_IRQ       1
 #define DRIVER_PREINSTALL()  return 0
 #define DRIVER_POSTINSTALL() return 0

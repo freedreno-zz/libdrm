@@ -74,11 +74,6 @@ typedef struct drm_i810_private {
 	int w, h;
 	int pitch;
 
-	/* Temporaries to hold userspace data before submitting to the
-	 * ring.
-	 */
-	drm_i810_state_t statetmp[I810_MAX_STATES];
-	drm_i810_prim_t primtmp[I810_MAX_STATES];
 } drm_i810_private_t;
 
 				/* i810_dma.c */
