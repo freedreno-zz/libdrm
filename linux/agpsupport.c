@@ -256,6 +256,7 @@ int drm_agp_free(struct inode *inode, struct file *filp, unsigned int cmd,
 	if (!(entry = drm_agp_lookup_entry(dev, request.handle)))
 		return -EINVAL;
 #if 0
+#if 0
 	if (entry->bound) drm_unbind_agp(entry->memory);
 #endif
    	if(entry->prev) entry->prev->next = entry->next;
@@ -264,6 +265,12 @@ int drm_agp_free(struct inode *inode, struct file *filp, unsigned int cmd,
 	   (entry->prev == NULL)) {
 	   dev->agp->memory = NULL;
 	}
+#else
+	if (entry->bound) drm_unbind_agp(entry->memory);
+	if (entry->prev) entry->prev->next = entry->next;
+	else             dev->agp->memory  = entry->next;
+	if (entry->next) entry->next->prev = entry->prev;
+#endif
 	drm_free_agp(entry->memory, entry->pages);
 	drm_free(entry, sizeof(*entry), DRM_MEM_AGPLISTS);
 	return 0;
