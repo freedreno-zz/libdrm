@@ -321,6 +321,10 @@ struct drm_driver_fn {
 	int (*dma_quiescent)(struct drm_device *);
 	int (*dma_flush_block_and_flush)(struct drm_device *, int context, drm_lock_flags_t flags);
 	int (*dma_flush_unblock)(struct drm_device *, int context, drm_lock_flags_t flags);
+	int (*context_ctor)(struct drm_device *dev, int context);
+	int (*context_dtor)(struct drm_device *dev, int context);
+	int (*kernel_context_switch)(struct drm_device *dev, int old, int new);
+	int (*kernel_context_switch_unlock)(struct drm_device *dev);
 };
 
 struct drm_device {

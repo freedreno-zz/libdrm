@@ -79,10 +79,4 @@
 #define __HAVE_SHARED_IRQ       1
 #define __HAVE_IRQ		1
 
-/* Buffer customization:
- */
-
-#define DRIVER_AGP_BUFFERS_MAP( dev )					\
-	((drm_mach64_private_t *)((dev)->dev_private))->buffers
-
 #endif

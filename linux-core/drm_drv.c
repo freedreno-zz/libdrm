@@ -76,13 +76,6 @@
 #ifndef __HAVE_SG
 #define __HAVE_SG			0
 #endif
-/* __HAVE_KERNEL_CTX_SWITCH isn't used by any of the drm modules in
- * the DRI cvs tree, but it is required by the kernel tree's sparc
- * driver.
- */
-#ifndef __HAVE_KERNEL_CTX_SWITCH
-#define __HAVE_KERNEL_CTX_SWITCH	0
-#endif
 #ifndef __HAVE_DRIVER_FOPS_READ
 #define __HAVE_DRIVER_FOPS_READ		0
 #endif
@@ -284,9 +277,6 @@ static int DRM(setup)( drm_device_t *dev )
 	dev->types[13] = __HAVE_COUNTER13;
 #endif
 #ifdef __HAVE_COUNTER14
-	dev->types[14] = __HAVE_COUNTER14;
-#endif
-#ifdef __HAVE_COUNTER15
 	dev->types[14] = __HAVE_COUNTER14;
 #endif
 
@@ -566,7 +556,9 @@ static int drm_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	dev->pci_slot = PCI_SLOT(pdev->devfn);
 	dev->pci_func = PCI_FUNC(pdev->devfn);
 	dev->irq = pdev->irq;
-	
+
+	/* dev_priv_size can be changed by a driver in driver_register_fns */
+	dev->dev_priv_size = sizeof(u32);
 	DRM(driver_register_fns)(dev);
 
 	if (dev->fn_tbl.preinit)
@@ -957,9 +949,8 @@ int DRM(release)( struct inode *inode, struct file *filp )
 		list_for_each_entry_safe( pos, n, &dev->ctxlist->head, head ) {
 			if ( pos->tag == priv &&
 			     pos->handle != DRM_KERNEL_CONTEXT ) {
-#ifdef DRIVER_CTX_DTOR
-				DRIVER_CTX_DTOR(pos->handle);
-#endif
+				if (dev->fn_tbl.context_dtor)
+					dev->fn_tbl.context_dtor(dev, pos->handle);
 #if __HAVE_CTX_BITMAP
 				DRM(ctxbitmap_free)( dev, pos->handle );
 #endif
@@ -1166,16 +1157,11 @@ int DRM(lock)( struct inode *inode, struct file *filp,
 		if ( dev->fn_tbl.dma_quiescent && (lock.flags & _DRM_LOCK_QUIESCENT ))
 			return dev->fn_tbl.dma_quiescent(dev);
 
-		/* __HAVE_KERNEL_CTX_SWITCH isn't used by any of the
-		 * drm modules in the DRI cvs tree, but it is required
-		 * by the Sparc driver.
-		 */
-#if __HAVE_KERNEL_CTX_SWITCH
-		if ( dev->last_context != lock.context ) {
-			DRM(context_switch)(dev, dev->last_context,
-					    lock.context);
+
+		if ( dev->fn_tbl.kernel_context_switch && dev->last_context != lock.context ) {
+			dev->fn_tbl.kernel_context_switch(dev, dev->last_context,
+							  lock.context);
 		}
-#endif
         }
 
         DRM_DEBUG( "%d %s\n", lock.context, ret ? "interrupted" : "has lock" );
@@ -1212,40 +1198,21 @@ int DRM(unlock)( struct inode *inode, struct file *filp,
 
 	atomic_inc( &dev->counts[_DRM_STAT_UNLOCKS] );
 
-	/* __HAVE_KERNEL_CTX_SWITCH isn't used by any of the drm
-	 * modules in the DRI cvs tree, but it is required by the
-	 * Sparc driver.
-	 */
-#if __HAVE_KERNEL_CTX_SWITCH
-	/* We no longer really hold it, but if we are the next
-	 * agent to request it then we should just be able to
-	 * take it immediately and not eat the ioctl.
-	 */
-	dev->lock.filp = 0;
+	if (dev->fn_tbl.kernel_context_switch_unlock)
+		dev->fn_tbl.kernel_context_switch_unlock(dev);
+	else
 	{
-		__volatile__ unsigned int *plock = &dev->lock.hw_lock->lock;
-		unsigned int old, new, prev, ctx;
-
-		ctx = lock.context;
-		do {
-			old  = *plock;
-			new  = ctx;
-			prev = cmpxchg(plock, old, new);
-		} while (prev != old);
-	}
-	wake_up_interruptible(&dev->lock.lock_queue);
-#else
-	DRM(lock_transfer)( dev, &dev->lock.hw_lock->lock,
-			    DRM_KERNEL_CONTEXT );
+		DRM(lock_transfer)( dev, &dev->lock.hw_lock->lock,
+				    DRM_KERNEL_CONTEXT );
 #if __HAVE_DMA_SCHEDULE
-	DRM(dma_schedule)( dev, 1 );
+		DRM(dma_schedule)( dev, 1 );
 #endif
 
-	if ( DRM(lock_free)( dev, &dev->lock.hw_lock->lock,
-			     DRM_KERNEL_CONTEXT ) ) {
-		DRM_ERROR( "\n" );
+		if ( DRM(lock_free)( dev, &dev->lock.hw_lock->lock,
+				     DRM_KERNEL_CONTEXT ) ) {
+			DRM_ERROR( "\n" );
+		}
 	}
-#endif /* !__HAVE_KERNEL_CTX_SWITCH */
 
 	unblock_all_signals();
 	return 0;

@@ -588,6 +588,10 @@ struct drm_driver_fn {
 	int (*dma_quiescent)(struct drm_device *);
 	int (*dma_flush_block_and_flush)(struct drm_device *, int context, drm_lock_flags_t flags);
 	int (*dma_flush_unblock)(struct drm_device *, int context, drm_lock_flags_t flags);
+	int (*context_ctor)(struct drm_device *dev, int context);
+	int (*context_dtor)(struct drm_device *dev, int context);
+	int (*kernel_context_switch)(struct drm_device *dev, int old, int new);
+	int (*kernel_context_switch_unlock)(struct drm_device *dev);
 };
 /**
  * DRM device structure.
@@ -724,6 +728,8 @@ typedef struct drm_device {
 	
 	int               need_reset;	/**< secondary device needing reset */
 	struct drm_driver_fn fn_tbl;
+	drm_local_map_t   *agp_buffer_map;
+	int               dev_priv_size;
 } drm_device_t;
 
 extern void DRM(driver_register_fns)(struct drm_device *dev);

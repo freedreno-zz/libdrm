@@ -690,15 +690,19 @@ static int mach64_do_dma_init( drm_device_t *dev, drm_mach64_init_t *init )
 			mach64_do_cleanup_dma( dev );
 			return DRM_ERR(ENOMEM);
                 }
-	        DRM_FIND_MAP( dev_priv->buffers, init->buffers_offset );
-		if ( !dev_priv->buffers ) {
+	        DRM_FIND_MAP( dev->agp_buffer_map, init->buffers_offset );
+		if ( !dev->agp_buffer_map ) {
 			DRM_ERROR( "can not find dma buffer map!\n" );
 			dev->dev_private = (void *)dev_priv;
 			mach64_do_cleanup_dma( dev );
 			return DRM_ERR(EINVAL);
 		}
-		DRM_IOREMAP( dev_priv->buffers, dev );
-		if ( !dev_priv->buffers->handle ) {
+		/* there might be a nicer way to do this - 
+		   dev isn't passed all the way though the mach64 - DA */
+		dev_priv->dev_buffers = dev->agp_buffer_map;
+
+		DRM_IOREMAP( dev->agp_buffer_map, dev );
+		if ( !dev->agp_buffer_map->handle ) {
 			DRM_ERROR( "can not ioremap virtual address for"
 				   " dma buffer\n" );
 			dev->dev_private = (void *) dev_priv;
@@ -990,8 +994,8 @@ int mach64_do_cleanup_dma( drm_device_t *dev )
 				DRM_IOREMAPFREE( dev_priv->ring_map, dev );
 		}
 
-		if ( dev_priv->buffers )
-			DRM_IOREMAPFREE( dev_priv->buffers, dev );
+		if ( dev->agp_buffer_map )
+			DRM_IOREMAPFREE( dev->agp_buffer_map, dev );
 
 		mach64_destroy_freelist( dev );
 
