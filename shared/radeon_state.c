@@ -1936,6 +1936,19 @@ static int radeon_emit_packet3_cliprect( drm_device_t *dev,
 		if ( i < cmdbuf->nbox ) {
 			if (DRM_COPY_FROM_USER_UNCHECKED( &box, &boxes[i], sizeof(box) ))
 				return DRM_ERR(EFAULT);
+			/* FIXME The second and subsequent times round this loop, send a
+			 * WAIT_UNTIL_3D_IDLE before calling emit_clip_rect(). This
+			 * fixes a lockup on fast machines when sending several
+			 * cliprects with a cmdbuf, as when waving a 2D window over
+			 * a 3D window. Something in the commands from user space
+			 * seems to hang the card when they're sent several times
+			 * in a row. That would be the correct place to fix it but
+			 * this works around it until I can figure that out - Tim Smith */
+			if ( i ) {
+				BEGIN_RING( 2 );
+				RADEON_WAIT_UNTIL_3D_IDLE();
+				ADVANCE_RING();
+			}
 			radeon_emit_clip_rect( dev_priv, &box );
 		}
 		
@@ -1944,7 +1957,6 @@ static int radeon_emit_packet3_cliprect( drm_device_t *dev,
 		ADVANCE_RING();
 
 	} while ( ++i < cmdbuf->nbox );
-
  	if (cmdbuf->nbox == 1)
 		cmdbuf->nbox = 0;
 
@@ -2107,14 +2119,14 @@ int radeon_cp_getparam( DRM_IOCTL_ARGS )
 		break;
 	case RADEON_PARAM_LAST_FRAME:
 		dev_priv->stats.last_frame_reads++;
-		value = DRM_READ32(&dev_priv->scratch[0]);
+		value = GET_SCRATCH( 0 );
 		break;
 	case RADEON_PARAM_LAST_DISPATCH:
-		value = DRM_READ32(&dev_priv->scratch[1]);
+		value = GET_SCRATCH( 1 );
 		break;
 	case RADEON_PARAM_LAST_CLEAR:
 		dev_priv->stats.last_clear_reads++;
-		value = DRM_READ32(&dev_priv->scratch[2]);
+		value = GET_SCRATCH( 2 );
 		break;
 	default:
 		return DRM_ERR(EINVAL);
