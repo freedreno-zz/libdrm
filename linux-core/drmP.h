@@ -311,6 +311,27 @@ static inline unsigned long __cmpxchg(volatile void *ptr, unsigned long old,
    len += sprintf(&buf[len], fmt , ##arg);				\
    if (len > DRM_PROC_LIMIT) { ret; *eof = 1; return len - offset; }
 
+				/* Mapping helper macros */
+#define DRM_IOREMAP(map)						\
+	(map)->handle = DRM(ioremap)( (map)->offset, (map)->size )
+
+#define DRM_IOREMAPFREE(map)						\
+	do {								\
+		if ( (map)->handle && (map)->size )			\
+			DRM(ioremapfree)( (map)->handle, (map)->size );	\
+	} while (0)
+
+#define DRM_FIND_MAP(map, o)						\
+	do {								\
+		int i;							\
+		for ( i = 0 ; i < dev->map_count ; i++ ) {		\
+			if ( dev->maplist[i]->offset == o ) {		\
+				map = dev->maplist[i];			\
+				break;					\
+			}						\
+		}							\
+	} while (0)
+
 				/* Internal types and structures */
 #define DRM_ARRAY_SIZE(x) (sizeof(x)/sizeof(x[0]))
 #define DRM_MIN(a,b) ((a)<(b)?(a):(b))

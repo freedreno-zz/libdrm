@@ -125,7 +125,7 @@ int DRM(addmap)( struct inode *inode, struct file *filp,
 		}
 		break;
 #if defined(CONFIG_AGP) || defined(CONFIG_AGP_MODULE)
-#if __MUST_HAVE_AGP
+#if 1 /* __MUST_HAVE_AGP GH: WTF??? */
 	case _DRM_AGP:
 		map->offset = map->offset + dev->agp->base;
 		break;
@@ -298,7 +298,7 @@ int DRM(addbufs_agp)( struct inode *inode, struct file *filp,
 	DRM_DEBUG( "dma->buf_count : %d\n", dma->buf_count );
 	DRM_DEBUG( "entry->buf_count : %d\n", entry->buf_count );
 
-#if 1
+#if 0
 	/* FIXME: work this mess out...
 	 */
 	DRM(freelist_create)( &entry->freelist, entry->buf_count );
@@ -468,7 +468,7 @@ int DRM(addbufs_pci)( struct inode *inode, struct file *filp,
 	dma->page_count += entry->seg_count << page_order;
 	dma->byte_count += PAGE_SIZE * (entry->seg_count << page_order);
 
-#if 1
+#if 0
 	/* FIXME: work this mess out...
 	 */
 	DRM(freelist_create)( &entry->freelist, entry->buf_count );
