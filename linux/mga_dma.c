@@ -1158,10 +1158,6 @@ void mga_do_dma_flush( drm_mga_private_t *dev_priv )
 
 	tail = primary->tail + dev_priv->primary->offset;
 
-	mga_flush_write_combine();
-
-	MGA_WRITE( MGA_PRIMEND, tail | MGA_PRIMNOSTART | MGA_PAGPXFER );
-
 	BEGIN_DMA( 1 );
 
 	DMA_BLOCK( MGA_DMAPAD,  0x00000000,
@@ -1170,6 +1166,9 @@ void mga_do_dma_flush( drm_mga_private_t *dev_priv )
 		   MGA_DMAPAD,	0x00000000 );
 
 	ADVANCE_DMA();
+
+	mga_flush_write_combine();
+	MGA_WRITE( MGA_PRIMEND, tail | MGA_PRIMNOSTART | MGA_PAGPXFER );
 
 	head = *primary->head;
 
@@ -1209,7 +1208,6 @@ void mga_do_dma_wrap( drm_mga_private_t *dev_priv )
 	tail = primary->tail + dev_priv->primary->offset;
 
 	mga_flush_write_combine();
-
 	MGA_WRITE( MGA_PRIMEND, tail | MGA_PRIMNOSTART | MGA_PAGPXFER );
 
 	spin_lock_irqsave( &primary->lock, flags );
@@ -1265,7 +1263,6 @@ static void mga_dma_service( int irq, void *device, struct pt_regs *regs )
 	DRM_DEBUG( "      tail = 0x%06x\n", tail - dev_priv->primary->offset );
 
 	mga_flush_write_combine();
-
 	MGA_WRITE( MGA_PRIMADDRESS, head | MGA_DMA_GENERAL );
 	MGA_WRITE( MGA_PRIMEND,     tail | MGA_PRIMNOSTART | MGA_PAGPXFER );
 }
