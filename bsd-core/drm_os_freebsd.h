@@ -192,6 +192,10 @@ while (!condition) {							\
 
 #define PAGE_ALIGN(addr) round_page(addr)
 
+#ifndef M_WAITOK		/* M_WAITOK (=0) name removed in -current */
+#define M_WAITOK 0
+#endif
+
 #define malloctype DRM(M_DRM)
 /* The macros confliced in the MALLOC_DEFINE */
 MALLOC_DECLARE(malloctype);
