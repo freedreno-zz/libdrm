@@ -268,6 +268,9 @@ extern int  r128_context_switch_complete(drm_device_t *dev, int new);
 #define R128_GUI_SCRATCH_REG4		0x15f0
 #define R128_GUI_SCRATCH_REG5		0x15f4
 
+#define R128_WAIT_UNTIL			0x1720
+#define		R128_EVENT_CRTC_OFFSET		(1 <<  0)
+
 #define R128_GUI_STAT			0x1740
 #	define R128_GUI_FIFOCNT_MASK		0x0fff
 #	define R128_GUI_ACTIVE			(1 << 31)
@@ -408,13 +411,24 @@ extern int  r128_context_switch_complete(drm_device_t *dev, int new);
 #define R128_BASE(reg)		((u32)(dev_priv->mmio->handle))
 #define R128_ADDR(reg)		(R128_BASE(reg) + reg)
 
-#define R128_DEREF(reg)		*(__volatile__ int *)R128_ADDR(reg)
+#define R128_DEREF(reg)		*(__volatile__ u32 *)R128_ADDR(reg)
 #define R128_READ(reg)		R128_DEREF(reg)
 #define R128_WRITE(reg,val)	do { R128_DEREF(reg) = val; } while (0)
 
-#define R128_DEREF8(reg)	*(__volatile__ char *)R128_ADDR(reg)
+#define R128_DEREF8(reg)	*(__volatile__ u8 *)R128_ADDR(reg)
 #define R128_READ8(reg)		R128_DEREF8(reg)
 #define R128_WRITE8(reg,val)	do { R128_DEREF8(reg) = val; } while (0)
+
+#define VB_AGE_CHECK_WITH_RET( dev_priv )				\
+do {									\
+	drm_r128_sarea_t *sarea_priv = dev_priv->sarea_priv;		\
+	if ( sarea_priv->last_dispatch >= R128_MAX_VB_AGE ) {		\
+		int __ret = r128_do_cce_idle( dev_priv );		\
+		if ( __ret < 0 ) return __ret;				\
+		sarea_priv->last_dispatch = 0;				\
+		r128_freelist_reset( dev );				\
+	}								\
+} while (0)
 
 #define R128_WRITE_PLL(addr,val)                                              \
 do {                                                                          \
@@ -422,7 +436,7 @@ do {                                                                          \
 	R128_WRITE(R128_CLOCK_CNTL_DATA, (val));                              \
 } while (0)
 
-extern int R128_READ_PLL(drm_device_t *dev, int addr);
+extern u32 R128_READ_PLL(drm_device_t *dev, int addr);
 
 #define R128CCE0(p,r,n)   ((p) | ((n) << 16) | ((r) >> 2))
 #define R128CCE1(p,r1,r2) ((p) | (((r2) >> 2) << 11) | ((r1) >> 2))
@@ -479,6 +493,12 @@ extern int R128_READ_PLL(drm_device_t *dev, int addr);
 	}								\
 	ring[write++] = (x);						\
 	write &= tail_mask;						\
+} while (0)
+
+#define R128_WAIT_UNTIL_PAGE_FLIPPED()				\
+do {									\
+	OUT_RING( CCE_PACKET0( R128_WAIT_UNTIL, 0 ) );			\
+	OUT_RING( R128_EVENT_CRTC_OFFSET );				\
 } while (0)
 
 #define R128_PERFORMANCE_BOXES	0

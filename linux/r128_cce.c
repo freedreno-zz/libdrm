@@ -106,7 +106,7 @@ static u32 r128_cce_microcode[] = {
 	} while (0)
 
 
-int R128_READ_PLL(drm_device_t *dev, int addr)
+u32 R128_READ_PLL(drm_device_t *dev, int addr)
 {
 	drm_r128_private_t *dev_priv = dev->dev_private;
 
@@ -167,7 +167,7 @@ static int r128_do_wait_for_fifo( drm_r128_private_t *dev_priv, int entries )
 	int i;
 
 	for ( i = 0 ; i < dev_priv->usec_timeout ; i++ ) {
-		int slots = R128_READ( R128_GUI_STAT ) & R128_GUI_FIFOCNT_MASK;
+		u32 slots = R128_READ( R128_GUI_STAT ) & R128_GUI_FIFOCNT_MASK;
 		if ( slots >= entries ) return 0;
 		udelay( 1 );
 	}
@@ -242,7 +242,7 @@ static int r128_do_cce_idle( drm_r128_private_t *dev_priv )
 		if ( *dev_priv->ring.head == dev_priv->ring.tail )
 #endif
 		{
-			int pm4stat = R128_READ( R128_PM4_STAT );
+			u32 pm4stat = R128_READ( R128_PM4_STAT );
 			if ( ( (pm4stat & R128_PM4_FIFOCNT_MASK) >=
 			       dev_priv->cce_fifo_size ) &&
 			     !(pm4stat & (R128_PM4_BUSY |
@@ -602,7 +602,7 @@ static int r128_do_init_cce( drm_device_t *dev, drm_r128_init_t *init )
 
 #ifdef DEBUG_RING_AFTER_INIT
 	{
-		int last_dispatch;
+		u32 last_dispatch;
 		RING_LOCALS;
 
 		r128_do_cce_start( dev_priv );

@@ -578,7 +578,9 @@ static void r128_cce_dispatch_flip( drm_device_t *dev )
 	r128_cce_performance_boxes( dev_priv );
 #endif
 
-	BEGIN_RING( 2 );
+	BEGIN_RING( 4 );
+
+	R128_WAIT_UNTIL_PAGE_FLIPPED();
 
 	OUT_RING( CCE_PACKET0( R128_CRTC_OFFSET, 0 ) );
 
@@ -679,15 +681,6 @@ static void r128_cce_dispatch_vertex( drm_device_t *dev,
 
 	dev_priv->sarea_priv->last_dispatch++;
 
-#if 0
-	if ( dev_priv->submit_age == R128_MAX_VB_AGE ) {
-		ret = r128_do_cce_idle( dev_priv );
-		if ( ret < 0 ) return ret;
-		dev_priv->submit_age = 0;
-		r128_freelist_reset( dev );
-	}
-#endif
-
 	sarea_priv->dirty &= ~R128_UPLOAD_CLIPRECTS;
 	sarea_priv->nbox = 0;
 }
@@ -752,15 +745,6 @@ static void r128_cce_dispatch_indirect( drm_device_t *dev,
 	}
 
 	dev_priv->sarea_priv->last_dispatch++;
-
-#if 0
-	if ( dev_priv->submit_age == R128_MAX_VB_AGE ) {
-		ret = r128_do_cce_idle( dev_priv );
-		if ( ret < 0 ) return ret;
-		dev_priv->submit_age = 0;
-		r128_freelist_reset( dev );
-	}
-#endif
 }
 
 static void r128_cce_dispatch_indices( drm_device_t *dev,
@@ -845,15 +829,6 @@ static void r128_cce_dispatch_indices( drm_device_t *dev,
 	}
 
 	dev_priv->sarea_priv->last_dispatch++;
-
-#if 0
-	if ( dev_priv->submit_age == R128_MAX_VB_AGE ) {
-		ret = r128_do_cce_idle( dev_priv );
-		if ( ret < 0 ) return ret;
-		dev_priv->submit_age = 0;
-		r128_freelist_reset( dev );
-	}
-#endif
 
 	sarea_priv->dirty &= ~R128_UPLOAD_CLIPRECTS;
 	sarea_priv->nbox = 0;
@@ -1480,6 +1455,8 @@ int r128_cce_vertex( struct inode *inode, struct file *filp,
 		return -EINVAL;
 	}
 
+        VB_AGE_CHECK_WITH_RET( dev_priv );
+
 	buf = dma->buflist[vertex.idx];
 	buf_priv = buf->dev_private;
 
@@ -1543,6 +1520,8 @@ int r128_cce_indices( struct inode *inode, struct file *filp,
 		return -EINVAL;
 	}
 
+        VB_AGE_CHECK_WITH_RET( dev_priv );
+
 	buf = dma->buflist[elts.idx];
 	buf_priv = buf->dev_private;
 
@@ -1582,6 +1561,7 @@ int r128_cce_blit( struct inode *inode, struct file *filp,
 {
 	drm_file_t *priv = filp->private_data;
 	drm_device_t *dev = priv->dev;
+	drm_r128_private_t *dev_priv = dev->dev_private;
 	drm_device_dma_t *dma = dev->dma;
 	drm_r128_blit_t blit;
 
@@ -1603,6 +1583,8 @@ int r128_cce_blit( struct inode *inode, struct file *filp,
 			   blit.idx, dma->buf_count - 1 );
 		return -EINVAL;
 	}
+
+        VB_AGE_CHECK_WITH_RET( dev_priv );
 
 	return r128_cce_dispatch_blit( dev, &blit );
 }
