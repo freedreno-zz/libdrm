@@ -37,7 +37,7 @@
 
 #define DRIVER_NAME		"radeon"
 #define DRIVER_DESC		"ATI Radeon"
-#define DRIVER_DATE		"20020306"
+#define DRIVER_DATE		"20020408"
 
 #define DRIVER_MAJOR		1
 #define DRIVER_MINOR		3
