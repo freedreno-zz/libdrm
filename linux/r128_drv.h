@@ -403,7 +403,7 @@ extern int  r128_context_switch_complete(drm_device_t *dev, int new);
 
 #define R128_LAST_FRAME_REG		R128_GUI_SCRATCH_REG0
 #define R128_LAST_DISPATCH_REG		R128_GUI_SCRATCH_REG1
-#define R128_MAX_VB_AGE			0xffffffff
+#define R128_MAX_VB_AGE			0x7fffffff
 
 #define R128_MAX_VB_VERTS		(0xffff)
 
