@@ -62,7 +62,6 @@ static inline void i810_dma_dispatch(drm_device_t *dev, unsigned long address,
 
 static inline void i810_dma_quiescent(drm_device_t *dev)
 {
-   printk(KERN_INFO "i810_dma_quiescent\n");
 }
 
 static inline void i810_dma_ready(drm_device_t *dev)
@@ -698,15 +697,7 @@ int i810_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 		return -EINVAL;
 	}
 
-        printk("i810_lock\n");
-   	printk("%d (pid %d) requests lock (0x%08x), flags = 0x%08x\n",
-	       lock.context, current->pid, dev->lock.hw_lock->lock,
-	       lock.flags);
-
 	if (lock.context < 0 || lock.context >= dev->queue_count) {
-	   printk("lock.context = %d, dev->queue_count = %d", lock.context,
-		  dev->queue_count);
-	   printk("return lock.context\n");
 		return -EINVAL;
 	}
 	q = dev->queuelist[lock.context];
@@ -722,7 +713,6 @@ int i810_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 				/* Can't take lock if we just had it and
 				   there is contention. */
 				current->state = TASK_INTERRUPTIBLE;
-			   printk("schedule_timeout\n");
 				schedule_timeout(j);
 			}
 		}
@@ -739,14 +729,12 @@ int i810_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 				dev->lock.lock_time = jiffies;
 				atomic_inc(&dev->total_locks);
 				atomic_inc(&q->total_locks);
-			   printk("Got lock\n");
 				break;	/* Got lock */
 			}
 			
 				/* Contention */
 			atomic_inc(&dev->total_sleeps);
 			current->state = TASK_INTERRUPTIBLE;
-		   printk("Contention\n");
 			schedule();
 			if (signal_pending(current)) {
 				ret = -ERESTARTSYS;
@@ -765,7 +753,6 @@ int i810_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 		if (lock.flags & _DRM_LOCK_QUIESCENT)
 			i810_dma_quiescent(dev);
 	}
-	printk("%d %s\n", lock.context, ret ? "interrupted" : "has lock");
 
 #if DRM_DMA_HISTOGRAM
 	atomic_inc(&dev->histo.lacq[drm_histogram_slot(get_cycles() - start)]);
