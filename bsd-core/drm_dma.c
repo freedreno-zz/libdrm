@@ -157,10 +157,8 @@ int DRM(irq_install)( drm_device_t *dev, int irq )
 {
 	int retcode;
 
-	if ( !irq )
-		return DRM_ERR(EINVAL);
 
-	if (dev->dev_private == NULL)
+	if ( !irq || !dev->dev_private ) 
 		return DRM_ERR(EINVAL);
 
 	DRM_LOCK;
@@ -171,7 +169,6 @@ int DRM(irq_install)( drm_device_t *dev, int irq )
 	dev->irq = irq;
 	DRM_UNLOCK;
 
-	DRM_DEBUG( "%s: irq=%d\n", __FUNCTION__, irq );
 
 	dev->context_flag = 0;
 
@@ -193,7 +190,7 @@ int DRM(irq_install)( drm_device_t *dev, int irq )
 				/* Install handler */
 	dev->irqrid = 0;
 #ifdef __FreeBSD__
-	dev->irqr = bus_alloc_resource(dev->device, SYS_RES_IRQ, &dev->irqrid,
+	dev->irqr = bus_alloc_resource(device_get_parent(dev->device), SYS_RES_IRQ, &dev->irqrid,
 				      0, ~0, 1, RF_SHAREABLE);
 	if (!dev->irqr) {
 #elif defined(__NetBSD__)
@@ -208,7 +205,7 @@ int DRM(irq_install)( drm_device_t *dev, int irq )
 	
 #ifdef __FreeBSD__
 #if __FreeBSD_version < 500000
-	retcode = bus_setup_intr(dev->device, dev->irqr, INTR_TYPE_TTY,
+	retcode = bus_setup_intr(device_get_parent(dev->device), dev->irqr, INTR_TYPE_TTY,
 				 DRM(dma_service), dev, &dev->irqh);
 #else
 	retcode = bus_setup_intr(dev->device, dev->irqr, INTR_TYPE_TTY | INTR_MPSAFE,
@@ -222,7 +219,7 @@ int DRM(irq_install)( drm_device_t *dev, int irq )
 #endif
 		DRM_LOCK;
 #ifdef __FreeBSD__
-		bus_release_resource(dev->device, SYS_RES_IRQ, dev->irqrid, dev->irqr);
+		bus_release_resource(device_get_parent(dev->device), SYS_RES_IRQ, dev->irqrid, dev->irqr);
 #endif
 		dev->irq = 0;
 		dev->irqrid = 0;
@@ -256,8 +253,8 @@ int DRM(irq_uninstall)( drm_device_t *dev )
 	DRM(driver_irq_uninstall)( dev );
 
 #ifdef __FreeBSD__
-	bus_teardown_intr(dev->device, dev->irqr, dev->irqh);
-	bus_release_resource(dev->device, SYS_RES_IRQ, irqrid, dev->irqr);
+	bus_teardown_intr(device_get_parent(dev->device), dev->irqr, dev->irqh);
+	bus_release_resource(device_get_parent(dev->device), SYS_RES_IRQ, irqrid, dev->irqr);
 #elif defined(__NetBSD__)
 	pci_intr_disestablish(&dev->pa.pa_pc, dev->irqh);
 #endif

@@ -36,7 +36,8 @@
 #include "i830_drv.h"
 
 drm_chipinfo_t DRM(devicelist)[] = {
-	{0x1002, 0x4242, 1, "Intel i865G"},
+	{0x8086, 0x3582, 1, "Intel i865G"},
+	{0x8086, 0x2572, 1, "Intel i865G"},
 	{0, 0, 0, NULL}
 };
 
@@ -57,7 +58,7 @@ drm_chipinfo_t DRM(devicelist)[] = {
 #include "drm_scatter.h"
 
 #ifdef __FreeBSD__
-DRIVER_MODULE(DRIVER_NAME, pci, DRM(driver), DRM(devclass), 0, 0);
+DRIVER_MODULE(DRIVER_NAME, agp, DRM(driver), DRM(devclass), 0, 0);
 #elif defined(__NetBSD__)
 CFDRIVER_DECL(i830, DV_TTY, NULL);
 #endif /* __FreeBSD__ */

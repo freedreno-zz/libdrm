@@ -224,7 +224,7 @@ static int DRM(probe)(device_t dev)
 {
 	const char *s = NULL;
 
-	int pciid=pci_get_devid(dev);
+	int pciid=pci_get_devid(device_get_parent(dev));
 	int vendor = (pciid & 0x0000ffff);
 	int device = (pciid & 0xffff0000) >> 16;
 	
