@@ -34,6 +34,8 @@
 #define __NO_VERSION__
 #include "i830.h"
 #include "drmP.h"
+#include "drm.h"
+#include "i830_drm.h"
 #include "i830_drv.h"
 #include <linux/interrupt.h>	/* For task queue support */
 
@@ -91,7 +93,7 @@ do {								\
 	*(volatile unsigned int *)(virt + outring) = n;			\
 	outring += 4;							\
 	outring &= ringmask;						\
-} while (0);
+} while (0)
 
 static inline void i830_print_status_page(drm_device_t *dev)
 {

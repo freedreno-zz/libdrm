@@ -600,6 +600,24 @@ int DRM(control)( DRM_OS_IOCTL )
 	}
 }
 
+#else
+
+int DRM(control)( DRM_OS_IOCTL )
+{
+	DRM_OS_DEVICE;
+	drm_control_t ctl;
+
+	DRM_OS_KRNFROMUSR( ctl, (drm_control_t *) data, sizeof(ctl) );
+
+	switch ( ctl.func ) {
+	case DRM_INST_HANDLER:
+	case DRM_UNINST_HANDLER:
+		return 0;
+	default:
+		DRM_OS_RETURN(EINVAL);
+	}
+}
+
 #endif /* __HAVE_DMA_IRQ */
 
 #endif /* __HAVE_DMA */
