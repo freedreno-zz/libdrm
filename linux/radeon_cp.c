@@ -600,15 +600,6 @@ static void radeon_cp_init_ring_buffer( drm_device_t *dev )
 	/* Set ring buffer size */
 	RADEON_WRITE( RADEON_CP_RB_CNTL, dev_priv->ring.size_l2qw );
 
-	/* Initialize the scratch register pointer.
-	 * GH: We really want to do this, but it seems to be causing
-	 * some instability.  I'll look into this later on...
-	 * GH: I'll remove the magic numbers when it works.
-	 */
-	RADEON_WRITE( RADEON_SCRATCH_ADDR, (dev_priv->ring_rptr->offset +
-					    RADEON_SCRATCH_REG_OFFSET) );
-	RADEON_WRITE( RADEON_SCRATCH_UMSK, 0x7 );
-
 	radeon_do_wait_for_idle( dev_priv );
 
 	/* Turn off PCI GART */
@@ -744,6 +735,15 @@ static int radeon_do_init_cp( drm_device_t *dev, drm_radeon_init_t *init )
 
 	dev_priv->ring.tail_mask =
 		(dev_priv->ring.size / sizeof(u32)) - 1;
+
+	/* Initialize the scratch register pointer.
+	 * GH: We really want to do this, but it seems to be causing
+	 * some instability.  I'll look into this later on...
+	 * GH: I'll remove the magic numbers when it works.
+	 */
+	RADEON_WRITE( RADEON_SCRATCH_ADDR, (dev_priv->ring_rptr->offset +
+					    RADEON_SCRATCH_REG_OFFSET) );
+	RADEON_WRITE( RADEON_SCRATCH_UMSK, 0x7 );
 
 	dev_priv->scratch = ((__volatile__ u32 *)
 			     dev_priv->ring_rptr->handle +
