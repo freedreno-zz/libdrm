@@ -367,8 +367,6 @@ static int mga_takedown(drm_device_t *dev)
 	}
 	lockmgr(&dev->dev_lock, LK_RELEASE, 0, curproc);
 	
-	device_unbusy(dev->device);
-
 	return 0;
 }
 
@@ -462,8 +460,6 @@ void mga_cleanup(device_t nbdev)
 	}
 #endif
 
-	device_busy(dev->device);
-
 	mga_takedown(dev);
 	if (dev->agp) {
 		drm_free(dev->agp, sizeof(*dev->agp), DRM_MEM_AGPLISTS);
@@ -514,7 +510,7 @@ mga_open(dev_t kdev, int flags, int fmt, struct proc *p)
 		simple_lock(&dev->count_lock);
 		if (!dev->open_count++) {
 			simple_unlock(&dev->count_lock);
-			return mga_setup(dev);
+			retcode = mga_setup(dev);
 		}
 		simple_unlock(&dev->count_lock);
 	}
@@ -607,6 +603,7 @@ mga_close(dev_t kdev, int flags, int fmt, struct proc *p)
 		   	return EBUSY;
 		}
 	   	simple_unlock(&dev->count_lock);
+		device_unbusy(dev->device);
 	   	return mga_takedown(dev);
 	}
    	simple_unlock(&dev->count_lock);
