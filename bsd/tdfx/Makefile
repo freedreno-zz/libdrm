@@ -12,4 +12,4 @@ KERN    = /usr/src/sys
 machine:
 	ln -sf /sys/i386/include machine
 
-.include "/usr/src/sys/conf/kmod.mk"
+.include <bsd.kmod.mk>
