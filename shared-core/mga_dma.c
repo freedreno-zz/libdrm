@@ -27,7 +27,7 @@
  * Authors:
  *    Rickard E. (Rik) Faith <faith@valinux.com>
  *    Jeff Hartmann <jhartmann@valinux.com>
- *    Keith Whitwell <keithw@valinux.com>
+ *    Keith Whitwell <keith@tungstengraphics.com>
  *
  * Rewritten by:
  *    Gareth Hughes <gareth@valinux.com>
@@ -157,8 +157,17 @@ void mga_do_dma_flush( drm_mga_private_t *dev_priv )
 {
 	drm_mga_primary_buffer_t *primary = &dev_priv->prim;
 	u32 head, tail;
-	DMA_LOCALS;
+	u32 status = 0;
+	int i;
+ 	DMA_LOCALS;
 	DRM_DEBUG( "\n" );
+
+        /* We need to wait so that we can do an safe flush */
+	for ( i = 0 ; i < dev_priv->usec_timeout ; i++ ) {
+		status = MGA_READ( MGA_STATUS ) & MGA_ENGINE_IDLE_MASK;
+		if ( status == MGA_ENDPRDMASTS ) break;
+		DRM_UDELAY( 1 );
+	}
 
 	if ( primary->tail == primary->last_flush ) {
 		DRM_DEBUG( "   bailing out...\n" );
