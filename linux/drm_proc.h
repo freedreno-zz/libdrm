@@ -506,20 +506,21 @@ static int DRM(_histo_info)(char *buf, char **start, off_t offset, int request,
 
 	DRM_PROC_PRINT("general statistics:\n");
 	DRM_PROC_PRINT("total	 %10u\n", atomic_read(&dev->histo.total));
-	DRM_PROC_PRINT("open	 %10u\n", atomic_read(&dev->total_open));
-	DRM_PROC_PRINT("close	 %10u\n", atomic_read(&dev->total_close));
-	DRM_PROC_PRINT("ioctl	 %10u\n", atomic_read(&dev->total_ioctl));
-	DRM_PROC_PRINT("irq	 %10u\n", atomic_read(&dev->total_irq));
-	DRM_PROC_PRINT("ctx	 %10u\n", atomic_read(&dev->total_ctx));
+	DRM_PROC_PRINT("open	 %10u\n",
+		       atomic_read(&dev->counts[_DRM_STAT_OPENS]));
+	DRM_PROC_PRINT("close	 %10u\n",
+		       atomic_read(&dev->counts[_DRM_STAT_CLOSES]));
+	DRM_PROC_PRINT("ioctl	 %10u\n",
+		       atomic_read(&dev->counts[_DRM_STAT_IOCTLS]));
 
 	DRM_PROC_PRINT("\nlock statistics:\n");
-	DRM_PROC_PRINT("locks	 %10u\n", atomic_read(&dev->total_locks));
-	DRM_PROC_PRINT("unlocks	 %10u\n", atomic_read(&dev->total_unlocks));
-	DRM_PROC_PRINT("contends %10u\n", atomic_read(&dev->total_contends));
-	DRM_PROC_PRINT("sleeps	 %10u\n", atomic_read(&dev->total_sleeps));
-
+	DRM_PROC_PRINT("locks	 %10u\n",
+		       atomic_read(&dev->counts[_DRM_STAT_LOCKS]));
+	DRM_PROC_PRINT("unlocks	 %10u\n",
+		       atomic_read(&dev->counts[_DRM_STAT_UNLOCKS]));
 
 	if (dma) {
+#if 0
 		DRM_PROC_PRINT("\ndma statistics:\n");
 		DRM_PROC_PRINT("prio	 %10u\n",
 			       atomic_read(&dma->total_prio));
@@ -542,6 +543,7 @@ static int DRM(_histo_info)(char *buf, char **start, off_t offset, int request,
 			       atomic_read(&dma->total_hit));
 		DRM_PROC_PRINT("lost	 %10u\n",
 			       atomic_read(&dma->total_lost));
+#endif
 
 		buffer = dma->next_buffer;
 		if (buffer) {

@@ -159,3 +159,34 @@ int DRM(getclient)( struct inode *inode, struct file *filp,
 		return -EFAULT;
 	return 0;
 }
+
+int DRM(getstats)( struct inode *inode, struct file *filp,
+		   unsigned int cmd, unsigned long arg )
+{
+	drm_file_t   *priv = filp->private_data;
+	drm_device_t *dev  = priv->dev;
+	drm_stats_t  stats;
+	int          i;
+
+	memset(&stats, 0, sizeof(stats));
+	
+	down(&dev->struct_sem);
+
+	for (i = 0; i < dev->counters; i++) {
+		if (dev->types[i] == _DRM_STAT_LOCK)
+			stats.data[i].value
+				= (dev->lock.hw_lock
+				   ? dev->lock.hw_lock->lock : 0);
+		else 
+			stats.data[i].value = atomic_read(&dev->counts[i]);
+		stats.data[i].type  = dev->types[i];
+	}
+	
+	stats.count = dev->counters;
+
+	up(&dev->struct_sem);
+
+	if (copy_to_user((drm_stats_t *)arg, &stats, sizeof(stats)))
+		return -EFAULT;
+	return 0;
+}

@@ -54,6 +54,7 @@ static drm_ioctl_desc_t		mga_ioctls[] = {
 	[DRM_IOCTL_NR(DRM_IOCTL_IRQ_BUSID)]   = { mga_irq_busid,   0, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_GET_MAP)]     = { mga_getmap,      0, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_GET_CLIENT)]  = { mga_getclient,   0, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_GET_STATS)]   = { mga_getstats,    0, 0 },
 
 	[DRM_IOCTL_NR(DRM_IOCTL_SET_UNIQUE)]  = { mga_setunique,   1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_BLOCK)]       = { mga_block,       1, 1 },
@@ -117,6 +118,11 @@ static drm_ioctl_desc_t		mga_ioctls[] = {
 
 #define __HAVE_DMA		1
 #define __HAVE_DMA_IRQ		1
+
+#define __HAVE_COUNTERS         3
+#define __HAVE_COUNTER6         _DRM_STAT_IRQ
+#define __HAVE_COUNTER7         _DRM_STAT_PRIMARY
+#define __HAVE_COUNTER8         _DRM_STAT_SECONDARY
 
 #if 0
 #define __HAVE_DMA_QUEUE	1

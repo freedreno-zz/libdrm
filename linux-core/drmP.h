@@ -485,6 +485,7 @@ typedef struct drm_lock_data {
 } drm_lock_data_t;
 
 typedef struct drm_device_dma {
+#if 0
 				/* Performance Counters */
 	atomic_t	  total_prio;	/* Total DRM_DMA_PRIORITY	   */
 	atomic_t	  total_bytes;	/* Total bytes DMA'd		   */
@@ -498,6 +499,7 @@ typedef struct drm_device_dma {
 	atomic_t	  total_tried;	/* Tried next_buffer		    */
 	atomic_t	  total_hit;	/* Sent next_buffer		    */
 	atomic_t	  total_lost;	/* Lost interrupt		    */
+#endif
 
 	drm_buf_entry_t	  bufs[DRM_MAX_ORDER+1];
 	int		  buf_count;
@@ -565,17 +567,10 @@ typedef struct drm_device {
 	int		  buf_use;	/* Buffers in use -- cannot alloc  */
 	atomic_t	  buf_alloc;	/* Buffer allocation in progress   */
 
-				/* Performance Counters */
-	atomic_t	  total_open;
-	atomic_t	  total_close;
-	atomic_t	  total_ioctl;
-	atomic_t	  total_irq;	/* Total interruptions		   */
-	atomic_t	  total_ctx;	/* Total context switches	   */
-
-	atomic_t	  total_locks;
-	atomic_t	  total_unlocks;
-	atomic_t	  total_contends;
-	atomic_t	  total_sleeps;
+				/* Performance counters */
+	unsigned long     counters;
+	drm_stat_type_t   types[15];
+	atomic_t          counts[15];
 
 				/* Authentication */
 	drm_file_t	  *file_first;
@@ -732,6 +727,8 @@ extern int	     DRM(getmap)(struct inode *inode, struct file *filp,
 				 unsigned int cmd, unsigned long arg);
 extern int	     DRM(getclient)(struct inode *inode, struct file *filp,
 				    unsigned int cmd, unsigned long arg);
+extern int	     DRM(getstats)(struct inode *inode, struct file *filp,
+				   unsigned int cmd, unsigned long arg);
 
 				/* Context IOCTL support (context.c) */
 extern int	     DRM(resctx)( struct inode *inode, struct file *filp,

@@ -146,15 +146,46 @@ static int DRM(setup)( drm_device_t *dev )
 		return i;
 #endif
 
-	atomic_set( &dev->total_open, 0 );
-	atomic_set( &dev->total_close, 0 );
-	atomic_set( &dev->total_ioctl, 0 );
-	atomic_set( &dev->total_irq, 0 );
-	atomic_set( &dev->total_ctx, 0 );
-	atomic_set( &dev->total_locks, 0 );
-	atomic_set( &dev->total_unlocks, 0 );
-	atomic_set( &dev->total_contends, 0 );
-	atomic_set( &dev->total_sleeps, 0 );
+	dev->counters  = 6 + __HAVE_COUNTERS;
+	dev->types[0]  = _DRM_STAT_LOCK;
+	dev->types[1]  = _DRM_STAT_OPENS;
+	dev->types[2]  = _DRM_STAT_CLOSES;
+	dev->types[3]  = _DRM_STAT_IOCTLS;
+	dev->types[4]  = _DRM_STAT_LOCKS;
+	dev->types[5]  = _DRM_STAT_UNLOCKS;
+#ifdef __HAVE_COUNTER6
+	dev->types[6]  = __HAVE_COUNTER6;
+#endif
+#ifdef __HAVE_COUNTER7
+	dev->types[7]  = __HAVE_COUNTER7;
+#endif
+#ifdef __HAVE_COUNTER8
+	dev->types[8]  = __HAVE_COUNTER8;
+#endif
+#ifdef __HAVE_COUNTER9
+	dev->types[9]  = __HAVE_COUNTER9;
+#endif
+#ifdef __HAVE_COUNTER10
+	dev->types[10] = __HAVE_COUNTER10;
+#endif
+#ifdef __HAVE_COUNTER11
+	dev->types[11] = __HAVE_COUNTER11;
+#endif
+#ifdef __HAVE_COUNTER12
+	dev->types[12] = __HAVE_COUNTER12;
+#endif
+#ifdef __HAVE_COUNTER13
+	dev->types[13] = __HAVE_COUNTER13;
+#endif
+#ifdef __HAVE_COUNTER14
+	dev->types[14] = __HAVE_COUNTER14;
+#endif
+#ifdef __HAVE_COUNTER15
+	dev->types[14] = __HAVE_COUNTER14;
+#endif
+		
+	for (i = 0; i < DRM_ARRAY_SIZE(dev->counts); i++)
+		atomic_set(&dev->counts[i], 0);
 
 	for ( i = 0 ; i < DRM_HASH_SIZE ; i++ ) {
 		dev->magiclist[i].head = NULL;
@@ -499,7 +530,7 @@ int DRM(open)( struct inode *inode, struct file *filp )
 #if LINUX_VERSION_CODE < 0x020333
 		MOD_INC_USE_COUNT; /* Needed before Linux 2.3.51 */
 #endif
-		atomic_inc( &dev->total_open );
+		atomic_inc( &dev->counts[_DRM_STAT_OPENS] );
 		spin_lock( &dev->count_lock );
 		if ( !dev->open_count++ ) {
 			spin_unlock( &dev->count_lock );
@@ -562,7 +593,7 @@ int DRM(release)( struct inode *inode, struct file *filp )
 					     DRM_KERNEL_CONTEXT ) ) {
 				dev->lock.pid	    = priv->pid;
 				dev->lock.lock_time = jiffies;
-				atomic_inc( &dev->total_locks );
+                                atomic_inc( &dev->counts[_DRM_STAT_LOCKS] );
 				break;	/* Got lock */
 			}
 				/* Contention */
@@ -616,7 +647,7 @@ int DRM(release)( struct inode *inode, struct file *filp )
 #if LINUX_VERSION_CODE < 0x020333
 	MOD_DEC_USE_COUNT; /* Needed before Linux 2.3.51 */
 #endif
-	atomic_inc( &dev->total_close );
+	atomic_inc( &dev->counts[_DRM_STAT_CLOSES] );
 	spin_lock( &dev->count_lock );
 	if ( !--dev->open_count ) {
 		if ( atomic_read( &dev->ioctl_count ) || dev->blocked ) {
@@ -650,7 +681,7 @@ int DRM(ioctl)( struct inode *inode, struct file *filp,
 	int retcode = 0;
 
 	atomic_inc( &dev->ioctl_count );
-	atomic_inc( &dev->total_ioctl );
+	atomic_inc( &dev->counts[_DRM_STAT_IOCTLS] );
 	++priv->ioctl_count;
 
 	DRM_DEBUG( "pid=%d, cmd=0x%02x, nr=0x%02x, dev 0x%x, auth=%d\n",
@@ -735,7 +766,7 @@ int DRM(lock)( struct inode *inode, struct file *filp,
 					     lock.context ) ) {
                                 dev->lock.pid       = current->pid;
                                 dev->lock.lock_time = jiffies;
-                                atomic_inc( &dev->total_locks );
+                                atomic_inc( &dev->counts[_DRM_STAT_LOCKS] );
 #if __HAVE_MULTIPLE_DMA_QUEUES
 				atomic_inc( &q->total_locks );
 #endif
@@ -743,7 +774,6 @@ int DRM(lock)( struct inode *inode, struct file *filp,
                         }
 
                                 /* Contention */
-                        atomic_inc( &dev->total_sleeps );
                         schedule();
                         if ( signal_pending( current ) ) {
                                 ret = -ERESTARTSYS;
@@ -806,9 +836,7 @@ int DRM(unlock)( struct inode *inode, struct file *filp,
 		return -EINVAL;
 	}
 
-	atomic_inc( &dev->total_unlocks );
-	if ( _DRM_LOCK_IS_CONT( dev->lock.hw_lock->lock ) )
-		atomic_inc( &dev->total_contends );
+	atomic_inc( &dev->counts[_DRM_STAT_UNLOCKS] );
 
 	DRM(lock_transfer)( dev, &dev->lock.hw_lock->lock,
 			    DRM_KERNEL_CONTEXT );

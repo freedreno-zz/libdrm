@@ -41,6 +41,22 @@
 #define DRM_VERSION 0x00000001
 #define DRM_MEMORY  0x00000002
 #define DRM_CLIENTS 0x00000004
+#define DRM_STATS   0x00000008
+
+typedef struct drmStatsS {
+    unsigned long count;
+    struct {
+	unsigned long value;
+	const char    *long_format;
+	const char    *long_name;
+	const char    *rate_format;
+	const char    *rate_name;
+	int           isvalue;
+	const char    *mult_names;
+	int           mult;
+	int           verbose;
+    } data[15];
+} drmStatsT;
 
 static void getversion(int fd)
 {
@@ -102,6 +118,113 @@ int drmGetClient(int fd, int idx, int *auth, int *pid, int *uid,
     *uid       = client.uid;
     *magic     = client.magic;
     *iocs      = client.iocs;
+    return 0;
+}
+
+int drmGetStats(int fd, drmStatsT *stats)
+{
+    drm_stats_t s;
+    int         i;
+
+    if (ioctl(fd, DRM_IOCTL_GET_STATS, &s)) return -errno;
+
+    stats->count = 0;
+    memset(stats, 0, sizeof(*stats));
+    if (s.count > sizeof(stats->data)/sizeof(stats->data[0]))
+	return -1;
+
+#define SET_VALUE                            \
+    stats->data[i].long_format = "%-9.9s";   \
+    stats->data[i].rate_format = "%8.8s";    \
+    stats->data[i].isvalue     = 1;          \
+    stats->data[i].verbose     = 0
+
+#define SET_COUNT                            \
+    stats->data[i].long_format = "%-9.9s";   \
+    stats->data[i].rate_format = "%5.5s";    \
+    stats->data[i].isvalue     = 0;          \
+    stats->data[i].mult_names  = "kgm";      \
+    stats->data[i].mult        = 1000;       \
+    stats->data[i].verbose     = 0
+
+#define SET_BYTE                             \
+    stats->data[i].long_format = "%-9.9s";   \
+    stats->data[i].rate_format = "%5.5s";    \
+    stats->data[i].isvalue     = 0;          \
+    stats->data[i].mult_names  = "KGM";      \
+    stats->data[i].mult        = 1024;       \
+    stats->data[i].verbose     = 0
+
+
+    stats->count = s.count;
+    for (i = 0; i < s.count; i++) {
+	stats->data[i].value = s.data[i].value;
+	switch (s.data[i].type) {
+	case _DRM_STAT_LOCK:
+	    stats->data[i].long_name = "Lock";
+	    stats->data[i].rate_name = "Lock";
+	    SET_VALUE;
+	    break;
+	case _DRM_STAT_OPENS:
+	    stats->data[i].long_name = "Opens";
+	    stats->data[i].rate_name = "O";
+	    SET_COUNT;
+	    stats->data[i].verbose   = 1;
+	    break;
+	case _DRM_STAT_CLOSES:
+	    stats->data[i].long_name = "Closes";
+	    stats->data[i].rate_name = "Lock";
+	    SET_COUNT;
+	    stats->data[i].verbose   = 1;
+	    break;
+	case _DRM_STAT_IOCTLS:
+	    stats->data[i].long_name = "Ioctls";
+	    stats->data[i].rate_name = "Ioc/s";
+	    SET_COUNT;
+	    break;
+	case _DRM_STAT_LOCKS:
+	    stats->data[i].long_name = "Locks";
+	    stats->data[i].rate_name = "Lck/s";
+	    SET_COUNT;
+	    break;
+	case _DRM_STAT_UNLOCKS:
+	    stats->data[i].long_name = "Unlocks";
+	    stats->data[i].rate_name = "Unl/s";
+	    SET_COUNT;
+	    break;
+	case _DRM_STAT_IRQ:
+	    stats->data[i].long_name = "IRQs";
+	    stats->data[i].rate_name = "IRQ/s";
+	    SET_COUNT;
+	    break;
+	case _DRM_STAT_PRIMARY:
+	    stats->data[i].long_name = "Primary";
+	    stats->data[i].rate_name = "Pri/s";
+	    SET_COUNT;
+	    break;
+	case _DRM_STAT_SECONDARY:
+	    stats->data[i].long_name = "Secondary";
+	    stats->data[i].rate_name = "Sec/s";
+	    SET_COUNT;
+	    break;
+	case _DRM_STAT_VALUE:
+	    stats->data[i].long_name = "Value";
+	    stats->data[i].rate_name = "Value";
+	    SET_VALUE;
+	    break;
+	case _DRM_STAT_BYTE:
+	    stats->data[i].long_name = "Bytes";
+	    stats->data[i].rate_name = "B/s";
+	    SET_BYTE;
+	    break;
+	case _DRM_STAT_COUNT:
+	default:
+	    stats->data[i].long_name = "Count";
+	    stats->data[i].rate_name = "Cnt/s";
+	    SET_COUNT;
+	    break;
+	}
+    }
     return 0;
 }
 
@@ -178,6 +301,84 @@ static void getclients(int fd)
     }
 }
 
+static void printhuman(unsigned long value, const char *name, int mult)
+{
+    const char *p;
+    double     f;
+				/* Print width 5 number in width 6 space */
+    if (value < 100000) {
+	printf(" %5lu", value);
+	return;
+    }
+
+    p = name;
+    f = (double)value / (double)mult;
+    if (f < 10.0) {
+	printf(" %4.2f%c", f, *p);
+	return;
+    }
+
+    p++;
+    f = (double)value / (double)mult;
+    if (f < 10.0) {
+	printf(" %4.2f%c", f, *p);
+	return;
+    }
+    
+    p++;
+    f = (double)value / (double)mult;
+    if (f < 10.0) {
+	printf(" %4.2f%c", f, *p);
+	return;
+    }
+}
+
+static void getstats(int fd, int i)
+{
+    drmStatsT prev, curr;
+    int       j;
+    double    rate;
+    
+    printf("  System statistics:\n");
+
+    if (drmGetStats(fd, &prev)) return;
+    if (!i) {
+	for (j = 0; j < prev.count; j++) {
+	    printf("    ");
+	    printf(prev.data[j].long_format, prev.data[j].long_name);
+	    if (prev.data[j].isvalue) printf(" 0x%08lx\n", prev.data[j].value);
+	    else                      printf(" %10lu\n", prev.data[j].value);
+	}
+	return;
+    }
+
+    printf("    ");
+    for (j = 0; j < prev.count; j++)
+	if (!prev.data[j].verbose) {
+	    printf(" ");
+	    printf(prev.data[j].rate_format, prev.data[j].rate_name);
+	}
+    printf("\n");
+    
+    for (;;) {
+	sleep(i);
+	if (drmGetStats(fd, &curr)) return;
+	printf("    ");
+	for (j = 0; j < curr.count; j++) {
+	    if (curr.data[j].verbose) continue;
+	    if (curr.data[j].isvalue) {
+		printf(" %08lx", curr.data[j].value);
+	    } else {
+		rate = (curr.data[j].value - prev.data[j].value) / (double)i;
+		printhuman(rate, curr.data[j].mult_names, curr.data[j].mult);
+	    }
+	}
+	printf("\n");
+	memcpy(&prev, &curr, sizeof(prev));
+    }
+    
+}
+
 static int drmOpenMinor(int minor, uid_t user, gid_t group,
 			mode_t dirmode, mode_t devmode, int force)
 {
@@ -219,18 +420,22 @@ static int drmOpenMinor(int minor, uid_t user, gid_t group,
 int main(int argc, char **argv)
 {
     int  c;
-    int  mask  = 0;
-    int  minor = 0;
+    int  mask     = 0;
+    int  minor    = 0;
+    int  interval = 0;
     int  fd;
     char buf[64];
     int  i;
 
-    while ((c = getopt(argc, argv, "vmcM:")) != EOF)
+    while ((c = getopt(argc, argv, "avmcsM:i:")) != EOF)
 	switch (c) {
-	case 'v': mask |= DRM_VERSION;             break;
-	case 'm': mask |= DRM_MEMORY;              break;
-	case 'c': mask |= DRM_CLIENTS;             break;
-	case 'M': minor = strtol(optarg, NULL, 0); break;
+	case 'a': mask = ~0;                          break;
+	case 'v': mask |= DRM_VERSION;                break;
+	case 'm': mask |= DRM_MEMORY;                 break;
+	case 'c': mask |= DRM_CLIENTS;                break;
+	case 's': mask |= DRM_STATS;                  break;
+	case 'i': interval = strtol(optarg, NULL, 0); break;
+	case 'M': minor = strtol(optarg, NULL, 0);    break;
 	default:
 	    fprintf( stderr, "Usage: dristat [options]\n" );
 	    return 1;
@@ -244,6 +449,7 @@ int main(int argc, char **argv)
 	    if (mask & DRM_VERSION) getversion(fd);
 	    if (mask & DRM_MEMORY)  getvm(fd);
 	    if (mask & DRM_CLIENTS) getclients(fd);
+	    if (mask & DRM_STATS)   getstats(fd, interval);
 	    close(fd);
 	}
     }

@@ -164,6 +164,32 @@ typedef struct drm_client {
 	unsigned long	iocs;	/* Ioctl count                              */
 } drm_client_t;
 
+typedef enum {
+	_DRM_STAT_LOCK,
+	_DRM_STAT_OPENS,
+	_DRM_STAT_CLOSES,
+	_DRM_STAT_IOCTLS,
+	_DRM_STAT_LOCKS,
+	_DRM_STAT_UNLOCKS,
+	_DRM_STAT_VALUE,	/* Generic value                      */
+	_DRM_STAT_BYTE,		/* Generic byte counter (1024bytes/K) */
+	_DRM_STAT_COUNT,	/* Generic non-byte counter (1000/k)  */
+
+	_DRM_STAT_IRQ,
+	_DRM_STAT_PRIMARY,
+	_DRM_STAT_SECONDARY
+	
+				/* Add to the *END* of the list */
+} drm_stat_type_t;
+
+typedef struct drm_stats {
+	unsigned long count;
+	struct {
+		unsigned long   value;
+		drm_stat_type_t type;
+	} data[15];
+} drm_stats_t;
+
 typedef enum drm_lock_flags {
 	_DRM_LOCK_READY	     = 0x01, /* Wait until hardware is ready for DMA */
 	_DRM_LOCK_QUIESCENT  = 0x02, /* Wait until hardware quiescent	     */
@@ -325,6 +351,7 @@ typedef struct drm_agp_info {
 #define DRM_IOCTL_IRQ_BUSID		DRM_IOWR(0x03, drm_irq_busid_t)
 #define DRM_IOCTL_GET_MAP               DRM_IOWR(0x04, drm_map_t)
 #define DRM_IOCTL_GET_CLIENT            DRM_IOWR(0x05, drm_client_t)
+#define DRM_IOCTL_GET_STATS             DRM_IOR( 0x06, drm_stats_t)
 
 #define DRM_IOCTL_SET_UNIQUE		DRM_IOW( 0x10, drm_unique_t)
 #define DRM_IOCTL_AUTH_MAGIC		DRM_IOW( 0x11, drm_auth_t)

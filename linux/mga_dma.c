@@ -1183,7 +1183,7 @@ void mga_do_dma_flush( drm_mga_private_t *dev_priv )
 		primary->space = head - tail;
 	}
 	primary->space -= MGA_DMA_SOFTRAP_SIZE;
-
+	
 	DRM_DEBUG( "  space = 0x%06x\n", primary->space );
 
 	primary->last_flush = primary->tail;
@@ -1249,14 +1249,14 @@ static void mga_dma_service( int irq, void *device, struct pt_regs *regs )
 	u32 head = dev_priv->primary->offset;
 	u32 tail;
 
-	atomic_inc( &dev->total_irq );
-
 	/* Verify the interrupt we're servicing is actually the one we
 	 * want to service.
 	 */
 	if ( (MGA_READ( MGA_STATUS ) & MGA_SOFTRAPEN) != MGA_SOFTRAPEN )
 		return;
 
+	atomic_inc( &dev->counts[_DRM_STAT_IRQ] );
+	
 	MGA_WRITE( MGA_ICLEAR, MGA_SOFTRAPICLR );
 
 	spin_lock( &primary->tail_lock );
@@ -1896,7 +1896,7 @@ if ( 0 ) {
 		  dev_priv->prim.space,
 		  dev_priv->prim.size - MGA_DMA_SOFTRAP_SIZE );
 	DRM_INFO( "\n" );
-	DRM_INFO( " irqs = %d\n", atomic_read( &dev->total_irq ) );
+	DRM_INFO( " irqs = %d\n", atomic_read( &dev->counts[_DRM_STAT_IRQ] ) );
 
 	return ret;
 }
