@@ -24,7 +24,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 # 
-# $XFree86: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/kernel/Makefile.linux,v 1.9 2000/08/04 03:51:47 tsi Exp $
 #
 # ***** NOTE NOTE NOTE NOTE NOTE *****
 # To override the automatic Linux source tree determination, pass the
@@ -50,7 +49,6 @@
 
 MODS=           gamma.o tdfx.o r128.o radeon.o
 LIBS=           libdrm.a
-PROGS=		drmstat
 
 DRMOBJS=	init.o memory.o proc.o auth.o context.o drawable.o bufs.o \
 		lists.o lock.o ioctl.o fops.o vm.o dma.o ctxbitmap.o
@@ -67,9 +65,6 @@ R128HEADERS=	r128_drv.h r128_drm.h $(DRMHEADERS)
 
 RADEONOBJS=	radeon_drv.o radeon_dma.o radeon_bufs.o radeon_context.o
 RADEONHEADERS=	radeon_drv.h radeon_drm.h $(DRMHEADERS)
-
-PROGOBJS=       drmstat.po xf86drm.po xf86drmHash.po xf86drmRandom.po sigio.po
-PROGHEADERS=    xf86drm.h $(DRMHEADERS)
 
 INC=		/usr/include
 
@@ -121,7 +116,9 @@ all:; @echo Error: Could not locate kernel tree in $A $B $C
 else
 SMP := $(shell gcc -E -nostdinc -I$(TREE) picker.c 2>/dev/null \
 	| grep -s 'SMP = ' | cut -d' ' -f3)
-MODVERSIONS := $(shell gcc -E -I $(TREE) picker.c 2>/dev/null \
+MODULES := $(shell gcc -E -nostdinc -I $(TREE) picker.c 2>/dev/null \
+	| grep -s 'MODULES = ' | cut -d' ' -f3)
+MODVERSIONS := $(shell gcc -E -nostdinc -I $(TREE) picker.c 2>/dev/null \
 	| grep -s 'MODVERSIONS = ' | cut -d' ' -f3)
 AGP := $(shell gcc -E -nostdinc -I$(TREE) picker.c 2>/dev/null \
 	| grep -s 'AGP = ' | cut -d' ' -f3)
@@ -165,10 +162,18 @@ SISHEADERS=	sis_drv.h sis_ds.h sis_drm.h $(DRMHEADERS)
 endif
 
 all::;@echo === KERNEL HEADERS IN $(TREE)
-all::;@echo === SMP=${SMP} MODVERSIONS=${MODVERSIONS} AGP=${AGP} SIS=${SIS}
+all::;@echo === SMP=${SMP} MODULES=${MODULES} MODVERSIONS=${MODVERSIONS} AGP=${AGP}
 all::;@echo === kill_fasync has $(PARAMS) parameters
 all::;@echo === Compiling for machine $(MACHINE)
+
+ifeq ($(MODULES),0)
+all::;@echo
+all::;@echo "*** Kernel modules must be configured.  Build aborted."
+all::;@echo
+else
 all:: $(LIBS) $(MODS) $(PROGS)
+endif
+
 endif
 
 # **** End of SMP/MODVERSIONS detection
@@ -225,9 +230,6 @@ i810.o: $(I810OBJS) $(LIBS)
 	$(LD) -r $^ -o $@
 endif
 
-drmstat: $(PROGOBJS)
-	$(CC) $(PRGCFLAGS) $^ $(PRGLIBS) -o $@
-
 .PHONY: ChangeLog
 ChangeLog:
 	@rm -f Changelog
@@ -241,9 +243,6 @@ ChangeLog:
 %.o: %.c
 	$(CC) $(MODCFLAGS) -I$(TREE) -c $< -o $@
 
-%.po: %.c
-	$(CC) $(PRGCFLAGS) -DDRM_USE_MALLOC -c $< -o $@
-
 $(DRMOBJS): $(DRMHEADERS)
 $(GAMMAOBJS): $(GAMMAHEADERS)
 $(TDFXOBJS): $(TDFXHEADERS)
@@ -253,7 +252,6 @@ ifeq ($(AGP),1)
 $(MGAOBJS): $(MGAHEADERS)
 $(I810OBJS): $(I810HEADERS)
 endif
-$(PROGOBJS): $(PROGHEADERS)
 
 clean:
-	rm -f *.o *.a *.po *~ core $(PROGS)
+	rm -f *.o *.a *~ core
