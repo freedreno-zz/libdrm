@@ -158,6 +158,7 @@
 #define DRM_MEM_CTXBITMAP 18
 #define DRM_MEM_STUB      19
 #define DRM_MEM_SGLISTS   20
+#define DRM_MEM_CTXLIST  21
 
 #define DRM_MAX_CTXBITMAP (PAGE_SIZE * 8)
 	
@@ -199,6 +200,14 @@
             &pos->member != (head);					\
             pos = list_entry(pos->member.next, typeof(*pos), member),	\
                     prefetch(pos->member.next))
+#endif
+
+#ifndef list_for_each_entry_safe
+#define list_for_each_entry_safe(pos, n, head, member)                  \
+        for (pos = list_entry((head)->next, typeof(*pos), member),      \
+                n = list_entry(pos->member.next, typeof(*pos), member); \
+             &pos->member != (head);                                    \
+             pos = n, n = list_entry(n->member.next, typeof(*n), member))
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,4,19)
@@ -308,19 +317,6 @@ static inline struct page * vmalloc_to_page(void * vmalloc_addr)
 		if ( (map)->handle && (map)->size )				\
 			DRM(ioremapfree)( (map)->handle, (map)->size, (dev) );	\
 	} while (0)
-
-#ifndef VMAP_4_ARGS
-
-#define DRM_IOREMAPAGP(map, dev)						\
-	(map)->handle = DRM(ioremap_agp)( (map)->offset, (map)->size, (dev) )
-
-#define DRM_IOREMAPAGPFREE(map)						\
-	do {								\
-		if ( (map)->handle && (map)->size )			\
-			DRM(ioremap_agp_free)( (map)->handle, (map)->size );	\
-	} while (0)
-
-#endif
 
 /**
  * Find mapping.
@@ -651,6 +647,15 @@ typedef struct drm_map_list {
 
 typedef drm_map_t drm_local_map_t;
 
+/**
+ * Context handle list
+ */
+typedef struct drm_ctx_list {
+	struct list_head	head;   /**< list head */
+	drm_context_t		handle; /**< context handle */
+	drm_file_t		*tag;   /**< associated fd private data */
+} drm_ctx_list_t;
+
 #if __HAVE_VBL_IRQ
 
 typedef struct drm_vbl_sig {
@@ -710,6 +715,12 @@ typedef struct drm_device {
 	/*@{*/
 	drm_map_list_t	  *maplist;	/**< Linked list of regions */
 	int		  map_count;	/**< Number of mappable regions */
+
+	/** \name Context handle management */
+	/*@{*/
+	drm_ctx_list_t	  *ctxlist;	/**< Linked list of context handles */
+	int		  ctx_count;	/**< Number of context handles */
+	struct semaphore  ctxlist_sem;	/**< For ctxlist */
 
 	drm_map_t	  **context_sareas; /**< per-context SAREA's */
 	int		  max_context;
@@ -846,10 +857,6 @@ extern void	     *DRM(ioremap_nocache)(unsigned long offset, unsigned long size,
 extern void	     DRM(ioremapfree)(void *pt, unsigned long size, drm_device_t *dev);
 
 #if __REALLY_HAVE_AGP
-#ifndef VMAP_4_ARGS
-extern void	     *DRM(ioremap_agp)(unsigned long offset, unsigned long size, drm_device_t *dev);
-extern void	     DRM(ioremap_agp_free)(void *pt, unsigned long size);
-#endif
 extern DRM_AGP_MEM   *DRM(alloc_agp)(int pages, u32 type);
 extern int           DRM(free_agp)(DRM_AGP_MEM *handle, int pages);
 extern int           DRM(bind_agp)(DRM_AGP_MEM *handle, unsigned int start);
