@@ -40,11 +40,20 @@ typedef struct drm_r128_init {
 		R128_CLEANUP_CCE = 0x02
 	} func;
 	int sarea_priv_offset;
+	int is_pci;
 	int cce_mode;
 	int cce_fifo_size;
 	int cce_secure;
 	int ring_size;
 	int usec_timeout;
+
+	int fb_offset;
+	int agp_ring_offset;
+	int agp_read_ptr_offset;
+	int agp_vertbufs_offset;
+	int agp_indbufs_offset;
+	int agp_textures_offset;
+	int mmio_offset;
 } drm_r128_init_t;
 
 typedef struct drm_r128_packet {

@@ -32,7 +32,7 @@
 
 # **** End of SMP/MODVERSIONS detection
 
-MODS=           gamma.o tdfx.o
+MODS=           gamma.o tdfx.o r128.o
 LIBS=           libdrm.a
 PROGS=		drmstat
 
@@ -45,6 +45,9 @@ GAMMAHEADERS=   gamma_drv.h $(DRMHEADERS)
 
 TDFXOBJS=       tdfx_drv.o tdfx_context.o
 TDFXHEADERS=    tdfx_drv.h $(DRMHEADERS)
+
+R128OBJS=	r128_drv.o r128_dma.o r128_bufs.o r128_context.o
+R128HEADERS=	r128_drv.h r128_drm.h $(DRMHEADERS)
 
 PROGOBJS=       drmstat.po xf86drm.po xf86drmHash.po xf86drmRandom.po sigio.po
 PROGHEADERS=    xf86drm.h $(DRMHEADERS)
@@ -115,16 +118,13 @@ endif
 ifeq ($(AGP),1)
 MODCFLAGS += -DDRM_AGP
 DRMOBJS += agpsupport.o
-MODS += mga.o i810.o r128.o
+MODS += mga.o i810.o
 
 MGAOBJS=	mga_drv.o mga_dma.o mga_bufs.o mga_state.o mga_context.o
 MGAHEADERS=	mga_drv.h $(DRMHEADERS)
 
 I810OBJS=	i810_drv.o i810_dma.o i810_bufs.o i810_context.o
 I810HEADERS=	i810_drv.h $(DRMHEADERS)
-
-R128OBJS=	r128_drv.o r128_dma.o r128_bufs.o r128_context.o
-R128HEADERS=	r128_drv.h r128_drm.h $(DRMHEADERS)
 endif
 
 all::;@echo KERNEL HEADERS IN $(TREE): SMP=${SMP} MODVERSIONS=${MODVERSIONS} \
@@ -155,14 +155,14 @@ gamma.o: $(GAMMAOBJS) $(LIBS)
 tdfx.o: $(TDFXOBJS) $(LIBS)
 	$(LD) -r $^ -o $@
 
+r128.o: $(R128OBJS) $(LIBS)
+	$(LD) -r $^ -o $@
+
 ifeq ($(AGP),1)
 mga.o: $(MGAOBJS) $(LIBS)
 	$(LD) -r $^ -o $@
 
 i810.o: $(I810OBJS) $(LIBS)
-	$(LD) -r $^ -o $@
-
-r128.o: $(R128OBJS) $(LIBS)
 	$(LD) -r $^ -o $@
 endif
 
@@ -187,10 +187,10 @@ ChangeLog:
 $(DRMOBJS): $(DRMHEADERS)
 $(GAMMAOBJS): $(GAMMAHEADERS)
 $(TDFXOBJS): $(TDFXHEADERS)
+$(R128OBJS): $(R128HEADERS)
 ifeq ($(AGP),1)
 $(MGAOBJS): $(MGAHEADERS)
 $(I810OBJS): $(I810HEADERS)
-$(R128OBJS): $(R128HEADERS)
 endif
 $(PROGOBJS): $(PROGHEADERS)
 

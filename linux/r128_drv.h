@@ -34,6 +34,8 @@
 #define _R128_DRV_H_
 
 typedef struct drm_r128_private {
+	int               is_pci;
+
 	int               cce_mode;
 	int               cce_fifo_size;
 	int               cce_is_bm_mode;
@@ -52,6 +54,15 @@ typedef struct drm_r128_private {
 	int               submit_age;
 
 	int               usec_timeout;
+
+	drm_map_t        *sarea;
+	drm_map_t        *fb;
+	drm_map_t        *agp_ring;
+	drm_map_t        *agp_read_ptr;
+	drm_map_t        *agp_vertbufs;
+	drm_map_t        *agp_indbufs;
+	drm_map_t        *agp_textures;
+	drm_map_t        *mmio;
 } drm_r128_private_t;
 
 typedef struct drm_r128_buf_priv {
@@ -76,6 +87,8 @@ extern int  r128_unlock(struct inode *inode, struct file *filp,
 extern int r128_init_cce(struct inode *inode, struct file *filp,
 			 unsigned int cmd, unsigned long arg);
 extern int r128_eng_reset(struct inode *inode, struct file *filp,
+			  unsigned int cmd, unsigned long arg);
+extern int r128_eng_flush(struct inode *inode, struct file *filp,
 			  unsigned int cmd, unsigned long arg);
 extern int r128_submit_pkt(struct inode *inode, struct file *filp,
 			   unsigned int cmd, unsigned long arg);
@@ -185,21 +198,8 @@ extern int  r128_context_switch_complete(drm_device_t *dev, int new);
 
 #define R128_MAX_USEC_TIMEOUT	100000	/* 100 ms */
 
-/* WARNING!!! MAGIC NUMBERS!!!  The number of regions already added to
-   the kernel must be specified here.  This must match the order the X
-   server uses for instantiating register regions, or must be passed in
-   a new ioctl. */
-#define R128_SAREA()		0
-#define R128_FB()		1
-#define R128_AGP_RING()		2
-#define R128_AGP_READ_PTR()	3
-#define R128_AGP_VERTBUFS()	4
-#define R128_AGP_INDIRECTBUFS()	5
-#define R128_AGP_TEXTURES()	6
-#define R128_REG(reg)		7
 
-#define R128_BASE(reg)                                                       \
-		((u32)((drm_device_t *)dev)->maplist[R128_REG(reg)]->handle)
+#define R128_BASE(reg)		((u32)(dev_priv->mmio->handle))
 #define R128_ADDR(reg)		(R128_BASE(reg) + reg)
 
 #define R128_DEREF(reg)		*(__volatile__ int *)R128_ADDR(reg)

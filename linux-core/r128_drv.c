@@ -38,10 +38,10 @@ EXPORT_SYMBOL(r128_cleanup);
 
 #define R128_NAME	 "r128"
 #define R128_DESC	 "r128"
-#define R128_DATE	 "20000415"
+#define R128_DATE	 "20000422"
 #define R128_MAJOR	 0
 #define R128_MINOR	 0
-#define R128_PATCHLEVEL  4
+#define R128_PATCHLEVEL  5
 
 static drm_device_t	      r128_device;
 drm_ctx_t	              r128_res_ctx;
@@ -93,6 +93,7 @@ static drm_ioctl_desc_t	      r128_ioctls[] = {
 	[DRM_IOCTL_NR(DRM_IOCTL_UNLOCK)]      = { r128_unlock,	   1, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_FINISH)]      = { drm_finish,	   1, 0 },
 
+#ifdef DRM_AGP
 	[DRM_IOCTL_NR(DRM_IOCTL_AGP_ACQUIRE)] = { drm_agp_acquire, 1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_AGP_RELEASE)] = { drm_agp_release, 1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_AGP_ENABLE)]  = { drm_agp_enable,  1, 1 },
@@ -101,9 +102,11 @@ static drm_ioctl_desc_t	      r128_ioctls[] = {
 	[DRM_IOCTL_NR(DRM_IOCTL_AGP_FREE)]    = { drm_agp_free,    1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_AGP_BIND)]    = { drm_agp_bind,    1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_AGP_UNBIND)]  = { drm_agp_unbind,  1, 1 },
+#endif
 
 	[DRM_IOCTL_NR(DRM_IOCTL_R128_INIT)]   = { r128_init_cce,   1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_R128_RESET)]  = { r128_eng_reset,  1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_R128_FLUSH)]  = { r128_eng_flush,  1, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_R128_PACKET)] = { r128_submit_pkt, 1, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_R128_CCEIDL)] = { r128_cce_idle,   1, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_R128_VERTEX)] = { r128_vertex_buf, 1, 0 },
@@ -252,6 +255,7 @@ static int r128_takedown(drm_device_t *dev)
 		dev->magiclist[i].head = dev->magiclist[i].tail = NULL;
 	}
 
+#ifdef DRM_AGP
 				/* Clear AGP information */
 	if (dev->agp) {
 		drm_agp_mem_t *entry;
@@ -273,6 +277,7 @@ static int r128_takedown(drm_device_t *dev)
 		dev->agp->acquired = 0;
 		dev->agp->enabled  = 0;
 	}
+#endif
 	
 				/* Clear vma list (only built for debugging) */
 	if (dev->vmalist) {
@@ -362,6 +367,7 @@ int r128_init(void)
 	drm_mem_init();
 	drm_proc_init(dev);
 
+#ifdef DRM_AGP
 	dev->agp    = drm_agp_init();
 
 #ifdef CONFIG_MTRR
@@ -369,6 +375,7 @@ int r128_init(void)
 				      dev->agp->agp_info.aper_size*1024*1024,
 				      MTRR_TYPE_WRCOMB,
 				      1);
+#endif
 #endif
 
 	if((retcode = drm_ctxbitmap_init(dev))) {
@@ -406,11 +413,13 @@ void r128_cleanup(void)
 	}
 	drm_ctxbitmap_cleanup(dev);
 	r128_takedown(dev);
+#ifdef DRM_AGP
 	if (dev->agp) {
 				/* FIXME -- free other information, too */
 		drm_free(dev->agp, sizeof(*dev->agp), DRM_MEM_AGPLISTS);
 		dev->agp = NULL;
 	}
+#endif
 }
 
 int r128_version(struct inode *inode, struct file *filp, unsigned int cmd,

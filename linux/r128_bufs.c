@@ -37,6 +37,7 @@
 #include "linux/un.h"
 
 
+#ifdef DRM_AGP
 int r128_addbufs_agp(struct inode *inode, struct file *filp, unsigned int cmd,
 		     unsigned long arg)
 {
@@ -182,37 +183,46 @@ int r128_addbufs_agp(struct inode *inode, struct file *filp, unsigned int cmd,
 	atomic_dec(&dev->buf_alloc);
 	return 0;
 }
+#endif
 
 int r128_addbufs(struct inode *inode, struct file *filp, unsigned int cmd,
 		 unsigned long arg)
 {
-	drm_buf_desc_t	 request;
+	drm_file_t		*priv		= filp->private_data;
+	drm_device_t		*dev		= priv->dev;
+	drm_r128_private_t	*dev_priv	= dev->dev_private;
+	drm_buf_desc_t		request;
+
+	if (!dev_priv || dev_priv->is_pci) return -EINVAL;
 
 	copy_from_user_ret(&request,
 			   (drm_buf_desc_t *)arg,
 			   sizeof(request),
 			   -EFAULT);
 
+#ifdef DRM_AGP
 	if (request.flags & _DRM_AGP_BUFFER)
 		return r128_addbufs_agp(inode, filp, cmd, arg);
 	else
+#endif
 		return -EINVAL;
 }
 
 int r128_mapbufs(struct inode *inode, struct file *filp, unsigned int cmd,
 		 unsigned long arg)
 {
-	drm_file_t	 *priv	 = filp->private_data;
-	drm_device_t	 *dev	 = priv->dev;
-	drm_device_dma_t *dma	 = dev->dma;
-	int		 retcode = 0;
-	const int	 zero	 = 0;
-	unsigned long	 virtual;
-	unsigned long	 address;
-	drm_buf_map_t	 request;
-	int		 i;
+	drm_file_t		*priv		= filp->private_data;
+	drm_device_t		*dev		= priv->dev;
+	drm_r128_private_t	*dev_priv	= dev->dev_private;
+	drm_device_dma_t	*dma		= dev->dma;
+	int			 retcode	= 0;
+	const int		 zero		= 0;
+	unsigned long		 virtual;
+	unsigned long		 address;
+	drm_buf_map_t		 request;
+	int			 i;
 
-	if (!dma) return -EINVAL;
+	if (!dma || !dev_priv || dev_priv->is_pci) return -EINVAL;
 
 	DRM_DEBUG("\n");
 
@@ -233,7 +243,7 @@ int r128_mapbufs(struct inode *inode, struct file *filp, unsigned int cmd,
 		if (dma->flags & _DRM_DMA_USE_AGP) {
 			drm_map_t *map;
 
-			map = dev->maplist[R128_AGP_VERTBUFS()];
+			map = dev_priv->agp_vertbufs;
 			if (!map) {
 				retcode = -EINVAL;
 				goto done;
