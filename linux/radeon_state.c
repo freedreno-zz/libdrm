@@ -104,7 +104,10 @@ static inline void radeon_emit_line( drm_radeon_private_t *dev_priv,
 					drm_radeon_context_regs_t *ctx )
 {
 	RING_LOCALS;
-	DRM_DEBUG( "    %s\n", __FUNCTION__ );
+/*  	printk( "    %s %x %x %x\n", __FUNCTION__,  */
+/*  		ctx->re_line_pattern, */
+/*  		ctx->re_line_state, */
+/*  		ctx->se_line_width); */
 
 	BEGIN_RING( 5 );
 
@@ -1528,8 +1531,9 @@ int radeon_cp_vertex2( struct inode *inode, struct file *filp,
 		if ( copy_from_user( &prim, &vertex.prim[i], sizeof(prim) ) )
 			return -EFAULT;
 		
-  		printk( "prim %d start %d finish %d\n",
-			i, prim.start, prim.finish );
+/*    		printk( "prim %d vfmt %x hwprim %x start %d finish %d\n", */
+/*  			   i, prim.vc_format, prim.prim, */
+/*  			   prim.start, prim.finish ); */
 
 		if (  (prim.prim & RADEON_PRIM_TYPE_MASK) > 
 		      RADEON_PRIM_TYPE_3VRT_LINE_LIST ) {
@@ -1541,7 +1545,7 @@ int radeon_cp_vertex2( struct inode *inode, struct file *filp,
 			drm_radeon_state_t state;
 
 			if ( copy_from_user( &state, 
-					     &vertex.state[i], 
+					     &vertex.state[prim.stateidx], 
 					     sizeof(state) ) )
 				return -EFAULT;
 
