@@ -1594,28 +1594,10 @@ static int radeon_emit_packets(
 	if (sz * sizeof(int) > cmdbuf->bufsz) 
 		return -EINVAL;
 
-	/* Embarrassing dyslexia problem, fixed up here rather than
-	 * changing the interface.
-	 */
-	if (id == RADEON_EMIT_SE_CNTL) {
-		int tmp;
-		BEGIN_RING(4);
-		OUT_RING( CP_PACKET0( RADEON_SE_CNTL, 0 ) );
-		if (__get_user( tmp, &data[0]))
-			return -EFAULT;
-		OUT_RING( tmp );
-		OUT_RING( CP_PACKET0( RADEON_SE_COORD_FMT, 0 ) );
-		if (__get_user( tmp, &data[1]))
-			return -EFAULT;
-		OUT_RING( tmp );
-		ADVANCE_RING();
-	}
-	else {
-		BEGIN_RING(sz+1);
-		OUT_RING( CP_PACKET0( reg, (sz-1) ) );
-		OUT_RING_USER_TABLE( data, sz );
-		ADVANCE_RING();
-	}
+	BEGIN_RING(sz+1);
+	OUT_RING( CP_PACKET0( reg, (sz-1) ) );
+	OUT_RING_USER_TABLE( data, sz );
+	ADVANCE_RING();
 
 	cmdbuf->buf += sz * sizeof(int);
 	cmdbuf->bufsz -= sz * sizeof(int);
