@@ -440,14 +440,14 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 {
 	drm_radeon_private_t *dev_priv = dev->dev_private;
 	drm_radeon_sarea_t *sarea_priv = dev_priv->sarea_priv;
-	drm_radeon_depth_clear_t *depth_clear = &dev_priv->depth_clear;	/*  */
+	drm_radeon_depth_clear_t *depth_clear = &dev_priv->depth_clear;
 	int nbox = sarea_priv->nbox;
 	drm_clip_rect_t *pbox = sarea_priv->boxes;
 	unsigned int flags = clear->flags;
-	u32 rb3d_cntl = 0, rb3d_stencilrefmask= 0; /*  */
+	u32 rb3d_cntl = 0, rb3d_stencilrefmask= 0;
 	int i;
 	RING_LOCALS;
-	DRM_DEBUG( "%s\n", __FUNCTION__ );
+	DRM_DEBUG( __FUNCTION__": flags = 0x%x\n", flags );
 
 	if ( dev_priv->page_flipping && dev_priv->current_page == 1 ) {
 		unsigned int tmp = flags;

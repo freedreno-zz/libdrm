@@ -308,9 +308,9 @@ extern int radeon_cp_vertex2( struct inode *inode, struct file *filp,
 #	define RADEON_Z_TEST_MASK		(7 << 4)
 #	define RADEON_Z_TEST_ALWAYS		(7 << 4)
 #	define RADEON_STENCIL_TEST_ALWAYS	(7 << 12)
-#	define RADEON_STENCIL_S_FAIL_KEEP	(0 << 16)
-#	define RADEON_STENCIL_ZPASS_KEEP	(0 << 20)
-#	define RADEON_STENCIL_ZFAIL_KEEP	(0 << 20)
+#	define RADEON_STENCIL_S_FAIL_REPLACE	(2 << 16)
+#	define RADEON_STENCIL_ZPASS_REPLACE	(2 << 20)
+#	define RADEON_STENCIL_ZFAIL_REPLACE	(2 << 24)
 #	define RADEON_Z_WRITE_ENABLE		(1 << 30)
 #define RADEON_RBBM_SOFT_RESET		0x00f0
 #	define RADEON_SOFT_RESET_CP		(1 <<  0)
