@@ -418,6 +418,7 @@ static drm_buf_t *mga_freelist_get( drm_device_t *dev )
 	drm_mga_freelist_t *prev;
 	drm_mga_freelist_t *tail = dev_priv->tail;
 	u32 head, wrap;
+	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
 	head = *dev_priv->prim.head;
 	wrap = dev_priv->sarea_priv->last_wrap;
@@ -431,7 +432,7 @@ static drm_buf_t *mga_freelist_get( drm_device_t *dev )
 		  __FUNCTION__,
 		  head - dev_priv->primary->offset, wrap );
 
-	if ( TEST_AGE( &tail->age, wrap, head ) ) {
+	if ( TEST_AGE( &tail->age, head, wrap ) ) {
 		prev = dev_priv->tail->prev;
 		next = dev_priv->tail;
 		prev->next = NULL;
@@ -441,7 +442,7 @@ static drm_buf_t *mga_freelist_get( drm_device_t *dev )
 		return next->buf;
 	}
 
-	DRM_ERROR( "returning NULL!\n" );
+	DRM_DEBUG( "returning NULL!\n" );
 	return NULL;
 }
 
@@ -452,10 +453,10 @@ static int mga_freelist_put( drm_device_t *dev, drm_buf_t *buf )
 	drm_mga_freelist_t *head, *next, *prev;
 
 	DRM_DEBUG( "%s: age=0x%06lx wrap=%d\n",
-		  __FUNCTION__,
-		  buf_priv->list_entry->age.head -
-		  dev_priv->primary->offset,
-		  buf_priv->list_entry->age.wrap );
+		   __FUNCTION__,
+		   buf_priv->list_entry->age.head -
+		   dev_priv->primary->offset,
+		   buf_priv->list_entry->age.wrap );
 
 	if ( buf_priv->list_entry->age.head == MGA_BUFFER_USED ) {
 		SET_AGE( &next->age, MGA_BUFFER_FREE, 0 );

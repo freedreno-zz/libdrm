@@ -368,15 +368,15 @@ extern int r128_cce_indirect( struct inode *inode, struct file *filp,
 
 
 #define R128_BASE(reg)		((u32)(dev_priv->mmio->handle))
-#define R128_ADDR(reg)		(R128_BASE(reg) + reg)
+#define R128_ADDR(reg)		(R128_BASE( reg ) + reg)
 
-#define R128_DEREF(reg)		*(volatile u32 *)R128_ADDR(reg)
-#define R128_READ(reg)		R128_DEREF(reg)
-#define R128_WRITE(reg,val)	do { R128_DEREF(reg) = val; } while (0)
+#define R128_DEREF(reg)		*(volatile u32 *)R128_ADDR( reg )
+#define R128_READ(reg)		R128_DEREF( reg )
+#define R128_WRITE(reg,val)	do { R128_DEREF( reg ) = val; } while (0)
 
-#define R128_DEREF8(reg)	*(volatile u8 *)R128_ADDR(reg)
-#define R128_READ8(reg)		R128_DEREF8(reg)
-#define R128_WRITE8(reg,val)	do { R128_DEREF8(reg) = val; } while (0)
+#define R128_DEREF8(reg)	*(volatile u8 *)R128_ADDR( reg )
+#define R128_READ8(reg)		R128_DEREF8( reg )
+#define R128_WRITE8(reg,val)	do { R128_DEREF8( reg ) = val; } while (0)
 
 
 #define R128_WRITE_PLL(addr,val)                                              \

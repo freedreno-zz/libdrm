@@ -31,30 +31,6 @@
 #ifndef __MGA_DRV_H__
 #define __MGA_DRV_H__
 
-#define MGA_BUF_IN_USE         0
-#define MGA_BUF_SWAP_PENDING   1
-#define MGA_BUF_FORCE_FIRE     2
-#define MGA_BUF_NEEDS_OVERFLOW 3
-
-typedef struct {
-	u32 buffer_status;
-   	int num_dwords;
-   	int max_dwords;
-   	u32 *current_dma_ptr;
-   	u32 *head;
-   	u32 phys_head;
-	unsigned int prim_age;
-   	int sec_used;
-   	int idx;
-} drm_mga_prim_buf_t;
-
-
-enum {
-	MGA_DMA_IDLE,			/* Primary DMA stream is idle        */
-	MGA_DMA_FLUSH,			/* Flush primary DMA stream          */
-	MGA_DMA_WRAP			/* Primary DMA has been wrapped      */
-};
-
 typedef struct drm_mga_primary_buffer {
 	u8 *start;
 	u8 *end;
@@ -86,11 +62,6 @@ typedef struct {
 	int discard;
 	int dispatched;
 } drm_mga_buf_priv_t;
-
-#define MGA_IN_DISPATCH   0
-#define MGA_IN_FLUSH      1
-#define MGA_IN_WAIT       2
-#define MGA_IN_GETBUF	  3
 
 typedef struct drm_mga_private {
 	drm_mga_primary_buffer_t prim;
@@ -191,7 +162,7 @@ extern int mga_warp_init( drm_device_t *dev );
 #define MGA_BASE( reg )		((u32)(dev_priv->mmio->handle))
 #define MGA_ADDR( reg )		(MGA_BASE(reg) + reg)
 
-#define MGA_DEREF( reg )	*(__volatile__ int *)MGA_ADDR( reg )
+#define MGA_DEREF( reg )	*(volatile u32 *)MGA_ADDR( reg )
 #define MGA_READ( reg )		MGA_DEREF( reg )
 #define MGA_WRITE( reg, val )	do { MGA_DEREF( reg ) = val; } while (0)
 
@@ -330,7 +301,7 @@ do {									\
 
 #define TEST_AGE( age, h, w )		( (age)->wrap < w ||		\
 					  ( (age)->wrap == w &&		\
-					    (age)->head <= h ) )
+					    (age)->head < h ) )
 
 #define AGE_BUFFER( buf_priv )						\
 do {									\
