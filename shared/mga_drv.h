@@ -38,7 +38,7 @@ typedef struct drm_mga_primary_buffer {
 
 	u32 tail;
 	int space;
-	volatile int wrapped;
+	int wrapped;
 
 	volatile u32 *status;
 
