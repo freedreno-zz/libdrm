@@ -47,7 +47,7 @@
 
 # **** End of SMP/MODVERSIONS detection
 
-MODS=           gamma.o tdfx.o r128.o
+MODS=           gamma.o tdfx.o r128.o radeon.o
 LIBS=           libdrm.a
 
 DRMOBJS=	init.o memory.o proc.o auth.o context.o drawable.o bufs.o \
@@ -60,8 +60,12 @@ GAMMAHEADERS=   gamma_drv.h $(DRMHEADERS)
 TDFXOBJS=       tdfx_drv.o tdfx_context.o
 TDFXHEADERS=    tdfx_drv.h $(DRMHEADERS)
 
-R128OBJS=	r128_drv.o r128_dma.o r128_bufs.o r128_context.o
+R128OBJS=	r128_drv.o r128_cce.o r128_bufs.o r128_context.o r128_state.o
 R128HEADERS=	r128_drv.h r128_drm.h $(DRMHEADERS)
+
+RADEONOBJS=	radeon_drv.o radeon_cp.o radeon_bufs.o radeon_context.o \
+		radeon_state.o
+RADEONHEADERS=	radeon_drv.h radeon_drm.h $(DRMHEADERS)
 
 INC=		/usr/include
 
@@ -207,6 +211,11 @@ r128_drv.o: r128_drv.c
 r128.o: $(R128OBJS) $(LIBS)
 	$(LD) -r $^ -o $@
 
+radeon_drv.o: radeon_drv.c
+	$(CC) $(MODCFLAGS) -DEXPORT_SYMTAB -I$(TREE) -c $< -o $@
+radeon.o: $(RADEONOBJS) $(LIBS)
+	$(LD) -r $^ -o $@
+
 sis.o: $(SISOBJS) $(LIBS)
 	$(LD) -r $^ -o $@
 
@@ -239,6 +248,7 @@ $(DRMOBJS): $(DRMHEADERS)
 $(GAMMAOBJS): $(GAMMAHEADERS)
 $(TDFXOBJS): $(TDFXHEADERS)
 $(R128OBJS): $(R128HEADERS)
+$(RADEONOBJS): $(RADEONHEADERS)
 ifeq ($(AGP),1)
 $(MGAOBJS): $(MGAHEADERS)
 $(I810OBJS): $(I810HEADERS)
