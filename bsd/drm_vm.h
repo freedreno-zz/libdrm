@@ -5,11 +5,7 @@ static int DRM(dma_mmap)(dev_t kdev, vm_offset_t offset, int prot)
 static paddr_t DRM(dma_mmap)(dev_t kdev, vm_offset_t offset, int prot)
 #endif
 {
-#ifdef __FreeBSD__
-	drm_device_t *dev = kdev->si_drv1;
-#elif defined(__NetBSD__)
-	drm_device_t *dev = &DRM(softcs)[0]; /* FIXME: multiple instances */
-#endif
+	DRM_OS_DEVICE;
 	drm_device_dma_t *dma	 = dev->dma;
 	unsigned long	 physical;
 	unsigned long	 page;
@@ -20,7 +16,7 @@ static paddr_t DRM(dma_mmap)(dev_t kdev, vm_offset_t offset, int prot)
 	page	 = offset >> PAGE_SHIFT;
 	physical = dma->pagelist[page];
 
-	DRM_DEBUG("0x%08x (page %lu) => 0x%08lx\n", offset, page, physical);
+	DRM_DEBUG("0x%08lx (page %lu) => 0x%08lx\n", (long)offset, page, physical);
 	return atop(physical);
 }
 
@@ -30,11 +26,7 @@ int DRM(mmap)(dev_t kdev, vm_offset_t offset, int prot)
 paddr_t DRM(mmap)(dev_t kdev, vm_offset_t offset, int prot)
 #endif
 {
-#ifdef __FreeBSD__
-	drm_device_t *dev = kdev->si_drv1;
-#elif defined(__NetBSD__)
-	drm_device_t *dev = &DRM(softcs)[0]; /* FIXME: multiple instances */
-#endif
+	DRM_OS_DEVICE;
 	drm_map_t	*map	= NULL;
 	drm_map_list_entry_t *listentry=NULL;
 	drm_file_t *priv;

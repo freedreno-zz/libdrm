@@ -71,6 +71,12 @@ int DRM(addmap)( DRM_OS_IOCTL )
 	DRM_OS_DEVICE;
 	drm_map_t *map;
 	drm_map_list_entry_t *list;
+#if __REALLY_HAVE_MTRR
+#ifdef __NetBSD__
+	struct mtrr mtrrmap;
+	int one = 1;
+#endif
+#endif
 
 	if (!(dev->flags & (FREAD|FWRITE)))
 		DRM_OS_RETURN(EACCES); /* Require read/write */
@@ -127,8 +133,15 @@ int DRM(addmap)( DRM_OS_IOCTL )
 #if __REALLY_HAVE_MTRR
 		if ( map->type == _DRM_FRAME_BUFFER ||
 		     (map->flags & _DRM_WRITE_COMBINING) ) {
-			map->mtrr = mtrr_add( map->offset, map->size,
-					      MTRR_TYPE_WRCOMB, 1 );
+#ifdef __NetBSD__
+			mtrrmap.base = map->offset;
+			mtrrmap.len = map->size;
+			mtrrmap.type = MTRR_TYPE_WC;
+			mtrrmap.flags = MTRR_PRIVATE | MTRR_FIXED | MTRR_VALID;
+			mtrrmap.owner = p->p_pid;
+			/* USER? KERNEL? XXX */
+			map->mtrr = mtrr_get( &mtrrmap, &one, p, MTRR_GETSET_USER);
+#endif
 		}
 #endif
 		map->handle = DRM(ioremap)( map->offset, map->size );
@@ -203,6 +216,12 @@ int DRM(rmmap)( DRM_OS_IOCTL )
 	drm_map_t *map;
 	drm_map_t request;
 	int found_maps = 0;
+#if __REALLY_HAVE_MTRR
+#ifdef __NetBSD__
+       struct mtrr mtrrmap;
+       int one = 1;
+#endif
+#endif
 
 	DRM_OS_KRNFROMUSR( request, (drm_map_t *)data, sizeof(request) );
 
@@ -231,10 +250,15 @@ int DRM(rmmap)( DRM_OS_IOCTL )
 #if __REALLY_HAVE_MTRR
 			if (map->mtrr >= 0) {
 				int retcode;
-				retcode = mtrr_del(map->mtrr,
-						   map->offset,
-						   map->size);
+#ifdef __NetBSD__
+				mtrrmap.base = map->offset;
+				mtrrmap.len = map->size;
+				mtrrmap.type = 0;
+				mtrrmap.flags = 0;
+				mtrrmap.owner = p->p_pid;
+				/* USER? KERNEL? XXX */				
 				DRM_DEBUG("mtrr_del = %d\n", retcode);
+#endif
 			}
 #endif
 			DRM(ioremapfree)(map->handle, map->size);
@@ -989,11 +1013,20 @@ int DRM(mapbufs)( DRM_OS_IOCTL )
 	int retcode = 0;
 	const int zero = 0;
 	vm_offset_t virtual, address;
+#ifdef __FreeBSD__
 #if __FreeBSD_version >= 500000
 	struct vmspace *vms = p->td_proc->p_vmspace;
 #else
 	struct vmspace *vms = p->p_vmspace;
 #endif
+#endif /* __FreeBSD__ */
+#ifdef __NetBSD__
+	vaddr_t virtual, address;
+	struct vmspace *vms = p->p_vmspace;
+	struct vnode vn;
+	struct specinfo si;
+#endif
+
 	drm_buf_map_t request;
 	int i;
 
@@ -1019,6 +1052,7 @@ int DRM(mapbufs)( DRM_OS_IOCTL )
 				goto done;
 			}
 
+#ifdef __FreeBSD__
 			virtual = round_page((vm_offset_t)vms->vm_daddr + MAXDSIZ);
 			retcode = vm_mmap(&vms->vm_map,
 					  &virtual,
@@ -1027,7 +1061,24 @@ int DRM(mapbufs)( DRM_OS_IOCTL )
 					  MAP_SHARED,
 					  SLIST_FIRST(&kdev->si_hlist),
 					  (unsigned long)map->offset );
+#endif /* __FreeBSD__ */
+#ifdef __NetBSD__
+			vn.v_type = VCHR;       /* XXX Taken from x68k/dev/grf.c. No idea if it's correct. */
+			vn.v_specinfo = &si;    /* XXX */
+			vn.v_rdev = kdev;       /* XXX */
+			/* XXX Lame. */
+			virtual = round_page((vaddr_t)vms->vm_daddr + MAXDSIZ);
+			retcode = uvm_mmap(&vms->vm_map,
+					  &virtual,
+					  round_page(map->size),
+					  VM_PROT_READ|VM_PROT_WRITE, VM_PROT_ALL,
+					  AMAP_SHARED,
+					  (caddr_t)&vn,
+					  (unsigned long)map->offset,
+					  p->p_rlimit[RLIMIT_MEMLOCK].rlim_cur);
+#endif /* __NetBSD__ */
 		} else {
+#ifdef __FreeBSD__
 			virtual = round_page((vm_offset_t)vms->vm_daddr + MAXDSIZ);
 			retcode = vm_mmap(&vms->vm_map,
 					  &virtual,
@@ -1036,6 +1087,17 @@ int DRM(mapbufs)( DRM_OS_IOCTL )
 					  MAP_SHARED,
 					  SLIST_FIRST(&kdev->si_hlist),
 					  0);
+#endif /* __FreeBSD__ */
+#ifdef __NetBSD__
+			virtual = round_page((vaddr_t)vms->vm_daddr + MAXDSIZ);
+			retcode = uvm_mmap(&vms->vm_map,
+					  &virtual,
+					  round_page(dma->byte_count),
+					  VM_PROT_READ|VM_PROT_WRITE, VM_PROT_ALL,
+					  AMAP_SHARED,
+					  (caddr_t)&vn, 0,
+					  p->p_rlimit[RLIMIT_MEMLOCK].rlim_cur);
+#endif /* __NetBSD__ */
 		}
 		if (retcode)
 			goto done;

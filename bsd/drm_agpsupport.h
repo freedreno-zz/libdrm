@@ -33,7 +33,7 @@
 
 int DRM(agp_info)(DRM_OS_IOCTL)
 {
-	drm_device_t	*dev	= kdev->si_drv1;
+	DRM_OS_DEVICE;
 	struct agp_info *kern;
 	drm_agp_info_t   info;
 
@@ -57,7 +57,7 @@ int DRM(agp_info)(DRM_OS_IOCTL)
 
 int DRM(agp_acquire)(DRM_OS_IOCTL)
 {
-	drm_device_t *dev = kdev->si_drv1;
+	DRM_OS_DEVICE;
 	int          retcode;
 
 	if (!dev->agp || dev->agp->acquired) return EINVAL;
@@ -69,7 +69,7 @@ int DRM(agp_acquire)(DRM_OS_IOCTL)
 
 int DRM(agp_release)(DRM_OS_IOCTL)
 {
-	drm_device_t *dev = kdev->si_drv1;
+	DRM_OS_DEVICE;
 
 	if (!dev->agp || !dev->agp->acquired)
 		return EINVAL;
@@ -90,7 +90,7 @@ void DRM(agp_do_release)(void)
 
 int DRM(agp_enable)(DRM_OS_IOCTL)
 {
-	drm_device_t   *dev = kdev->si_drv1;
+	DRM_OS_DEVICE;
 	drm_agp_mode_t mode;
 
 	if (!dev->agp || !dev->agp->acquired) return EINVAL;
@@ -106,7 +106,7 @@ int DRM(agp_enable)(DRM_OS_IOCTL)
 
 int DRM(agp_alloc)(DRM_OS_IOCTL)
 {
-	drm_device_t     *dev = kdev->si_drv1;
+	DRM_OS_DEVICE;
 	drm_agp_buffer_t request;
 	drm_agp_mem_t    *entry;
 	void	         *handle;
@@ -161,7 +161,7 @@ static drm_agp_mem_t * DRM(agp_lookup_entry)(drm_device_t *dev, void *handle)
 
 int DRM(agp_unbind)(DRM_OS_IOCTL)
 {
-	drm_device_t      *dev = kdev->si_drv1;
+	DRM_OS_DEVICE;
 	drm_agp_binding_t request;
 	drm_agp_mem_t     *entry;
 	int retcode;
@@ -183,7 +183,7 @@ int DRM(agp_unbind)(DRM_OS_IOCTL)
 
 int DRM(agp_bind)(DRM_OS_IOCTL)
 {
-	drm_device_t      *dev = kdev->si_drv1;
+	DRM_OS_DEVICE;
 	drm_agp_binding_t request;
 	drm_agp_mem_t     *entry;
 	int               retcode;
@@ -205,7 +205,7 @@ int DRM(agp_bind)(DRM_OS_IOCTL)
 
 int DRM(agp_free)(DRM_OS_IOCTL)
 {
-	drm_device_t     *dev = kdev->si_drv1;
+	DRM_OS_DEVICE;
 	drm_agp_buffer_t request;
 	drm_agp_mem_t    *entry;
 	

@@ -17,6 +17,12 @@
 #include <machine/bus.h>
 #include <dev/pci/pcireg.h>
 #include <dev/pci/pcivar.h>
+#include <uvm/uvm.h>
+#include <sys/vnode.h>
+#include <miscfs/specfs/specdev.h>
+#include <sys/resourcevar.h>
+#include <machine/sysarch.h>
+#include <machine/mtrr.h>
 
 #define __REALLY_HAVE_AGP	__HAVE_AGP
 
@@ -38,6 +44,7 @@
 #define DRM_DEV_MODE	(S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP)
 #define DRM_DEV_UID	0
 #define DRM_DEV_GID	0
+#define CDEV_MAJOR	90
 
 #define DRM_OS_CURPROC		curproc
 #define DRM_OS_STRUCTPROC	struct proc

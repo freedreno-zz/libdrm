@@ -447,8 +447,10 @@ struct drm_device {
 	drm_device_dma_t  *dma;		/* Optional pointer for DMA support */
 
 				/* Context support */
+#ifdef __FreeBSD__
 	int		  irq;		/* Interrupt used by board	   */
 	struct resource   *irqr;	/* Resource for interrupt used by board	   */
+#endif /* __FreeBSD__ */
 	void		  *irqh;	/* Handle from bus_setup_intr      */
 	atomic_t	  context_flag;	/* Context swapping flag	   */
 	atomic_t	  interrupt_flag; /* Interruption handler flag	   */

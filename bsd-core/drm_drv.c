@@ -553,9 +553,15 @@ static int DRM(takedown)( drm_device_t *dev )
 #if __REALLY_HAVE_MTRR
 				if ( map->mtrr >= 0 ) {
 					int retcode;
-					retcode = mtrr_del( map->mtrr,
-							    map->offset,
-							    map->size );
+#ifdef __NetBSD__
+					mtrrmap.base = map->offset;
+					mtrrmap.len = map->size;
+					mtrrmap.type = MTRR_TYPE_WC;
+					mtrrmap.flags = 0;
+					/*mtrrmap.owner = p->p_pid;*/
+					/* XXX */
+					retcode = mtrr_get( &mtrrmap, &one, NULL, MTRR_GETSET_USER);
+#endif
 					DRM_DEBUG( "mtrr_del=%d\n", retcode );
 				}
 #endif
@@ -638,6 +644,9 @@ static int DRM(init)( drm_device_t *dev )
 #ifdef __FreeBSD__
 	drm_device_t *dev;
 #endif
+#ifdef __NetBSD__
+	struct mtrr mtrrmap;
+#endif
 #if __HAVE_CTX_BITMAP
 	int retcode;
 #endif
@@ -680,10 +689,16 @@ static int DRM(init)( drm_device_t *dev )
 #endif
 #if __REALLY_HAVE_MTRR
 	if (dev->agp)
-		dev->agp->agp_mtrr = mtrr_add( dev->agp->agp_info.aper_base,
-			       dev->agp->agp_info.aper_size*1024*1024,
-			       MTRR_TYPE_WRCOMB,
-			       1 );
+#ifdef __NetBSD__
+		mtrrmap.base = dev->agp->info.ai_aperture_base;
+		/* Might need a multiplier here XXX */
+		mtrrmap.len = dev->agp->info.ai_aperture_size;
+		mtrrmap.type = MTRR_TYPE_WC;
+		mtrrmap.flags = MTRR_PRIVATE | MTRR_FIXED | MTRR_VALID;
+		/* XXX mtrrmap.owner? even proper at all? */
+		dev->agp->agp_mtrr = mtrr_get( &mtrrmap, &one, NULL,
+					       MTRR_GETSET_USER );
+#endif /* __NetBSD__ */
 #endif
 #endif
 

@@ -196,11 +196,7 @@ int DRM(write_string)(drm_device_t *dev, const char *s)
 
 int DRM(poll)(dev_t kdev, int events, DRM_OS_STRUCTPROC *p)
 {
-#ifdef __FreeBSD__
-	drm_device_t *dev = kdev->si_drv1;
-#elif defined(__NetBSD__)
-	drm_device_t *dev = &DRM(softcs)[0]; /* FIXME: multiple instances */
-#endif
+	DRM_OS_DEVICE;
 	int           s;
 	int	      revents = 0;
 
@@ -220,11 +216,7 @@ int DRM(poll)(dev_t kdev, int events, DRM_OS_STRUCTPROC *p)
 int DRM(write)(dev_t kdev, struct uio *uio, int ioflag)
 {
 #if DRM_DEBUG_CODE
-#ifdef __FreeBSD__
-	drm_device_t *dev = kdev->si_drv1;
-#elif defined(__NetBSD__)
-	drm_device_t *dev = &DRM(softcs)[0]; /* FIXME: multiple instances */
-#endif
+	DRM_OS_DEVICE;
 #endif
 	DRM_DEBUG("pid = %d, device = %p, open_count = %d\n",
                   curproc->p_pid, dev->device, dev->open_count);
