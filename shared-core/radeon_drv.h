@@ -674,7 +674,7 @@ do {									\
 #if defined(__powerpc__)
 #define radeon_flush_write_combine()	(void) GET_RING_HEAD( &dev_priv->ring )
 #else
-#define radeon_flush_write_combine()	DRM_OS_WRITEMEMORYBARRIER()
+#define radeon_flush_write_combine()	DRM_WRITEMEMORYBARRIER()
 #endif
 
 
