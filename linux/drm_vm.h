@@ -44,12 +44,6 @@ struct vm_operations_struct   drm_vm_shm_ops = {
 	close:	 DRM(vm_close),
 };
 
-struct vm_operations_struct   drm_vm_shm_lock_ops = {
-	nopage:	 DRM(vm_shm_nopage_lock),
-	open:	 DRM(vm_open),
-	close:	 DRM(vm_close),
-};
-
 struct vm_operations_struct   drm_vm_dma_ops = {
 	nopage:	 DRM(vm_dma_nopage),
 	open:	 DRM(vm_open),
@@ -88,48 +82,29 @@ struct page *DRM(vm_shm_nopage)(struct vm_area_struct *vma,
 #endif
 	unsigned long	 physical;
 	unsigned long	 offset;
+	unsigned long	 i;
+	pgd_t		 *pgd;
+	pmd_t		 *pmd;
+	pte_t		 *pte;
 
 	if (address > vma->vm_end) return NOPAGE_SIGBUS; /* Disallow mremap */
 	if (!map)    		   return NOPAGE_OOM;  /* Nothing allocated */
 
 	offset	 = address - vma->vm_start;
-	physical = (unsigned long)map->handle + offset;
+	i = (unsigned long)map->handle + offset;
+	/* We have to walk page tables here because we need large SAREA's, and
+	 * they need to be virtually contigious in kernel space.
+	 */
+	pgd = pgd_offset_k( i );
+	if( !pgd_present( *pgd ) ) return NOPAGE_OOM;
+	pmd = pmd_offset( pgd, i );
+	if( !pmd_present( *pmd ) ) return NOPAGE_OOM;
+	pte = pte_offset( pmd, i );
+	if( !pte_present( *pte ) ) return NOPAGE_OOM;
+	physical = (unsigned long)pte_page( *pte )->virtual;
 	atomic_inc(&virt_to_page(physical)->count); /* Dec. by kernel */
 
 	DRM_DEBUG("0x%08lx => 0x%08lx\n", address, physical);
-#if LINUX_VERSION_CODE < 0x020317
-	return physical;
-#else
-	return virt_to_page(physical);
-#endif
-}
-
-#if LINUX_VERSION_CODE < 0x020317
-unsigned long DRM(vm_shm_nopage_lock)(struct vm_area_struct *vma,
-				      unsigned long address,
-				      int write_access)
-#else
-				/* Return type changed in 2.3.23 */
-struct page *DRM(vm_shm_nopage_lock)(struct vm_area_struct *vma,
-				     unsigned long address,
-				     int write_access)
-#endif
-{
-	drm_file_t	 *priv	 = vma->vm_file->private_data;
-	drm_device_t	 *dev	 = priv->dev;
-	unsigned long	 physical;
-	unsigned long	 offset;
-	unsigned long	 page;
-
-	if (address > vma->vm_end) return NOPAGE_SIGBUS; /* Disallow mremap */
-	if (!dev->lock.hw_lock)    return NOPAGE_OOM;  /* Nothing allocated */
-
-	offset	 = address - vma->vm_start;
-	page	 = offset >> PAGE_SHIFT;
-	physical = (unsigned long)dev->lock.hw_lock + offset;
-	atomic_inc(&virt_to_page(physical)->count); /* Dec. by kernel */
-
-	DRM_DEBUG("0x%08lx (page %lu) => 0x%08lx\n", address, page, physical);
 #if LINUX_VERSION_CODE < 0x020317
 	return physical;
 #else
@@ -272,7 +247,8 @@ int DRM(mmap)(struct file *filp, struct vm_area_struct *vma)
 	drm_file_t	*priv	= filp->private_data;
 	drm_device_t	*dev	= priv->dev;
 	drm_map_t	*map	= NULL;
-	int		i;
+	drm_map_list_t  *r_list;
+	struct list_head *list;
 
 	DRM_DEBUG("start = 0x%lx, end = 0x%lx, offset = 0x%lx\n",
 		  vma->vm_start, vma->vm_end, VM_OFFSET(vma));
@@ -286,12 +262,13 @@ int DRM(mmap)(struct file *filp, struct vm_area_struct *vma)
 				   once, so it doesn't have to be optimized
 				   for performance, even if the list was a
 				   bit longer. */
-	for (i = 0; i < dev->map_count; i++) {
-		map = dev->maplist[i];
+	list_for_each(list, &dev->maplist->head) {
+		r_list = (drm_map_list_t *)list;
+		map = r_list->map;
+		if (!map) continue;
 		if (map->offset == VM_OFFSET(vma)) break;
 	}
 
-	if (i >= dev->map_count) return -EINVAL;
 	if (!map || ((map->flags&_DRM_RESTRICTED) && !capable(CAP_SYS_ADMIN)))
 		return -EPERM;
 
@@ -339,17 +316,12 @@ int DRM(mmap)(struct file *filp, struct vm_area_struct *vma)
 		vma->vm_ops = &drm_vm_ops;
 		break;
 	case _DRM_SHM:
-		if (map->flags & _DRM_CONTAINS_LOCK)
-			vma->vm_ops = &drm_vm_shm_lock_ops;
-		else {
-			vma->vm_ops = &drm_vm_shm_ops;
+		vma->vm_ops = &drm_vm_shm_ops;
 #if LINUX_VERSION_CODE >= 0x020300
-			vma->vm_private_data = (void *)map;
+		vma->vm_private_data = (void *)map;
 #else
-			vma->vm_pte = (unsigned long)map;
+		vma->vm_pte = (unsigned long)map;
 #endif
-		}
-
 				/* Don't let this area swap.  Change when
 				   DRM_KERNEL advisory is supported. */
 		vma->vm_flags |= VM_LOCKED;

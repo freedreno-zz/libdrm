@@ -515,6 +515,16 @@ int drmAddMap(int fd,
     return 0;
 }
 
+int drmRmMap(int fd, drmHandle handle)
+{
+    drm_map_t map;
+
+    map.handle = handle;
+
+    if(ioctl(fd, DRM_IOCTL_RM_MAP, &map)) return -errno;
+    return 0;
+}
+
 int drmAddBufs(int fd, int count, int size, drmBufDescFlags flags,
 	       int agp_offset)
 {
@@ -1088,6 +1098,29 @@ void *drmGetContextTag(int fd, drmContext context)
     if (drmHashLookup(entry->tagTable, context, &value)) return NULL;
 
     return value;
+}
+
+int drmAddContextPrivateMapping(int fd, drmContext ctx_id, drmHandle handle)
+{
+    drm_ctx_priv_map_t map;
+
+    map.ctx_id = ctx_id;
+    map.handle = handle;
+
+    if(ioctl(fd, DRM_IOCTL_CTX_SAREA, &map)) return -errno;
+    return 0;
+}
+
+int drmGetContextPrivateMapping(int fd, drmContext ctx_id, drmHandlePtr handle)
+{
+    drm_ctx_priv_map_t map;
+
+    map.ctx_id = ctx_id;
+
+    if(ioctl(fd, DRM_IOCTL_GET_CTX_SAREA, &map)) return -errno;
+    if(handle) *handle = map.handle;
+
+    return 0;
 }
 
 #if defined(XFree86Server) || defined(DRM_USE_MALLOC)

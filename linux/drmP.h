@@ -321,16 +321,19 @@ static inline unsigned long __cmpxchg(volatile void *ptr, unsigned long old,
 			DRM(ioremapfree)( (map)->handle, (map)->size );	\
 	} while (0)
 
-#define DRM_FIND_MAP(map, o)						\
-	do {								\
-		int i;							\
-		for ( i = 0 ; i < dev->map_count ; i++ ) {		\
-			if ( dev->maplist[i]->offset == o ) {		\
-				map = dev->maplist[i];			\
-				break;					\
-			}						\
-		}							\
-	} while (0)
+#define DRM_FIND_MAP(_map, _o)						\
+do {									\
+	struct list_head *_list;					\
+	list_for_each(_list, &dev->maplist->head) {			\
+		drm_map_list_t *_r_list;				\
+		_r_list = (drm_map_list_t *)_list;			\
+		if(_r_list->map &&					\
+		   _r_list->map->offset == (_o)) {			\
+			(_map) = _r_list->map;				\
+			break;						\
+ 		}							\
+	}								\
+} while(0)
 
 				/* Internal types and structures */
 #define DRM_ARRAY_SIZE(x) (sizeof(x)/sizeof(x[0]))
@@ -340,6 +343,10 @@ static inline unsigned long __cmpxchg(volatile void *ptr, unsigned long old,
 #define DRM_LEFTCOUNT(x) (((x)->rp + (x)->count - (x)->wp) % ((x)->count + 1))
 #define DRM_BUFCOUNT(x) ((x)->count - DRM_LEFTCOUNT(x))
 #define DRM_WAITCOUNT(dev,idx) DRM_BUFCOUNT(&dev->queuelist[idx]->waitlist)
+
+#define DRM_GET_PRIV_SAREA(_dev, _ctx, _map) do {	\
+	(_map) = (_dev)->context_sareas[_ctx];		\
+} while(0)
 
 typedef int drm_ioctl_t( struct inode *inode, struct file *filp,
 			 unsigned int cmd, unsigned long arg );
@@ -569,6 +576,11 @@ typedef struct drm_sigdata {
 	drm_hw_lock_t *lock;
 } drm_sigdata_t;
 
+typedef struct drm_map_list {
+	struct list_head	head;
+	drm_map_t		*map;
+} drm_map_list_t;
+
 typedef struct drm_device {
 	const char	  *name;	/* Simple driver name		   */
 	char		  *unique;	/* Unique identifier: e.g., busid  */
@@ -601,8 +613,11 @@ typedef struct drm_device {
 	drm_magic_head_t  magiclist[DRM_HASH_SIZE];
 
 				/* Memory management */
-	drm_map_t	  **maplist;	/* Vector of pointers to regions   */
+	drm_map_list_t	  *maplist;	/* Linked list of regions	   */
 	int		  map_count;	/* Number of mappable regions	   */
+
+	drm_map_t	  **context_sareas;
+	int		  max_context;
 
 	drm_vma_entry_t	  *vmalist;	/* List of vmas (for debugging)	   */
 	drm_lock_data_t	  lock;		/* Information on hardware lock	   */
@@ -690,9 +705,6 @@ extern unsigned long DRM(vm_nopage)(struct vm_area_struct *vma,
 extern unsigned long DRM(vm_shm_nopage)(struct vm_area_struct *vma,
 					unsigned long address,
 					int write_access);
-extern unsigned long DRM(vm_shm_nopage_lock)(struct vm_area_struct *vma,
-					     unsigned long address,
-					     int write_access);
 extern unsigned long DRM(vm_dma_nopage)(struct vm_area_struct *vma,
 					unsigned long address,
 					int write_access);
@@ -704,9 +716,6 @@ extern struct page *DRM(vm_nopage)(struct vm_area_struct *vma,
 extern struct page *DRM(vm_shm_nopage)(struct vm_area_struct *vma,
 				       unsigned long address,
 				       int write_access);
-extern struct page *DRM(vm_shm_nopage_lock)(struct vm_area_struct *vma,
-					    unsigned long address,
-					    int write_access);
 extern struct page *DRM(vm_dma_nopage)(struct vm_area_struct *vma,
 				       unsigned long address,
 				       int write_access);
@@ -824,14 +833,17 @@ extern int           DRM(notifier)(void *priv);
 				/* Context Bitmap support (ctxbitmap.c) */
 extern int	     DRM(ctxbitmap_init)( drm_device_t *dev );
 extern void	     DRM(ctxbitmap_cleanup)( drm_device_t *dev );
-
-
-
+extern int	     DRM(add_ctx_map)( struct inode *inode, struct file *filp,
+				       unsigned int cmd, unsigned long arg );
+extern int	     DRM(get_ctx_map)( struct inode *inode, struct file *filp,
+				       unsigned int cmd, unsigned long arg );
 
 				/* Buffer management support (bufs.c) */
 extern int	     DRM(order)( unsigned long size );
 extern int	     DRM(addmap)( struct inode *inode, struct file *filp,
 				  unsigned int cmd, unsigned long arg );
+extern int	     DRM(rmmap)( struct inode *inode, struct file *filp,
+				 unsigned int cmd, unsigned long arg );
 extern int	     DRM(addbufs)( struct inode *inode, struct file *filp,
 				   unsigned int cmd, unsigned long arg );
 extern int	     DRM(infobufs)( struct inode *inode, struct file *filp,

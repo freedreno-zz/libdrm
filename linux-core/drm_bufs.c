@@ -69,6 +69,7 @@ int DRM(addmap)( struct inode *inode, struct file *filp,
 	drm_file_t *priv = filp->private_data;
 	drm_device_t *dev = priv->dev;
 	drm_map_t *map;
+	drm_map_list_t *list;
 
 	if ( !(filp->f_mode & 3) ) return -EACCES; /* Require read/write */
 
@@ -100,7 +101,7 @@ int DRM(addmap)( struct inode *inode, struct file *filp,
 			return -EINVAL;
 		}
 #endif
-#ifdef CONFIG_MTRR
+#ifdef __REALLY_HAVE_MTRR
 		if ( map->type == _DRM_FRAME_BUFFER ||
 		     (map->flags & _DRM_WRITE_COMBINING) ) {
 			map->mtrr = mtrr_add( map->offset, map->size,
@@ -111,9 +112,7 @@ int DRM(addmap)( struct inode *inode, struct file *filp,
 		break;
 
 	case _DRM_SHM:
-		map->handle = (void *)DRM(alloc_pages)( DRM(order)( map->size )
-						       - PAGE_SHIFT,
-						       DRM_MEM_SAREA );
+		map->handle = vmalloc_32(map->size);
 		DRM_DEBUG( "%ld %d %p\n",
 			   map->size, DRM(order)( map->size ), map->handle );
 		if ( !map->handle ) {
@@ -135,22 +134,17 @@ int DRM(addmap)( struct inode *inode, struct file *filp,
 		return -EINVAL;
 	}
 
-	down( &dev->struct_sem );
-	if ( dev->maplist ) {
-		++dev->map_count;
-		dev->maplist = DRM(realloc)( dev->maplist,
-					     (dev->map_count-1)
-					     * sizeof(*dev->maplist),
-					     dev->map_count
-					     * sizeof(*dev->maplist),
-					     DRM_MEM_MAPS );
-	} else {
-		dev->map_count = 1;
-		dev->maplist = DRM(alloc)( dev->map_count*sizeof(*dev->maplist),
-					  DRM_MEM_MAPS );
+	list = DRM(alloc)(sizeof(*list), DRM_MEM_MAPS);
+	if(!list) {
+		DRM(free)(map, sizeof(*map), DRM_MEM_MAPS);
+		return -EINVAL;
 	}
-	dev->maplist[dev->map_count-1] = map;
-	up( &dev->struct_sem );
+	memset(list, 0, sizeof(*list));
+	list->map = map;
+
+	down(&dev->struct_sem);
+	list_add(&list->head, &dev->maplist->head);
+ 	up(&dev->struct_sem);
 
 	if ( copy_to_user( (drm_map_t *)arg, map, sizeof(*map) ) )
 		return -EFAULT;
@@ -160,6 +154,70 @@ int DRM(addmap)( struct inode *inode, struct file *filp,
 				   sizeof(map->offset) ) )
 			return -EFAULT;
 	}
+	return 0;
+}
+
+/* Remove a map private from list and deallocate resources */
+int DRM(rmmap)(struct inode *inode, struct file *filp, 
+	       unsigned int cmd, unsigned long arg)
+{
+	drm_file_t	*priv	= filp->private_data;
+	drm_device_t	*dev	= priv->dev;
+	struct list_head *list;
+	drm_map_list_t *r_list;
+
+	drm_map_t *map;
+	drm_map_t request;
+
+	if (copy_from_user(&request, (drm_map_t *)arg, 
+			   sizeof(request))) {
+		return -EFAULT;
+	}
+
+	down(&dev->struct_sem);
+	list = &dev->maplist->head;
+	list_for_each(list, &dev->maplist->head) {
+		r_list = (drm_map_list_t *) list;
+
+		if(r_list->map &&
+		   r_list->map->handle == request.handle &&
+		   r_list->map->flags & _DRM_REMOVABLE) break;
+	}
+
+	/* List has wrapped around to the head pointer, or its empty we didn't
+	 * find anything.
+	 */
+	if(list == (&dev->maplist->head)) {
+		up(&dev->struct_sem);
+		return -EINVAL;
+	}
+	map = r_list->map;
+	list_del(list);
+	up(&dev->struct_sem);
+
+	DRM(free)(list, sizeof(*list), DRM_MEM_MAPS);
+
+	switch (map->type) {
+	case _DRM_REGISTERS:
+	case _DRM_FRAME_BUFFER:
+#ifdef __REALLY_HAVE_MTRR
+		if (map->mtrr >= 0) {
+			int retcode;
+			retcode = mtrr_del(map->mtrr,
+					   map->offset,
+					   map->size);
+			DRM_DEBUG("mtrr_del = %d\n", retcode);
+		}
+#endif
+		DRM(ioremapfree)(map->handle, map->size);
+		break;
+	case _DRM_SHM:
+		vfree(map->handle);
+		break;
+	case _DRM_AGP:
+		break;
+	}
+	DRM(free)(map, sizeof(*map), DRM_MEM_MAPS);
 	return 0;
 }
 

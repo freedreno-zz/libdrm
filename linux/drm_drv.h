@@ -133,6 +133,10 @@ static drm_ioctl_desc_t		DRM(ioctls)[] = {
 	[DRM_IOCTL_NR(DRM_IOCTL_AUTH_MAGIC)]  = { DRM(authmagic),   1, 1 },
 
 	[DRM_IOCTL_NR(DRM_IOCTL_ADD_MAP)]     = { DRM(addmap),      1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_RM_MAP)]      = { DRM(rmmap),       1, 0 },
+
+	[DRM_IOCTL_NR(DRM_IOCTL_CTX_SAREA)]     = { DRM(add_ctx_map), 1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_GET_CTX_SAREA)] = { DRM(get_ctx_map), 1, 1 },
 
 	[DRM_IOCTL_NR(DRM_IOCTL_ADD_CTX)]     = { DRM(addctx),      1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_RM_CTX)]      = { DRM(rmctx),       1, 1 },
@@ -262,8 +266,14 @@ static int DRM(setup)( drm_device_t *dev )
 		dev->magiclist[i].head = NULL;
 		dev->magiclist[i].tail = NULL;
 	}
-	dev->maplist = NULL;
+
+	dev->maplist = DRM(alloc)(sizeof(*dev->maplist),
+				  DRM_MEM_MAPS);
+	if(dev->maplist == NULL) return -ENOMEM;
+	memset(dev->maplist, 0, sizeof(*dev->maplist));
+	INIT_LIST_HEAD(&dev->maplist->head);
 	dev->map_count = 0;
+
 	dev->vmalist = NULL;
 	dev->lock.hw_lock = NULL;
 	init_waitqueue_head( &dev->lock.lock_queue );
@@ -307,6 +317,8 @@ static int DRM(takedown)( drm_device_t *dev )
 {
 	drm_magic_entry_t *pt, *next;
 	drm_map_t *map;
+	drm_map_list_t *r_list;
+	struct list_head *list;
 	drm_vma_entry_t *vma, *vma_next;
 	int i;
 
@@ -373,10 +385,13 @@ static int DRM(takedown)( drm_device_t *dev )
 		dev->vmalist = NULL;
 	}
 
-				/* Clear map area and mtrr information */
-	if ( dev->maplist ) {
-		for ( i = 0 ; i < dev->map_count ; i++ ) {
-			map = dev->maplist[i];
+	if( dev->maplist ) {
+		list_for_each(list, &dev->maplist->head) {
+			r_list = (drm_map_list_t *)list;
+			map = r_list->map;
+			DRM(free)(r_list, sizeof(*r_list), DRM_MEM_MAPS);
+			if(!map) continue;
+
 			switch ( map->type ) {
 			case _DRM_REGISTERS:
 			case _DRM_FRAME_BUFFER:
@@ -392,25 +407,20 @@ static int DRM(takedown)( drm_device_t *dev )
 				DRM(ioremapfree)( map->handle, map->size );
 				break;
 			case _DRM_SHM:
-				DRM(free_pages)( (unsigned long)map->handle,
-						 DRM(order)( map->size )
-						 - PAGE_SHIFT,
-						 DRM_MEM_SAREA );
+				vfree(map->handle);
 				break;
+
 			case _DRM_AGP:
 				/* Do nothing here, because this is all
 				 * handled in the AGP/GART driver.
 				 */
 				break;
 			}
-			DRM(free)( map, sizeof(*map), DRM_MEM_MAPS );
-		}
-		DRM(free)( dev->maplist,
-			  dev->map_count * sizeof(*dev->maplist),
-			  DRM_MEM_MAPS );
+ 			DRM(free)(map, sizeof(*map), DRM_MEM_MAPS);
+ 		}
+		DRM(free)(dev->maplist, sizeof(*dev->maplist), DRM_MEM_MAPS);
 		dev->maplist = NULL;
-		dev->map_count = 0;
-	}
+ 	}
 
 #if __HAVE_DMA_QUEUE || __HAVE_MULTIPLE_DMA_QUEUES
 	if ( dev->queuelist ) {
