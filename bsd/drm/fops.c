@@ -76,11 +76,10 @@ int drm_open_helper(dev_t kdev, int flags, int fmt, struct proc *p,
 		priv->devXX	    = dev;
 		priv->ioctl_count   = 0;
 		priv->authenticated = !suser(p);
+		lockmgr(&dev->dev_lock, LK_EXCLUSIVE, 0, p);
+		TAILQ_INSERT_TAIL(&dev->files, priv, link);
+		lockmgr(&dev->dev_lock, LK_RELEASE, 0, p);
 	}
-
-	lockmgr(&dev->dev_lock, LK_EXCLUSIVE, 0, p);
-	TAILQ_INSERT_TAIL(&dev->files, priv, link);
-	lockmgr(&dev->dev_lock, LK_RELEASE, 0, p);
 
 	kdev->si_drv1 = dev;
 	
