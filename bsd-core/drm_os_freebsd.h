@@ -49,11 +49,16 @@
 #define __REALLY_HAVE_AGP	__HAVE_AGP
 #endif
 
+
+/* This guard was previously 500000 - but FreeBSD as early as 4.6 had
+ * mtrr support.
+ */
 #ifdef __i386__
-#define __REALLY_HAVE_MTRR	(__HAVE_MTRR) && (__FreeBSD_version >= 500000)
+#define __REALLY_HAVE_MTRR	(__HAVE_MTRR) && (__FreeBSD_version >= 460000)
 #else
 #define __REALLY_HAVE_MTRR	0
 #endif
+
 #define __REALLY_HAVE_SG	(__HAVE_SG)
 
 #if __REALLY_HAVE_AGP
