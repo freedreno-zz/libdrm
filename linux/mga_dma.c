@@ -24,9 +24,10 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
  *
- * Authors: Rickard E. (Rik) Faith <faith@valinux.com>
- *	    Jeff Hartmann <jhartmann@valinux.com>
- *	    Keith Whitwell <keithw@valinux.com>
+ * Authors:
+ *   Rickard E. (Rik) Faith <faith@valinux.com>
+ *   Jeff Hartmann <jhartmann@valinux.com>
+ *   Keith Whitwell <keithw@valinux.com>
  *
  * Rewritten by:
  *   Gareth Hughes <gareth@valinux.com>
@@ -1052,7 +1053,7 @@ int mga_do_wait_for_idle( drm_mga_private_t *dev_priv )
 {
 	u32 status = 0;
 	int i;
-	DRM_INFO( "%s\n", __FUNCTION__ );
+	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
 	for ( i = 0 ; i < dev_priv->usec_timeout ; i++ ) {
 		status = MGA_READ( MGA_STATUS ) & MGA_ENGINE_IDLE_MASK;
@@ -1068,7 +1069,7 @@ int mga_do_dma_idle( drm_mga_private_t *dev_priv )
 {
 	u32 status = 0;
 	int i;
-	DRM_INFO( "%s\n", __FUNCTION__ );
+	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
 	for ( i = 0 ; i < dev_priv->usec_timeout ; i++ ) {
 		status = MGA_READ( MGA_STATUS ) & MGA_DMA_IDLE_MASK;
@@ -1082,7 +1083,7 @@ int mga_do_dma_idle( drm_mga_private_t *dev_priv )
 
 int mga_do_dma_reset( drm_mga_private_t *dev_priv )
 {
-	DRM_INFO( "%s\n", __FUNCTION__ );
+	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
 	/* The primary DMA stream should look like new right about now.
 	 */
@@ -1107,7 +1108,7 @@ int mga_do_dma_reset( drm_mga_private_t *dev_priv )
 
 int mga_do_engine_reset( drm_mga_private_t *dev_priv )
 {
-	DRM_INFO( "%s\n", __FUNCTION__ );
+	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
 	/* Okay, so we've completely screwed up and locked the engine.
 	 * How about we clean up after ourselves?
@@ -1157,12 +1158,25 @@ static inline void mga_do_dma( drm_mga_private_t *dev_priv,
 	/* Only flush the primary DMA stream if there are new commands.
 	 */
 	if ( head == tail ) {
+		PRINT_DMA_STATE( dev_priv );
 		DRM_INFO( "   bailing out...\n" );
 		return;
 	}
 
-	DRM_INFO( "   head = 0x%08x\n", head );
-	DRM_INFO( "   tail = 0x%08x\n", tail );
+	{
+		u32 status = MGA_READ( MGA_STATUS ) & MGA_ENGINE_IDLE_MASK;
+		if ( status != MGA_ENDPRDMASTS ) {
+			panic( "DMA engine not idle!\n" );
+		}
+		if ( MGA_READ( MGA_STATUS ) & MGA_SOFTRAPEN ) {
+			panic( "DMA engine SOFTRAP interrupt pending!\n" );
+		}
+	}
+
+	DRM_INFO( "   head = 0x%08x 0x%04x\n",
+		  head, head - dev_priv->primary->offset );
+	DRM_INFO( "   tail = 0x%08x 0x%04x\n",
+		  tail, tail - dev_priv->primary->offset );
 
 	mga_flush_write_combine();
 
@@ -1183,7 +1197,7 @@ void mga_do_dma_flush( drm_mga_private_t *dev_priv )
 	 * function being called, even if there are no new commands.
 	 */
 	if ( test_and_clear_bit( MGA_DMA_FLUSH, &primary->state ) ) {
-		DRM_INFO( "   got DMA flush...\n" );
+		DRM_DEBUG( "   got DMA flush...\n" );
 	}
 
 	/* Only flush the primary DMA stream if there are new commands.
@@ -1288,6 +1302,9 @@ void mga_dma_wrap_or_wait( drm_mga_private_t *dev_priv, int n )
 		primary->tail = 0;
 		primary->last_flush = 0;
 
+		while ( mga_do_wait_for_idle( dev_priv ) < 0 )
+			;
+
 		/* Kick off the last chunk of commands immediately if
 		 * the primary DMA stream is idle.  This makes wrapping
 		 * nice and simple.
@@ -1302,7 +1319,7 @@ void mga_dma_wrap_or_wait( drm_mga_private_t *dev_priv, int n )
 	} else {
 		/* FIXME: This is terribly broken...
 		 */
-		DRM_INFO( "*** WTF??? ***\n" );
+		panic( "*** WTF??? ***\n" );
 		while ( mga_do_wait_for_idle( dev_priv ) < 0 )
 			;
 
@@ -1366,7 +1383,9 @@ int mga_dma_schedule( drm_device_t *dev, int locked )
 	DRM_INFO( "%s: prim=0x%x low=0x%x\n",
 		  __FUNCTION__,
 		  dev_priv->prim.tail - dev_priv->prim.last_flush,
-		  dev_priv->prim.low_mark );
+		  dev_priv->prim.low_mark);
+
+	set_bit( MGA_DMA_IDLE, &primary->state );
 
 	if ( dev_priv->prim.wrap ) {
 		DRM_INFO( "   wrapping primary DMA...\n" );
@@ -1380,8 +1399,9 @@ int mga_dma_schedule( drm_device_t *dev, int locked )
 		mga_do_dma_flush( dev_priv );
 	} else {
 		DRM_INFO( "   going idle...\n" );
-		set_bit( MGA_DMA_IDLE, &primary->state );
 	}
+
+	PRINT_DMA_STATE( dev_priv );
 
 	return 0;
 }
@@ -1394,6 +1414,26 @@ int mga_dma_schedule( drm_device_t *dev, int locked )
 #define MGA_BUFFER_USED		~0
 #define MGA_BUFFER_FREE		0
 
+static void mga_freelist_print( drm_device_t *dev )
+{
+	drm_device_dma_t *dma = dev->dma;
+	drm_mga_private_t *dev_priv = dev->dev_private;
+	drm_mga_freelist_t *entry;
+	int i;
+
+	DRM_INFO( "\n" );
+	DRM_INFO( "current dispatch: last=0x%x done=0x%x\n",
+		  dev_priv->sarea_priv->last_dispatch,
+		  dev_priv->prim.status[1] );
+	DRM_INFO( "current freelist:\n" );
+
+	for ( entry = dev_priv->head->next ; entry ; entry = entry->next ) {
+		DRM_INFO( "   %p   idx=%2d  age=0x%x\n",
+			  entry, entry->buf->idx, entry->age );
+	}
+	DRM_INFO( "\n" );
+}
+
 static int mga_freelist_init( drm_device_t *dev )
 {
 	drm_device_dma_t *dma = dev->dma;
@@ -1402,6 +1442,7 @@ static int mga_freelist_init( drm_device_t *dev )
 	drm_mga_buf_priv_t *buf_priv;
 	drm_mga_freelist_t *entry;
 	int i;
+	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
 	dev_priv->head = DRM(alloc)( sizeof(drm_mga_freelist_t),
 				     DRM_MEM_DRIVER );
@@ -1447,6 +1488,7 @@ static void mga_freelist_cleanup( drm_device_t *dev )
 	drm_mga_private_t *dev_priv = dev->dev_private;
 	drm_mga_freelist_t *entry;
 	drm_mga_freelist_t *next;
+	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
 	entry = dev_priv->head;
 	while ( entry ) {
@@ -1472,13 +1514,19 @@ static void mga_freelist_reset( drm_device_t *dev )
 	}
 }
 
-drm_buf_t *mga_freelist_get( drm_device_t *dev )
+static drm_buf_t *mga_freelist_get( drm_device_t *dev )
 {
 	drm_mga_private_t *dev_priv = dev->dev_private;
 	drm_mga_freelist_t *next;
 	drm_mga_freelist_t *prev;
+	DRM_DEBUG( "%s: tail=0x%x status=0x%x\n",
+		  __FUNCTION__, dev_priv->tail->age,
+		  dev_priv->prim.status[1] );
 
-	if ( dev_priv->tail->age < dev_priv->last_prim_age ) {
+#if 0
+	mga_freelist_print( dev );
+#endif
+	if ( dev_priv->tail->age <= dev_priv->prim.status[1] ) {
 		prev = dev_priv->tail->prev;
 		next = dev_priv->tail;
 		prev->next = NULL;
@@ -1488,16 +1536,19 @@ drm_buf_t *mga_freelist_get( drm_device_t *dev )
 		return next->buf;
 	}
 
+	DRM_ERROR( "returning NULL!\n" );
 	return NULL;
 }
 
-int mga_freelist_put( drm_device_t *dev, drm_buf_t *buf )
+static int mga_freelist_put( drm_device_t *dev, drm_buf_t *buf )
 {
 	drm_mga_private_t *dev_priv = dev->dev_private;
 	drm_mga_buf_priv_t *buf_priv = buf->dev_private;
 	drm_mga_freelist_t *head;
 	drm_mga_freelist_t *next;
 	drm_mga_freelist_t *prev;
+	DRM_DEBUG( "%s: age=0x%x\n",
+		  __FUNCTION__, buf_priv->list_entry->age );
 
 	if ( buf_priv->list_entry->age == MGA_BUFFER_USED ) {
 		/* Discarded buffer, put it on the tail.
@@ -1534,7 +1585,7 @@ static int mga_do_init_dma( drm_device_t *dev, drm_mga_init_t *init )
 {
 	drm_mga_private_t *dev_priv;
 	int ret;
-	DRM_INFO( "%s\n", __FUNCTION__ );
+	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
 	dev_priv = DRM(alloc)( sizeof(drm_mga_private_t), DRM_MEM_DRIVER );
 	if ( dev_priv == NULL )
@@ -1553,6 +1604,7 @@ static int mga_do_init_dma( drm_device_t *dev, drm_mga_init_t *init )
 	} else {
 		dev_priv->clear_cmd = MGA_DWGCTL_CLEAR | MGA_ATYPE_RSTR;
 	}
+	dev_priv->maccess	= init->maccess;
 
 	dev_priv->fb_cpp	= init->fb_cpp;
 	dev_priv->front_offset	= init->front_offset;
@@ -1563,6 +1615,14 @@ static int mga_do_init_dma( drm_device_t *dev, drm_mga_init_t *init )
 	dev_priv->depth_cpp	= init->depth_cpp;
 	dev_priv->depth_offset	= init->depth_offset;
 	dev_priv->depth_pitch	= init->depth_pitch;
+
+	DRM_INFO( "      macces = 0x%08x\n", init->maccess );
+	DRM_INFO( "front offset = 0x%08x\n", init->front_offset );
+	DRM_INFO( "front pitch  = 0x%08x\n", init->front_pitch );
+	DRM_INFO( " back offset = 0x%08x\n", init->back_offset );
+	DRM_INFO( " back pitch  = 0x%08x\n", init->back_pitch );
+	DRM_INFO( "depth offset = 0x%08x\n", init->depth_offset );
+	DRM_INFO( "depth pitch  = 0x%08x\n", init->depth_pitch );
 
 	dev_priv->sarea = dev->maplist[0];
 
@@ -1628,7 +1688,7 @@ static int mga_do_init_dma( drm_device_t *dev, drm_mga_init_t *init )
 	dev_priv->prim.space = dev_priv->prim.size - MGA_DMA_SOFTRAP_SIZE;
 
 	dev_priv->prim.last_flush = 0;
-	dev_priv->prim.low_mark = 4096;
+	dev_priv->prim.low_mark = 32 * DMA_BLOCK_SIZE;
 	dev_priv->prim.mid_mark = dev_priv->prim.space / 4;
 	dev_priv->prim.high_mark = 0;
 
@@ -1640,12 +1700,21 @@ static int mga_do_init_dma( drm_device_t *dev, drm_mga_init_t *init )
 	 */
 	*dev_priv->prim.head = dev_priv->primary->offset;
 
+	dev_priv->sarea_priv->last_dispatch = 0;
+	dev_priv->prim.status[1] = 0;
+
+	if ( mga_freelist_init( dev ) < 0 ) {
+		DRM_ERROR( "could not initialize freelist\n" );
+		mga_do_cleanup_dma( dev );
+		return -ENOMEM;
+	}
+
 	return 0;
 }
 
 int mga_do_cleanup_dma( drm_device_t *dev )
 {
-	DRM_INFO( "%s\n", __FUNCTION__ );
+	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
 	if ( dev->dev_private ) {
 		drm_mga_private_t *dev_priv = dev->dev_private;
@@ -1664,6 +1733,10 @@ int mga_do_cleanup_dma( drm_device_t *dev )
 		/* Make sure we catch this here...
 		 */
 		if ( dev->irq ) mga_irq_uninstall( dev );
+
+		if ( dev_priv->head != NULL ) {
+			mga_freelist_cleanup( dev );
+		}
 
 		DRM(free)( dev->dev_private, sizeof(drm_mga_private_t),
 			   DRM_MEM_DRIVER );
@@ -1707,16 +1780,12 @@ int mga_dma_flush( struct inode *inode, struct file *filp,
 	drm_mga_private_t *dev_priv = (drm_mga_private_t *)dev->dev_private;
 	drm_lock_t lock;
 
+	LOCK_TEST_WITH_RETURN( dev );
+
 	if ( copy_from_user( &lock, (drm_lock_t *)arg, sizeof(lock) ) )
 		return -EFAULT;
 
-	if( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) &&
-	    dev->lock.pid != current->pid ) {
-		DRM_ERROR( "%s called without lock held\n", __FUNCTION__ );
-		return -EINVAL;
-	}
-
-	DRM_INFO( "%s: %s%s%s\n",
+	DRM_DEBUG( "%s: %s%s%s\n",
 		  __FUNCTION__,
 		  (lock.flags & _DRM_LOCK_FLUSH) ?	"flush, " : "",
 		  (lock.flags & _DRM_LOCK_FLUSH_ALL) ?	"flush all, " : "",
@@ -1757,11 +1826,7 @@ int mga_dma_reset( struct inode *inode, struct file *filp,
 	drm_device_t *dev = priv->dev;
 	drm_mga_private_t *dev_priv = (drm_mga_private_t *)dev->dev_private;
 
-	if( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) &&
-	    dev->lock.pid != current->pid ) {
-		DRM_ERROR( "%s called without lock held\n", __FUNCTION__ );
-		return -EINVAL;
-	}
+	LOCK_TEST_WITH_RETURN( dev );
 
 	return mga_do_dma_reset( dev_priv );
 }
@@ -2010,11 +2075,7 @@ int mga_dma_buffers( struct inode *inode, struct file *filp,
 	drm_dma_t d;
 	int ret = 0;
 
-	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||
-	     dev->lock.pid != current->pid ) {
-		DRM_ERROR( "%s called without lock held\n", __FUNCTION__ );
-		return -EINVAL;
-	}
+	LOCK_TEST_WITH_RETURN( dev );
 
 	if ( copy_from_user( &d, (drm_dma_t *)arg, sizeof(d) ) )
 		return -EFAULT;

@@ -145,6 +145,7 @@ typedef struct drm_mga_private {
 	int usec_timeout;
 
 	u32 clear_cmd;
+	u32 maccess;
 
 	unsigned int fb_cpp;
 	unsigned int front_offset;
@@ -189,6 +190,8 @@ extern int mga_dma_reset( struct inode *inode, struct file *filp,
 			  unsigned int cmd, unsigned long arg );
 extern int mga_control( struct inode *inode, struct file *filp,
 			unsigned int cmd, unsigned long arg );
+extern int mga_dma_buffers( struct inode *inode, struct file *filp,
+			    unsigned int cmd, unsigned long arg );
 
 extern int mga_do_wait_for_idle( drm_mga_private_t *dev_priv );
 extern int mga_do_dma_idle( drm_mga_private_t *dev_priv );
@@ -205,6 +208,8 @@ extern int  mga_dma_clear( struct inode *inode, struct file *filp,
 			   unsigned int cmd, unsigned long arg );
 extern int  mga_dma_swap( struct inode *inode, struct file *filp,
 			  unsigned int cmd, unsigned long arg );
+extern int  mga_dma_vertex( struct inode *inode, struct file *filp,
+			    unsigned int cmd, unsigned long arg );
 #if 0
 extern int  mga_clear_bufs( struct inode *inode, struct file *filp,
 			    unsigned int cmd, unsigned long arg );
@@ -212,8 +217,6 @@ extern int  mga_swap_bufs( struct inode *inode, struct file *filp,
 			   unsigned int cmd, unsigned long arg );
 extern int  mga_iload( struct inode *inode, struct file *filp,
 		       unsigned int cmd, unsigned long arg );
-extern int  mga_vertex( struct inode *inode, struct file *filp,
-			unsigned int cmd, unsigned long arg );
 extern int  mga_indices( struct inode *inode, struct file *filp,
 			 unsigned int cmd, unsigned long arg );
 #endif
@@ -350,7 +353,49 @@ drm_mga_prim_buf_t *tmp_buf = 					\
 
 
 
-#define MGA_VERBOSE	1
+/* ================================================================
+ * Helper macross...
+ */
+
+#define MGA_EMIT_STATE( dev_priv, dirty )				\
+do {									\
+	if ( (dirty) & ~MGA_UPLOAD_CLIPRECTS ) {			\
+		if ( dev_priv->chipset == MGA_CARD_TYPE_G400 ) {	\
+			mga_g400_emit_state( dev_priv );		\
+		} else {						\
+			mga_g200_emit_state( dev_priv );		\
+		}							\
+	}								\
+} while (0)
+
+#define LOCK_TEST_WITH_RETURN( dev )					\
+do {									\
+	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||		\
+	     dev->lock.pid != current->pid ) {				\
+		DRM_ERROR( "%s called without lock held\n",		\
+			   __FUNCTION__ );				\
+		return -EINVAL;						\
+	}								\
+} while (0)
+
+#define PRINT_DMA_STATE( dev_priv )					\
+do {									\
+	DRM_INFO( "   state: %d %s%s%s\n",				\
+		  dev_priv->prim.state,					\
+		  test_bit( MGA_DMA_IDLE, &dev_priv->prim.state )	\
+		  ? "idle, " : "active, ",				\
+		  test_bit( MGA_DMA_FLUSH, &dev_priv->prim.state )	\
+		  ? "flush, " : "",					\
+		  test_bit( MGA_DMA_WRAP, &dev_priv->prim.state )	\
+		  ?  "wrap, " : "" );					\
+} while (0)
+
+
+/* ================================================================
+ * Primary DMA command stream
+ */
+
+#define MGA_VERBOSE	0
 
 #define DMA_LOCALS	unsigned int write; volatile u8 *prim;
 #define DMA_BLOCK_SIZE	(5 * sizeof(u32))
@@ -360,6 +405,8 @@ do {									\
 	if ( MGA_VERBOSE ) {						\
 		DRM_INFO( "BEGIN_DMA( %d ) in %s\n",			\
 			  (n), __FUNCTION__ );				\
+		DRM_INFO( "   space=0x%x req=0x%x\n",			\
+			  dev_priv->prim.space, (n) * DMA_BLOCK_SIZE );	\
 	}								\
 	if ( dev_priv->prim.space < (int)((n) * DMA_BLOCK_SIZE) ) {	\
 		mga_dma_wrap_or_wait( dev_priv,				\
@@ -430,22 +477,11 @@ do {									\
 #define MGA_DMA_IDLE_MASK		(MGA_SOFTRAPEN |		\
 					 MGA_ENDPRDMASTS)
 
-#define MGA_DMA_SOFTRAP_SIZE		DMA_BLOCK_SIZE
+#define MGA_DMA_SOFTRAP_SIZE		32 * DMA_BLOCK_SIZE
 
 #define MGA_DMA_IS_IDLE( dev_priv )	test_bit( MGA_DMA_IDLE,		\
 						  &dev_priv->prim.state )
 
-
-#define MGA_EMIT_STATE( dev_priv, dirty )				\
-do {									\
-	if ( (dirty) & ~MGA_UPLOAD_CLIPRECTS ) {			\
-		if ( dev_priv->chipset == MGA_CARD_TYPE_G400 ) {	\
-			mga_g400_emit_state( dev_priv );		\
-		} else {						\
-			mga_g200_emit_state( dev_priv );		\
-		}							\
-	}								\
-} while (0)
 
 
 /* A reduced set of the mga registers.

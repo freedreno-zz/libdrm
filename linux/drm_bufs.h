@@ -247,6 +247,7 @@ int DRM(addbufs_agp)( struct inode *inode, struct file *filp,
 		buf->used    = 0;
 
 		buf->offset  = (dma->byte_count + offset); /* ******** */
+		buf->bus_address = agp_offset + offset;
 		buf->address = (void *)(agp_offset + offset);
 		buf->next    = NULL;
 		buf->waiting = 0;

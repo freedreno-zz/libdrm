@@ -76,9 +76,7 @@ static drm_ioctl_desc_t		mga_ioctls[] = {
 
 	[DRM_IOCTL_NR(DRM_IOCTL_ADD_DRAW)]    = { mga_adddraw,     1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_RM_DRAW)]     = { mga_rmdraw,      1, 1 },
-#if 0
-	[DRM_IOCTL_NR(DRM_IOCTL_DMA)]	      = { mga_dma,         1, 0 },
-#endif
+	[DRM_IOCTL_NR(DRM_IOCTL_DMA)]	      = { mga_dma_buffers, 1, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_LOCK)]	      = { mga_lock,        1, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_UNLOCK)]      = { mga_unlock,      1, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_FINISH)]      = { mga_finish,      1, 0 },
@@ -99,9 +97,9 @@ static drm_ioctl_desc_t		mga_ioctls[] = {
 	[DRM_IOCTL_NR(DRM_IOCTL_MGA_RESET)]   = { mga_dma_reset,   1, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_MGA_SWAP)]    = { mga_dma_swap,    1, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_MGA_CLEAR)]   = { mga_dma_clear,   1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_MGA_VERTEX)]  = { mga_dma_vertex,  1, 0 },
 #if 0
 	[DRM_IOCTL_NR(DRM_IOCTL_MGA_ILOAD)]   = { mga_iload,       1, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_MGA_VERTEX)]  = { mga_vertex,      1, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_MGA_INDICES)] = { mga_indices,     1, 0 },
 #endif
 };
