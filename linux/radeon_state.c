@@ -547,8 +547,9 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 		}
 
 		if ( flags & (RADEON_DEPTH | RADEON_STENCIL) ) {
-			/* FIXME: Emit cliprect...
-			 */
+
+			radeon_emit_clip_rect( dev_priv,
+					       &sarea_priv->boxes[i] );
 
 			BEGIN_RING( 25 );
 
