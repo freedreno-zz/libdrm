@@ -242,7 +242,7 @@ static struct {
 	{ RADEON_SE_ZBIAS_FACTOR,2,"RADEON_SE_ZBIAS_FACTOR" },
 	{ RADEON_SE_TCL_OUTPUT_VTX_FMT,11,"RADEON_SE_TCL_OUTPUT_VTX_FMT" },
 	{ RADEON_SE_TCL_MATERIAL_EMMISSIVE_RED,17,"RADEON_SE_TCL_MATERIAL_EMMISSIVE_RED" },
-	{ R200_PP_TXCBLEND_0, 4, "R200_EMIT_PP_TXCBLEND_0" },
+	{ R200_PP_TXCBLEND_0, 4, "R200_PP_TXCBLEND_0" },
 	{ R200_PP_TXCBLEND_1, 4, "R200_PP_TXCBLEND_1" },
 	{ R200_PP_TXCBLEND_2, 4, "R200_PP_TXCBLEND_2" },
 	{ R200_PP_TXCBLEND_3, 4, "R200_PP_TXCBLEND_3" },
@@ -250,11 +250,26 @@ static struct {
 	{ R200_PP_TXCBLEND_5, 4, "R200_PP_TXCBLEND_5" },
 	{ R200_PP_TXCBLEND_6, 4, "R200_PP_TXCBLEND_6" },
 	{ R200_PP_TXCBLEND_7, 4, "R200_PP_TXCBLEND_7" },
-	{ R200_SE_TCL_LIGHT_MODEL_CTL_0, 7, "R200_SE_TCL_LIGHT_MODEL_CTL_0" },
-	{ R200_PP_TFACTOR_0, 7, "R200_PP_TFACTOR_0" },
-	{ R200_SE_VTX_FMT_0, 5, "R200_SE_VTX_FMT_0" },
+	{ R200_SE_TCL_LIGHT_MODEL_CTL_0, 6, "R200_SE_TCL_LIGHT_MODEL_CTL_0" },
+	{ R200_PP_TFACTOR_0, 6, "R200_PP_TFACTOR_0" },
+	{ R200_SE_VTX_FMT_0, 4, "R200_SE_VTX_FMT_0" },
 	{ R200_SE_VAP_CNTL, 1, "R200_SE_VAP_CNTL" },
 	{ R200_SE_TCL_MATRIX_SEL_0, 5, "R200_SE_TCL_MATRIX_SEL_0" },
+	{ R200_SE_TCL_TEX_PROC_CTL_2, 5, "R200_SE_TCL_TEX_PROC_CTL_2" },
+	{ R200_SE_TCL_UCP_VERT_BLEND_CTL, 1, "R200_SE_TCL_UCP_VERT_BLEND_CTL" },
+	{ R200_PP_TXFILTER_0, 6, "R200_PP_TXFILTER_0" },
+	{ R200_PP_TXFILTER_1, 6, "R200_PP_TXFILTER_1" },
+	{ R200_PP_TXFILTER_2, 6, "R200_PP_TXFILTER_2" },
+	{ R200_PP_TXFILTER_3, 6, "R200_PP_TXFILTER_3" },
+	{ R200_PP_TXFILTER_4, 6, "R200_PP_TXFILTER_4" },
+	{ R200_PP_TXFILTER_5, 6, "R200_PP_TXFILTER_5" },
+	{ R200_PP_TXOFFSET_0, 1, "R200_PP_TXOFFSET_0" },
+	{ R200_PP_TXOFFSET_1, 1, "R200_PP_TXOFFSET_1" },
+	{ R200_PP_TXOFFSET_2, 1, "R200_PP_TXOFFSET_2" },
+	{ R200_PP_TXOFFSET_3, 1, "R200_PP_TXOFFSET_3" },
+	{ R200_PP_TXOFFSET_4, 1, "R200_PP_TXOFFSET_4" },
+	{ R200_PP_TXOFFSET_5, 1, "R200_PP_TXOFFSET_5" },
+	{ R200_SE_VTE_CNTL, 1, "R200_SE_VTE_CNTL" },
 };
 
 
@@ -342,7 +357,7 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 	u32 rb3d_cntl = 0, rb3d_stencilrefmask= 0;
 	int i;
 	RING_LOCALS;
-	DRM_DEBUG( __FUNCTION__": flags = 0x%x\n", flags );
+	printk( __FUNCTION__": flags = 0x%x\n", flags );
 
 	if ( dev_priv->page_flipping && dev_priv->current_page == 1 ) {
 		unsigned int tmp = flags;
@@ -376,7 +391,7 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 			int h = pbox[i].y2 - y;
 
 			DRM_DEBUG( "dispatch clear %d,%d-%d,%d flags 0x%x\n",
-			   x, y, w, h, flags );
+				   x, y, w, h, flags );
 
 			if ( flags & RADEON_FRONT ) {
 				BEGIN_RING( 6 );
@@ -424,54 +439,98 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 	 * rendering a quad into just those buffers.  Thus, we have to
 	 * make sure the 3D engine is configured correctly.
 	 */
-	if ( 0 && dev_priv->is_r200 &&
+	if ( dev_priv->is_r200 &&
 	     (flags & (RADEON_DEPTH | RADEON_STENCIL)) ) {
 
-#if 0
-		rb3d_cntl = depth_clear->rb3d_cntl;
+#if 1
+		int tempPP_CNTL;
+		int tempRE_CNTL;
+		int tempRB3D_CNTL;
+		int tempRB3D_ZSTENCILCNTL;
+		int tempRB3D_STENCILREFMASK;
+		int tempRB3D_PLANEMASK;
+		int tempSE_CNTL;
+		int tempSE_VTE_CNTL;
+		int tempSE_VTX_FMT_0;
+		int tempSE_VTX_FMT_1;
+		int tempSE_VAP_CNTL;
+		int tempRE_AUX_SCISSOR_CNTL;
 
-		if ( flags & RADEON_DEPTH ) {
-			rb3d_cntl |=  RADEON_Z_ENABLE;
-		} else {
-			rb3d_cntl &= ~RADEON_Z_ENABLE;
-		}
+		tempPP_CNTL = 0;
+		tempRE_CNTL = 0;
 
-		if ( flags & RADEON_STENCIL ) {
-			rb3d_cntl |=  RADEON_STENCIL_ENABLE;
-			rb3d_stencilrefmask = clear->depth_mask; /* misnamed field */
-		} else {
-			rb3d_cntl &= ~RADEON_STENCIL_ENABLE;
-			rb3d_stencilrefmask = 0x00000000;
-		}
+		tempRB3D_CNTL = depth_clear->rb3d_cntl;
+		tempRB3D_CNTL &= ~(1<<15); /* unset radeon magic flag */
 
-		/* Don't multiply by 1/W */
+		tempRB3D_ZSTENCILCNTL = depth_clear->rb3d_zstencilcntl;
+		tempRB3D_STENCILREFMASK = 0x0;
+
+		tempSE_CNTL = depth_clear->se_cntl;
+
+
+
+		/* Disable TCL */
+
+		tempSE_VAP_CNTL = (SE_VAP_CNTL__FORCE_W_TO_ONE_MASK | 
+				   (0x9 << SE_VAP_CNTL__VF_MAX_VTX_NUM__SHIFT));
+
+		tempRB3D_PLANEMASK = 0x0;
+		tempRB3D_PLANEMASK = 0xffffffff; 
+
+		tempRE_AUX_SCISSOR_CNTL = 0x0;
+
 		tempSE_VTE_CNTL =
 			SE_VTE_CNTL__VTX_XY_FMT_MASK |
 			SE_VTE_CNTL__VTX_Z_FMT_MASK;
+
 		/* Vertex format (X, Y, Z, W)*/
-		tempSE_VTX_FMT_0 = 
+		tempSE_VTX_FMT_0 =
+ 			(1 << SE_VTX_FMT_0__VTX_COLOR_0_FMT__SHIFT) | 
 			SE_VTX_FMT_0__VTX_Z0_PRESENT_MASK |
 			SE_VTX_FMT_0__VTX_W0_PRESENT_MASK;
 		tempSE_VTX_FMT_1 = 0x0;
-		/* Disable TCL */
-		tempSE_VAP_CNTL &= ~SE_VAP_CNTL__TCL_ENA_MASK;
-		tempSE_VAP_CNTL |= SE_VAP_CNTL__FORCE_W_TO_ONE_MASK;
 
+
+		/* 
+		 * Depth buffer specific enables 
+		 */
+		if (flags & RADEON_DEPTH) {
+			/* Enable depth buffer */
+			tempRB3D_CNTL |= RADEON_Z_ENABLE;
+		} else {
+			/* Disable depth buffer */
+			tempRB3D_CNTL &= ~RADEON_Z_ENABLE;
+		}
+
+		/* 
+		 * Stencil buffer specific enables
+		 */
+		if ( flags & RADEON_STENCIL ) {
+			tempRB3D_CNTL |=  RADEON_STENCIL_ENABLE;
+			tempRB3D_STENCILREFMASK = clear->depth_mask; 
+		} else {
+			tempRB3D_CNTL &= ~RADEON_STENCIL_ENABLE;
+			tempRB3D_STENCILREFMASK = 0x00000000;
+		}
+
+		BEGIN_RING( 26 );
 		RADEON_WAIT_UNTIL_2D_IDLE();
 
-		BEGIN_RING( 11 );
-		OUT_RING( CP_PACKET0( RADEON_PP_CNTL, 1 ) );
-		OUT_RING( 0x00000000 );
-		OUT_RING( rb3d_cntl );
-		
+		OUT_RING_REG( RADEON_PP_CNTL, tempPP_CNTL );
+		OUT_RING_REG( R200_RE_CNTL, tempRE_CNTL );
+		OUT_RING_REG( RADEON_RB3D_CNTL, tempRB3D_CNTL );
 		OUT_RING_REG( RADEON_RB3D_ZSTENCILCNTL,
-			      depth_clear->rb3d_zstencilcntl );
-		OUT_RING_REG( RADEON_RB3D_STENCILREFMASK,
-			      rb3d_stencilrefmask );
-		OUT_RING_REG( RADEON_RB3D_PLANEMASK,
-			      0x00000000 );
-		OUT_RING_REG( RADEON_SE_CNTL,
-			      depth_clear->se_cntl );
+			      tempRB3D_ZSTENCILCNTL );
+		OUT_RING_REG( RADEON_RB3D_STENCILREFMASK, 
+			      tempRB3D_STENCILREFMASK );
+		OUT_RING_REG( RADEON_RB3D_PLANEMASK, tempRB3D_PLANEMASK );
+		OUT_RING_REG( RADEON_SE_CNTL, tempSE_CNTL );
+		OUT_RING_REG( R200_SE_VTE_CNTL, tempSE_VTE_CNTL );
+		OUT_RING_REG( R200_SE_VTX_FMT_0, tempSE_VTX_FMT_0 );
+		OUT_RING_REG( R200_SE_VTX_FMT_1, tempSE_VTX_FMT_1 );
+		OUT_RING_REG( R200_SE_VAP_CNTL, tempSE_VAP_CNTL );
+		OUT_RING_REG( R200_RE_AUX_SCISSOR_CNTL, 
+			      tempRE_AUX_SCISSOR_CNTL );
 		ADVANCE_RING();
 
 		/* Make sure we restore the 3D state next time.
@@ -486,8 +545,9 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 			radeon_emit_clip_rect( dev_priv,
 					       &sarea_priv->boxes[i] );
 
-			BEGIN_RING( 15 );
-			OUT_RING( CP_PACKET3( R200_3D_DRAW_IMMD_2, 13 ) );
+#if 1
+			BEGIN_RING( 17 );
+			OUT_RING( CP_PACKET3( R200_3D_DRAW_IMMD_2, 15 ) );
 			OUT_RING( (RADEON_PRIM_TYPE_RECT_LIST |
 				   RADEON_PRIM_WALK_RING |
 				   (3 << RADEON_NUM_VERTICES_SHIFT)) );
@@ -495,19 +555,23 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 			OUT_RING( depth_boxes[i].ui[CLEAR_Y1] );
 			OUT_RING( depth_boxes[i].ui[CLEAR_DEPTH] );
 			OUT_RING( 0x3f800000 );
+ 			OUT_RING( 0xFF33FF33 ); 
 			OUT_RING( depth_boxes[i].ui[CLEAR_X1] );
 			OUT_RING( depth_boxes[i].ui[CLEAR_Y2] );
 			OUT_RING( depth_boxes[i].ui[CLEAR_DEPTH] );
 			OUT_RING( 0x3f800000 );
+ 			OUT_RING( 0xFF33FF33 ); 
 			OUT_RING( depth_boxes[i].ui[CLEAR_X2] );
 			OUT_RING( depth_boxes[i].ui[CLEAR_Y2] );
 			OUT_RING( depth_boxes[i].ui[CLEAR_DEPTH] );
 			OUT_RING( 0x3f800000 );
+ 			OUT_RING( 0xFF33FF33 ); 
 			ADVANCE_RING();
+#endif
 		}
 #endif
 	} 
-	else if ( flags & (RADEON_DEPTH | RADEON_STENCIL) ) {
+	else if ( (flags & (RADEON_DEPTH | RADEON_STENCIL)) ) {
 
 		rb3d_cntl = depth_clear->rb3d_cntl;
 
@@ -1735,6 +1799,30 @@ static inline int radeon_emit_scalars(
 	return 0;
 }
 
+/* God this is ugly
+ */
+static inline int radeon_emit_scalars2( 
+	drm_radeon_private_t *dev_priv,
+	drm_radeon_cmd_header_t header,
+	drm_radeon_cmd_buffer_t *cmdbuf )
+{
+	int sz = header.scalars.count;
+	int *data = (int *)cmdbuf->buf;
+	int start = header.scalars.offset + 0x100;
+	int stride = header.scalars.stride;
+	RING_LOCALS;
+
+	BEGIN_RING( 3+sz );
+	OUT_RING( CP_PACKET0( RADEON_SE_TCL_SCALAR_INDX_REG, 0 ) );
+	OUT_RING( start | (stride << RADEON_SCAL_INDX_DWORD_STRIDE_SHIFT));
+	OUT_RING( CP_PACKET0_TABLE( RADEON_SE_TCL_SCALAR_DATA_REG, sz-1 ) );
+	OUT_RING_USER_TABLE( data, sz );
+	ADVANCE_RING();
+	cmdbuf->buf += sz * sizeof(int);
+	cmdbuf->bufsz -= sz * sizeof(int);
+	return 0;
+}
+
 static inline int radeon_emit_vectors( 
 	drm_radeon_private_t *dev_priv,
 	drm_radeon_cmd_header_t header,
@@ -1742,7 +1830,7 @@ static inline int radeon_emit_vectors(
 {
 	int sz = header.vectors.count;
 	int *data = (int *)cmdbuf->buf;
-	int start = header.vectors.offset;
+	int start = (unsigned char)header.vectors.offset;
 	int stride = header.vectors.stride;
 	RING_LOCALS;
 
@@ -1935,6 +2023,12 @@ int radeon_cp_cmdbuf( struct inode *inode, struct file *filp,
 			}
 			break;
 
+		case RADEON_CMD_SCALARS2:
+			if (radeon_emit_scalars2( dev_priv, header, &cmdbuf )) {
+				DRM_ERROR("radeon_emit_scalars2 failed\n");
+				return -EINVAL;
+			}
+			break;
 		default:
 			DRM_ERROR("bad cmd_type %d at %p\n", 
 				  header.header.cmd_type,

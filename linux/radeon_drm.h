@@ -102,7 +102,22 @@
 #define R200_EMIT_VTX_FMT_0                         31 /* vtx/5 */
 #define R200_EMIT_VAP_CTL                           32 /* vap/1 */
 #define R200_EMIT_MATRIX_SELECT_0                   33 /* msl/5 */
-#define RADEON_MAX_STATE_PACKETS                    34
+#define R200_EMIT_TEX_PROC_CTL_2                    34 /* tcg/5 */
+#define R200_EMIT_TCL_UCP_VERT_BLEND_CTL            35 /* tcl/1 */
+#define R200_EMIT_PP_TXFILTER_0                     36 /* tex0/6 */
+#define R200_EMIT_PP_TXFILTER_1                     37 /* tex1/6 */
+#define R200_EMIT_PP_TXFILTER_2                     38 /* tex2/6 */
+#define R200_EMIT_PP_TXFILTER_3                     39 /* tex3/6 */
+#define R200_EMIT_PP_TXFILTER_4                     40 /* tex4/6 */
+#define R200_EMIT_PP_TXFILTER_5                     41 /* tex5/6 */
+#define R200_EMIT_PP_TXOFFSET_0                     42 /* tex0/1 */
+#define R200_EMIT_PP_TXOFFSET_1                     43 /* tex1/1 */
+#define R200_EMIT_PP_TXOFFSET_2                     44 /* tex2/1 */
+#define R200_EMIT_PP_TXOFFSET_3                     45 /* tex3/1 */
+#define R200_EMIT_PP_TXOFFSET_4                     46 /* tex4/1 */
+#define R200_EMIT_PP_TXOFFSET_5                     47 /* tex5/1 */
+#define R200_EMIT_VTE_CNTL                          48 /* vte/1 */
+#define RADEON_MAX_STATE_PACKETS                    49
 
 
 /* Commands understood by cmd_buffer ioctl.  More can be added but
@@ -114,24 +129,25 @@
 #define RADEON_CMD_DMA_DISCARD 4 /* discard current dma buf */
 #define RADEON_CMD_PACKET3     5 /* emit hw packet */
 #define RADEON_CMD_PACKET3_CLIP 6 /* emit hw packet wrapped in cliprects */
+#define RADEON_CMD_SCALARS2     7 /* r200 stopgap */
 
 
 typedef union {
 	int i;
 	struct { 
-		char cmd_type, pad0, pad1, pad2;
+		unsigned char cmd_type, pad0, pad1, pad2;
 	} header;
 	struct { 
-		char cmd_type, packet_id, pad0, pad1;
+		unsigned char cmd_type, packet_id, pad0, pad1;
 	} packet;
 	struct { 
-		char cmd_type, offset, stride, count; 
+		unsigned char cmd_type, offset, stride, count; 
 	} scalars;
 	struct { 
-		char cmd_type, offset, stride, count; 
+		unsigned char cmd_type, offset, stride, count; 
 	} vectors;
 	struct { 
-		char cmd_type, buf_idx, pad0, pad1; 
+		unsigned char cmd_type, buf_idx, pad0, pad1; 
 	} dma;
 } drm_radeon_cmd_header_t;
 

@@ -542,6 +542,35 @@ extern int radeon_cp_flip( struct inode *inode, struct file *filp,
 #define R200_SE_VTX_FMT_0                 0x2088
 #define R200_SE_VAP_CNTL                  0x2080
 #define R200_SE_TCL_MATRIX_SEL_0          0x2230
+#define R200_SE_TCL_TEX_PROC_CTL_2        0x22a8 
+#define R200_SE_TCL_UCP_VERT_BLEND_CTL    0x22c0 
+#define R200_PP_TXFILTER_5                0x2ca0 
+#define R200_PP_TXFILTER_4                0x2c80 
+#define R200_PP_TXFILTER_3                0x2c60 
+#define R200_PP_TXFILTER_2                0x2c40 
+#define R200_PP_TXFILTER_1                0x2c20 
+#define R200_PP_TXFILTER_0                0x2c00 
+#define R200_PP_TXOFFSET_5                0x2d78
+#define R200_PP_TXOFFSET_4                0x2d60
+#define R200_PP_TXOFFSET_3                0x2d48
+#define R200_PP_TXOFFSET_2                0x2d30
+#define R200_PP_TXOFFSET_1                0x2d18
+#define R200_PP_TXOFFSET_0                0x2d00
+#define R200_RE_AUX_SCISSOR_CNTL          0x26f0
+#define R200_SE_VTE_CNTL                  0x20b0
+
+#define SE_VAP_CNTL__TCL_ENA_MASK                          0x00000001
+#define SE_VAP_CNTL__FORCE_W_TO_ONE_MASK                   0x00010000
+#define SE_VAP_CNTL__VF_MAX_VTX_NUM__SHIFT                 0x00000012
+#define SE_VTE_CNTL__VTX_XY_FMT_MASK                       0x00000100
+#define SE_VTE_CNTL__VTX_Z_FMT_MASK                        0x00000200
+#define SE_VTX_FMT_0__VTX_Z0_PRESENT_MASK                  0x00000001
+#define SE_VTX_FMT_0__VTX_W0_PRESENT_MASK                  0x00000002
+#define SE_VTX_FMT_0__VTX_COLOR_0_FMT__SHIFT               0x0000000b
+#define R200_3D_DRAW_IMMD_2      0xC0003500
+#define R200_SE_VTX_FMT_1                 0x208c
+#define R200_RE_CNTL                      0x1c50 
+
 
 /* Constants */
 #define RADEON_MAX_USEC_TIMEOUT		100000	/* 100 ms */
@@ -741,9 +770,9 @@ do {									\
 	}								\
 	if (((dev_priv->ring.tail + _nr) & mask) != write) {		\
 		DRM_ERROR( 						\
-			"ADVANCE_RING(): mismatch: nr: %x write: %x\n",	\
+			"ADVANCE_RING(): mismatch: nr: %x write: %x line: %d\n",	\
 			((dev_priv->ring.tail + _nr) & mask),		\
-			write);						\
+			write, __LINE__);						\
 	} else								\
 		dev_priv->ring.tail = write;				\
 } while (0)
