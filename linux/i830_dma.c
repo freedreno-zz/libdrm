@@ -1344,7 +1344,7 @@ void i830_dma_quiescent(drm_device_t *dev)
 
   	i830_kernel_lost_context(dev);
 
-   	BEGIN_LP_RING(2);
+   	BEGIN_LP_RING(4);
     	OUT_RING( INST_PARSER_CLIENT | INST_OP_FLUSH | INST_FLUSH_MAP_CACHE ); 
      	OUT_RING( CMD_REPORT_HEAD );  
        	OUT_RING( 0 ); 
