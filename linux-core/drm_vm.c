@@ -163,8 +163,6 @@ void DRM(vm_open)(struct vm_area_struct *vma)
 	MOD_INC_USE_COUNT; /* Needed before Linux 2.3.51 */
 #endif
 
-
-#if DRM_DEBUG_CODE
 	vma_entry = DRM(alloc)(sizeof(*vma_entry), DRM_MEM_VMAS);
 	if (vma_entry) {
 		down(&dev->struct_sem);
@@ -174,7 +172,6 @@ void DRM(vm_open)(struct vm_area_struct *vma)
 		dev->vmalist	= vma_entry;
 		up(&dev->struct_sem);
 	}
-#endif
 }
 
 void DRM(vm_close)(struct vm_area_struct *vma)
@@ -192,7 +189,6 @@ void DRM(vm_close)(struct vm_area_struct *vma)
 #endif
 	atomic_dec(&dev->vma_count);
 
-#if DRM_DEBUG_CODE
 	down(&dev->struct_sem);
 	for (pt = dev->vmalist, prev = NULL; pt; prev = pt, pt = pt->next) {
 		if (pt->vma == vma) {
@@ -206,7 +202,6 @@ void DRM(vm_close)(struct vm_area_struct *vma)
 		}
 	}
 	up(&dev->struct_sem);
-#endif
 }
 
 int DRM(mmap_dma)(struct file *filp, struct vm_area_struct *vma)
