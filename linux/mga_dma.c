@@ -1419,6 +1419,7 @@ int mga_flush_queue(drm_device_t *dev)
 				       atomic_read(&dev_priv->pending_bufs));
 		   	mga_dma_schedule(dev, 0);
 			schedule_timeout((HZ/60));
+		   	atomic_inc(&dev->total_sleeps);
 			if (signal_pending(current)) {
 				ret = -EINTR; /* Can't restart */
 				break;

@@ -40,10 +40,10 @@
  * 'vertex_dma' ioctl.  
 */
 typedef struct {
-	int dma_type;
-	int age;
 	int vertex_real_idx;
 	int vertex_discard;
+   	u32 *in_use;
+   	int my_use_idx;
    	unsigned int nbox;
    	xf86drmClipRectRec boxes[I810_NR_SAREA_CLIPRECTS];
 } drm_i810_buf_priv_t;
@@ -52,8 +52,6 @@ typedef struct {
 #define I810_DMA_GENERAL 0
 #define I810_DMA_VERTEX  1
 #define I810_DMA_DISCARD 2	/* not used */
-
-
 
 #define I810_VERBOSE 0
 

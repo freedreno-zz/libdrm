@@ -40,6 +40,9 @@
 #include <linux/interrupt.h>	/* For task queue support */
 #include <linux/time.h>		/* For do_gettimeofday    */
 
+#define I810_BUF_FREE		1
+#define I810_BUF_USED		0
+
 #define I810_REG(reg)		2
 #define I810_BASE(reg)		((unsigned long) \
 				dev->maplist[I810_REG(reg)]->handle)
@@ -53,10 +56,9 @@
 
 #define RING_LOCALS	unsigned int outring, ringmask; volatile char *virt;
 
-
 #define BEGIN_LP_RING(n) do {					\
    if (I810_VERBOSE)						\
-      DRM_DEBUG("BEGIN_LP_RING(%d) in %s\n", n, __FUNCTION__);	\
+      printk("BEGIN_LP_RING(%d) in %s\n", n, __FUNCTION__);	\
    if (dev_priv->ring.space < n*4) i810_wait_ring(dev, n*4, 0);	\
    dev_priv->ring.space -= n*4;					\
    outring = dev_priv->ring.tail;				\
@@ -65,17 +67,114 @@
 } while (0)
 
 #define ADVANCE_LP_RING() do {					\
-    if (I810_VERBOSE) DRM_DEBUG("ADVANCE_LP_RING\n");		\
+    if (I810_VERBOSE) printk("ADVANCE_LP_RING\n");		\
     dev_priv->ring.tail = outring;                      	\
     I810_WRITE(LP_RING + RING_TAIL, outring);			\
 } while(0)
 
 #define OUT_RING(n) do {				\
-   if (I810_VERBOSE) DRM_DEBUG("   OUT_RING %x\n", (int)(n));	\
+   if (I810_VERBOSE) printk("   OUT_RING %x\n", (int)(n));	\
    *(volatile unsigned int *)(virt + outring) = n;	\
    outring += 4;					\
    outring &= ringmask;					\
 } while (0);
+
+static inline void i810_print_status_page(drm_device_t *dev)
+{
+   	drm_device_dma_t *dma = dev->dma;
+      	drm_i810_private_t *dev_priv = dev->dev_private;
+	u32 *temp = (u32 *)dev_priv->hw_status_page;
+   	int i;
+
+   	printk(  "hw_status: Interrupt Status : %x\n", temp[0]);
+   	printk(  "hw_status: LpRing Head ptr : %x\n", temp[1]);
+   	printk(  "hw_status: IRing Head ptr : %x\n", temp[2]);
+      	printk(  "hw_status: Reserved : %x\n", temp[3]);
+   	printk(  "hw_status: Driver Counter : %d\n", temp[5]);
+   	for(i = 6; i < dma->buf_count + 6; i++) {
+	   	printk(  "buffer status idx : %d used: %d\n", i - 6, temp[i]);
+	}
+}
+
+static drm_buf_t *i810_freelist_get(drm_device_t *dev)
+{
+   	drm_device_dma_t *dma = dev->dma;
+	int		 i;
+   	int 		 used;
+   
+	/* Linear search might not be the best solution */
+
+#if 0
+   	i810_print_status_page(dev);
+#endif
+   	for (i = 0; i < dma->buf_count; i++) {
+	   	drm_buf_t *buf = dma->buflist[ i ];
+	   	drm_i810_buf_priv_t *buf_priv = buf->dev_private;
+		/* In use is already a pointer */
+#if 0
+	   	printk("idx : %d in_use : %d\n", i, *buf_priv->in_use);
+#endif
+	   	used = cmpxchg(buf_priv->in_use, I810_BUF_FREE, 
+			       I810_BUF_USED);
+#if 0
+	   	printk("used : %d\n", used);
+#endif
+	   	if(used == I810_BUF_FREE) {
+#if 0
+		   printk("Got buffer\n");
+#endif
+		   return buf;
+		}
+	}
+#if 0
+   	printk("Didn't get buffer\n");
+#endif
+   	return NULL;
+}
+
+/* This should only be called if the buffer is not sent to the hardware
+ * yet, the hardware updates in use for us once its on the ring buffer.
+ */
+
+static int i810_freelist_put(drm_device_t *dev, drm_buf_t *buf)
+{
+   	drm_i810_buf_priv_t *buf_priv = buf->dev_private;
+   	int used;
+   
+   	/* In use is already a pointer */
+#if 0
+      	i810_print_status_page(dev);
+#endif
+   	used = cmpxchg(buf_priv->in_use, I810_BUF_USED, I810_BUF_FREE);
+   	if(used != I810_BUF_USED) {
+	   	DRM_ERROR("Freeing buffer thats not in use : %d\n", buf->idx);
+	   	return -EINVAL;
+	}
+   
+   	return 0;
+}
+
+static int i810_dma_get_buffers(drm_device_t *dev, drm_dma_t *d)
+{
+	int		  i;
+	drm_buf_t	  *buf;
+
+	for (i = d->granted_count; i < d->request_count; i++) {
+		buf = i810_freelist_get(dev);
+		if (!buf) break;
+		buf->pid     = current->pid;
+		copy_to_user_ret(&d->request_indices[i],
+				 &buf->idx,
+				 sizeof(buf->idx),
+				 -EFAULT);
+		copy_to_user_ret(&d->request_sizes[i],
+				 &buf->total,
+				 sizeof(buf->total),
+				 -EFAULT);
+		++d->granted_count;
+	}
+	return 0;
+}
 
 static unsigned long i810_alloc_page(drm_device_t *dev)
 {
@@ -103,68 +202,8 @@ static void i810_free_page(drm_device_t *dev, unsigned long page)
    return;
 }
 
-static int i810_alloc_kernel_queue(drm_device_t *dev)
-{
-	drm_queue_t *queue = NULL;
-				/* Allocate a new queue */
-	down(&dev->struct_sem);
-	
-   	if(dev->queue_count != 0) {
-		/* Reseting the kernel context here is not
-		 * a race, since it can only happen when that
-		 * queue is empty.
-		 */
-		queue = dev->queuelist[DRM_KERNEL_CONTEXT];
-		DRM_DEBUG("Kernel queue already allocated\n");
-	} else {
-		queue = drm_alloc(sizeof(*queue), DRM_MEM_QUEUES);
-		if(!queue) {
-			up(&dev->struct_sem);
-			DRM_DEBUG("out of memory\n");
-			return -ENOMEM;
-		}
-		++dev->queue_count;
-		dev->queuelist = drm_alloc(sizeof(*dev->queuelist), 
-					   DRM_MEM_QUEUES);
-		if(!dev->queuelist) {
-			up(&dev->struct_sem);
-			drm_free(queue, sizeof(*queue), DRM_MEM_QUEUES);
-			DRM_DEBUG("out of memory\n");
-			return -ENOMEM;
-		}  
-	}
-	   
-	memset(queue, 0, sizeof(*queue));
-	atomic_set(&queue->use_count, 1);
-   	atomic_set(&queue->finalization,  0);
-	atomic_set(&queue->block_count,   0);
-	atomic_set(&queue->block_read,    0);
-	atomic_set(&queue->block_write,   0);
-	atomic_set(&queue->total_queued,  0);
-	atomic_set(&queue->total_flushed, 0);
-	atomic_set(&queue->total_locks,   0);
-
-	init_waitqueue_head(&queue->write_queue);
-	init_waitqueue_head(&queue->read_queue);
-	init_waitqueue_head(&queue->flush_queue);
-
-	queue->flags = 0;
-
-	drm_waitlist_create(&queue->waitlist, dev->dma->buf_count);
-   
-   	dev->queue_slots = 1;
-   	dev->queuelist[DRM_KERNEL_CONTEXT] = queue;
-   	dev->queue_count--;
-	
-	up(&dev->struct_sem);
-	if (I810_VERBOSE) DRM_DEBUG("%d (new)\n", dev->queue_count - 1);
-	return DRM_KERNEL_CONTEXT;
-}
-
 static int i810_dma_cleanup(drm_device_t *dev)
 {
-      	if (I810_VERBOSE) DRM_DEBUG("i810_dma_cleanup\n");
-
 	if(dev->dev_private) {
 	   	drm_i810_private_t *dev_priv = 
 	     		(drm_i810_private_t *) dev->dev_private;
@@ -201,9 +240,7 @@ static int i810_wait_ring(drm_device_t *dev, int n, int timeout_millis)
    	int curTime = 0;
    
       	if (timeout_millis == 0) timeout_millis = 3000;
-   
-   	if (I810_VERBOSE) DRM_DEBUG(  "i810_wait_ring %d\n", n);
-   
+      
    	while (ring->space < n) {
 	   	int i;
 	
@@ -233,49 +270,40 @@ static void i810_kernel_lost_context(drm_device_t *dev)
 {
       	drm_i810_private_t *dev_priv = dev->dev_private;
    	drm_i810_ring_buffer_t *ring = &(dev_priv->ring);
-   
-   	if (0) DRM_DEBUG("i810_kernel_lost_context, old ring (%x,%x)\n", 
-		      ring->head, ring->tail);
-   
+      
    	ring->head = I810_READ(LP_RING + RING_HEAD) & HEAD_ADDR;
      	ring->tail = I810_READ(LP_RING + RING_TAIL);
      	ring->space = ring->head - (ring->tail+8);
      	if (ring->space < 0) ring->space += ring->Size;
-   
-   	if (0) DRM_DEBUG("new ring (%x,%x)\n", ring->head, ring->tail);
 }
 
-static inline void i810_ring_write_status(drm_device_t *dev)
+static int i810_freelist_init(drm_device_t *dev)
 {
-      	drm_i810_private_t *dev_priv = dev->dev_private;
-   	RING_LOCALS;
+      	drm_device_dma_t *dma = dev->dma;
+   	drm_i810_private_t *dev_priv = (drm_i810_private_t *)dev->dev_private;
+   	u8 *hw_status = (u8 *)dev_priv->hw_status_page;
+   	int i;
+   	int my_idx = 24;
    
-	i810_kernel_lost_context(dev);
-   	dev_priv->counter++;
+   	if(dma->buf_count > 1019) {
+	   	/* Not enough space in the status page for the freelist */
+	   	return -EINVAL;
+	}
 
-	BEGIN_LP_RING(6);
-   	OUT_RING(CMD_REPORT_HEAD);
-   	OUT_RING(CMD_STORE_DWORD_IDX);
-   	OUT_RING(5 * sizeof(unsigned long));
-   	OUT_RING(dev_priv->counter);
-   	OUT_RING(GFX_OP_BREAKPOINT_INTERRUPT);
-	OUT_RING(0);
-   	ADVANCE_LP_RING();
-
-   	/* Wait for ring to complete */
-      	i810_wait_ring(dev, dev_priv->ring.Size - 8, 0);
-}
-
-static inline void i810_print_status_page(drm_device_t *dev)
-{
-      	drm_i810_private_t *dev_priv = dev->dev_private;
-	u32 *temp = (u32 *)dev_priv->hw_status_page;
-
-   	DRM_DEBUG(  "hw_status: Interrupt Status : %x\n", temp[0]);
-   	DRM_DEBUG(  "hw_status: LpRing Head ptr : %x\n", temp[1]);
-   	DRM_DEBUG(  "hw_status: IRing Head ptr : %x\n", temp[2]);
-      	DRM_DEBUG(  "hw_status: Reserved : %x\n", temp[3]);
-   	DRM_DEBUG(  "hw_status: Driver Counter : %d\n", temp[5]);   
+   	for (i = 0; i < dma->buf_count; i++) {
+	   	drm_buf_t *buf = dma->buflist[ i ];
+	   	drm_i810_buf_priv_t *buf_priv = buf->dev_private;
+	   
+	   	buf_priv->in_use = hw_status + my_idx;
+	   	printk("buf_priv->in_use : %p\n", buf_priv->in_use);
+	   	*buf_priv->in_use = I810_BUF_FREE;
+	   	buf_priv->my_use_idx = my_idx;
+	   	my_idx += 4;
+	}
+#if 0
+   	i810_print_status_page(dev);
+#endif
+	return 0;
 }
 
 static int i810_dma_initialize(drm_device_t *dev, 
@@ -284,7 +312,6 @@ static int i810_dma_initialize(drm_device_t *dev,
 {
 	drm_map_t *sarea_map;
 
-   	DRM_DEBUG(  "i810_dma_init\n");
    	dev->dev_private = (void *) dev_priv;
    	memset(dev_priv, 0, sizeof(drm_i810_private_t));
 
@@ -295,12 +322,6 @@ static int i810_dma_initialize(drm_device_t *dev,
 	   	return -EINVAL;
 	}
    
-   	if (i810_alloc_kernel_queue(dev) != DRM_KERNEL_CONTEXT) {
-		i810_dma_cleanup(dev);
-		DRM_ERROR("Kernel context queue not present\n");
-		return -ENOMEM;
-	}
-
    	dev_priv->ring_map_idx = init->ring_map_idx;
    	dev_priv->buffer_map_idx = init->buffer_map_idx;
 	sarea_map = dev->maplist[0];
@@ -308,9 +329,8 @@ static int i810_dma_initialize(drm_device_t *dev,
 		((u8 *)sarea_map->handle + 
 		 init->sarea_priv_offset);
 
-   	atomic_set(&dev_priv->pending_bufs, 0);
-   	atomic_set(&dev_priv->dispatch_lock, 0);
-   	atomic_set(&dev_priv->in_flush, 0);
+   	atomic_set(&dev_priv->flush_done, 0);
+	init_waitqueue_head(&dev_priv->flush_queue);
    	
    	dev_priv->ring.Start = init->ring_start;
    	dev_priv->ring.End = init->ring_end;
@@ -339,13 +359,14 @@ static int i810_dma_initialize(drm_device_t *dev,
    
    	I810_WRITE(0x02080, virt_to_bus((void *)dev_priv->hw_status_page));
    	DRM_DEBUG("Enabled hardware status page\n");
-#if 0
-   	DRM_DEBUG("Doing first ring buffer write\n");
-   	i810_ring_write_status(dev);
-   	DRM_DEBUG("First ring write succeeded\n");
-	i810_print_status_page(dev);
-   	DRM_DEBUG("Status page dump succeeded\n");
-#endif
+   
+   	/* Now we need to init our freelist */
+   	if(i810_freelist_init(dev) != 0) {
+	   	i810_dma_cleanup(dev);
+	   	DRM_ERROR("Not enough space in the status page for"
+			  " the freelist\n");
+	   	return -ENOMEM;
+	}
    	return 0;
 }
 
@@ -379,18 +400,16 @@ int i810_dma_init(struct inode *inode, struct file *filp,
    	return retcode;
 }
 
-static void i810_dma_dispatch_general(drm_device_t *dev, drm_buf_t *buf)
+static inline void i810_dma_dispatch_general(drm_device_t *dev, drm_buf_t *buf)
 {
-	drm_i810_buf_priv_t *buf_priv = buf->dev_private;
       	drm_i810_private_t *dev_priv = dev->dev_private;
-	drm_i810_sarea_t *sarea_priv = dev_priv->sarea_priv;
+   	drm_i810_buf_priv_t *buf_priv = buf->dev_private;
 	unsigned long address = (unsigned long)buf->bus_address;
 	unsigned long start = address - dev->agp->base;
    	int length = buf->used;
    	RING_LOCALS;
 
-   	sarea_priv->last_dispatch = buf_priv->age;
-	dev_priv->counter++;
+   	dev_priv->counter++;
    	DRM_DEBUG(  "dispatch counter : %ld\n", dev_priv->counter);
    	DRM_DEBUG(  "i810_dma_dispatch\n");
    	DRM_DEBUG(  "start : 0x%lx\n", start);
@@ -398,44 +417,41 @@ static void i810_dma_dispatch_general(drm_device_t *dev, drm_buf_t *buf)
    	DRM_DEBUG(  "start + length - 4 : 0x%lx\n", start + length - 4);
    	i810_kernel_lost_context(dev);
 
-
-   	BEGIN_LP_RING(8);
+   	BEGIN_LP_RING(10);
    	OUT_RING( CMD_OP_BATCH_BUFFER );
    	OUT_RING( start | BB1_PROTECTED );
    	OUT_RING( start + length - 4 );
       	OUT_RING( CMD_STORE_DWORD_IDX );
    	OUT_RING( 20 );
    	OUT_RING( dev_priv->counter );
+   	OUT_RING( CMD_STORE_DWORD_IDX );
+   	OUT_RING( buf_priv->my_use_idx );
+   	OUT_RING( I810_BUF_FREE );   
       	OUT_RING( CMD_REPORT_HEAD );
-   	OUT_RING( GFX_OP_BREAKPOINT_INTERRUPT );   
-   	ADVANCE_LP_RING();
-   
-/*     	i810_print_status_page(dev); */
+      	ADVANCE_LP_RING();
 }
 
-
-
-
-
-static void i810_dma_dispatch_vertex(drm_device_t *dev, drm_buf_t *buf)
+static inline void i810_dma_dispatch_vertex(drm_device_t *dev, drm_buf_t *buf)
 {
    	drm_i810_private_t *dev_priv = dev->dev_private;
 	drm_i810_buf_priv_t *buf_priv = buf->dev_private;
-	drm_i810_sarea_t *sarea_priv = dev_priv->sarea_priv;
 	drm_buf_t *real_buf = dev->dma->buflist[ buf_priv->vertex_real_idx ];
+   	drm_i810_sarea_t *sarea_priv = dev_priv->sarea_priv;
+   	xf86drmClipRectRec *box = sarea_priv->boxes;
+   	int nbox = sarea_priv->nbox;
 	unsigned long address = (unsigned long)real_buf->bus_address;
 	unsigned long start = address - dev->agp->base;
-	xf86drmClipRectRec *box = buf_priv->boxes;
 	int length = buf->used;	
 	int i = 0;
    	RING_LOCALS;
-	
-	if (0)
-		printk("dispatch vertex %d addr 0x%lx, length 0x%x nbox %d\n", 
-		       buf->idx, address, length, buf_priv->nbox);
 
-   	sarea_priv->last_dispatch = buf_priv->age;
-	dev_priv->counter++;
+   
+   	if(nbox > I810_NR_SAREA_CLIPRECTS) nbox = I810_NR_SAREA_CLIPRECTS;
+   
+   	DRM_DEBUG("dispatch vertex addr 0x%lx, length 0x%x nbox %d\n", 
+		  address, length, buf_priv->nbox);
+
+   	dev_priv->counter++;
    	DRM_DEBUG(  "dispatch counter : %ld\n", dev_priv->counter);
    	DRM_DEBUG(  "i810_dma_dispatch\n");
    	DRM_DEBUG(  "start : %lx\n", start);
@@ -445,7 +461,7 @@ static void i810_dma_dispatch_vertex(drm_device_t *dev, drm_buf_t *buf)
 
 	if (!buf_priv->vertex_discard) {
 		do {
-			if (i < buf_priv->nbox) {
+			if (i < nbox) {
 				BEGIN_LP_RING(4);
 				OUT_RING( GFX_OP_SCISSOR | SC_UPDATE_SCISSOR | 
 					  SC_ENABLE );
@@ -462,320 +478,53 @@ static void i810_dma_dispatch_vertex(drm_device_t *dev, drm_buf_t *buf)
 			OUT_RING( 0 );
 			ADVANCE_LP_RING();
 			
-		} while (++i < buf_priv->nbox);
+		} while (++i < nbox);
 	}
 
-	BEGIN_LP_RING( 6 );
+	BEGIN_LP_RING(8);
       	OUT_RING( CMD_STORE_DWORD_IDX );
    	OUT_RING( 20 );
    	OUT_RING( dev_priv->counter );
+      	OUT_RING( CMD_STORE_DWORD_IDX );
+   	OUT_RING( buf_priv->my_use_idx );
+   	OUT_RING( I810_BUF_FREE );
       	OUT_RING( CMD_REPORT_HEAD );
-   	OUT_RING( GFX_OP_BREAKPOINT_INTERRUPT );   
 	OUT_RING( 0 );
    	ADVANCE_LP_RING();
 }
 
-
-
-
-
 static inline void i810_dma_quiescent(drm_device_t *dev)
 {
+#if 0
+   	/* Not written yet */
    	drm_i810_private_t *dev_priv = (drm_i810_private_t *)dev->dev_private;
-
-
-/*     	DRM_DEBUG(  "i810_dma_quiescent\n"); */
-   	while(1) {
-	   	atomic_inc(&dev_priv->dispatch_lock);
-	   	if(atomic_read(&dev_priv->dispatch_lock) == 1) {
-		   	break;
-		} else {
-		   	atomic_dec(&dev_priv->dispatch_lock);
-		}
-	}
-   	atomic_dec(&dev_priv->dispatch_lock);
+#endif
 }
 
-static inline void i810_dma_ready(drm_device_t *dev)
-{
-   	i810_dma_quiescent(dev);
-/*     	DRM_DEBUG(  "i810_dma_ready\n"); */
-}
-
-static inline int i810_dma_is_ready(drm_device_t *dev)
-{
-   	drm_i810_private_t *dev_priv = (drm_i810_private_t *)dev->dev_private;
-/*     	DRM_DEBUG(  "i810_dma_is_ready\n"); */
-   	atomic_inc(&dev_priv->dispatch_lock);
-   	if(atomic_read(&dev_priv->dispatch_lock) == 1) {
-	   	/* We got the lock */
-	   	return 1;
-	} else {
-	   	atomic_dec(&dev_priv->dispatch_lock);
-	   	return 0;
-	}
-}
-
-static inline int i810_dma_is_ready_no_hold(drm_device_t *dev)
-{
-   	drm_i810_private_t *dev_priv = (drm_i810_private_t *)dev->dev_private;
-   	atomic_inc(&dev_priv->dispatch_lock);
-   	if(atomic_read(&dev_priv->dispatch_lock) == 1) {
-	   	/* We got the lock, but free it */
-	   	atomic_dec(&dev_priv->dispatch_lock);
-	   	return 1;
-	} else {
-	   	atomic_dec(&dev_priv->dispatch_lock);
-	   	return 0;
-	}
-}
-
+/* Interrupts are only for flushing */
 static void i810_dma_service(int irq, void *device, struct pt_regs *regs)
 {
 	drm_device_t	 *dev = (drm_device_t *)device;
-	drm_device_dma_t *dma = dev->dma;
-	drm_i810_private_t *dev_priv = (drm_i810_private_t *)dev->dev_private;
    	u16 temp;
    
 	atomic_inc(&dev->total_irq);
-/*     	DRM_DEBUG("Interrupt Handler\n"); */
-/*  	i810_print_status_page(dev); */
       	temp = I810_READ16(I810REG_INT_IDENTITY_R);
    	temp = temp & ~(0x6000);
    	if(temp != 0) I810_WRITE16(I810REG_INT_IDENTITY_R, 
 				   temp); /* Clear all interrupts */
-   	atomic_dec(&dev_priv->dispatch_lock);
-   	
-				/* Free previous buffer */
-   	if (test_and_set_bit(0, &dev->dma_flag)) {
-	   	atomic_inc(&dma->total_missed_free);
-	   	return;
-	}
-   	if (dma->this_buffer) {
-	   	drm_free_buffer(dev, dma->this_buffer);
-	   	dma->this_buffer = NULL;
-	}
-   	clear_bit(0, &dev->dma_flag);
    
-   				/* Dispatch new buffer */
    	queue_task(&dev->tq, &tq_immediate);
    	mark_bh(IMMEDIATE_BH);
 }
 
-/* Only called by i810_dma_schedule. */
-static int i810_do_dma(drm_device_t *dev, int locked)
+static void i810_dma_task_queue(void *device)
 {
-	drm_buf_t	 *buf;
-	int		 retcode = 0;
-	drm_device_dma_t *dma = dev->dma;
+	drm_device_t *dev = (drm_device_t *) device;
       	drm_i810_private_t *dev_priv = (drm_i810_private_t *)dev->dev_private;
-  	drm_i810_buf_priv_t *buf_priv;
 
-
-   	DRM_DEBUG("i810_do_dma\n");
-	if (test_and_set_bit(0, &dev->dma_flag)) {
-		atomic_inc(&dma->total_missed_dma);
-		return -EBUSY;
-	}
-	
-	if (!dma->next_buffer) {
-		DRM_ERROR("No next_buffer\n");
-		clear_bit(0, &dev->dma_flag);
-		return -EINVAL;
-	}
-
-	buf	= dma->next_buffer;
-
-	DRM_DEBUG("context %d, buffer %d\n", buf->context, buf->idx);
-
-	if (buf->list == DRM_LIST_RECLAIM) {
-		drm_clear_next_buffer(dev);
-		drm_free_buffer(dev, buf);
-	      	atomic_dec(&dev_priv->pending_bufs);
-		DRM_DEBUG("i810_do_dma: pending %d\n",atomic_read( &dev_priv->pending_bufs ));
-	   	if(!(atomic_read(&dev_priv->pending_bufs))) {			
-		   wake_up_interruptible(&dev->queuelist[DRM_KERNEL_CONTEXT]->flush_queue);
-	   	}
-		clear_bit(0, &dev->dma_flag);
-		DRM_DEBUG("RECLIAM\n");
-
-		return -EINVAL;
-	}
-
-	if (!buf->used) {
-		DRM_ERROR("0 length buffer\n");
-		drm_clear_next_buffer(dev);
-		drm_free_buffer(dev, buf);
-		clear_bit(0, &dev->dma_flag);
-		DRM_DEBUG("NOT USED\n");
-		return 0;
-	}
-	
-	if (i810_dma_is_ready(dev) == 0) {
-		clear_bit(0, &dev->dma_flag);
-		DRM_DEBUG("NOT READY\n");
-		return -EBUSY;
-	}
-   
-
-	DRM_DEBUG("--inflush: %d\n", atomic_read(&dev_priv->in_flush));
-
-   	if ( !locked && 
-	     !atomic_read(&dev_priv->in_flush) && 
-	     !drm_lock_take(&dev->lock.hw_lock->lock, DRM_KERNEL_CONTEXT))
-	{
-	   	atomic_inc(&dma->total_missed_lock);
-	   	clear_bit(0, &dev->dma_flag);
-	   	atomic_dec(&dev_priv->dispatch_lock);
-		DRM_DEBUG("NOT LOCKED\n");
-	   	return -EBUSY;
-	}
-
-
-   	dma->next_queue	 = dev->queuelist[DRM_KERNEL_CONTEXT];
-	drm_clear_next_buffer(dev);
-	buf->pending	 = 1;
-	buf->waiting	 = 0;
-	buf->list	 = DRM_LIST_PEND;
-
-	buf_priv = buf->dev_private;
-	
-
-
-
-
-	DRM_DEBUG("i810_do_dma - type %d\n", buf_priv->dma_type);
-
-	switch (buf_priv->dma_type) {
-	case I810_DMA_GENERAL:
-		i810_dma_dispatch_general( dev, buf );
-		break;
-	case I810_DMA_VERTEX:
-		i810_dma_dispatch_vertex( dev, buf );
-		break;
-	default:
-		DRM_DEBUG("bad buffer type %x in dispatch\n", buf_priv->dma_type);
-		break;
-	}
-
-		DRM_DEBUG("DONE\n");
-	
-   	atomic_dec(&dev_priv->pending_bufs);
-
-   	if(dma->this_buffer) {
-	   drm_free_buffer(dev, dma->this_buffer);
-	}
-   
-	dma->this_buffer = buf;
-
-	atomic_add(buf->used, &dma->total_bytes);
-	atomic_inc(&dma->total_dmas);
-
-	DRM_DEBUG("inflush: %d\n", atomic_read(&dev_priv->in_flush));
-   	if (!locked &&
-	    !atomic_read(&dev_priv->in_flush)) {
-	   	if (drm_lock_free(dev, &dev->lock.hw_lock->lock,
-				  DRM_KERNEL_CONTEXT)) {
-		   	DRM_ERROR("\n");
-		}
-	}
-
-	clear_bit(0, &dev->dma_flag);
-   
-	DRM_DEBUG("i810_do_dma2: pending %d\n",atomic_read( &dev_priv->pending_bufs ));
-   	if(!(atomic_read(&dev_priv->pending_bufs))) {
-	   wake_up_interruptible(&dev->queuelist[DRM_KERNEL_CONTEXT]->flush_queue);
-	}   
-   
-	/* We hold the dispatch lock until the interrupt handler
-	 * frees it
-	 */
-	return retcode;
+   	atomic_set(&dev_priv->flush_done, 1);
+   	wake_up_interruptible(&dev_priv->flush_queue);
 }
-
-static void i810_dma_schedule_tq_wrapper(void *dev)
-{
-      	drm_i810_private_t *dev_priv = ((drm_device_t *)dev)->dev_private;	
-	i810_dma_schedule(dev, atomic_read(&dev_priv->in_flush));
-}
-
-int i810_dma_schedule(drm_device_t *dev, int locked)
-{
-	drm_queue_t	 *q;
-	drm_buf_t	 *buf;
-	int		 retcode   = 0;
-	int		 processed = 0;
-	int		 missed;
-	int		 expire	   = 20;
-	drm_device_dma_t *dma	   = dev->dma;
-      	drm_i810_private_t *dev_priv = dev->dev_private;
-
-
-      	DRM_DEBUG("i810_dma_schedule\n");
-
-	if (test_and_set_bit(0, &dev->interrupt_flag)) {
-				/* Not reentrant */
-		atomic_inc(&dma->total_missed_sched);
-		return -EBUSY;
-	}
-	missed = atomic_read(&dma->total_missed_sched);
-
-again:
-	/* There is only one queue:
-	 */
-	if (!dma->next_buffer && DRM_WAITCOUNT(dev, DRM_KERNEL_CONTEXT)) {
-		q   = dev->queuelist[DRM_KERNEL_CONTEXT];
-		buf = drm_waitlist_get(&q->waitlist);
-		dma->next_buffer = buf;
-		dma->next_queue	 = q;
-		if (buf && buf->list == DRM_LIST_RECLAIM) {
-		   	DRM_DEBUG("reclaiming in i810_dma_schedule\n");
-			drm_clear_next_buffer(dev);
-			drm_free_buffer(dev, buf);
-		   	atomic_dec(&dev_priv->pending_bufs);
-			DRM_DEBUG("fred pending bufs : %d\n", 
-			       atomic_read(&dev_priv->pending_bufs)); 
-	   		if(!(atomic_read(&dev_priv->pending_bufs))) {
-			   wake_up_interruptible(&dev->queuelist[DRM_KERNEL_CONTEXT]->flush_queue);
-			}
-		   dma->next_buffer = NULL;
-		   goto again;
-		}
-	}
-
-	if (dma->next_buffer) {
-		if (!(retcode = i810_do_dma(dev, locked))) 
-			++processed;
-	}
-	DRM_DEBUG("ixxx810_do_dma: pending %d\n",atomic_read( &dev_priv->pending_bufs ));
-
-   	if(!(atomic_read(&dev_priv->pending_bufs))) {
-	   wake_up_interruptible(&dev->queuelist[DRM_KERNEL_CONTEXT]->flush_queue);
-	}
-
-
-	/* Try again if we succesfully dispatched a buffer, or if someone 
-	 * tried to schedule while we were working.
-	 */
-	if (--expire) {
-		if (missed != atomic_read(&dma->total_missed_sched)) {
-			atomic_inc(&dma->total_lost);
-		   	if (i810_dma_is_ready_no_hold(dev)) 
-				goto again;
-		}
-
-		if (processed && i810_dma_is_ready_no_hold(dev)) {
-			atomic_inc(&dma->total_lost);
-			processed = 0;
-			goto again;
-		}
-	}
-	
-	clear_bit(0, &dev->interrupt_flag);
-	
-	return retcode;
-}
-
 
 int i810_irq_install(drm_device_t *dev, int irq)
 {
@@ -793,6 +542,7 @@ int i810_irq_install(drm_device_t *dev, int irq)
 	up(&dev->struct_sem);
 	
    	DRM_DEBUG(  "Interrupt Install : %d\n", irq);
+	DRM_DEBUG("%d\n", irq);
 
 	dev->context_flag     = 0;
 	dev->interrupt_flag   = 0;
@@ -804,7 +554,7 @@ int i810_irq_install(drm_device_t *dev, int irq)
 
 	dev->tq.next	      = NULL;
 	dev->tq.sync	      = 0;
-	dev->tq.routine	      = i810_dma_schedule_tq_wrapper;
+	dev->tq.routine	      = i810_dma_task_queue;
 	dev->tq.data	      = dev;
 
 				/* Before installing handler */
@@ -832,9 +582,9 @@ int i810_irq_install(drm_device_t *dev, int irq)
 	}
    	temp = I810_READ16(I810REG_INT_ENABLE_R);
    	temp = temp & 0x6000;
-   	temp = temp | 0x0001;
+   	temp = temp | 0x0003;
    	I810_WRITE16(I810REG_INT_ENABLE_R, 
-		     0x0001); /* Enable bp interrupts */
+		     temp); /* Enable bp & user interrupts */
 	return 0;
 }
 
@@ -851,6 +601,9 @@ int i810_irq_uninstall(drm_device_t *dev)
 	if (!irq) return -EINVAL;
 
    	DRM_DEBUG(  "Interrupt UnInstall: %d\n", irq);
+
+	
+	DRM_DEBUG("%d\n", irq);
    
    	temp = I810_READ16(I810REG_INT_IDENTITY_R);
    	temp = temp & ~(0x6000);
@@ -875,7 +628,7 @@ int i810_control(struct inode *inode, struct file *filp, unsigned int cmd,
 	drm_control_t	ctl;
 	int		retcode;
    
-/*     	DRM_DEBUG(  "i810_control\n"); */
+   	DRM_DEBUG(  "i810_control\n");
 
 	copy_from_user_ret(&ctl, (drm_control_t *)arg, sizeof(ctl), -EFAULT);
 	
@@ -894,36 +647,78 @@ int i810_control(struct inode *inode, struct file *filp, unsigned int cmd,
 	return 0;
 }
 
-int i810_flush_queue(drm_device_t *dev)
+static inline void i810_dma_emit_flush(drm_device_t *dev)
+{
+   	drm_i810_private_t *dev_priv = dev->dev_private;
+   	RING_LOCALS;
+
+   	i810_kernel_lost_context(dev);
+   	BEGIN_LP_RING(2);
+      	OUT_RING( CMD_REPORT_HEAD );
+#if 1
+   	OUT_RING( GFX_OP_BREAKPOINT_INTERRUPT );
+#else
+   	OUT_RING( GFX_OP_USER_INTERRUPT );
+#endif
+      	ADVANCE_LP_RING();
+}
+
+static int i810_flush_queue(drm_device_t *dev)
 {
    	DECLARE_WAITQUEUE(entry, current);
-	drm_queue_t	  *q = dev->queuelist[DRM_KERNEL_CONTEXT];
-   	drm_i810_private_t *dev_priv = (drm_i810_private_t *)dev->dev_private;
+  	drm_i810_private_t *dev_priv = (drm_i810_private_t *)dev->dev_private;
    	int ret = 0;
-   	
-   	DRM_DEBUG("i810_flush_queue\n");
-   	DRM_DEBUG("pending_bufs : %d\n", atomic_read(&dev_priv->pending_bufs));
-   	if(atomic_read(&dev_priv->pending_bufs) != 0) {
-	   DRM_DEBUG("got to flush\n");
-	   current->state = TASK_INTERRUPTIBLE;
-	   add_wait_queue(&q->flush_queue, &entry);
-	   for (;;) {
-	      	if (!atomic_read(&dev_priv->pending_bufs)) break;
-	      	DRM_DEBUG("Calling schedule from flush_queue : %d\n",
-		       atomic_read(&dev_priv->pending_bufs));
-	      	i810_dma_schedule(dev, 0);
+
+#if 0
+   	printk("i810_flush_queue\n");
+#endif
+   	if(dev_priv == NULL) {
+	   	return 0;
+	}
+      	atomic_set(&dev_priv->flush_done, 0);
+#if 0
+   	printk("got to flush\n");
+#endif
+   	current->state = TASK_INTERRUPTIBLE;
+   	add_wait_queue(&dev_priv->flush_queue, &entry);
+   	for (;;) {
+	      	i810_dma_emit_flush(dev);
+	   	if (atomic_read(&dev_priv->flush_done) == 1) break;
 	      	schedule_timeout(DRM_LOCK_SLICE);
 	      	if (signal_pending(current)) {
 		   	ret = -EINTR; /* Can't restart */
 		   	break;
 		}
 	   }
-	   DRM_DEBUG("Exited out of schedule from flush_queue\n");
-	   current->state = TASK_RUNNING;
-	   remove_wait_queue(&q->flush_queue, &entry);
-	}
+   	current->state = TASK_RUNNING;
+   	remove_wait_queue(&dev_priv->flush_queue, &entry);
    
    	return ret;
+}
+
+/* Must be called with the lock held */
+void i810_reclaim_buffers(drm_device_t *dev, pid_t pid)
+{
+	drm_device_dma_t *dma = dev->dma;
+	int		 i;
+
+	if (!dma) return;
+      	if(dev->dev_private == NULL) return;
+
+        i810_flush_queue(dev);
+
+	for (i = 0; i < dma->buf_count; i++) {
+	   	drm_buf_t *buf = dma->buflist[ i ];
+	   	drm_i810_buf_priv_t *buf_priv = buf->dev_private;
+
+		if (buf->pid == pid) {
+		   	/* Only buffers that need to get reclaimed ever 
+			 * get set to free */
+		   	if(buf_priv == NULL) return;
+		   	cmpxchg(buf_priv->in_use, 
+				I810_BUF_USED, I810_BUF_FREE);
+		}
+	}
 }
 
 int i810_lock(struct inode *inode, struct file *filp, unsigned int cmd,
@@ -931,7 +726,6 @@ int i810_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 {
 	drm_file_t	  *priv	  = filp->private_data;
 	drm_device_t	  *dev	  = priv->dev;
-   	drm_i810_private_t *dev_priv = (drm_i810_private_t *) dev->dev_private;
 
 	DECLARE_WAITQUEUE(entry, current);
 	int		  ret	= 0;
@@ -952,11 +746,21 @@ int i810_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 	if (lock.context < 0) {
 		return -EINVAL;
 	}
-
 	/* Only one queue:
 	 */
 
 	if (!ret) {
+	   	if (_DRM_LOCKING_CONTEXT(dev->lock.hw_lock->lock)
+		    != lock.context) {
+			long j = jiffies - dev->lock.lock_time;
+
+			if (j > 0 && j <= DRM_LOCK_SLICE) {
+				/* Can't take lock if we just had it and
+				   there is contention. */
+				current->state = TASK_INTERRUPTIBLE;
+				schedule_timeout(j);
+			}
+		}
 		add_wait_queue(&dev->lock.lock_queue, &entry);
 		for (;;) {
 			if (!dev->lock.hw_lock) {
@@ -975,7 +779,9 @@ int i810_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 				/* Contention */
 			atomic_inc(&dev->total_sleeps);
 			current->state = TASK_INTERRUPTIBLE;
+#if 0
 		   	current->policy |= SCHED_YIELD;
+#endif
 		   	DRM_DEBUG("Calling lock schedule\n");
 			schedule();
 			if (signal_pending(current)) {
@@ -990,10 +796,8 @@ int i810_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 	if (!ret) {
 		if (lock.flags & _DRM_LOCK_QUIESCENT) {
 		   DRM_DEBUG("_DRM_LOCK_QUIESCENT\n");
-		   atomic_set(&dev_priv->in_flush, 1);
 		   i810_flush_queue(dev);
 		   i810_dma_quiescent(dev);
-		   atomic_set(&dev_priv->in_flush, 0);
 		}
 	}
 	DRM_DEBUG("%d %s\n", lock.context, ret ? "interrupted" : "has lock");
@@ -1005,12 +809,153 @@ int i810_flush_ioctl(struct inode *inode, struct file *filp,
 {
    	drm_file_t	  *priv	  = filp->private_data;
    	drm_device_t	  *dev	  = priv->dev;
-   	drm_i810_private_t *dev_priv = (drm_i810_private_t *) dev->dev_private;
    
    	DRM_DEBUG("i810_flush_ioctl\n");
-   	atomic_set(&dev_priv->in_flush, 1);
    	i810_flush_queue(dev);
    	i810_dma_quiescent(dev);
-   	atomic_set(&dev_priv->in_flush, 0);
    	return 0;
+}
+
+static int i810DmaGeneral(drm_device_t *dev, drm_i810_general_t *args)
+{
+	drm_device_dma_t *dma = dev->dma;
+   	drm_buf_t *buf = dma->buflist[ args->idx ];
+   	
+	buf->used = args->used;
+
+   	DRM_DEBUG("i810DmaGeneral idx %d used %d\n", args->idx, buf->used);
+   
+	if (!buf->used) {
+		DRM_ERROR("0 length buffer\n");
+	   	i810_freelist_put(dev, buf);
+		return 0;
+	}
+   
+   	i810_dma_dispatch_general( dev, buf );
+   	atomic_add(buf->used, &dma->total_bytes);
+	atomic_inc(&dma->total_dmas);
+
+	return 0; 
+}
+
+static int i810DmaVertex(drm_device_t *dev, drm_i810_vertex_t *args)
+{
+	drm_device_dma_t *dma = dev->dma;
+	drm_i810_buf_priv_t *buf_priv;
+	drm_buf_t *buf;
+
+
+	buf = dma->buflist[ args->idx ];
+	buf->used = args->real_used;
+
+   	DRM_DEBUG("i810DmaVertex idx %d used %d\n", args->idx, buf->used);
+
+	buf_priv = buf->dev_private;
+	buf_priv->vertex_real_idx = args->real_idx;
+	buf_priv->vertex_discard = args->discard;
+   
+   	i810_dma_dispatch_vertex( dev, buf);
+   	atomic_add(buf->used, &dma->total_bytes);
+	atomic_inc(&dma->total_dmas);
+   	return 0;
+}
+
+int i810_dma_general(struct inode *inode, struct file *filp,
+		     unsigned int cmd, unsigned long arg)
+{
+	drm_file_t *priv = filp->private_data;
+	drm_device_t *dev = priv->dev;
+	drm_i810_general_t general;
+      	drm_i810_private_t *dev_priv = (drm_i810_private_t *)dev->dev_private;
+      	u32 *hw_status = (u32 *)dev_priv->hw_status_page;
+   	drm_i810_sarea_t *sarea_priv = (drm_i810_sarea_t *) 
+     					dev_priv->sarea_priv; 
+
+	int retcode = 0;
+	
+	copy_from_user_ret(&general, (drm_i810_general_t *)arg, sizeof(general),
+			   -EFAULT);
+
+	DRM_DEBUG("i810 dma general idx %d used %d\n",
+		  general.idx, general.used);
+   
+	retcode = i810DmaGeneral(dev, &general);
+   	sarea_priv->last_dispatch = (int) hw_status[5];
+   
+	return retcode;
+}
+
+int i810_dma_vertex(struct inode *inode, struct file *filp,
+	       unsigned int cmd, unsigned long arg)
+{
+	drm_file_t *priv = filp->private_data;
+	drm_device_t *dev = priv->dev;
+   	drm_i810_private_t *dev_priv = (drm_i810_private_t *)dev->dev_private;
+      	u32 *hw_status = (u32 *)dev_priv->hw_status_page;
+   	drm_i810_sarea_t *sarea_priv = (drm_i810_sarea_t *) 
+     					dev_priv->sarea_priv; 
+	drm_i810_vertex_t vertex;
+	int retcode = 0;
+
+	copy_from_user_ret(&vertex, (drm_i810_vertex_t *)arg, sizeof(vertex),
+			   -EFAULT);
+   
+	DRM_DEBUG("i810 dma vertex, idx %d used %d real_idx %d discard %d\n",
+		  vertex.idx, vertex.real_used, vertex.real_idx,
+		  vertex.discard);
+
+	retcode = i810DmaVertex(dev, &vertex);
+   	sarea_priv->last_dispatch = (int) hw_status[5];
+   
+	return retcode;
+
+}
+
+int i810_dma(struct inode *inode, struct file *filp, unsigned int cmd,
+	    unsigned long arg)
+{
+	drm_file_t	  *priv	    = filp->private_data;
+	drm_device_t	  *dev	    = priv->dev;
+	drm_device_dma_t  *dma	    = dev->dma;
+	int		  retcode   = 0;
+	drm_dma_t	  d;
+   	drm_i810_private_t *dev_priv = (drm_i810_private_t *)dev->dev_private;
+   	u32 *hw_status = (u32 *)dev_priv->hw_status_page;
+   	drm_i810_sarea_t *sarea_priv = (drm_i810_sarea_t *) 
+     					dev_priv->sarea_priv; 
+
+
+   	copy_from_user_ret(&d, (drm_dma_t *)arg, sizeof(d), -EFAULT);
+	DRM_DEBUG("%d %d: %d send, %d req\n",
+		  current->pid, d.context, d.send_count, d.request_count);
+
+	/* Please don't send us buffers.
+	 */
+	if (d.send_count != 0) {
+		DRM_ERROR("Process %d trying to send %d buffers via drmDMA\n",
+			  current->pid, d.send_count);
+		return -EINVAL;
+	}
+	
+	/* We'll send you buffers.
+	 */
+	if (d.request_count < 0 || d.request_count > dma->buf_count) {
+		DRM_ERROR("Process %d trying to get %d buffers (of %d max)\n",
+			  current->pid, d.request_count, dma->buf_count);
+		return -EINVAL;
+	}
+	
+	d.granted_count = 0;
+
+	if (!retcode && d.request_count) {
+		retcode = i810_dma_get_buffers(dev, &d);
+	}
+
+	DRM_DEBUG("i810_dma: %d returning, granted = %d\n",
+		  current->pid, d.granted_count);
+
+	copy_to_user_ret((drm_dma_t *)arg, &d, sizeof(d), -EFAULT);   
+   	sarea_priv->last_dispatch = (int) hw_status[5];
+
+	return retcode;
 }

@@ -54,10 +54,8 @@ typedef struct drm_i810_private {
       	unsigned long hw_status_page;
    	unsigned long counter;
 
-   	atomic_t dispatch_lock;
-      	atomic_t pending_bufs;
-   	atomic_t in_flush;
-
+   	atomic_t flush_done;
+   	wait_queue_head_t flush_queue;	/* Processes waiting until flush    */
 } drm_i810_private_t;
 
 				/* i810_drv.c */
@@ -86,6 +84,8 @@ extern int  i810_dma_init(struct inode *inode, struct file *filp,
 			  unsigned int cmd, unsigned long arg);
 extern int  i810_flush_ioctl(struct inode *inode, struct file *filp,
 			     unsigned int cmd, unsigned long arg);
+extern void i810_reclaim_buffers(drm_device_t *dev, pid_t pid);
+
 
 				/* i810_bufs.c */
 extern int  i810_addbufs(struct inode *inode, struct file *filp, 
