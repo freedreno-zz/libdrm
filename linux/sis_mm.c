@@ -79,7 +79,7 @@ int sis_fb_alloc(struct inode *inode, struct file *filp, unsigned int cmd,
   int retval = 0;
    
   if (copy_from_user(&fb, (drm_sis_mem_t *)arg, sizeof(fb)))
-         return -EFAULT;
+	  return -EFAULT;
   
   req.size = fb.size;
   sis_malloc(&req);
@@ -113,7 +113,7 @@ int sis_fb_free(struct inode *inode, struct file *filp, unsigned int cmd,
   int retval = 0;
     
   if (copy_from_user(&fb, (drm_sis_mem_t *)arg, sizeof(fb)))
-         return -EFAULT;
+	  return -EFAULT;
   
   if(!fb.free){
     return -1;
@@ -155,7 +155,7 @@ int sis_agp_init(struct inode *inode, struct file *filp, unsigned int cmd,
   drm_sis_agp_t agp;
    
   if (copy_from_user(&agp, (drm_sis_agp_t *)arg, sizeof(agp)))
-         return -EFAULT;
+	  return -EFAULT;
 
   AgpHeap = mmInit(agp.offset, agp.size);
 
@@ -175,7 +175,7 @@ int sis_agp_alloc(struct inode *inode, struct file *filp, unsigned int cmd,
     return -1;
   
   if (copy_from_user(&agp, (drm_sis_mem_t *)arg, sizeof(agp)))
-         return -EFAULT;
+	  return -EFAULT;
   
   block = mmAllocMem(AgpHeap, agp.size, 0, 0);
   if(block){
@@ -211,7 +211,7 @@ int sis_agp_free(struct inode *inode, struct file *filp, unsigned int cmd,
     return -1;
     
   if (copy_from_user(&agp, (drm_sis_mem_t *)arg, sizeof(agp)))
-         return -EFAULT;
+	  return -EFAULT;
   
   if(!agp.free){
     return -1;
