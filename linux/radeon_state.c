@@ -618,15 +618,14 @@ static void radeon_cp_dispatch_vertex( drm_device_t *dev,
 	int i = 0;
 	RING_LOCALS;
 
-/*  	printk("%s: %d boxes\n", __FUNCTION__, nbox); */
 
-/*  	printk("emit_prim: hwprim 0x%x vfmt 0x%x %d..%d %d verts stateidx %x\n", */
-/*  	   prim->prim, */
-/*  	   prim->vc_format, */
-/*  	   prim->start, */
-/*  	   prim->finish, */
-/*  	   prim->numverts, */
-/*  	   prim->stateidx); */
+	DRM_DEBUG("%s: hwprim 0x%x vfmt 0x%x %d..%d %d verts\n",
+		  __FUNCTION__,
+		  prim->prim,
+		  prim->vc_format,
+		  prim->start,
+		  prim->finish,
+		  prim->numverts);
 
 	switch (prim->prim & RADEON_PRIM_TYPE_MASK) {
 	case RADEON_CP_VC_CNTL_PRIM_TYPE_NONE:
@@ -669,9 +668,7 @@ static void radeon_cp_dispatch_vertex( drm_device_t *dev,
 			return;
 		}
 		break;
-	case RADEON_CP_VC_CNTL_PRIM_TYPE_TRI_TYPE_2:
 	default:
-		/* don't understand this one */
 		DRM_ERROR( "buffer prim %x start %x\n", 
 			   prim->prim, prim->start );
 		return;
@@ -750,7 +747,6 @@ static void radeon_cp_dispatch_indirect( drm_device_t *dev,
 			u32 *data = (u32 *)
 				((char *)dev_priv->buffers->handle
 				 + buf->offset + start);
-/*  			printk("ODD DWORDS!!!\n\n\n"); */
 			data[dwords++] = RADEON_CP_PACKET2;
 		}
 
@@ -764,9 +760,6 @@ static void radeon_cp_dispatch_indirect( drm_device_t *dev,
 		OUT_RING( dwords );
 
 		ADVANCE_RING();
-
-/*  		radeon_do_cp_idle( dev_priv ); */
-
 	}
 
 	dev_priv->sarea_priv->last_dispatch++;
@@ -789,13 +782,13 @@ static void radeon_cp_dispatch_indices( drm_device_t *dev,
 	int start = prim->start + RADEON_INDEX_PRIM_OFFSET;
 	int count = (prim->finish - start) / sizeof(u16);
 
-/*  	printk("emit_indices: hwprim 0x%x vfmt 0x%x %d..%d %d verts stateidx %x\n", */
-/*  	   prim->prim, */
-/*  	   prim->vc_format, */
-/*  	   prim->start, */
-/*  	   prim->finish, */
-/*  	   prim->numverts, */
-/*  	   prim->stateidx); */
+	DRM_DEBUG("%s: hwprim 0x%x vfmt 0x%x %d..%d offset: %x\n",
+		  __FUNCTION__,
+		  prim->prim,
+		  prim->vc_format,
+		  prim->start,
+		  prim->finish,
+		  prim->numverts * 64);
 
 	switch (prim->prim & RADEON_PRIM_TYPE_MASK) {
 	case RADEON_CP_VC_CNTL_PRIM_TYPE_NONE:
@@ -836,9 +829,7 @@ static void radeon_cp_dispatch_indices( drm_device_t *dev,
 			return;
 		}
 		break;
-	case RADEON_CP_VC_CNTL_PRIM_TYPE_TRI_TYPE_2:
 	default:
-		/* don't understand this one */
 		DRM_ERROR( "buffer prim %x start %x\n", 
 			   prim->prim, prim->start );
 		return;
@@ -864,13 +855,6 @@ static void radeon_cp_dispatch_indices( drm_device_t *dev,
 		   RADEON_COLOR_ORDER_RGBA |
 		   RADEON_VTX_FMT_RADEON_MODE |
 		   (count << RADEON_NUM_VERTICES_SHIFT) );
-
-#if 0
-	if ( count & 0x1 ) {
-		/* unnecessary? */
-		data[dwords-1] &= 0x0000ffff;
-	}
-#endif
 
 	do {
 		if ( i < nbox ) {
@@ -1595,11 +1579,6 @@ static int radeon_emit_packets(
 	if (sz * sizeof(int) > cmdbuf->bufsz) 
 		return -EINVAL;
 
-/*    	printk("emit packet %d/%s (reg %x sz %d)\n",  */
-/*    	       header.packet.packet_id,  */
-/*  	       packet[(int)header.packet.packet_id].name,  */
-/*  	       reg, sz );  */
-
 	BEGIN_RING( (sz+1) );
 	OUT_RING( CP_PACKET0( reg, (sz-1) ) );
 	for ( i = 0 ; i < sz ; i++ ) {
@@ -1624,7 +1603,6 @@ static inline int radeon_emit_scalars(
 	int start = header.scalars.offset;
 	int stride = header.scalars.stride;
 	RING_LOCALS;
-/*  	printk( "    %s\n", __FUNCTION__ ); */
 
 	BEGIN_RING( 3+sz );
 	OUT_RING( CP_PACKET0( RADEON_SE_TCL_SCALAR_INDX_REG, 0 ) );
@@ -1633,7 +1611,6 @@ static inline int radeon_emit_scalars(
 	for ( i = 0 ; i < sz ; i++ ) {
 		if (__get_user( tmp, &data[i] ))
 			return -EFAULT;
-/*  		printk("%d: %x\n", i, tmp); */
 		OUT_RING( tmp );
 	}	
 	ADVANCE_RING();
@@ -1652,25 +1629,17 @@ static inline int radeon_emit_vectors(
 	int start = header.vectors.offset;
 	int stride = header.vectors.stride;
 	RING_LOCALS;
-/*  	printk( "    %s (start %x stride %d count %d)\n", __FUNCTION__, */
-/*  		start, stride, sz); */
 
-/*  	if (start == 122) { */
-/*  	   printk("skipping GLT\n"); */
-/*  	} else */
-	{
-	   BEGIN_RING( 3+sz );
-	   OUT_RING( CP_PACKET0( RADEON_SE_TCL_VECTOR_INDX_REG, 0 ) );
-	   OUT_RING( start | (stride << RADEON_VEC_INDX_OCTWORD_STRIDE_SHIFT));
-	   OUT_RING( CP_PACKET0_TABLE( RADEON_SE_TCL_VECTOR_DATA_REG, (sz-1) ) );
-	   for ( i = 0 ; i < sz ; i++ ) {
-	      if (__get_user( tmp, &data[i] ))
-		 return -EFAULT;
-/*  		printk("%d: %x\n", i, tmp); */
-	      OUT_RING( tmp );
-	   }	
-	   ADVANCE_RING();
-	}
+	BEGIN_RING( 3+sz );
+	OUT_RING( CP_PACKET0( RADEON_SE_TCL_VECTOR_INDX_REG, 0 ) );
+	OUT_RING( start | (stride << RADEON_VEC_INDX_OCTWORD_STRIDE_SHIFT));
+	OUT_RING( CP_PACKET0_TABLE( RADEON_SE_TCL_VECTOR_DATA_REG, (sz-1) ) );
+	for ( i = 0 ; i < sz ; i++ ) {
+		if (__get_user( tmp, &data[i] ))
+			return -EFAULT;
+		OUT_RING( tmp );
+	}	
+	ADVANCE_RING();
 
 	cmdbuf->buf += sz * sizeof(int);
 	cmdbuf->bufsz -= sz * sizeof(int);
@@ -1691,16 +1660,6 @@ static int radeon_emit_primitive(
 		return -EFAULT;
 				
 
-/*  	printk( "%s: hwprim 0x%x vfmt 0x%x %d..%d %d verts \n", */
-/*  		__FUNCTION__, */
-/*  		prim.prim, */
-/*  		prim.vc_format, */
-/*  		prim.start, */
-/*  		prim.finish, */
-/*  		(prim.prim & RADEON_PRIM_WALK_IND)  */
-/*  		? ((prim.finish-prim.start-20)/2) */
-/*  		: prim.numverts); */
-
 	if ( prim.prim & RADEON_PRIM_WALK_IND ) {
 		radeon_cp_dispatch_indices( dev, buf, &prim,
 					    cmdbuf->boxes,
@@ -1716,10 +1675,6 @@ static int radeon_emit_primitive(
 
 	cmdbuf->buf += sizeof(prim);
 	cmdbuf->bufsz -= sizeof(prim);
-
-
-/*  	printk( "%s: DONE\n", __FUNCTION__); */
-
 	return 0;
 }
 
@@ -1736,8 +1691,6 @@ int radeon_cp_cmdbuf( struct inode *inode, struct file *filp,
 	int idx;
 	drm_radeon_cmd_buffer_t cmdbuf;
 	drm_radeon_cmd_header_t header;
-
-/*  	printk("%s\n", __FUNCTION__); */
 
 	LOCK_TEST_WITH_RETURN( dev );
 
@@ -1757,13 +1710,12 @@ int radeon_cp_cmdbuf( struct inode *inode, struct file *filp,
 	VB_AGE_TEST_WITH_RETURN( dev_priv );
 
 
-/* FIXME: args to verify_area
- */
-/*  	if (!verify_area( cmdbuf.bufsz, cmdbuf.buf )) */
-/*  		return -EFAULT; */
+	if (!verify_area( VERIFY_READ, cmdbuf.buf, cmdbuf.bufsz ))
+		return -EFAULT;
 
-/*  	if (!verify_area( cmdbuf.nbox * sizeof(drm_clip_rect_t), cmdbuf.boxes)) */
-/*  		return -EFAULT; */
+	if (!verify_area( VERIFY_READ, cmdbuf.boxes, 
+			  cmdbuf.nbox * sizeof(drm_clip_rect_t)))
+		return -EFAULT;
 
 	while ( cmdbuf.bufsz >= sizeof(header) ) {
 		
@@ -1771,7 +1723,6 @@ int radeon_cp_cmdbuf( struct inode *inode, struct file *filp,
 			DRM_ERROR("__get_user %p\n", cmdbuf.buf);
 			return -EFAULT;
 		}
-/*      		printk("cmdbuf.buf: %x/%x\n", cmdbuf.buf, header.i);   */
 
 		cmdbuf.buf += sizeof(header);
 		cmdbuf.bufsz -= sizeof(header);
@@ -1836,15 +1787,14 @@ int radeon_cp_cmdbuf( struct inode *inode, struct file *filp,
 			break;
 
 		default:
-			printk("bad cmd_type %d at %p\n", 
-			       header.header.cmd_type,
-			       cmdbuf.buf - sizeof(header));
+			DRM_ERROR("bad cmd_type %d at %p\n", 
+				  header.header.cmd_type,
+				  cmdbuf.buf - sizeof(header));
 			return -EINVAL;
 		}
 	}
 
 
-/*  	printk("finished\n"); */
 	return 0;
 }
 
