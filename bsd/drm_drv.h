@@ -982,7 +982,7 @@ int DRM(close)(dev_t kdev, int flags, int fmt, DRM_STRUCTPROC *p)
 			}
 			if ( DRM(lock_take)( &dev->lock.hw_lock->lock,
 					     DRM_KERNEL_CONTEXT ) ) {
-				dev->lock.pid       = p->p_pid;
+				dev->lock.pid       = DRM_CURRENTPID;
 				dev->lock.lock_time = jiffies;
                                 atomic_inc( &dev->counts[_DRM_STAT_LOCKS] );
 				break;	/* Got lock */

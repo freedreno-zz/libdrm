@@ -61,7 +61,11 @@ void DRM(dma_service)( DRM_IRQ_ARGS )
 	   (drm_radeon_private_t *)dev->dev_private;
    	u32 stat;
 
-	stat = RADEON_READ(RADEON_GEN_INT_STATUS);
+	/* Only consider the bits we're interested in - others could be used
+	 * outside the DRM
+	 */
+	stat = RADEON_READ(RADEON_GEN_INT_STATUS)
+	     & (RADEON_SW_INT_TEST | RADEON_CRTC_VBLANK_STAT);
 	if (!stat)
 		return;
 
@@ -70,23 +74,21 @@ void DRM(dma_service)( DRM_IRQ_ARGS )
 		DRM_WAKEUP( &dev_priv->swi_queue );
 	}
 
-#if __HAVE_VBL_IRQ
 	/* VBLANK interrupt */
 	if (stat & RADEON_CRTC_VBLANK_STAT) {
 		atomic_inc(&dev->vbl_received);
 		DRM_WAKEUP(&dev->vbl_queue);
+		DRM(vbl_send_signals)( dev );
 	}
-#endif
 
-	/* Acknowledge all the bits in GEN_INT_STATUS -- seem to get
-	 * more than we asked for...
-	 */
+	/* Acknowledge interrupts we handle */
 	RADEON_WRITE(RADEON_GEN_INT_STATUS, stat);
 }
 
 static __inline__ void radeon_acknowledge_irqs(drm_radeon_private_t *dev_priv)
 {
-	u32 tmp = RADEON_READ( RADEON_GEN_INT_STATUS );
+	u32 tmp = RADEON_READ( RADEON_GEN_INT_STATUS )
+		& (RADEON_SW_INT_TEST_ACK | RADEON_CRTC_VBLANK_STAT);
 	if (tmp)
 		RADEON_WRITE( RADEON_GEN_INT_STATUS, tmp );
 }
@@ -138,7 +140,6 @@ int radeon_emit_and_wait_irq(drm_device_t *dev)
 }
 
 
-#if __HAVE_VBL_IRQ
 int DRM(vblank_wait)(drm_device_t *dev, unsigned int *sequence)
 {
   	drm_radeon_private_t *dev_priv = 
@@ -161,13 +162,12 @@ int DRM(vblank_wait)(drm_device_t *dev, unsigned int *sequence)
 	 */
 	DRM_WAIT_ON( ret, dev->vbl_queue, 3*DRM_HZ, 
 		     ( ( ( cur_vblank = atomic_read(&dev->vbl_received ) )
-			 + ~*sequence + 1 ) <= (1<<23) ) );
+			 - *sequence ) <= (1<<23) ) );
 
 	*sequence = cur_vblank;
 
 	return ret;
 }
-#endif
 
 
 /* Needs the lock as it touches the ring.

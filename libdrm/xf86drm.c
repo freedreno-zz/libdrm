@@ -248,6 +248,7 @@ static int drmOpenDevice(long dev, int minor)
     fd = open(buf, O_RDWR, 0);
     drmMsg("drmOpenDevice: open result is %d, (%s)\n",
 		fd, fd < 0 ? strerror(errno) : "OK");
+    if (fd >= 0) return fd;
 
     drmMsg("drmOpenDevice: Open failed\n");
     remove(buf);
@@ -1107,6 +1108,7 @@ int drmWaitVBlank(int fd, drmVBlankPtr vbl)
 
     do {
        ret = ioctl(fd, DRM_IOCTL_WAIT_VBLANK, vbl);
+       vbl->request.type &= ~DRM_VBLANK_RELATIVE;
     } while (ret && errno == EINTR);
 
     return ret;
