@@ -23,7 +23,7 @@
  * OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  *
  * Kernel-based WARP engine management:
- *   Gareth Hughes <gareth@valinux.com>
+ *    Gareth Hughes <gareth@valinux.com>
  */
 
 /*

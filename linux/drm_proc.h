@@ -25,12 +25,12 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  *
  * Authors:
- *   Rickard E. (Rik) Faith <faith@valinux.com>
- *   Gareth Hughes <gareth@valinux.com>
+ *    Rickard E. (Rik) Faith <faith@valinux.com>
+ *    Gareth Hughes <gareth@valinux.com>
  *
  * Acknowledgements:
- *   Matthew J Sottek <matthew.j.sottek@intel.com> sent in a patch to fix
- *   the problem with the proc files not outputting all their information.
+ *    Matthew J Sottek <matthew.j.sottek@intel.com> sent in a patch to fix
+ *    the problem with the proc files not outputting all their information.
  */
 
 #define __NO_VERSION__

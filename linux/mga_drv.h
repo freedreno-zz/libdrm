@@ -25,7 +25,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  *
  * Authors:
- *   Gareth Hughes <gareth@valinux.com>
+ *    Gareth Hughes <gareth@valinux.com>
  */
 
 #ifndef __MGA_DRV_H__
@@ -62,7 +62,6 @@ typedef struct drm_mga_primary_buffer {
 
 	volatile u32 *head;
 	u32 tail;
-	u32 wrap;
 	int space;
 
 	unsigned long status_page;
@@ -71,14 +70,14 @@ typedef struct drm_mga_primary_buffer {
 	u32 last_flush;
 	u32 high_mark;
 
-	spinlock_t lock;
+	spinlock_t tail_lock;
+	spinlock_t list_lock;
 } drm_mga_primary_buffer_t;
-
 
 typedef struct drm_mga_freelist {
    	struct drm_mga_freelist *next;
    	struct drm_mga_freelist *prev;
-   	volatile unsigned int age;
+	drm_mga_age_t age;
    	drm_buf_t *buf;
 } drm_mga_freelist_t;
 
@@ -94,52 +93,16 @@ typedef struct {
 #define MGA_IN_GETBUF	  3
 
 typedef struct drm_mga_private {
-   	u32 dispatch_status;
-	unsigned int next_prim_age;
-	volatile unsigned int last_prim_age;
-   	int reserved_map_idx;
-   	int buffer_map_idx;
-   	drm_mga_sarea_t *sarea_priv;
-   	int primary_size;
-   	int warp_ucode_size;
-   	int chipset;
-   	unsigned int frontOffset;
-   	unsigned int backOffset;
-   	unsigned int depthOffset;
-   	unsigned int textureOffset;
-   	unsigned int textureSize;
-   	int cpp;
-   	unsigned int stride;
-   	int sgram;
-	int use_agp;
-   	drm_mga_warp_index_t WarpIndex[MGA_MAX_G400_PIPES];
-	unsigned int WarpPipe;
-	unsigned int vertexsize;
-   	atomic_t pending_bufs;
-   	void *status_page;
-   	unsigned long real_status_page;
-   	u8 *ioremap;
-   	drm_mga_prim_buf_t **prim_bufs;
-   	drm_mga_prim_buf_t *next_prim;
-   	drm_mga_prim_buf_t *last_prim;
-   	drm_mga_prim_buf_t *current_prim;
-   	int current_prim_idx;
-   	wait_queue_head_t flush_queue;	/* Processes waiting until flush    */
-      	wait_queue_head_t wait_queue;	/* Processes waiting until interrupt */
-	wait_queue_head_t buf_queue;    /* Processes waiting for a free buf */
-	/* Some validated register values:
-	 */
-	u32 mAccess;
-
-
 	drm_mga_primary_buffer_t prim;
-
-	unsigned int warp_pipe;
-	unsigned long warp_pipe_phys[MGA_MAX_WARP_PIPES];
+	drm_mga_sarea_t *sarea_priv;
 
    	drm_mga_freelist_t *head;
    	drm_mga_freelist_t *tail;
 
+	unsigned int warp_pipe;
+	unsigned long warp_pipe_phys[MGA_MAX_WARP_PIPES];
+
+	int chipset;
 	int usec_timeout;
 
 	u32 clear_cmd;
@@ -161,6 +124,7 @@ typedef struct drm_mga_private {
 	drm_map_t *sarea;
 	drm_map_t *fb;
 	drm_map_t *mmio;
+	drm_map_t *status;
 	drm_map_t *warp;
 	drm_map_t *primary;
 	drm_map_t *buffers;
@@ -209,6 +173,9 @@ extern int  mga_dma_swap( struct inode *inode, struct file *filp,
 			  unsigned int cmd, unsigned long arg );
 extern int  mga_dma_vertex( struct inode *inode, struct file *filp,
 			    unsigned int cmd, unsigned long arg );
+extern int  mga_dma_iload( struct inode *inode, struct file *filp,
+			   unsigned int cmd, unsigned long arg );
+
 #if 0
 extern int  mga_clear_bufs( struct inode *inode, struct file *filp,
 			    unsigned int cmd, unsigned long arg );
@@ -416,17 +383,14 @@ do {									\
 #define ADVANCE_DMA()							\
 do {									\
 	dev_priv->prim.space -= (write - dev_priv->prim.tail);		\
-	spin_lock_irqsave( &dev_priv->prim.lock, flags );		\
+	spin_lock_irqsave( &dev_priv->prim.tail_lock, flags );		\
 	dev_priv->prim.tail = write;					\
-	spin_unlock_irqrestore( &dev_priv->prim.lock, flags );		\
+	spin_unlock_irqrestore( &dev_priv->prim.tail_lock, flags );	\
 	if ( MGA_VERBOSE ) {						\
 		DRM_INFO( "ADVANCE_DMA() tail=0x%05x sp=0x%x\n",	\
 			  write, dev_priv->prim.space );		\
 	}								\
 } while (0)
-
-#define FLUSH_DMA()	mga_do_dma_flush( dev_priv );
-
 
 /* Never use this, always use DMA_BLOCK(...) for primary DMA output.
  */
@@ -453,6 +417,28 @@ do {									\
 } while (0)
 
 
+/* Buffer ageing via primary DMA stream head pointer.
+ */
+
+#define SET_AGE( age, h, w )						\
+do {									\
+	(age)->head = h;						\
+	(age)->wrap = w;						\
+} while (0)
+
+#define TEST_AGE( age, h, w )		( (age)->wrap < w ||		\
+					  ( (age)->wrap == w &&		\
+					    (age)->head <= h ) )
+
+#define AGE_BUFFER( buf_priv )						\
+do {									\
+	drm_mga_freelist_t *entry = (buf_priv)->list_entry;		\
+	entry->age.head = (dev_priv->prim.tail +			\
+			   dev_priv->primary->offset);			\
+	entry->age.wrap = dev_priv->sarea_priv->last_wrap;		\
+} while (0)
+
+
 #define MGA_ENGINE_IDLE_MASK		(MGA_SOFTRAPEN |		\
 					 MGA_DWGENGSTS |		\
 					 MGA_ENDPRDMASTS)
@@ -460,9 +446,6 @@ do {									\
 					 MGA_ENDPRDMASTS)
 
 #define MGA_DMA_SOFTRAP_SIZE		32 * DMA_BLOCK_SIZE
-
-#define MGA_DMA_IS_IDLE( dev_priv )	test_bit( MGA_DMA_IDLE,		\
-						  &dev_priv->prim.state )
 
 
 
@@ -570,6 +553,12 @@ do {									\
 #define MGA_SETUPEND 			0x2cd4
 #define MGA_SOFTRAP			0x2c48
 #define MGA_SRCORG 			0x2cb4
+#	define MGA_SRMMAP_MASK			(1 << 0)
+#	define MGA_SRCMAP_FB			(0 << 0)
+#	define MGA_SRCMAP_SYSMEM		(1 << 0)
+#	define MGA_SRCACC_MASK			(1 << 1)
+#	define MGA_SRCACC_PCI			(0 << 1)
+#	define MGA_SRCACC_AGP			(1 << 1)
 #define MGA_STATUS 			0x1e14
 #	define MGA_SOFTRAPEN			(1 << 0)
 #	define MGA_DWGENGSTS			(1 << 16)

@@ -25,8 +25,8 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  *
  * Authors:
- *   Rickard E. (Rik) Faith <faith@valinux.com>
- *   Gareth Hughes <gareth@valinux.com>
+ *    Rickard E. (Rik) Faith <faith@valinux.com>
+ *    Gareth Hughes <gareth@valinux.com>
  */
 
 #define __NO_VERSION__
@@ -143,7 +143,7 @@ int DRM(getclient)( struct inode *inode, struct file *filp,
 	down(&dev->struct_sem);
 	for (i = 0, pt = dev->file_first; i < idx && pt; i++, pt = pt->next)
 		;
-	
+
 	if (!pt) {
 		up(&dev->struct_sem);
 		return -EINVAL;

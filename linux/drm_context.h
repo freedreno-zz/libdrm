@@ -25,8 +25,8 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  *
  * Authors:
- *   Rickard E. (Rik) Faith <faith@valinux.com>
- *   Gareth Hughes <gareth@valinux.com>
+ *    Rickard E. (Rik) Faith <faith@valinux.com>
+ *    Gareth Hughes <gareth@valinux.com>
  */
 
 /* ================================================================

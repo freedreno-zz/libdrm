@@ -25,9 +25,9 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  *
  * Authors:
- *   Rickard E. (Rik) Faith <faith@valinux.com>
- *   Daryll Strauss <daryll@valinux.com>
- *   Gareth Hughes <gareth@valinux.com>
+ *    Rickard E. (Rik) Faith <faith@valinux.com>
+ *    Daryll Strauss <daryll@valinux.com>
+ *    Gareth Hughes <gareth@valinux.com>
  */
 
 #define __NO_VERSION__

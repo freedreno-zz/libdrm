@@ -24,7 +24,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  *
  * Authors:
- *   Gareth Hughes <gareth@valinux.com>
+ *    Gareth Hughes <gareth@valinux.com>
  */
 
 #ifndef __MGA_H__

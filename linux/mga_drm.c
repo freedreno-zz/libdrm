@@ -24,7 +24,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  *
  * Authors:
- *   Gareth Hughes <gareth@valinux.com>
+ *    Gareth Hughes <gareth@valinux.com>
  */
 
 #define __NO_VERSION__

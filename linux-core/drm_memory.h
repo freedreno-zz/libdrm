@@ -25,8 +25,8 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  *
  * Authors:
- *   Rickard E. (Rik) Faith <faith@valinux.com>
- *   Gareth Hughes <gareth@valinux.com>
+ *    Rickard E. (Rik) Faith <faith@valinux.com>
+ *    Gareth Hughes <gareth@valinux.com>
  */
 
 #define __NO_VERSION__
@@ -105,7 +105,7 @@ static int DRM(_mem_info)(char *buf, char **start, off_t offset,
 		*eof = 1;
 		return 0;
 	}
-	
+
 	*eof   = 0;
 	*start = &buf[offset];
 

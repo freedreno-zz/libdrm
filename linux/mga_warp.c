@@ -24,7 +24,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  *
  * Authors:
- *   Gareth Hughes <gareth@valinux.com>
+ *    Gareth Hughes <gareth@valinux.com>
  */
 
 #define __NO_VERSION__
@@ -41,7 +41,7 @@
 
 #define WARP_UCODE_INSTALL( which, where )				\
 do {									\
-	DRM_INFO( " pcbase = 0x%08lx  vcbase = %p\n", pcbase, vcbase );	\
+	DRM_DEBUG( " pcbase = 0x%08lx  vcbase = %p\n", pcbase, vcbase );\
 	dev_priv->warp_pipe_phys[where] = pcbase;			\
 	memcpy( vcbase, which, sizeof(which) );				\
 	pcbase += WARP_UCODE_SIZE( which );				\
@@ -72,7 +72,7 @@ static unsigned int mga_warp_g400_microcode_size( drm_mga_private_t *dev_priv )
 
 	size = PAGE_ALIGN( size );
 
-	DRM_INFO( "G400 ucode size = %d bytes\n", size );
+	DRM_DEBUG( "G400 ucode size = %d bytes\n", size );
 	return size;
 }
 
@@ -91,7 +91,7 @@ static unsigned int mga_warp_g200_microcode_size( drm_mga_private_t *dev_priv )
 
 	size = PAGE_ALIGN( size );
 
-	DRM_INFO( "G200 ucode size = %d bytes\n", size );
+	DRM_DEBUG( "G200 ucode size = %d bytes\n", size );
 	return size;
 }
 
@@ -163,7 +163,7 @@ static int mga_warp_install_g200_microcode( drm_mga_private_t *dev_priv )
 int mga_warp_install_microcode( drm_device_t *dev )
 {
 	drm_mga_private_t *dev_priv = dev->dev_private;
-	DRM_INFO( "%s\n", __FUNCTION__ );
+	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
 	switch ( dev_priv->chipset ) {
 	case MGA_CARD_TYPE_G400:
@@ -181,7 +181,7 @@ int mga_warp_init( drm_device_t *dev )
 {
 	drm_mga_private_t *dev_priv = dev->dev_private;
 	u32 wmisc;
-	DRM_INFO( "%s\n", __FUNCTION__ );
+	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
 	/* FIXME: Get rid of these damned magic numbers...
 	 */

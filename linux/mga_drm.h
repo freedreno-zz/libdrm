@@ -24,11 +24,12 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
  * OTHER DEALINGS IN THE SOFTWARE.
  *
- * Authors: Jeff Hartmann <jhartmann@valinux.com>
- *          Keith Whitwell <keithw@valinux.com>
+ * Authors:
+ *    Jeff Hartmann <jhartmann@valinux.com>
+ *    Keith Whitwell <keithw@valinux.com>
  *
  * Rewritten by:
- *   Gareth Hughes <gareth@valinux.com>
+ *    Gareth Hughes <gareth@valinux.com>
  */
 
 #ifndef __MGA_DRM_H__
@@ -158,6 +159,13 @@ typedef struct {
 	unsigned int texorg4;
 } drm_mga_texture_regs_t;
 
+/* General ageing mechanism
+ */
+typedef struct {
+	unsigned int head;		/* Position of head pointer          */
+	unsigned int wrap;		/* Primary DMA wrap count            */
+} drm_mga_age_t;
+
 typedef struct _drm_mga_sarea {
 	/* The channel for communication of state information to the kernel
 	 * on firing a vertex dma buffer.
@@ -196,6 +204,10 @@ typedef struct _drm_mga_sarea {
 
 	/* Counters for aging textures and for client-side throttling.
 	 */
+	unsigned int status[4];
+	unsigned int last_wrap;
+
+	drm_mga_age_t last_frame;
         unsigned int last_enqueue;	/* last time a buffer was enqueued */
 	unsigned int last_dispatch;	/* age of the most recently dispatched buffer */
 	unsigned int last_quiescent;     /*  */
@@ -245,6 +257,7 @@ typedef struct drm_mga_init {
 
 	unsigned int fb_offset;
 	unsigned int mmio_offset;
+	unsigned int status_offset;
 	unsigned int warp_offset;
 	unsigned int primary_offset;
 	unsigned int buffers_offset;
@@ -280,8 +293,8 @@ typedef struct drm_mga_indices {
 
 typedef struct drm_mga_iload {
 	int idx;
-	int length;
-	unsigned int destOrg;
+	unsigned int dstorg;
+	unsigned int length;
 } drm_mga_iload_t;
 
 #endif

@@ -25,11 +25,11 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  *
  * Authors:
- *   Jeff Hartmann <jhartmann@valinux.com>
- *   Keith Whitwell <keithw@valinux.com>
+ *    Jeff Hartmann <jhartmann@valinux.com>
+ *    Keith Whitwell <keithw@valinux.com>
  *
  * Rewritten by:
- *   Gareth Hughes <gareth@valinux.com>
+ *    Gareth Hughes <gareth@valinux.com>
  */
 
 #define __NO_VERSION__
@@ -318,7 +318,8 @@ static inline void mga_g400_emit_pipe( drm_mga_private_t *dev_priv )
 				   MGA_DWGCTL,		MGA_DWGCTL_FLUSH );
 
 			DMA_BLOCK( MGA_LEN + MGA_EXEC,	0x00000001,
-				   MGA_DWGSYNC,		0x00007000,
+				   /*MGA_DWGSYNC,	0x00007000,*/
+				   MGA_DMAPAD,		0x00000000,
 				   MGA_TEXCTL2,		MGA_G400_TC2_MAGIC,
 				   MGA_LEN + MGA_EXEC,	0x00000000 );
 
@@ -488,9 +489,8 @@ static int mga_verify_state( drm_mga_private_t *dev_priv )
 	return ( ret == 0 );
 }
 
-static int mga_verify_tex_blit( drm_mga_private_t *dev_priv,
-				unsigned long bus_address,
-				unsigned int dstorg, int length )
+static int mga_verify_iload( drm_mga_private_t *dev_priv,
+			     unsigned int dstorg, unsigned int length )
 {
 	if ( dstorg < dev_priv->texture_offset ||
 	     dstorg + length > (dev_priv->texture_offset +
@@ -522,53 +522,72 @@ static void mga_dma_dispatch_clear( drm_device_t *dev,
 	DMA_LOCALS;
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
-	for ( i = 0 ; i < nbox ; i++ ) {
-		unsigned int height = pbox[i].y2 - pbox[i].y1;
+	if ( clear->flags & MGA_FRONT ) {
+		BEGIN_DMA( 1 + nbox );
 
-		BEGIN_DMA( 6 );
+		DMA_BLOCK( MGA_FCOL,	clear->clear_color,
+			   MGA_PLNWT,	clear->color_mask,
+			   MGA_DSTORG,	dev_priv->front_offset,
+			   MGA_DWGCTL,	dev_priv->clear_cmd );
 
-		if ( clear->flags & MGA_FRONT ) {
-			DMA_BLOCK( MGA_DMAPAD,	0x00000000,
-				   MGA_PLNWT,	clear->color_mask,
-				   MGA_YDSTLEN, (pbox[i].y1 << 16) | height,
-				   MGA_FXBNDRY,	(pbox[i].x2 << 16) | pbox[i].x1 );
-
-			DMA_BLOCK( MGA_DMAPAD,	0x00000000,
-				   MGA_FCOL,	clear->clear_color,
-				   MGA_DSTORG,	dev_priv->front_offset,
-				   MGA_DWGCTL + MGA_EXEC,
-						dev_priv->clear_cmd );
-		}
-
-		if ( clear->flags & MGA_BACK ) {
-			DMA_BLOCK( MGA_DMAPAD,	0x00000000,
-				   MGA_PLNWT,	clear->color_mask,
-				   MGA_YDSTLEN, (pbox[i].y1 << 16) | height,
-				   MGA_FXBNDRY,	(pbox[i].x2 << 16) | pbox[i].x1 );
+		for ( i = 0 ; i < nbox ; i++ ) {
+			drm_clip_rect_t *box = &pbox[i];
+			u32 height = box->y2 - box->y1;
 
 			DMA_BLOCK( MGA_DMAPAD,	0x00000000,
-				   MGA_FCOL,	clear->clear_color,
-				   MGA_DSTORG,	dev_priv->back_offset,
-				   MGA_DWGCTL + MGA_EXEC,
-						dev_priv->clear_cmd );
-		}
-
-		if ( clear->flags & MGA_DEPTH ) {
-			DMA_BLOCK( MGA_DMAPAD,	0x00000000,
-				   MGA_PLNWT,	clear->depth_mask,
-				   MGA_YDSTLEN, (pbox[i].y1 << 16) | height,
-				   MGA_FXBNDRY,	(pbox[i].x2 << 16) | pbox[i].x1 );
-
-			DMA_BLOCK( MGA_DMAPAD,	0x00000000,
-				   MGA_FCOL,	clear->clear_depth,
-				   MGA_DSTORG,	dev_priv->depth_offset,
-				   MGA_DWGCTL + MGA_EXEC,
-						dev_priv->clear_cmd );
+				   MGA_DMAPAD,	0x00000000,
+				   MGA_YDSTLEN, (box->y1 << 16) | height,
+				   MGA_FXBNDRY + MGA_EXEC,
+						(box->x2 << 16) | box->x1 );
 		}
 
 		ADVANCE_DMA();
 	}
 
+	if ( clear->flags & MGA_BACK ) {
+		BEGIN_DMA( 1 + nbox );
+
+		DMA_BLOCK( MGA_FCOL,	clear->clear_color,
+			   MGA_PLNWT,	clear->color_mask,
+			   MGA_DSTORG,	dev_priv->back_offset,
+			   MGA_DWGCTL,	dev_priv->clear_cmd );
+
+		for ( i = 0 ; i < nbox ; i++ ) {
+			drm_clip_rect_t *box = &pbox[i];
+			u32 height = box->y2 - box->y1;
+
+			DMA_BLOCK( MGA_DMAPAD,	0x00000000,
+				   MGA_DMAPAD,	0x00000000,
+				   MGA_YDSTLEN, (box->y1 << 16) | height,
+				   MGA_FXBNDRY + MGA_EXEC,
+						(box->x2 << 16) | box->x1 );
+		}
+
+		ADVANCE_DMA();
+	}
+
+	if ( clear->flags & MGA_DEPTH ) {
+		BEGIN_DMA( 1 + nbox );
+
+		DMA_BLOCK( MGA_FCOL,	clear->clear_depth,
+			   MGA_PLNWT,	clear->depth_mask,
+			   MGA_DSTORG,	dev_priv->depth_offset,
+			   MGA_DWGCTL,	dev_priv->clear_cmd );
+
+		for ( i = 0 ; i < nbox ; i++ ) {
+			drm_clip_rect_t *box = &pbox[i];
+			u32 height = box->y2 - box->y1;
+
+			DMA_BLOCK( MGA_DMAPAD,	0x00000000,
+				   MGA_DMAPAD,	0x00000000,
+				   MGA_YDSTLEN, (box->y1 << 16) | height,
+				   MGA_FXBNDRY + MGA_EXEC,
+						(box->x2 << 16) | box->x1 );
+		}
+
+		ADVANCE_DMA();
+	}
+#if 0
 	BEGIN_DMA( 1 );
 
 	DMA_BLOCK( MGA_DMAPAD,	0x00000000,
@@ -577,6 +596,7 @@ static void mga_dma_dispatch_clear( drm_device_t *dev,
 		   MGA_DWGCTL,	ctx->dwgctl );
 
 	ADVANCE_DMA();
+#endif
 
 	mga_do_dma_flush( dev_priv );
 }
@@ -593,16 +613,11 @@ static void mga_dma_dispatch_swap( drm_device_t *dev )
 	DMA_LOCALS;
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
-	BEGIN_DMA( 4 + nbox );
+	BEGIN_DMA( 2 + nbox );
 
-	DMA_BLOCK( MGA_DMAPAD,	0x00000000,
-		   MGA_DMAPAD,	0x00000000,
-		   MGA_DWGSYNC,	0x00007100,
-		   MGA_DWGSYNC,	0x00007000 );
-
-	DMA_BLOCK( MGA_DSTORG,	dev_priv->front_offset,
-		   MGA_MACCESS,	dev_priv->maccess,
+	DMA_BLOCK( MGA_MACCESS,	dev_priv->maccess,
 		   MGA_SRCORG,	dev_priv->back_offset,
+		   MGA_DSTORG,	dev_priv->front_offset,
 		   MGA_AR5,	pitch );
 
 	DMA_BLOCK( MGA_DMAPAD,	0x00000000,
@@ -611,26 +626,27 @@ static void mga_dma_dispatch_swap( drm_device_t *dev )
 		   MGA_DWGCTL,	MGA_DWGCTL_COPY );
 
 	for ( i = 0 ; i < nbox ; i++ ) {
-		u32 h = pbox[i].y2 - pbox[i].y1;
-		u32 start = pbox[i].y1 * pitch;
+		drm_clip_rect_t *box = &pbox[i];
+		u32 height = box->y2 - box->y1;
+		u32 start = box->y1 * pitch;
 
-		DMA_BLOCK( MGA_AR0,	start + pbox[i].x2 - 1,
-			   MGA_AR3,	start + pbox[i].x1,
-			   MGA_FXBNDRY,	((pbox[i].x2 - 1) << 16) | pbox[i].x1,
+		DMA_BLOCK( MGA_AR0,	start + box->x2 - 1,
+			   MGA_AR3,	start + box->x1,
+			   MGA_FXBNDRY,	((box->x2 - 1) << 16) | box->x1,
 			   MGA_YDSTLEN + MGA_EXEC,
-					(pbox[i].y1 << 16) | h );
+					(box->y1 << 16) | height );
 	}
-
+#if 0
 	DMA_BLOCK( MGA_DMAPAD,	0x00000000,
 		   MGA_PLNWT,	ctx->plnwt,
 		   MGA_SRCORG,	dev_priv->front_offset,
 		   MGA_DWGCTL,	ctx->dwgctl );
+#endif
 
 	ADVANCE_DMA();
 
 	mga_do_dma_flush( dev_priv );
 }
-
 
 static void mga_dma_dispatch_vertex( drm_device_t *dev, drm_buf_t *buf )
 {
@@ -670,23 +686,8 @@ static void mga_dma_dispatch_vertex( drm_device_t *dev, drm_buf_t *buf )
 	}
 
 	if ( buf_priv->discard ) {
-#if 0
-		if ( buf_priv->dispatched == 1 ) {
-			buf_priv->list_entry->age = sarea_priv->last_dispatch;
-
-			BEGIN_DMA( 1 );
-
-			DMA_BLOCK( MGA_DMAPAD,	0x00000000,
-				   MGA_DMAPAD,	0x00000000,
-				   MGA_DMAPAD,	0x00000000,
-				   MGA_DWGSYNC,	sarea_priv->last_dispatch );
-
-			ADVANCE_DMA();
-
-			sarea_priv->last_dispatch += 4;
-		}
-#endif
-
+		if ( buf_priv->dispatched == 1 )
+			AGE_BUFFER( buf_priv );
 		buf->pending = 0;
 		buf->used = 0;
 		buf_priv->dispatched = 0;
@@ -700,45 +701,6 @@ static void mga_dma_dispatch_vertex( drm_device_t *dev, drm_buf_t *buf )
 
 
 #if 0
-
-
-/* This copies a 64 byte aligned agp region to the frambuffer
- * with a standard blit, the ioctl needs to do checking */
-
-static void mga_dma_dispatch_tex_blit(drm_device_t * dev,
-				      unsigned long bus_address,
-				      int length, unsigned int destOrg)
-{
-	drm_mga_private_t *dev_priv = dev->dev_private;
-	int use_agp = PDEA_pagpxfer_enable | 0x00000001;
-	u16 y2;
-	PRIMLOCALS;
-
-	y2 = length / 64;
-
-	PRIM_OVERFLOW(dev, dev_priv, 30);
-
-	PRIMOUTREG(MGAREG_DSTORG, destOrg);
-	PRIMOUTREG(MGAREG_MACCESS, 0x00000000);
-	PRIMOUTREG(MGAREG_SRCORG, (u32) bus_address | use_agp);
-	PRIMOUTREG(MGAREG_AR5, 64);
-
-	PRIMOUTREG(MGAREG_PITCH, 64);
-	PRIMOUTREG(MGAREG_DMAPAD, 0);
-	PRIMOUTREG(MGAREG_DMAPAD, 0);
-	PRIMOUTREG(MGAREG_DWGCTL, MGA_COPY_CMD);
-
-	PRIMOUTREG(MGAREG_AR0, 63);
-	PRIMOUTREG(MGAREG_AR3, 0);
-	PRIMOUTREG(MGAREG_FXBNDRY, (63 << 16));
-	PRIMOUTREG(MGAREG_YDSTLEN + MGAREG_MGA_EXEC, y2);
-
-	PRIMOUTREG(MGAREG_DMAPAD, 0);
-	PRIMOUTREG(MGAREG_SRCORG, 0);
-	PRIMOUTREG(MGAREG_PITCH, dev_priv->stride / dev_priv->cpp);
-	PRIMOUTREG(MGAREG_DWGSYNC, 0x7000);
-	PRIMADVANCE(dev_priv);
-}
 
 
 static void mga_dma_dispatch_indices(drm_device_t * dev,
@@ -792,6 +754,51 @@ static void mga_dma_dispatch_indices(drm_device_t * dev,
 
 #endif
 
+
+/* This copies a 64 byte aligned agp region to the frambuffer with a
+ * standard blit, the ioctl needs to do checking.
+ */
+static void mga_dma_dispatch_iload( drm_device_t *dev, drm_buf_t *buf,
+				    unsigned int dstorg, unsigned int length )
+{
+	drm_mga_private_t *dev_priv = dev->dev_private;
+	drm_mga_buf_priv_t *buf_priv = buf->dev_private;
+	u32 srcorg = buf->bus_address | MGA_SRCACC_AGP | MGA_SRCMAP_SYSMEM;
+	u32 y2;
+	DMA_LOCALS;
+
+	y2 = length / 64;
+
+	BEGIN_DMA( 4 );
+
+	DMA_BLOCK( MGA_DSTORG,	dstorg,
+		   MGA_MACCESS,	0x00000000,
+		   MGA_SRCORG,	srcorg,
+		   MGA_AR5,	64 );
+
+	DMA_BLOCK( MGA_PITCH,	64,
+		   MGA_DMAPAD,	0x00000000,
+		   MGA_DMAPAD,	0x00000000,
+		   MGA_DWGCTL,	MGA_DWGCTL_COPY );
+
+	DMA_BLOCK( MGA_AR0,	63,
+		   MGA_AR3,	0,
+		   MGA_FXBNDRY,	(63 << 16) | 0,
+		   MGA_YDSTLEN + MGA_EXEC, y2 );
+
+	DMA_BLOCK( MGA_DMAPAD,	0x00000000,
+		   MGA_SRCORG,	dev_priv->front_offset,
+		   MGA_PITCH,	dev_priv->front_pitch / dev_priv->fb_cpp,
+		   MGA_DWGSYNC,	0x00007000 );
+
+	ADVANCE_DMA();
+
+#if 0
+	AGE_BUFFER( buf_priv );
+#endif
+	buf_priv->discard = 1;
+	mga_freelist_put( dev, buf );
+}
 
 
 
@@ -864,11 +871,12 @@ int mga_dma_vertex( struct inode *inode, struct file *filp,
 			     (drm_mga_vertex_t *)arg,
 			     sizeof(vertex) ) )
 		return -EFAULT;
-
-	/* HACK: Force this for now...
+#if 0
+	/* HACK: oh well...
 	 */
 	if ( mga_do_wait_for_idle( dev_priv ) < 0 )
 		return -EBUSY;
+#endif
 
 	buf = dma->buflist[vertex.idx];
 	buf_priv = buf->dev_private;
@@ -896,51 +904,6 @@ int mga_dma_vertex( struct inode *inode, struct file *filp,
 
 
 #if 0
-
-
-int mga_iload(struct inode *inode, struct file *filp,
-	      unsigned int cmd, unsigned long arg)
-{
-	drm_file_t *priv = filp->private_data;
-	drm_device_t *dev = priv->dev;
-	drm_device_dma_t *dma = dev->dma;
-	drm_mga_private_t *dev_priv =
-	    (drm_mga_private_t *) dev->dev_private;
-	drm_mga_sarea_t *sarea_priv = dev_priv->sarea_priv;
-	drm_buf_t *buf;
-	drm_mga_buf_priv_t *buf_priv;
-	drm_mga_iload_t iload;
-	unsigned long bus_address;
-
-	if (copy_from_user(&iload, (drm_mga_iload_t *) arg, sizeof(iload)))
-		return -EFAULT;
-
-	if (!_DRM_LOCK_IS_HELD(dev->lock.hw_lock->lock)) {
-		DRM_ERROR("mga_iload called without lock held\n");
-		return -EINVAL;
-	}
-
-	buf = dma->buflist[iload.idx];
-	buf_priv = buf->dev_private;
-	bus_address = buf->bus_address;
-
-	if (mgaVerifyIload(dev_priv,
-			   bus_address, iload.destOrg, iload.length)) {
-		mga_freelist_put(dev, buf);
-		return -EINVAL;
-	}
-
-	sarea_priv->dirty |= MGA_UPLOAD_CTX;
-
-	mga_dma_dispatch_tex_blit(dev, bus_address, iload.length,
-				  iload.destOrg);
-	AGEBUF(dev_priv, buf_priv);
-	buf_priv->discard = 1;
-	mga_freelist_put(dev, buf);
-	mga_flush_write_combine();
-	mga_dma_schedule(dev, 1);
-	return 0;
-}
 
 
 int mga_indices(struct inode *inode, struct file *filp,
@@ -989,3 +952,48 @@ int mga_indices(struct inode *inode, struct file *filp,
 
 
 #endif
+
+
+int mga_dma_iload( struct inode *inode, struct file *filp,
+		   unsigned int cmd, unsigned long arg )
+{
+	drm_file_t *priv = filp->private_data;
+	drm_device_t *dev = priv->dev;
+	drm_device_dma_t *dma = dev->dma;
+	drm_mga_private_t *dev_priv = dev->dev_private;
+	drm_buf_t *buf;
+	drm_mga_buf_priv_t *buf_priv;
+	drm_mga_iload_t iload;
+	DRM_INFO( __FUNCTION__ ":\n" );
+
+	LOCK_TEST_WITH_RETURN( dev );
+
+	if ( copy_from_user( &iload, (drm_mga_iload_t *)arg, sizeof(iload) ) )
+		return -EFAULT;
+#if 1
+	/* HACK: oh well...
+	 */
+	if ( mga_do_wait_for_idle( dev_priv ) < 0 )
+		return -EBUSY;
+#endif
+
+	buf = dma->buflist[iload.idx];
+	buf_priv = buf->dev_private;
+
+#if 0
+	DRM_INFO( "   verifying iload...\n" );
+	if ( mga_verify_iload( dev_priv, iload.dstorg, iload.length ) ) {
+		mga_freelist_put( dev, buf );
+		return -EINVAL;
+	}
+	DRM_INFO( "   verifying iload... done.\n" );
+#endif
+
+	mga_dma_dispatch_iload( dev, buf, iload.dstorg, iload.length );
+
+	/* Make sure we restore the 3D state next time.
+	 */
+	dev_priv->sarea_priv->dirty |= MGA_UPLOAD_CONTEXT;
+
+	return 0;
+}
