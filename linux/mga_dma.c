@@ -699,8 +699,7 @@ static int mga_dma_get_buffers( drm_device_t *dev, drm_dma_t *d )
 
 	for ( i = d->granted_count ; i < d->request_count ; i++ ) {
 		buf = mga_freelist_get( dev );
-		if ( !buf )
-			return -EAGAIN;
+		if ( !buf ) return -EAGAIN;
 
 		buf->pid = current->pid;
 
