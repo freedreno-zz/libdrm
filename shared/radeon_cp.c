@@ -1735,12 +1735,12 @@ static int radeon_register_regions(struct pci_dev *pdev) {
 	/* request the mem regions */
 	if (!request_mem_region (pci_resource_start( pdev, 2 ),
 					pci_resource_len(pdev, 2), DRIVER_NAME)) {
-		printk(KERN_ERR DRIVER_NAME ": cannot reserve MMIO region\n");
+		DRM_ERROR("cannot reserve MMIO region\n");
 		return retcode;
 	}
 	if (!request_mem_region (pci_resource_start( pdev, 0 ),
 					pci_resource_len(pdev, 0), DRIVER_NAME)) {
-		printk(KERN_ERR DRIVER_NAME ": cannot reserve FB region\n");
+		DRM_ERROR("cannot reserve FB region\n");
 		return retcode;
 	}
 	return 0;
