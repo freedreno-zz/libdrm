@@ -662,9 +662,8 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 			/* FIXME: Render a rectangle to clear the depth
 			 * buffer.  So much for those "fast Z clears"...
 			 */
-			BEGIN_RING( 50 );
+			BEGIN_RING( 26 );
 
-			RADEON_WAIT_UNTIL_IDLE();
 			RADEON_PURGE_CACHE();
 			RADEON_PURGE_ZCACHE();
 			RADEON_WAIT_UNTIL_IDLE();
@@ -697,6 +696,8 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 			OUT_RING( clear->rect.ui[CLEAR_X2] );
 			OUT_RING( clear->rect.ui[CLEAR_Y2] );
 			OUT_RING( clear->rect.ui[CLEAR_DEPTH] );
+
+			ADVANCE_RING();
 		}
 	}
 
