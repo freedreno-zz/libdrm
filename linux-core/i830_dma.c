@@ -1228,6 +1228,8 @@ static int i830_dma_dispatch_vertex2(drm_device_t *dev,
 	used -= 4;
 	start += 4;
 
+	if (used < 0) goto do_discard;
+
 	/* Calculate vertex size:  (Necessary because original ioctl didn't
 	 * provide this information).
 	 */ 
@@ -1308,9 +1310,9 @@ static int i830_dma_dispatch_vertex2(drm_device_t *dev,
 	} while (++i < nbox);
 
  do_discard:
-	if (discard) {
-		dev_priv->counter++;
+	sarea_priv->last_enqueue = dev_priv->counter++;
 
+	if (discard) {
 		(void) cmpxchg(buf_priv->in_use, I830_BUF_CLIENT,
 			       I830_BUF_HARDWARE);
 
@@ -1457,7 +1459,6 @@ int i830_dma_vertex2( DRM_IOCTL_ARGS )
 				   dma->buflist[ vertex.idx ], 
 				   vertex.discard, vertex.used );
 
-	sarea_priv->last_enqueue = dev_priv->counter-1;
    	sarea_priv->last_dispatch = (int) hw_status[5];
    
 	return 0;
@@ -1481,6 +1482,8 @@ int i830_dma_copy_blit( DRM_IOCTL_ARGS )
 	}
 
 	i830_dma_dispatch_blit( dev, &blit ); 
+	dev_priv->sarea_priv->last_enqueue = dev_priv->counter++;
+
 	return 0;
 }
 
@@ -1488,6 +1491,7 @@ int i830_clear_bufs( DRM_IOCTL_ARGS )
 {
 	drm_file_t *priv = filp->private_data;
 	drm_device_t *dev = priv->dev;
+	drm_i830_private_t *dev_priv = dev->dev_private;
 	drm_i830_clear_t clear;
 
    	DRM_COPY_FROM_USER_IOCTL( clear, (drm_i830_clear_t *)data, 
@@ -1507,6 +1511,8 @@ int i830_clear_bufs( DRM_IOCTL_ARGS )
 				 clear.clear_color, 
 				 clear.clear_depth,
 			         clear.clear_depthmask);
+	dev_priv->sarea_priv->last_enqueue = dev_priv->counter++;
+
    	return 0;
 }
 
@@ -1514,6 +1520,7 @@ int i830_swap_bufs( DRM_IOCTL_ARGS )
 {
 	drm_file_t *priv = filp->private_data;
 	drm_device_t *dev = priv->dev;
+	drm_i830_private_t *dev_priv = dev->dev_private;
    
 	DRM_DEBUG("i830_swap_bufs\n");
 
@@ -1523,6 +1530,8 @@ int i830_swap_bufs( DRM_IOCTL_ARGS )
 	}
 
 	i830_dma_dispatch_swap( dev );
+	dev_priv->sarea_priv->last_enqueue = dev_priv->counter++;
+
    	return 0;
 }
 
@@ -1569,6 +1578,7 @@ int i830_flip_bufs( DRM_IOCTL_ARGS )
 		i830_do_init_pageflip( dev );
 
 	i830_dma_dispatch_flip( dev );
+	dev_priv->sarea_priv->last_enqueue = dev_priv->counter++;
    	return 0;
 }
 
