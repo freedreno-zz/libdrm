@@ -1256,7 +1256,9 @@ static void mga_dma_service( int irq, void *device, struct pt_regs *regs )
 
 	MGA_WRITE( MGA_ICLEAR, MGA_SOFTRAPICLR );
 
+	spin_lock( &primary->lock );
 	tail = primary->tail + dev_priv->primary->offset;
+	spin_unlock( &primary->lock );
 
 	DRM_DEBUG( "  *** wrap interrupt:\n" );
 	DRM_DEBUG( "      head = 0x%06x\n", head - dev_priv->primary->offset );
