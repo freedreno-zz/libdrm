@@ -272,9 +272,7 @@ static inline void r128_emit_state( drm_r128_private_t *dev_priv )
 	/* Turn off the texture cache flushing */
 	sarea_priv->context_state.tex_cntl_c &= ~R128_TEX_CACHE_FLUSH;
 
-	sarea_priv->dirty &= ~(R128_UPLOAD_TEX0IMAGES |
-			       R128_UPLOAD_TEX1IMAGES |
-			       R128_REQUIRE_QUIESCENCE);
+	sarea_priv->dirty &= ~R128_REQUIRE_QUIESCENCE;
 }
 
 
@@ -350,18 +348,18 @@ static void r128_cce_performance_boxes( drm_r128_private_t *dev_priv )
 
 static void r128_print_dirty( const char *msg, unsigned int flags )
 {
-	DRM_DEBUG( "%s: (0x%x) %s%s%s%s%s%s%s%s%s\n",
-		   msg,
-		   flags,
-		   (flags & R128_UPLOAD_CORE)        ? "core, " : "",
-		   (flags & R128_UPLOAD_CONTEXT)     ? "context, " : "",
-		   (flags & R128_UPLOAD_SETUP)       ? "setup, " : "",
-		   (flags & R128_UPLOAD_TEX0)        ? "tex0, " : "",
-		   (flags & R128_UPLOAD_TEX1)        ? "tex1, " : "",
-		   (flags & R128_UPLOAD_MASKS)       ? "masks, " : "",
-		   (flags & R128_UPLOAD_WINDOW)      ? "window, " : "",
-		   (flags & R128_UPLOAD_CLIPRECTS)   ? "cliprects, " : "",
-		   (flags & R128_REQUIRE_QUIESCENCE) ? "quiescence, " : "" );
+	DRM_INFO( "%s: (0x%x) %s%s%s%s%s%s%s%s%s\n",
+		  msg,
+		  flags,
+		  (flags & R128_UPLOAD_CORE)        ? "core, " : "",
+		  (flags & R128_UPLOAD_CONTEXT)     ? "context, " : "",
+		  (flags & R128_UPLOAD_SETUP)       ? "setup, " : "",
+		  (flags & R128_UPLOAD_TEX0)        ? "tex0, " : "",
+		  (flags & R128_UPLOAD_TEX1)        ? "tex1, " : "",
+		  (flags & R128_UPLOAD_MASKS)       ? "masks, " : "",
+		  (flags & R128_UPLOAD_WINDOW)      ? "window, " : "",
+		  (flags & R128_UPLOAD_CLIPRECTS)   ? "cliprects, " : "",
+		  (flags & R128_REQUIRE_QUIESCENCE) ? "quiescence, " : "" );
 }
 
 static void r128_cce_dispatch_clear( drm_device_t *dev,
@@ -687,13 +685,8 @@ static void r128_cce_dispatch_vertex( drm_device_t *dev,
 	int prim = buf_priv->prim;
 	int i = 0;
 	RING_LOCALS;
-	DRM_DEBUG( "%s\n", __FUNCTION__ );
-
-	DRM_DEBUG( "vertex buffer index = %d\n", index );
-	DRM_DEBUG( "vertex buffer offset = 0x%x\n", offset );
-	DRM_DEBUG( "vertex buffer size = %d vertices\n", size );
-	DRM_DEBUG( "vertex size = %d\n", vertsize );
-	DRM_DEBUG( "vertex format = 0x%x\n", format );
+	DRM_DEBUG( "%s: buf=%d nbox=%d\n",
+		   __FUNCTION__, buf->idx, sarea_priv->nbox );
 
 	r128_update_ring_snapshot( dev_priv );
 
@@ -743,7 +736,7 @@ static void r128_cce_dispatch_vertex( drm_device_t *dev,
 		ADVANCE_RING();
 
 		buf->pending = 1;
-
+		buf->used = 0;
 		/* FIXME: Check dispatched field */
 		buf_priv->dispatched = 0;
 	}
@@ -833,6 +826,7 @@ static void r128_cce_dispatch_indirect( drm_device_t *dev,
 		ADVANCE_RING();
 
 		buf->pending = 1;
+		buf->used = 0;
 		/* FIXME: Check dispatched field */
 		buf_priv->dispatched = 0;
 	}
@@ -851,24 +845,20 @@ static void r128_cce_dispatch_indirect( drm_device_t *dev,
 
 static void r128_cce_dispatch_indices( drm_device_t *dev,
 				       drm_buf_t *buf,
-				       int start, int end )
+				       int start, int end,
+				       int count )
 {
 	drm_r128_private_t *dev_priv = dev->dev_private;
 	drm_r128_buf_priv_t *buf_priv = buf->dev_private;
 	drm_r128_sarea_t *sarea_priv = dev_priv->sarea_priv;
-
-	int vertsize = sarea_priv->vertsize;
 	int format = sarea_priv->vc_format;
-	int index = buf->idx;
 	int offset = dev_priv->buffers->offset - dev->agp->base;
 	int prim = buf_priv->prim;
-
 	u32 *data;
-
 	int dwords;
 	int i = 0;
 	RING_LOCALS;
-	DRM_DEBUG( "%s: start=%d end=%d\n", __FUNCTION__, start, end );
+	DRM_DEBUG( "indices: s=%d e=%d c=%d\n", start, end, count );
 
 	r128_update_ring_snapshot( dev_priv );
 
@@ -882,9 +872,6 @@ static void r128_cce_dispatch_indices( drm_device_t *dev,
 			r128_emit_state( dev_priv );
 		}
 
-		/* Adjust start offset to include packet header
-		 */
-		start -= R128_INDEX_PRIM_OFFSET;
 		dwords = (end - start + 3) / sizeof(u32);
 
 		data = (u32 *)((char *)dev_priv->buffers->handle
@@ -896,19 +883,10 @@ static void r128_cce_dispatch_indices( drm_device_t *dev,
 		data[2] = R128_MAX_VB_VERTS;
 		data[3] = format;
 		data[4] = (prim | R128_CCE_VC_CNTL_PRIM_WALK_IND |
-			   (R128_MAX_VB_VERTS << 16));
+			   (count << 16));
 
-		if ( (end - start) & 0x3 ) {
+		if ( count & 0x1 ) {
 			data[dwords-1] &= 0x0000ffff;
-		}
-
-		if ( 0 ) {
-			int i;
-			DRM_INFO( "data = %p\n", data );
-			for ( i = 0 ; i < dwords ; i++ ) {
-				DRM_INFO( "data[0x%x] = 0x%08x\n",
-					  i, data[i] );
-			}
 		}
 
 		do {
@@ -1204,6 +1182,7 @@ int r128_cce_indices( struct inode *inode, struct file *filp,
 	drm_buf_t *buf;
 	drm_r128_buf_priv_t *buf_priv;
 	drm_r128_indices_t elts;
+	int count;
 
 	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||
 	     dev->lock.pid != current->pid ) {
@@ -1219,7 +1198,7 @@ int r128_cce_indices( struct inode *inode, struct file *filp,
 			     sizeof(elts) ) )
 		return -EFAULT;
 
-	DRM_DEBUG( "%s: pid=%d index=%d start=%d end=%d discard=%d\n",
+	DRM_DEBUG( "%s: pid=%d buf=%d s=%d e=%d d=%d\n",
 		   __FUNCTION__, current->pid,
 		   elts.idx, elts.start, elts.end, elts.discard );
 
@@ -1246,15 +1225,24 @@ int r128_cce_indices( struct inode *inode, struct file *filp,
 		DRM_ERROR( "sending pending buffer %d\n", elts.idx );
 		return -EINVAL;
 	}
-	if ( (buf->offset + elts.start) & 0x3 ) {
-		DRM_ERROR( "buffer start 0x%x\n", buf->offset + elts.start );
+
+	count = (elts.end - elts.start) / sizeof(u16);
+	elts.start -= R128_INDEX_PRIM_OFFSET;
+
+	if ( elts.start & 0x7 ) {
+		DRM_ERROR( "misaligned buffer 0x%x\n", elts.start );
+		return -EINVAL;
+	}
+	if ( elts.start < buf->used ) {
+		DRM_ERROR( "no header 0x%x - 0x%x\n", elts.start, buf->used );
 		return -EINVAL;
 	}
 
+	buf->used = elts.end;
 	buf_priv->prim = elts.prim;
 	buf_priv->discard = elts.discard;
 
-	r128_cce_dispatch_indices( dev, buf, elts.start, elts.end );
+	r128_cce_dispatch_indices( dev, buf, elts.start, elts.end, count );
 
 	return 0;
 }

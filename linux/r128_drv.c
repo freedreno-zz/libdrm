@@ -37,7 +37,7 @@
 
 #define R128_NAME		"r128"
 #define R128_DESC		"ATI Rage 128"
-#define R128_DATE		"20001106"
+#define R128_DATE		"20001115"
 #define R128_MAJOR		2
 #define R128_MINOR		0
 #define R128_PATCHLEVEL		0

@@ -666,6 +666,10 @@ int r128_cce_idle( struct inode *inode, struct file *filp,
 		return -EINVAL;
 	}
 
+	if ( dev_priv->cce_running ) {
+		r128_do_cce_flush( dev_priv );
+	}
+
 	return r128_do_cce_idle( dev_priv );
 }
 
