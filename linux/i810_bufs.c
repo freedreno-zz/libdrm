@@ -1,5 +1,5 @@
-/* bufs.c -- IOCTLs to manage buffers -*- linux-c -*-
- * Created: Tue Feb  2 08:37:54 1999 by faith@precisioninsight.com
+/* i810_bufs.c -- IOCTLs to manage buffers -*- linux-c -*-
+ * Created: Thu Jan 6 01:47:26 2000 by jhartmann@precisioninsight.com
  *
  * Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
  * All Rights Reserved.
@@ -23,9 +23,10 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
  * 
- * Author: Rickard E. (Rik) Faith <faith@precisioninsight.com>
+ * Authors: Rickard E. (Rik) Faith <faith@precisioninsight.com>
+ *	    Jeff Hartmann <jhartmann@precisioninsight.com>
  * 
- * $XFree86: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/kernel/bufs.c,v 1.1 1999/09/25 14:37:57 dawes Exp $
+ * $XFree86$
  *
  */
 
@@ -33,112 +34,7 @@
 #include "drmP.h"
 #include "linux/un.h"
 
-				/* Compute order.  Can be made faster. */
-int drm_order(unsigned long size)
-{
-	int	      order;
-	unsigned long tmp;
-
-	for (order = 0, tmp = size; tmp >>= 1; ++order);
-	if (size & ~(1 << order)) ++order;
-	return order;
-}
-
-int drm_addmap(struct inode *inode, struct file *filp, unsigned int cmd,
-	       unsigned long arg)
-{
-	drm_file_t	*priv	= filp->private_data;
-	drm_device_t	*dev	= priv->dev;
-	drm_map_t	*map;
-	
-	if (!(filp->f_mode & 3)) return -EACCES; /* Require read/write */
-
-	map	     = drm_alloc(sizeof(*map), DRM_MEM_MAPS);
-	if (!map) return -ENOMEM;
-	if (copy_from_user(map, (drm_map_t *)arg, sizeof(*map))) {
-		drm_free(map, sizeof(*map), DRM_MEM_MAPS);
-		return -EFAULT;
-	}
-
-	DRM_DEBUG("offset = 0x%08lx, size = 0x%08lx, type = %d\n",
-		  map->offset, map->size, map->type);
-	if ((map->offset & (~PAGE_MASK)) || (map->size & (~PAGE_MASK))) {
-		drm_free(map, sizeof(*map), DRM_MEM_MAPS);
-		return -EINVAL;
-	}
-	map->mtrr   = -1;
-	map->handle = 0;
-
-	switch (map->type) {
-	case _DRM_REGISTERS:
-	case _DRM_FRAME_BUFFER:	
-		if (map->offset + map->size < map->offset
-		    || map->offset < virt_to_phys(high_memory)) {
-			drm_free(map, sizeof(*map), DRM_MEM_MAPS);
-			return -EINVAL;
-		}
-#ifdef CONFIG_MTRR
-		if (map->type == _DRM_FRAME_BUFFER
-		    || (map->flags & _DRM_WRITE_COMBINING)) {
-			map->mtrr = mtrr_add(map->offset, map->size,
-					     MTRR_TYPE_WRCOMB, 1);
-		}
-#endif
-		map->handle = drm_ioremap(map->offset, map->size);
-		break;
-			
-
-	case _DRM_SHM:
-		map->handle = (void *)drm_alloc_pages(drm_order(map->size)
-						      - PAGE_SHIFT,
-						      DRM_MEM_SAREA);
-		DRM_DEBUG("%ld %d %p\n", map->size, drm_order(map->size),
-			  map->handle);
-		if (!map->handle) {
-			drm_free(map, sizeof(*map), DRM_MEM_MAPS);
-			return -ENOMEM;
-		}
-		map->offset = (unsigned long)map->handle;
-		if (map->flags & _DRM_CONTAINS_LOCK) {
-			dev->lock.hw_lock = map->handle; /* Pointer to lock */
-		}
-		break;
-	case _DRM_AGP:
-		map->offset = map->offset + dev->agp->base;
-		break;
-	default:
-		drm_free(map, sizeof(*map), DRM_MEM_MAPS);
-		return -EINVAL;
-	}
-
-	down(&dev->struct_sem);
-	if (dev->maplist) {
-		++dev->map_count;
-		dev->maplist = drm_realloc(dev->maplist,
-					   (dev->map_count-1)
-					   * sizeof(*dev->maplist),
-					   dev->map_count
-					   * sizeof(*dev->maplist),
-					   DRM_MEM_MAPS);
-	} else {
-		dev->map_count = 1;
-		dev->maplist = drm_alloc(dev->map_count*sizeof(*dev->maplist),
-					 DRM_MEM_MAPS);
-	}
-	dev->maplist[dev->map_count-1] = map;
-	up(&dev->struct_sem);
-
-	copy_to_user_ret((drm_map_t *)arg, map, sizeof(*map), -EFAULT);
-	if (map->type != _DRM_SHM) {
-		copy_to_user_ret(&((drm_map_t *)arg)->handle,
-				 &map->offset,
-				 sizeof(map->offset),
-				 -EFAULT);
-	}		
-	return 0;
-}
-
-int drm_addbufs(struct inode *inode, struct file *filp, unsigned int cmd,
+int i810_addbufs(struct inode *inode, struct file *filp, unsigned int cmd,
 		unsigned long arg)
 {
 	drm_file_t	 *priv	 = filp->private_data;
@@ -299,7 +195,7 @@ int drm_addbufs(struct inode *inode, struct file *filp, unsigned int cmd,
 	return 0;
 }
 
-int drm_infobufs(struct inode *inode, struct file *filp, unsigned int cmd,
+int i810_infobufs(struct inode *inode, struct file *filp, unsigned int cmd,
 		 unsigned long arg)
 {
 	drm_file_t	 *priv	 = filp->private_data;
@@ -375,7 +271,7 @@ int drm_infobufs(struct inode *inode, struct file *filp, unsigned int cmd,
 	return 0;
 }
 
-int drm_markbufs(struct inode *inode, struct file *filp, unsigned int cmd,
+int i810_markbufs(struct inode *inode, struct file *filp, unsigned int cmd,
 		 unsigned long arg)
 {
 	drm_file_t	 *priv	 = filp->private_data;
@@ -409,7 +305,7 @@ int drm_markbufs(struct inode *inode, struct file *filp, unsigned int cmd,
 	return 0;
 }
 
-int drm_freebufs(struct inode *inode, struct file *filp, unsigned int cmd,
+int i810_freebufs(struct inode *inode, struct file *filp, unsigned int cmd,
 		 unsigned long arg)
 {
 	drm_file_t	 *priv	 = filp->private_data;
@@ -450,7 +346,7 @@ int drm_freebufs(struct inode *inode, struct file *filp, unsigned int cmd,
 	return 0;
 }
 
-int drm_mapbufs(struct inode *inode, struct file *filp, unsigned int cmd,
+int i810_mapbufs(struct inode *inode, struct file *filp, unsigned int cmd,
 		unsigned long arg)
 {
 	drm_file_t	 *priv	 = filp->private_data;
