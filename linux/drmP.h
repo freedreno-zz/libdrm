@@ -1,6 +1,6 @@
 /* drmP.h -- Private header for Direct Rendering Manager -*- linux-c -*-
  * Created: Mon Jan  4 10:05:05 1999 by faith@dict.org
- * Revised: Mon Dec 13 14:18:42 1999 by faith@dict.org
+ * Revised: Fri Dec 17 06:22:04 1999 by faith@dict.org
  *
  * Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
  * All rights reserved.
@@ -390,15 +390,23 @@ typedef struct drm_device_dma {
 
 #ifdef DRM_AGP
 typedef struct drm_agp_mem {
-	agp_memory         *handle;
+	unsigned long      handle;
+	agp_memory         *memory;
+	unsigned long      bound; /* address */
+	int                pages;
+	struct drm_agp_mem *prev;
 	struct drm_agp_mem *next;
 } drm_agp_mem_t;
 
-typedef struct drm_agp_info {
-	agp_kern_info     agp_info;
-	const char        *chipset;
-	drm_agp_mem_t     *memory;
-} drm_agp_info_t;
+typedef struct drm_agp_head {
+	agp_kern_info      agp_info;
+	const char         *chipset;
+	drm_agp_mem_t      *memory;
+	unsigned long      mode;
+	int                enabled;
+	int                acquired;
+	unsigned long      base;
+} drm_agp_head_t;
 
 typedef struct {
 	void       (*free_memory)(agp_memory *);
@@ -494,7 +502,7 @@ typedef struct drm_device {
 	wait_queue_head_t buf_writers;	/* Processes waiting to ctx switch */
 	
 #ifdef DRM_AGP
-	drm_agp_info_t    *agp;
+	drm_agp_head_t    *agp;
 #endif
 } drm_device_t;
 
@@ -686,7 +694,23 @@ extern int	     drm_flush_block_and_flush(drm_device_t *dev, int context,
 
 #ifdef DRM_AGP
 				/* AGP/GART support (agpsupport.c) */
-extern drm_agp_info_t *drm_agp_init(void);
+extern drm_agp_head_t *drm_agp_init(void);
+extern int            drm_agp_acquire(struct inode *inode, struct file *filp,
+				      unsigned int cmd, unsigned long arg);
+extern int            drm_agp_release(struct inode *inode, struct file *filp,
+				      unsigned int cmd, unsigned long arg);
+extern int            drm_agp_enable(struct inode *inode, struct file *filp,
+				     unsigned int cmd, unsigned long arg);
+extern int            drm_agp_info(struct inode *inode, struct file *filp,
+				   unsigned int cmd, unsigned long arg);
+extern int            drm_agp_alloc(struct inode *inode, struct file *filp,
+				    unsigned int cmd, unsigned long arg);
+extern int            drm_agp_free(struct inode *inode, struct file *filp,
+				   unsigned int cmd, unsigned long arg);
+extern int            drm_agp_unbind(struct inode *inode, struct file *filp,
+				     unsigned int cmd, unsigned long arg);
+extern int            drm_agp_bind(struct inode *inode, struct file *filp,
+				   unsigned int cmd, unsigned long arg);
 #endif
 #endif
 #endif

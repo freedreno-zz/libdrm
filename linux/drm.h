@@ -1,6 +1,6 @@
 /* drm.h -- Header for Direct Rendering Manager -*- linux-c -*-
  * Created: Mon Jan  4 10:05:05 1999 by faith@precisioninsight.com
- * Revised: Mon Dec  6 17:11:19 1999 by faith@precisioninsight.com
+ * Revised: Fri Dec 17 06:09:37 1999 by faith@precisioninsight.com
  *
  * Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
  * All rights reserved.
@@ -238,6 +238,42 @@ typedef struct drm_irq_busid {
 	int funcnum;
 } drm_irq_busid_t;
 
+typedef struct drm_agp_mode {
+	unsigned long mode;
+} drm_agp_mode_t;
+
+				/* For drm_agp_alloc -- allocated a buffer */
+typedef struct drm_agp_buffer {
+	unsigned long size;	/* In bytes -- will round to page boundary */
+	unsigned long handle;	/* Used for BIND/UNBIND ioctls */
+} drm_agp_buffer_t;
+
+				/* For drm_agp_bind */
+typedef struct drm_agp_binding {
+	unsigned long handle;   /* From drm_agp_buffer */
+	unsigned long offset;	/* In bytes -- will round to page boundary */
+} drm_agp_binding_t;
+
+				/* For drm_addmap */
+typedef struct drm_agp_region {
+	unsigned long size;	/* In bytes -- will round to page boundary */
+	unsigned long handle;	/* Used for mmap */
+} drm_agp_region_t;
+
+typedef struct drm_agp_info {
+	int            agp_version_major;
+	int            agp_version_minor;
+	unsigned long  mode;
+	unsigned long  aperture_base;  /* physical address */
+	unsigned long  aperture_size;  /* bytes */
+	unsigned long  memory_allowed; /* bytes */
+	unsigned long  memory_used;
+
+				/* PCI information */
+	unsigned short id_vendor;
+	unsigned short id_device;
+} drm_agp_info_t;
+
 #define DRM_IOCTL_BASE	     'd'
 #define DRM_IOCTL_NR(n)	     _IOC_NR(n)
 #define DRM_IO(nr)	     _IO(DRM_IOCTL_BASE,nr)
@@ -276,5 +312,13 @@ typedef struct drm_irq_busid {
 #define DRM_IOCTL_LOCK	     DRM_IOW( 0x2a, drm_lock_t)
 #define DRM_IOCTL_UNLOCK     DRM_IOW( 0x2b, drm_lock_t)
 #define DRM_IOCTL_FINISH     DRM_IOW( 0x2c, drm_lock_t)
+
+#define DRM_IOCTL_AGP_ACQUIRE DRM_IO(  0x30)
+#define DRM_IOCTL_AGP_RELEASE DRM_IO(  0x31)
+#define DRM_IOCTL_AGP_ENABLE  DRM_IOR( 0x32, drm_agp_mode_t)
+#define DRM_IOCTL_AGP_ALLOC   DRM_IOWR(0x33, drm_agp_buffer_t)
+#define DRM_IOCTL_AGP_FREE    DRM_IOW( 0x34, drm_agp_buffer_t)
+#define DRM_IOCTL_AGP_BIND    DRM_IOWR(0x35, drm_agp_region_t)
+#define DRM_IOCTL_AGP_UNBIND  DRM_IOW( 0x36, drm_agp_region_t)
 
 #endif

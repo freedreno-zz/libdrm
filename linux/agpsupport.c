@@ -1,6 +1,6 @@
 /* agpsupport.c -- DRM support for AGP/GART backend -*- linux-c -*-
  * Created: Mon Dec 13 09:56:45 1999 by faith@precisioninsight.com
- * Revised: Mon Dec 13 15:26:28 1999 by faith@precisioninsight.com
+ * Revised: Fri Dec 17 06:22:05 1999 by faith@precisioninsight.com
  *
  * Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
  * All Rights Reserved.
@@ -34,6 +34,9 @@
 
 drm_agp_func_t drm_agp = { NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL };
 
+/* The C standard says that 'void *' is not guaranteed to hold a function
+   pointer, so we use this union to define a generic pointer that is
+   guaranteed to hold any of the function pointers we care about. */
 typedef union {
 	void          (*free_memory)(agp_memory *);
 	agp_memory    *(*allocate_memory)(size_t, u32);
@@ -63,29 +66,200 @@ static drm_agp_fill_t drm_agp_fill[] = {
 	{ NULL, NULL }
 };
 
-int drm_agp_free(agp_memory *handle)
+int drm_agp_info(struct inode *inode, struct file *filp, unsigned int cmd,
+		 unsigned long arg)
 {
+	drm_file_t	 *priv	 = filp->private_data;
+	drm_device_t	 *dev	 = priv->dev;
+	agp_kern_info    *kern;
+	drm_agp_info_t   info;
+
+	if (!dev->agp->acquired || !drm_agp.copy_info) return -EINVAL;
+
+	kern                   = &dev->agp->agp_info;
+	info.agp_version_major = kern->version.major;
+	info.agp_version_minor = kern->version.minor;
+	info.mode              = kern->mode;
+	info.aperture_base     = kern->aper_base;
+	info.aperture_size     = kern->aper_size * 1024 * 1024;
+	info.memory_allowed    = kern->max_memory << PAGE_SHIFT;
+	info.memory_used       = kern->current_memory << PAGE_SHIFT;
+	info.id_vendor         = kern->device->vendor;
+	info.id_device         = kern->device->device;
+
+	copy_to_user_ret((drm_agp_info_t *)arg, &info, sizeof(info), -EFAULT);
 	return 0;
 }
 
-agp_memory  *allocate_memory(size_t page_count, u32 type) { return NULL;    }
-int         bind_memory(agp_memory *curr, off_t pg_start) { return -EINVAL; }
-int         unbind_memory(agp_memory *curr)               { return -EINVAL; }
-void        enable(u32 mode)                              { return;         }
-int         acquire(void);
-	void       (*release)(void);
-	void       (*copy_info)(agp_kern_info *);
-
-unsigned long drm_agp_alloc(unsigned long page_count)
+int drm_agp_acquire(struct inode *inode, struct file *filp, unsigned int cmd,
+		    unsigned long arg)
 {
+	drm_file_t	 *priv	 = filp->private_data;
+	drm_device_t	 *dev	 = priv->dev;
+	int              retcode;
+
+	if (dev->agp->acquired || !drm_agp.acquire) return -EINVAL;
+	if ((retcode = (*drm_agp.acquire)())) return retcode;
+	dev->agp->acquired = 1;
 	return 0;
 }
 
+int drm_agp_release(struct inode *inode, struct file *filp, unsigned int cmd,
+		    unsigned long arg)
+{
+	drm_file_t	 *priv	 = filp->private_data;
+	drm_device_t	 *dev	 = priv->dev;
 
-drm_agp_info_t *drm_agp_init(void)
+	if (!dev->agp->acquired || !drm_agp.release) return -EINVAL;
+	(*drm_agp.release)();
+	dev->agp->acquired = 0;
+	return 0;
+	
+}
+
+int drm_agp_enable(struct inode *inode, struct file *filp, unsigned int cmd,
+		   unsigned long arg)
+{
+	drm_file_t	 *priv	 = filp->private_data;
+	drm_device_t	 *dev	 = priv->dev;
+	drm_agp_mode_t   mode;
+
+	if (!dev->agp->acquired || !drm_agp.enable) return -EINVAL;
+
+	copy_from_user_ret(&mode, (drm_agp_mode_t *)arg, sizeof(mode),
+			   -EFAULT);
+	
+	dev->agp->mode    = mode.mode;
+	(*drm_agp.enable)(mode.mode);
+	dev->agp->base    = dev->agp->agp_info.aper_base;
+	dev->agp->enabled = 1;
+	return 0;
+}
+
+int drm_agp_alloc(struct inode *inode, struct file *filp, unsigned int cmd,
+		  unsigned long arg)
+{
+	drm_file_t	 *priv	 = filp->private_data;
+	drm_device_t	 *dev	 = priv->dev;
+	drm_agp_buffer_t request;
+	drm_agp_mem_t    *entry;
+	agp_memory       *memory;
+	unsigned long    pages;
+
+	if (!dev->agp->acquired) return -EINVAL;
+	copy_from_user_ret(&request, (drm_agp_buffer_t *)arg, sizeof(request),
+			   -EFAULT);
+	if (!(entry = drm_alloc(sizeof(*entry), DRM_MEM_AGPLISTS)))
+		return -ENOMEM;
+
+	pages = (request.size + PAGE_SIZE - 1) / PAGE_SIZE;
+	if (!(memory = drm_alloc_agp(request.size))) {
+		drm_free(entry, sizeof(*entry), DRM_MEM_AGPLISTS);
+		return -ENOMEM;
+	}
+	
+	entry->handle    = (unsigned long)memory->memory;
+	entry->memory    = memory;
+	entry->bound     = 0;
+	entry->pages     = pages;
+	entry->prev      = NULL;
+	entry->next      = dev->agp->memory;
+	if (dev->agp->memory) dev->agp->memory->prev = entry;
+	dev->agp->memory = entry;
+
+	request.handle   = entry->handle;
+	if (copy_to_user((drm_agp_buffer_t *)arg, &request, sizeof(request))) {
+		dev->agp->memory       = entry->next;
+		dev->agp->memory->prev = NULL;
+		drm_free_agp(memory, request.size);
+		drm_free(entry, sizeof(*entry), DRM_MEM_AGPLISTS);
+		return -EFAULT;
+	}
+	return 0;
+}
+
+static drm_agp_mem_t *drm_agp_lookup_entry(drm_device_t *dev,
+					   unsigned long handle)
+{
+	drm_agp_mem_t *entry;
+
+	for (entry = dev->agp->memory; entry; entry = entry->next) {
+		if (entry->handle == handle) return entry;
+	}
+	return NULL;
+}
+
+static int drm_agp_unbind_entry(drm_device_t *dev, drm_agp_mem_t *entry)
+{
+	if (!dev->agp->acquired || !drm_agp.unbind_memory) return -EINVAL;
+	return (*drm_agp.unbind_memory)(entry->memory);
+}
+
+int drm_agp_unbind(struct inode *inode, struct file *filp, unsigned int cmd,
+		   unsigned long arg)
+{
+	drm_file_t	  *priv	 = filp->private_data;
+	drm_device_t	  *dev	 = priv->dev;
+	drm_agp_binding_t request;
+	drm_agp_mem_t     *entry;
+
+	if (!dev->agp->acquired) return -EINVAL;
+	copy_from_user_ret(&request, (drm_agp_binding_t *)arg, sizeof(request),
+			   -EFAULT);
+	if (!(entry = drm_agp_lookup_entry(dev, request.handle)))
+		return -EINVAL;
+	if (!entry->bound) return -EINVAL;
+	return drm_agp_unbind_entry(dev, entry);
+}
+
+int drm_agp_bind(struct inode *inode, struct file *filp, unsigned int cmd,
+		 unsigned long arg)
+{
+	drm_file_t	  *priv	 = filp->private_data;
+	drm_device_t	  *dev	 = priv->dev;
+	drm_agp_binding_t request;
+	drm_agp_mem_t     *entry;
+	int               retcode;
+	int               page;
+	
+	if (!dev->agp->acquired || !drm_agp.bind_memory) return -EINVAL;
+	copy_from_user_ret(&request, (drm_agp_binding_t *)arg, sizeof(request),
+			   -EFAULT);
+	if (!(entry = drm_agp_lookup_entry(dev, request.handle)))
+		return -EINVAL;
+	if (entry->bound) return -EINVAL;
+	page = (request.offset + PAGE_SIZE - 1) / PAGE_SIZE;
+	if ((retcode = (*drm_agp.bind_memory)(entry->memory, page)))
+		return retcode;
+	entry->bound = dev->agp->base + (page << PAGE_SHIFT);
+	return 0;
+}
+
+int drm_agp_free(struct inode *inode, struct file *filp, unsigned int cmd,
+		 unsigned long arg)
+{
+	drm_file_t	 *priv	 = filp->private_data;
+	drm_device_t	 *dev	 = priv->dev;
+	drm_agp_buffer_t request;
+	drm_agp_mem_t    *entry;
+	
+	if (!dev->agp->acquired) return -EINVAL;
+	copy_from_user_ret(&request, (drm_agp_buffer_t *)arg, sizeof(request),
+			   -EFAULT);
+	if (!(entry = drm_agp_lookup_entry(dev, request.handle)))
+		return -EINVAL;
+	drm_agp_unbind_entry(dev, entry);
+	entry->prev->next = entry->next;
+	entry->next->prev = entry->prev;
+	drm_free_agp(entry->memory, entry->pages);
+	drm_free(entry, sizeof(*entry), DRM_MEM_AGPLISTS);
+	return 0;
+}
+
+drm_agp_head_t *drm_agp_init(void)
 {
 	drm_agp_fill_t *fill;
-	drm_agp_info_t *info         = NULL;
+	drm_agp_head_t *head         = NULL;
 	int            agp_available = 1;
 
 	for (fill = &drm_agp_fill[0]; fill->name; fill++) {
@@ -96,33 +270,33 @@ drm_agp_info_t *drm_agp_init(void)
 	}
 
 	if (agp_available) {
-		if (!(info = drm_alloc(sizeof(*info), DRM_MEM_AGPLISTS)))
+		if (!(head = drm_alloc(sizeof(*head), DRM_MEM_AGPLISTS)))
 			return NULL;
-		(*drm_agp.copy_info)(&info->agp_info);
-		info->memory = NULL;
-		switch (info->agp_info.chipset) {
-		case INTEL_GENERIC:  info->chipset = "Intel";          break;
-		case INTEL_LX:       info->chipset = "Intel 440LX";    break;
-		case INTEL_BX:       info->chipset = "Intel 440BX";    break;
-		case INTEL_GX:       info->chipset = "Intel 440GX";    break;
-		case INTEL_I810:     info->chipset = "Intel i810";     break;
-		case VIA_GENERIC:    info->chipset = "VIA";            break;
-		case VIA_VP3:        info->chipset = "VIA VP3";        break;
-		case VIA_MVP3:       info->chipset = "VIA MVP3";       break;
-		case VIA_APOLLO_PRO: info->chipset = "VIA Apollo Pro"; break;
-		case SIS_GENERIC:    info->chipset = "SiS";            break;
-		case AMD_GENERIC:    info->chipset = "AMD";            break;
-		case AMD_IRONGATE:   info->chipset = "AMD Irongate";   break;
-		case ALI_GENERIC:    info->chipset = "ALi";            break;
-		case ALI_M1541:      info->chipset = "ALi M1541";      break;
+		(*drm_agp.copy_info)(&head->agp_info);
+		head->memory = NULL;
+		switch (head->agp_info.chipset) {
+		case INTEL_GENERIC:  head->chipset = "Intel";          break;
+		case INTEL_LX:       head->chipset = "Intel 440LX";    break;
+		case INTEL_BX:       head->chipset = "Intel 440BX";    break;
+		case INTEL_GX:       head->chipset = "Intel 440GX";    break;
+		case INTEL_I810:     head->chipset = "Intel i810";     break;
+		case VIA_GENERIC:    head->chipset = "VIA";            break;
+		case VIA_VP3:        head->chipset = "VIA VP3";        break;
+		case VIA_MVP3:       head->chipset = "VIA MVP3";       break;
+		case VIA_APOLLO_PRO: head->chipset = "VIA Apollo Pro"; break;
+		case SIS_GENERIC:    head->chipset = "SiS";            break;
+		case AMD_GENERIC:    head->chipset = "AMD";            break;
+		case AMD_IRONGATE:   head->chipset = "AMD Irongate";   break;
+		case ALI_GENERIC:    head->chipset = "ALi";            break;
+		case ALI_M1541:      head->chipset = "ALi M1541";      break;
 		default:
 		}
 		DRM_INFO("AGP %d.%d on %s @ 0x%08lx %dMB\n",
-			 info->agp_info.version.major,
-			 info->agp_info.version.minor,
-			 info->chipset,
-			 info->agp_info.aper_base,
-			 info->agp_info.aper_size);
+			 head->agp_info.version.major,
+			 head->agp_info.version.minor,
+			 head->chipset,
+			 head->agp_info.aper_base,
+			 head->agp_info.aper_size);
 	}
-	return info;
+	return head;
 }
