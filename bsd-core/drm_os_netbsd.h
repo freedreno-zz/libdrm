@@ -78,16 +78,12 @@ extern drm_device_t *DRM(devs)[16];
 #define DRM_MALLOC(size)	malloc( size, DRM(M_DRM), M_NOWAIT )
 #define DRM_FREE(pt)		free( pt, DRM(M_DRM) )
 #define DRM_VTOPHYS(addr)	vtophys(addr)
-#define DRM_READ8(addr)		*((volatile char *)(addr))
-#define DRM_READ32(addr)	*((volatile long *)(addr))
-#define DRM_WRITE8(addr, val)	*((volatile char *)(addr)) = (val)
-#define DRM_WRITE32(addr, val)	*((volatile long *)(addr)) = (val)
-/*
-#define DRM_READ8(map, offset)		bus_space_read_1( map->iot, map->ioh, offset, val );
-#define DRM_READ32(map, offset)		bus_space_read_4( map->iot, map->ioh, offset, val );
-#define DRM_WRITE8(map, offset, val)	bus_space_write_1( map->iot, map->ioh, offset, val );
-#define DRM_WRITE32(map, offset, val)	bus_space_write_4( map->iot, map->ioh, offset, val );
-*/
+
+#define DRM_READ8(map, offset)		bus_space_read_1(  (map)->iot, (map)->ioh, (offset) )
+#define DRM_READ32(map, offset)		bus_space_read_4(  (map)->iot, (map)->ioh, (offset) )
+#define DRM_WRITE8(map, offset, val)	bus_space_write_1( (map)->iot, (map)->ioh, (offset), (val) )
+#define DRM_WRITE32(map, offset, val)	bus_space_write_4( (map)->iot, (map)->ioh, (offset), (val) )
+
 #define DRM_AGP_FIND_DEVICE()	agp_find_device(0)
 
 #define DRM_PRIV					\
@@ -131,17 +127,10 @@ do {								\
 #define DRM_COPY_FROM_USER(arg1, arg2, arg3) \
 	copyin(arg2, arg1, arg3)
 
-#define DRM_READMEMORYBARRIER() \
-{												\
-   	int xchangeDummy;									\
-	DRM_DEBUG("%s\n", __FUNCTION__);							\
-   	__asm__ volatile(" push %%eax ; xchg %%eax, %0 ; pop %%eax" : : "m" (xchangeDummy));	\
-   	__asm__ volatile(" push %%eax ; push %%ebx ; push %%ecx ; push %%edx ;"			\
-			 " movl $0,%%eax ; cpuid ; pop %%edx ; pop %%ecx ; pop %%ebx ;"		\
-			 " pop %%eax" : /* no outputs */ :  /* no inputs */ );			\
-} while (0);
-
-#define DRM_WRITEMEMORYBARRIER() DRM_READMEMORYBARRIER()
+#define DRM_WRITEMEMORYBARRIER( map )					\
+	bus_space_barrier((map)->iot, (map)->ioh, 0, (map)->size, 0);
+#define DRM_READMEMORYBARRIER( map )					\
+	bus_space_barrier((map)->iot, (map)->ioh, 0, (map)->size, BUS_SPACE_BARRIER_READ);
 
 #define DRM_WAKEUP(w) wakeup(w)
 #define DRM_WAKEUP_INT(w) wakeup(w)

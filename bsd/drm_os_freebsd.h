@@ -102,15 +102,17 @@
 #define DRM_MALLOC(size)	malloc( size, DRM(M_DRM), M_NOWAIT )
 #define DRM_FREE(pt)		free( pt, DRM(M_DRM) )
 #define DRM_VTOPHYS(addr)	vtophys(addr)
-#define DRM_READ8(addr)		*((volatile char *)(addr))
-#define DRM_READ32(addr)	*((volatile long *)(addr))
-#define DRM_WRITE8(addr, val)	*((volatile char *)(addr)) = (val)
-#define DRM_WRITE32(addr, val)	*((volatile long *)(addr)) = (val)
+
+/* Read/write from bus space, with byteswapping to le if necessary */
+#define DRM_READ8(map, offset)		*(volatile u_int8_t *) (((unsigned long)(map)->handle) + (offset))
+#define DRM_READ32(map, offset)		*(volatile u_int32_t *)(((unsigned long)(map)->handle) + (offset))
+#define DRM_WRITE8(map, offset, val)	*(volatile u_int8_t *) (((unsigned long)(map)->handle) + (offset)) = val
+#define DRM_WRITE32(map, offset, val)	*(volatile u_int32_t *)(((unsigned long)(map)->handle) + (offset)) = val
 /*
-#define DRM_READ8(map, offset)		*(volatile u_int8_t *)(((unsigned long)map->handle) + offset)
-#define DRM_READ32(map, offset)		*(volatile u_int32_t *)(((unsigned long)map->handle) + offset)
-#define DRM_WRITE8(map, offset, val)	*(volatile u_int8_t *)(((unsigned long)map->handle) + offset) = val
-#define DRM_WRITE32(map, offset, val)	*(volatile u_int32_t *)(((unsigned long)map->handle) + offset) = val
+#define DRM_READ8(map, offset)		bus_space_read_1(  (map)->iot, (map)->ioh, (offset) )
+#define DRM_READ32(map, offset)		bus_space_read_4(  (map)->iot, (map)->ioh, (offset) )
+#define DRM_WRITE8(map, offset, val)	bus_space_write_1( (map)->iot, (map)->ioh, (offset), (val) )
+#define DRM_WRITE32(map, offset, val)	bus_space_write_4( (map)->iot, (map)->ioh, (offset), (val) )
 */
 #define DRM_AGP_FIND_DEVICE()	agp_find_device()
 #define DRM_ERR(v)		v
@@ -172,7 +174,7 @@ while (!condition) {							\
 	copyin(user, kern, size)
 /* Macros for userspace access with checking readability once */
 /* FIXME: can't find equivalent functionality for nocheck yet.
- * It's be slower than linux, but should be correct.
+ * It'll be slower than linux, but should be correct.
  */
 #define DRM_VERIFYAREA_READ( uaddr, size )		\
 	(!useracc((caddr_t)uaddr, size, VM_PROT_READ))
@@ -181,17 +183,10 @@ while (!condition) {							\
 #define DRM_GET_USER_UNCHECKED(val, uaddr)			\
 	((val) = fuword(uaddr), 0)
 
-/* From machine/bus_at386.h on i386 */
-#define DRM_READMEMORYBARRIER()					\
-do {									\
-   	__asm __volatile("lock; addl $0,0(%%esp)" : : : "memory");	\
-} while (0)
-
-#define DRM_WRITEMEMORYBARRIER()					\
-do {									\
-   	__asm __volatile("" : : : "memory");				\
-} while (0)
-
+#define DRM_WRITEMEMORYBARRIER( map )					\
+	bus_space_barrier((map)->iot, (map)->ioh, 0, (map)->size, 0);
+#define DRM_READMEMORYBARRIER( map )					\
+	bus_space_barrier((map)->iot, (map)->ioh, 0, (map)->size, BUS_SPACE_BARRIER_READ);
 
 #define PAGE_ALIGN(addr) round_page(addr)
 

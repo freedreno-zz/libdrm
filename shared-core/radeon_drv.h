@@ -31,8 +31,8 @@
 #ifndef __RADEON_DRV_H__
 #define __RADEON_DRV_H__
 
-#define GET_RING_HEAD(ring)		DRM_READ32(  (volatile u32 *) (ring)->head )
-#define SET_RING_HEAD(ring,val)		DRM_WRITE32( (volatile u32 *) (ring)->head , (val))
+#define GET_RING_HEAD(ring)		DRM_READ32(  (ring)->ring_rptr, 0 ) /* (ring)->head */
+#define SET_RING_HEAD(ring,val)		DRM_WRITE32( (ring)->ring_rptr, 0, (val) ) /* (ring)->head */
 
 typedef struct drm_radeon_freelist {
    	unsigned int age;
@@ -53,6 +53,7 @@ typedef struct drm_radeon_ring_buffer {
 	int space;
 
 	int high_mark;
+	drm_local_map_t *ring_rptr;
 } drm_radeon_ring_buffer_t;
 
 typedef struct drm_radeon_depth_clear_t {
@@ -266,8 +267,10 @@ extern int radeon_emit_irq(drm_device_t *dev);
 #define RADEON_SCRATCH_UMSK		0x0770
 #define RADEON_SCRATCH_ADDR		0x0774
 
+#define RADEON_SCRATCHOFF( x )		(RADEON_SCRATCH_REG_OFFSET + 4*(x))
+
 #define GET_SCRATCH( x )	(dev_priv->writeback_works			\
-				? DRM_READ32( &dev_priv->scratch[(x)] )		\
+				? DRM_READ32( dev_priv->ring_rptr, RADEON_SCRATCHOFF(x) ) \
 				: RADEON_READ( RADEON_SCRATCH_REG0 + 4*(x) ) )
 
 
@@ -686,23 +689,10 @@ extern int radeon_emit_irq(drm_device_t *dev);
 
 #define RADEON_RING_HIGH_MARK		128
 
-
-#define RADEON_BASE(reg)	((unsigned long)(dev_priv->mmio->handle))
-#define RADEON_ADDR(reg)	(RADEON_BASE( reg ) + reg)
-
-#define RADEON_READ(reg)	DRM_READ32(  (volatile u32 *) RADEON_ADDR(reg) )
-#define RADEON_WRITE(reg,val)	DRM_WRITE32( (volatile u32 *) RADEON_ADDR(reg), (val) )
-/*
-#define RADEON_READ(reg)	DRM_READ32(  dev_priv->mmio, reg )
-#define RADEON_WRITE(reg,val)	DRM_WRITE32( dev_priv->mmio, reg, (val) )
-*/
-
-#define RADEON_READ8(reg)	DRM_READ8(  (volatile u8 *) RADEON_ADDR(reg) )
-#define RADEON_WRITE8(reg,val)	DRM_WRITE8( (volatile u8 *) RADEON_ADDR(reg), (val) )
-/*
-#define RADEON_READ8(reg)	DRM_READ8(  dev_priv->mmio, reg )
-#define RADEON_WRITE8(reg,val)	DRM_WRITE8( dev_priv->mmio, reg, (val) )
-*/
+#define RADEON_READ(reg)	DRM_READ32(  dev_priv->mmio, (reg) )
+#define RADEON_WRITE(reg,val)	DRM_WRITE32( dev_priv->mmio, (reg), (val) )
+#define RADEON_READ8(reg)	DRM_READ8(  dev_priv->mmio, (reg) )
+#define RADEON_WRITE8(reg,val)	DRM_WRITE8( dev_priv->mmio, (reg), (val) )
 
 #define RADEON_WRITE_PLL( addr, val )					\
 do {									\
@@ -834,7 +824,7 @@ do {									\
 #if defined(__powerpc__)
 #define radeon_flush_write_combine()	(void) GET_RING_HEAD( &dev_priv->ring )
 #else
-#define radeon_flush_write_combine()	DRM_WRITEMEMORYBARRIER()
+#define radeon_flush_write_combine()	DRM_WRITEMEMORYBARRIER( dev_priv->ring_rtpr )
 #endif
 
 

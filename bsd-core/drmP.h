@@ -377,7 +377,6 @@ typedef struct drm_sg_mem {
 	unsigned long   handle;
 	void            *virtual;
 	int             pages;
-	struct page     **pagelist;
 	dma_addr_t	*busaddr;
 } drm_sg_mem_t;
 
