@@ -64,7 +64,7 @@ typedef struct drm_radeon_private {
 
 	int agp_size;
 	u32 agp_vm_start;
-	u32 agp_buffers_offset;
+	unsigned long agp_buffers_offset;
 
 	int cp_mode;
 	int cp_running;
@@ -83,6 +83,7 @@ typedef struct drm_radeon_private {
 
 	int usec_timeout;
 	int is_pci;
+	unsigned long phys_pci_gart;
 
 	atomic_t idle_count;
 
@@ -433,6 +434,12 @@ extern int radeon_cp_indirect( struct inode *inode, struct file *filp,
 
 #define RADEON_AIC_CNTL			0x01d0
 #	define RADEON_PCIGART_TRANSLATE_EN	(1 << 0)
+#define RADEON_AIC_STAT			0x01d4
+#define RADEON_AIC_PT_BASE		0x01d8
+#define RADEON_AIC_LO_ADDR		0x01dc
+#define RADEON_AIC_HI_ADDR		0x01e0
+#define RADEON_AIC_TLB_ADDR		0x01e4
+#define RADEON_AIC_TLB_DATA		0x01e8
 
 /* CP command packets */
 #define RADEON_CP_PACKET0		0x00000000
@@ -508,18 +515,47 @@ extern int radeon_cp_indirect( struct inode *inode, struct file *filp,
 #define RADEON_RING_HIGH_MARK		128
 
 
-#define RADEON_BASE(reg)	((u32)(dev_priv->mmio->handle))
+#define RADEON_BASE(reg)	((unsigned long)(dev_priv->mmio->handle))
 #define RADEON_ADDR(reg)	(RADEON_BASE( reg ) + reg)
 
 #define RADEON_DEREF(reg)	*(volatile u32 *)RADEON_ADDR( reg )
+#ifdef __alpha__
+#define RADEON_READ(reg)	(_RADEON_READ((u32 *)RADEON_ADDR( reg )))
+static inline u32 _RADEON_READ(u32 *addr)
+{
+	mb();
+	return *(volatile u32 *)addr;
+}
+#define RADEON_WRITE(reg,val)						\
+do {									\
+	wmb();								\
+	RADEON_DEREF(reg) = val;					\
+} while (0)
+#else
 #define RADEON_READ(reg)	RADEON_DEREF( reg )
 #define RADEON_WRITE(reg, val)	do { RADEON_DEREF( reg ) = val; } while (0)
+#endif
 
 #define RADEON_DEREF8(reg)	*(volatile u8 *)RADEON_ADDR( reg )
+#ifdef __alpha__
+#define RADEON_READ8(reg)	_RADEON_READ8((u8 *)RADEON_ADDR( reg ))
+static inline u8 _RADEON_READ8(u8 *addr)
+{
+	mb();
+	return *(volatile u8 *)addr;
+}
+#define RADEON_WRITE8(reg,val)						\
+do {									\
+	wmb();								\
+	RADEON_DEREF8( reg ) = val;					\
+} while (0)
+#else
 #define RADEON_READ8(reg)	RADEON_DEREF8( reg )
 #define RADEON_WRITE8(reg, val)	do { RADEON_DEREF8( reg ) = val; } while (0)
+#endif
 
-#define RADEON_WRITE_PLL( addr, val ) do {				\
+#define RADEON_WRITE_PLL( addr, val )					\
+do {									\
 	RADEON_WRITE8( RADEON_CLOCK_CNTL_INDEX,				\
 		       ((addr) & 0x1f) | RADEON_PLL_WR_EN );		\
 	RADEON_WRITE( RADEON_CLOCK_CNTL_DATA, (val) );			\
@@ -673,7 +709,7 @@ do {									\
 
 #define ADVANCE_RING() do {						\
 	if ( RADEON_VERBOSE ) {						\
-		DRM_INFO( "ADVANCE_RING() tail=0x%06x wr=0x%06x\n",	\
+		DRM_INFO( "ADVANCE_RING() wr=0x%06x tail=0x%06x\n",	\
 			  write, dev_priv->ring.tail );			\
 	}								\
 	radeon_flush_write_combine();					\

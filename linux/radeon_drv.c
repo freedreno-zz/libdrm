@@ -31,15 +31,16 @@
 #include "radeon.h"
 #include "drmP.h"
 #include "radeon_drv.h"
+#include "ati_pcigart.h"
 
 #define DRIVER_AUTHOR		"Gareth Hughes, VA Linux Systems Inc."
 
 #define DRIVER_NAME		"radeon"
 #define DRIVER_DESC		"ATI Radeon"
-#define DRIVER_DATE		"20010308"
+#define DRIVER_DATE		"20010405"
 
 #define DRIVER_MAJOR		1
-#define DRIVER_MINOR		0
+#define DRIVER_MINOR		1
 #define DRIVER_PATCHLEVEL	1
 
 #define DRIVER_IOCTLS							     \
@@ -85,3 +86,4 @@
 #include "drm_proc.h"
 #include "drm_vm.h"
 #include "drm_stub.h"
+#include "drm_scatter.h"

@@ -408,7 +408,7 @@ static int mga_verify_context( drm_mga_private_t *dev_priv )
 
 	if ( ctx->dstorg != dev_priv->front_offset &&
 	     ctx->dstorg != dev_priv->back_offset ) {
-		DRM_DEBUG( "*** bad DSTORG: %x (front %x, back %x)\n\n",
+		DRM_ERROR( "*** bad DSTORG: %x (front %x, back %x)\n\n",
 			   ctx->dstorg, dev_priv->front_offset,
 			   dev_priv->back_offset );
 		ctx->dstorg = 0;
@@ -429,7 +429,7 @@ static int mga_verify_tex( drm_mga_private_t *dev_priv, int unit )
 	org = tex->texorg & (MGA_TEXORGMAP_MASK | MGA_TEXORGACC_MASK);
 
 	if ( org == (MGA_TEXORGMAP_SYSMEM | MGA_TEXORGACC_PCI) ) {
-		DRM_DEBUG( "*** bad TEXORG: 0x%x, unit %d\n",
+		DRM_ERROR( "*** bad TEXORG: 0x%x, unit %d\n",
 			   tex->texorg, unit );
 		tex->texorg = 0;
 		return -EINVAL;
@@ -473,10 +473,13 @@ static int mga_verify_iload( drm_mga_private_t *dev_priv,
 	if ( dstorg < dev_priv->texture_offset ||
 	     dstorg + length > (dev_priv->texture_offset +
 				dev_priv->texture_size) ) {
+		DRM_ERROR( "*** bad iload DSTORG: 0x%x\n", dstorg );
 		return -EINVAL;
 	}
 
 	if ( length & MGA_ILOAD_MASK ) {
+		DRM_ERROR( "*** bad iload length: 0x%x\n",
+			   length & MGA_ILOAD_MASK );
 		return -EINVAL;
 	}
 
@@ -488,6 +491,8 @@ static int mga_verify_blit( drm_mga_private_t *dev_priv,
 {
 	if ( (srcorg & 0x3) == (MGA_SRCACC_PCI | MGA_SRCMAP_SYSMEM) ||
 	     (dstorg & 0x3) == (MGA_SRCACC_PCI | MGA_SRCMAP_SYSMEM) ) {
+		DRM_ERROR( "*** bad blit: src=0x%x dst=0x%x\n",
+			   srcorg, dstorg );
 		return -EINVAL;
 	}
 	return 0;
@@ -509,6 +514,15 @@ static void mga_dma_dispatch_clear( drm_device_t *dev,
 	int i;
 	DMA_LOCALS;
 	DRM_DEBUG( __FUNCTION__ ":\n" );
+
+	BEGIN_DMA( 1 );
+
+	DMA_BLOCK( MGA_DMAPAD,	0x00000000,
+		   MGA_DMAPAD,	0x00000000,
+		   MGA_DWGSYNC,	0x00007100,
+		   MGA_DWGSYNC,	0x00007000 );
+
+	ADVANCE_DMA();
 
 	for ( i = 0 ; i < nbox ; i++ ) {
 		drm_clip_rect_t *box = &pbox[i];
@@ -752,7 +766,12 @@ static void mga_dma_dispatch_iload( drm_device_t *dev, drm_buf_t *buf,
 
 	y2 = length / 64;
 
-	BEGIN_DMA( 4 );
+	BEGIN_DMA( 5 );
+
+	DMA_BLOCK( MGA_DMAPAD,	0x00000000,
+		   MGA_DMAPAD,	0x00000000,
+		   MGA_DWGSYNC,	0x00007100,
+		   MGA_DWGSYNC,	0x00007000 );
 
 	DMA_BLOCK( MGA_DSTORG,	dstorg,
 		   MGA_MACCESS,	0x00000000,
@@ -1004,20 +1023,21 @@ int mga_dma_iload( struct inode *inode, struct file *filp,
 	if ( copy_from_user( &iload, (drm_mga_iload_t *)arg, sizeof(iload) ) )
 		return -EFAULT;
 
-	if ( mga_do_wait_for_idle( dev_priv ) < 0 )
+#if 0
+	if ( mga_do_wait_for_idle( dev_priv ) < 0 ) {
+		if ( MGA_DMA_DEBUG )
+			DRM_INFO( __FUNCTION__": -EBUSY\n" );
 		return -EBUSY;
+	}
+#endif
 
 	buf = dma->buflist[iload.idx];
 	buf_priv = buf->dev_private;
 
-#if 0
-	DRM_INFO( "   verifying iload...\n" );
 	if ( mga_verify_iload( dev_priv, iload.dstorg, iload.length ) ) {
 		mga_freelist_put( dev, buf );
 		return -EINVAL;
 	}
-	DRM_INFO( "   verifying iload... done.\n" );
-#endif
 
 	WRAP_TEST_WITH_RETURN( dev_priv );
 

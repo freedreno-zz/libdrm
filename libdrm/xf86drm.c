@@ -27,7 +27,7 @@
  * Authors: Rickard E. (Rik) Faith <faith@valinux.com>
  *	    Kevin E. Martin <martin@valinux.com>
  *
- * $XFree86: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/xf86drm.c,v 1.18 2001/03/21 18:08:54 dawes Exp $
+ * $XFree86: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/xf86drm.c,v 1.20 2001/04/18 18:44:39 dawes Exp $
  *
  */
 
@@ -35,11 +35,9 @@
 # include "xf86.h"
 # include "xf86_OSproc.h"
 # include "xf86_ansic.h"
-# include "xf86Priv.h"
 # define _DRM_MALLOC xalloc
 # define _DRM_FREE   xfree
 # ifndef XFree86LOADER
-#  include <sys/stat.h>
 #  include <sys/mman.h>
 # endif
 #else
@@ -53,6 +51,7 @@
 # include <signal.h>
 # include <sys/types.h>
 # include <sys/stat.h>
+# define stat_t struct stat
 # include <sys/ioctl.h>
 # include <sys/mman.h>
 # include <sys/time.h>
@@ -68,7 +67,7 @@ extern int xf86RemoveSIGIOHandler(int fd);
 # endif
 #endif
 
-#ifdef __alpha__
+#if defined(__alpha__) && defined(__linux__)
 extern unsigned long _bus_base(void);
 #define BUS_BASE _bus_base()
 #endif
@@ -141,11 +140,7 @@ static char *drmStrdup(const char *s)
 
 static unsigned long drmGetKeyFromFd(int fd)
 {
-#ifdef XFree86LOADER
-    struct xf86stat st;
-#else
-    struct stat     st;
-#endif
+    stat_t     st;
 
     st.st_rdev = 0;
     fstat(fd, &st);
@@ -225,7 +220,7 @@ static int drmOpenDevice(long dev, int minor)
     return -errno;
 }
 
-int drmOpenMinor(int minor, int create)
+static int drmOpenMinor(int minor, int create)
 {
     int  fd;
     char buf[64];
@@ -1005,6 +1000,28 @@ unsigned int drmAgpDeviceId(int fd)
 
     if (ioctl(fd, DRM_IOCTL_AGP_INFO, &i)) return 0;
     return i.id_device;
+}
+
+int drmScatterGatherAlloc(int fd, unsigned long size, unsigned long *handle)
+{
+    drm_scatter_gather_t sg;
+
+    *handle = 0;
+    sg.size   = size;
+    sg.handle = 0;
+    if (ioctl(fd, DRM_IOCTL_SG_ALLOC, &sg)) return -errno;
+    *handle = sg.handle;
+    return 0;
+}
+
+int drmScatterGatherFree(int fd, unsigned long handle)
+{
+    drm_scatter_gather_t sg;
+
+    sg.size   = 0;
+    sg.handle = handle;
+    if (ioctl(fd, DRM_IOCTL_SG_FREE, &sg)) return -errno;
+    return 0;
 }
 
 int drmError(int err, const char *label)

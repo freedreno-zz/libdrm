@@ -236,7 +236,7 @@ typedef struct drm_radeon_init {
 		RADEON_INIT_CP    = 0x01,
 		RADEON_CLEANUP_CP = 0x02
 	} func;
-	int sarea_priv_offset;
+	unsigned long sarea_priv_offset;
 	int is_pci;
 	int cp_mode;
 	int agp_size;
@@ -249,12 +249,12 @@ typedef struct drm_radeon_init {
 	unsigned int depth_bpp;
 	unsigned int depth_offset, depth_pitch;
 
-	unsigned int fb_offset;
-	unsigned int mmio_offset;
-	unsigned int ring_offset;
-	unsigned int ring_rptr_offset;
-	unsigned int buffers_offset;
-	unsigned int agp_textures_offset;
+	unsigned long fb_offset;
+	unsigned long mmio_offset;
+	unsigned long ring_offset;
+	unsigned long ring_rptr_offset;
+	unsigned long buffers_offset;
+	unsigned long agp_textures_offset;
 } drm_radeon_init_t;
 
 typedef struct drm_radeon_cp_stop {

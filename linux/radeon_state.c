@@ -1227,8 +1227,8 @@ int radeon_cp_vertex( struct inode *inode, struct file *filp,
 
 	LOCK_TEST_WITH_RETURN( dev );
 
-	if ( !dev_priv || dev_priv->is_pci ) {
-		DRM_ERROR( "%s called with a PCI card\n", __FUNCTION__ );
+	if ( !dev_priv ) {
+		DRM_ERROR( "%s called with no initialization\n", __FUNCTION__ );
 		return -EINVAL;
 	}
 
@@ -1290,8 +1290,8 @@ int radeon_cp_indices( struct inode *inode, struct file *filp,
 
 	LOCK_TEST_WITH_RETURN( dev );
 
-	if ( !dev_priv || dev_priv->is_pci ) {
-		DRM_ERROR( "%s called with a PCI card\n", __FUNCTION__ );
+	if ( !dev_priv ) {
+		DRM_ERROR( "%s called with no initialization\n", __FUNCTION__ );
 		return -EINVAL;
 	}
 
@@ -1420,8 +1420,8 @@ int radeon_cp_indirect( struct inode *inode, struct file *filp,
 
 	LOCK_TEST_WITH_RETURN( dev );
 
-	if ( !dev_priv || dev_priv->is_pci ) {
-		DRM_ERROR( "%s called with a PCI card\n", __FUNCTION__ );
+	if ( !dev_priv ) {
+		DRM_ERROR( "%s called with no initialization\n", __FUNCTION__ );
 		return -EINVAL;
 	}
 
