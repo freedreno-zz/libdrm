@@ -270,6 +270,7 @@ static struct {
 	{ R200_PP_TXOFFSET_4, 1, "R200_PP_TXOFFSET_4" },
 	{ R200_PP_TXOFFSET_5, 1, "R200_PP_TXOFFSET_5" },
 	{ R200_SE_VTE_CNTL, 1, "R200_SE_VTE_CNTL" },
+	{ R200_SE_TCL_OUTPUT_VTX_COMP_SEL, 1, "R200_SE_TCL_OUTPUT_VTX_COMP_SEL" },
 };
 
 
@@ -366,7 +367,8 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 		if ( tmp & RADEON_BACK )  flags |= RADEON_FRONT;
 	}
 
-	if ( flags & (RADEON_FRONT | RADEON_BACK) ) {
+
+	if ( 0 & flags & (RADEON_FRONT | RADEON_BACK) ) {
 
 		BEGIN_RING( 4 );
 
@@ -442,7 +444,6 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 	if ( dev_priv->is_r200 &&
 	     (flags & (RADEON_DEPTH | RADEON_STENCIL)) ) {
 
-#if 1
 		int tempPP_CNTL;
 		int tempRE_CNTL;
 		int tempRB3D_CNTL;
@@ -471,7 +472,7 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 
 		/* Disable TCL */
 
-		tempSE_VAP_CNTL = (SE_VAP_CNTL__FORCE_W_TO_ONE_MASK | 
+		tempSE_VAP_CNTL = (/* SE_VAP_CNTL__FORCE_W_TO_ONE_MASK |  */
 				   (0x9 << SE_VAP_CNTL__VF_MAX_VTX_NUM__SHIFT));
 
 		tempRB3D_PLANEMASK = 0x0;
@@ -485,7 +486,7 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 
 		/* Vertex format (X, Y, Z, W)*/
 		tempSE_VTX_FMT_0 =
- 			(1 << SE_VTX_FMT_0__VTX_COLOR_0_FMT__SHIFT) | 
+  			(1 << SE_VTX_FMT_0__VTX_COLOR_0_FMT__SHIFT) |  
 			SE_VTX_FMT_0__VTX_Z0_PRESENT_MASK |
 			SE_VTX_FMT_0__VTX_W0_PRESENT_MASK;
 		tempSE_VTX_FMT_1 = 0x0;
@@ -531,6 +532,8 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 		OUT_RING_REG( R200_SE_VAP_CNTL, tempSE_VAP_CNTL );
 		OUT_RING_REG( R200_RE_AUX_SCISSOR_CNTL, 
 			      tempRE_AUX_SCISSOR_CNTL );
+/*  		OUT_RING_REG( RADEON_RB3D_DEPTHOFFSET, 0 );  */
+/*  		OUT_RING_REG( RADEON_RB3D_DEPTHPITCH, 0x740 );  */
 		ADVANCE_RING();
 
 		/* Make sure we restore the 3D state next time.
@@ -545,7 +548,6 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 			radeon_emit_clip_rect( dev_priv,
 					       &sarea_priv->boxes[i] );
 
-#if 1
 			BEGIN_RING( 17 );
 			OUT_RING( CP_PACKET3( R200_3D_DRAW_IMMD_2, 15 ) );
 			OUT_RING( (RADEON_PRIM_TYPE_RECT_LIST |
@@ -555,21 +557,19 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 			OUT_RING( depth_boxes[i].ui[CLEAR_Y1] );
 			OUT_RING( depth_boxes[i].ui[CLEAR_DEPTH] );
 			OUT_RING( 0x3f800000 );
- 			OUT_RING( 0xFF33FF33 ); 
+  			OUT_RING( 0xFF33FF33 );  
 			OUT_RING( depth_boxes[i].ui[CLEAR_X1] );
 			OUT_RING( depth_boxes[i].ui[CLEAR_Y2] );
 			OUT_RING( depth_boxes[i].ui[CLEAR_DEPTH] );
 			OUT_RING( 0x3f800000 );
- 			OUT_RING( 0xFF33FF33 ); 
+  			OUT_RING( 0xFF33FF33 );  
 			OUT_RING( depth_boxes[i].ui[CLEAR_X2] );
 			OUT_RING( depth_boxes[i].ui[CLEAR_Y2] );
 			OUT_RING( depth_boxes[i].ui[CLEAR_DEPTH] );
 			OUT_RING( 0x3f800000 );
- 			OUT_RING( 0xFF33FF33 ); 
+  			OUT_RING( 0xFF33FF33 );  
 			ADVANCE_RING();
-#endif
 		}
-#endif
 	} 
 	else if ( (flags & (RADEON_DEPTH | RADEON_STENCIL)) ) {
 
@@ -1763,7 +1763,10 @@ static int radeon_emit_packets(
 	int reg = packet[id].start;
 	int *data = (int *)cmdbuf->buf;
 	RING_LOCALS;
-   
+
+
+	printk("emit packet %s/%d\n", packet[id].name, sz );
+
 	if (sz * sizeof(int) > cmdbuf->bufsz) 
 		return -EINVAL;
 
@@ -1934,6 +1937,8 @@ int radeon_cp_cmdbuf( struct inode *inode, struct file *filp,
 	drm_radeon_cmd_buffer_t cmdbuf;
 	drm_radeon_cmd_header_t header;
 
+	printk( "%s\n", __FUNCTION__ );
+
 	LOCK_TEST_WITH_RETURN( dev );
 
 	if ( !dev_priv ) {
@@ -1947,7 +1952,7 @@ int radeon_cp_cmdbuf( struct inode *inode, struct file *filp,
 		return -EFAULT;
 	}
 
-	DRM_DEBUG( __FUNCTION__": pid=%d\n", current->pid );
+	printk( __FUNCTION__": pid=%d\n", current->pid );
 	RING_SPACE_TEST_WITH_RETURN( dev_priv );
 	VB_AGE_TEST_WITH_RETURN( dev_priv );
 
@@ -1972,6 +1977,7 @@ int radeon_cp_cmdbuf( struct inode *inode, struct file *filp,
 
 		switch (header.header.cmd_type) {
 		case RADEON_CMD_PACKET: 
+			printk("RADEON_CMD_PACKET\n");
 			if (radeon_emit_packets( dev_priv, header, &cmdbuf )) {
 				DRM_ERROR("radeon_emit_packets failed\n");
 				return -EINVAL;
@@ -1979,6 +1985,7 @@ int radeon_cp_cmdbuf( struct inode *inode, struct file *filp,
 			break;
 
 		case RADEON_CMD_SCALARS:
+			printk("RADEON_CMD_SCALARS\n");
 			if (radeon_emit_scalars( dev_priv, header, &cmdbuf )) {
 				DRM_ERROR("radeon_emit_scalars failed\n");
 				return -EINVAL;
@@ -1986,6 +1993,7 @@ int radeon_cp_cmdbuf( struct inode *inode, struct file *filp,
 			break;
 
 		case RADEON_CMD_VECTORS:
+			printk("RADEON_CMD_VECTORS\n");
 			if (radeon_emit_vectors( dev_priv, header, &cmdbuf )) {
 				DRM_ERROR("radeon_emit_vectors failed\n");
 				return -EINVAL;
@@ -1993,6 +2001,7 @@ int radeon_cp_cmdbuf( struct inode *inode, struct file *filp,
 			break;
 
 		case RADEON_CMD_DMA_DISCARD:
+			printk("RADEON_CMD_DMA_DISCARD\n");
 			idx = header.dma.buf_idx;
 			if ( idx < 0 || idx >= dma->buf_count ) {
 				DRM_ERROR( "buffer index %d (of %d max)\n",
@@ -2010,6 +2019,7 @@ int radeon_cp_cmdbuf( struct inode *inode, struct file *filp,
 			break;
 
 		case RADEON_CMD_PACKET3:
+			printk("RADEON_CMD_PACKET3\n");
 			if (radeon_emit_packet3( dev, &cmdbuf )) {
 				DRM_ERROR("radeon_emit_packet3 failed\n");
 				return -EINVAL;
@@ -2017,6 +2027,7 @@ int radeon_cp_cmdbuf( struct inode *inode, struct file *filp,
 			break;
 
 		case RADEON_CMD_PACKET3_CLIP:
+			printk("RADEON_CMD_PACKET3_CLIP\n");
 			if (radeon_emit_packet3_cliprect( dev, &cmdbuf )) {
 				DRM_ERROR("radeon_emit_packet3_clip failed\n");
 				return -EINVAL;
@@ -2024,6 +2035,7 @@ int radeon_cp_cmdbuf( struct inode *inode, struct file *filp,
 			break;
 
 		case RADEON_CMD_SCALARS2:
+			printk("RADEON_CMD_SCALARS2\n");
 			if (radeon_emit_scalars2( dev_priv, header, &cmdbuf )) {
 				DRM_ERROR("radeon_emit_scalars2 failed\n");
 				return -EINVAL;
@@ -2038,6 +2050,7 @@ int radeon_cp_cmdbuf( struct inode *inode, struct file *filp,
 	}
 
 
+	printk("DONE\n");
 	COMMIT_RING();
 	return 0;
 }

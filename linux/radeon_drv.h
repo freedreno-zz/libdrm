@@ -299,6 +299,7 @@ extern int radeon_cp_flip( struct inode *inode, struct file *filp,
 #	define RADEON_STENCIL_ENABLE		(1 << 7)
 #	define RADEON_Z_ENABLE			(1 << 8)
 #define RADEON_RB3D_DEPTHOFFSET		0x1c24
+#define RADEON_RB3D_DEPTHPITCH		0x1c28
 #define RADEON_RB3D_PLANEMASK		0x1d84
 #define RADEON_RB3D_STENCILREFMASK	0x1d7c
 #define RADEON_RB3D_ZCACHE_MODE		0x3250
@@ -558,6 +559,7 @@ extern int radeon_cp_flip( struct inode *inode, struct file *filp,
 #define R200_PP_TXOFFSET_0                0x2d00
 #define R200_RE_AUX_SCISSOR_CNTL          0x26f0
 #define R200_SE_VTE_CNTL                  0x20b0
+#define R200_SE_TCL_OUTPUT_VTX_COMP_SEL   0x2250
 
 #define SE_VAP_CNTL__TCL_ENA_MASK                          0x00000001
 #define SE_VAP_CNTL__FORCE_W_TO_ONE_MASK                   0x00010000
