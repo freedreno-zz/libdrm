@@ -450,6 +450,14 @@ static int r128_do_init_cce( drm_device_t *dev, drm_r128_init_t *init )
 	dev_priv->depth_x	= init->depth_x;
 	dev_priv->depth_y	= init->depth_y;
 
+	dev_priv->front_pitch_offset_c = (((dev_priv->front_pitch/8) << 21) |
+					  (dev_priv->front_offset >> 5));
+	dev_priv->back_pitch_offset_c = (((dev_priv->back_pitch/8) << 21) |
+					 (dev_priv->back_offset >> 5));
+	dev_priv->depth_pitch_offset_c = (((dev_priv->depth_pitch/8) << 21) |
+					  (dev_priv->depth_offset >> 5) |
+					  R128_DST_TILE);
+
 	/* FIXME: We want multiple shared areas, including one shared
 	 * only by the X Server and kernel module.
 	 */
@@ -821,8 +829,10 @@ void r128_update_ring_snapshot( drm_r128_private_t *dev_priv )
 	drm_r128_ring_buffer_t *ring = &dev_priv->ring;
 
 	ring->space = *ring->head - ring->tail;
+#if R128_PERFORMANCE_BOXES
 	if ( ring->space == 0 )
 		atomic_inc( &dev_priv->idle_count );
+#endif
 	if ( ring->space <= 0 )
 		ring->space += ring->size;
 }

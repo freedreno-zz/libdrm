@@ -33,8 +33,6 @@
 #include "r128_drv.h"
 #include "drm.h"
 
-#define USE_OLD_BLITS	1
-
 
 /* ================================================================
  * CCE hardware state programming functions
@@ -424,76 +422,6 @@ static void r128_cce_dispatch_clear( drm_device_t *dev,
 			ADVANCE_RING();
 		}
 
-#if USE_OLD_BLITS
-		if ( flags & R128_FRONT ) {
-			int fx = x + dev_priv->front_x;
-			int fy = y + dev_priv->front_y;
-
-			DRM_DEBUG( "clear front: x=%d y=%d\n",
-				   dev_priv->front_x, dev_priv->front_y );
-			BEGIN_RING( 5 );
-
-			OUT_RING( CCE_PACKET3( R128_CNTL_PAINT_MULTI, 3 ) );
-			OUT_RING( R128_GMC_BRUSH_SOLID_COLOR
-				  | fb_bpp
-				  | R128_GMC_SRC_DATATYPE_COLOR
-				  | R128_ROP3_P
-				  | R128_GMC_CLR_CMP_CNTL_DIS
-				  | R128_GMC_AUX_CLIP_DIS );
-			OUT_RING( clear_color );
-			OUT_RING( (fx << 16) | fy );
-			OUT_RING( (w << 16) | h );
-
-			ADVANCE_RING();
-		}
-
-		if ( flags & R128_BACK ) {
-			int bx = x + dev_priv->back_x;
-			int by = y + dev_priv->back_y;
-
-			DRM_DEBUG( "clear back: x=%d y=%d\n",
-				   dev_priv->back_x, dev_priv->back_y );
-			BEGIN_RING( 5 );
-
-			OUT_RING( CCE_PACKET3( R128_CNTL_PAINT_MULTI, 3 ) );
-			OUT_RING( R128_GMC_BRUSH_SOLID_COLOR
-				  | fb_bpp
-				  | R128_GMC_SRC_DATATYPE_COLOR
-				  | R128_ROP3_P
-				  | R128_GMC_CLR_CMP_CNTL_DIS
-				  | R128_GMC_AUX_CLIP_DIS );
-			OUT_RING( clear_color );
-			OUT_RING( (bx << 16) | by );
-			OUT_RING( (w << 16) | h );
-
-			ADVANCE_RING();
-		}
-
-		if ( flags & R128_DEPTH ) {
-			int dx = x + dev_priv->depth_x;
-			int dy = y + dev_priv->depth_y;
-
-			DRM_DEBUG( "clear depth: x=%d y=%d\n",
-				   dev_priv->depth_x, dev_priv->depth_y );
-			BEGIN_RING( 7 );
-
-			OUT_RING( CCE_PACKET0( R128_DP_WRITE_MASK, 0 ) );
-			OUT_RING( depth_mask );
-
-			OUT_RING( CCE_PACKET3( R128_CNTL_PAINT_MULTI, 3 ) );
-			OUT_RING( R128_GMC_BRUSH_SOLID_COLOR
-				  | depth_bpp
-				  | R128_GMC_SRC_DATATYPE_COLOR
-				  | R128_ROP3_P
-				  | R128_GMC_CLR_CMP_CNTL_DIS
-				  | R128_GMC_AUX_CLIP_DIS );
-			OUT_RING( clear_depth );
-			OUT_RING( (dx << 16) | dy );
-			OUT_RING( (w << 16) | h );
-
-			ADVANCE_RING();
-		}
-#else
 		if ( flags & R128_FRONT ) {
 			BEGIN_RING( 6 );
 
@@ -506,8 +434,7 @@ static void r128_cce_dispatch_clear( drm_device_t *dev,
 				  | R128_GMC_CLR_CMP_CNTL_DIS
 				  | R128_GMC_AUX_CLIP_DIS );
 
-			OUT_RING( ((dev_priv->front_pitch/8) << 21) |
-				  (dev_priv->front_offset >> 5) );
+			OUT_RING( dev_priv->front_pitch_offset_c );
 			OUT_RING( clear_color );
 
 			OUT_RING( (x << 16) | y );
@@ -528,8 +455,7 @@ static void r128_cce_dispatch_clear( drm_device_t *dev,
 				  | R128_GMC_CLR_CMP_CNTL_DIS
 				  | R128_GMC_AUX_CLIP_DIS );
 
-			OUT_RING( ((dev_priv->back_pitch/8) << 21) |
-				  (dev_priv->back_offset >> 5) );
+			OUT_RING( dev_priv->back_pitch_offset_c );
 			OUT_RING( clear_color );
 
 			OUT_RING( (x << 16) | y );
@@ -553,8 +479,7 @@ static void r128_cce_dispatch_clear( drm_device_t *dev,
 				  | R128_GMC_CLR_CMP_CNTL_DIS
 				  | R128_GMC_AUX_CLIP_DIS );
 
-			OUT_RING( ((dev_priv->depth_pitch/8) << 21) |
-				  (dev_priv->depth_offset >> 5) );
+			OUT_RING( dev_priv->depth_pitch_offset_c );
 			OUT_RING( clear_depth );
 
 			OUT_RING( (x << 16) | y );
@@ -562,7 +487,6 @@ static void r128_cce_dispatch_clear( drm_device_t *dev,
 
 			ADVANCE_RING();
 		}
-#endif
 	}
 }
 
@@ -599,35 +523,11 @@ static void r128_cce_dispatch_swap( drm_device_t *dev )
 	}
 
 	for ( i = 0 ; i < nbox ; i++ ) {
-		int fx = pbox[i].x1;
-		int fy = pbox[i].y1;
-		int fw = pbox[i].x2 - fx;
-		int fh = pbox[i].y2 - fy;
-#if USE_OLD_BLITS
-		int bx = fx + dev_priv->back_x;
-		int by = fy + dev_priv->back_y;
+		int x = pbox[i].x1;
+		int y = pbox[i].y1;
+		int w = pbox[i].x2 - x;
+		int h = pbox[i].y2 - y;
 
-		fx += dev_priv->front_x;
-		fy += dev_priv->front_x;
-
-		BEGIN_RING( 5 );
-
-		OUT_RING( CCE_PACKET3( R128_CNTL_BITBLT_MULTI, 3 ) );
-		OUT_RING( R128_GMC_BRUSH_NONE
-			  | R128_GMC_SRC_DATATYPE_COLOR
-			  | R128_DP_SRC_SOURCE_MEMORY
-			  | fb_bpp
-			  | R128_ROP3_S
-			  | R128_GMC_CLR_CMP_CNTL_DIS
-			  | R128_GMC_AUX_CLIP_DIS
-			  | R128_GMC_WR_MSK_DIS );
-
-		OUT_RING( (bx << 16) | by );
-		OUT_RING( (fx << 16) | fy );
-		OUT_RING( (fw << 16) | fh );
-
-		ADVANCE_RING();
-#else
 		BEGIN_RING( 7 );
 
 		OUT_RING( CCE_PACKET3( R128_CNTL_BITBLT_MULTI, 5 ) );
@@ -642,17 +542,23 @@ static void r128_cce_dispatch_swap( drm_device_t *dev )
 			  | R128_GMC_AUX_CLIP_DIS
 			  | R128_GMC_WR_MSK_DIS );
 
-		OUT_RING( ((dev_priv->back_pitch/8) << 21) |
-			  (dev_priv->back_offset >> 5) );
-		OUT_RING( ((dev_priv->front_pitch/8) << 21) |
-			  (dev_priv->front_offset >> 5) );
+#if 1
+		OUT_RING( dev_priv->back_pitch_offset_c );
+		OUT_RING( dev_priv->front_pitch_offset_c );
 
-		OUT_RING( (fx << 16) | fy );
-		OUT_RING( (fx << 16) | fy );
-		OUT_RING( (fw << 16) | fh );
+		OUT_RING( (x << 16) | y );
+		OUT_RING( (x << 16) | y );
+		OUT_RING( (w << 16) | h );
+#else
+		OUT_RING( dev_priv->depth_pitch_offset_c & ~R128_DST_TILE );
+		OUT_RING( dev_priv->front_pitch_offset_c );
+
+		OUT_RING( (0 << 16) | 0 );
+		OUT_RING( (0 << 16) | 0 );
+		OUT_RING( (1024 << 16) | 768 );
+#endif
 
 		ADVANCE_RING();
-#endif
 	}
 
 	/* Increment the frame counter.  The client-side 3D driver must

@@ -86,6 +86,10 @@ typedef struct drm_r128_private {
 	unsigned int depth_x;
 	unsigned int depth_y;
 
+	u32 front_pitch_offset_c;
+	u32 back_pitch_offset_c;
+	u32 depth_pitch_offset_c;
+
 	drm_map_t *sarea;
 	drm_map_t *fb;
 	drm_map_t *mmio;
@@ -232,6 +236,7 @@ extern int  r128_context_switch_complete(drm_device_t *dev, int new);
 #	define R128_ROP3_P			0x00f00000
 #define R128_DP_WRITE_MASK		0x16cc
 #define R128_DST_PITCH_OFFSET_C		0x1c80
+#	define R128_DST_TILE			(1 << 31)
 
 #define R128_GEN_RESET_CNTL		0x00f0
 #	define R128_SOFT_RESET_GUI		(1 <<  0)
