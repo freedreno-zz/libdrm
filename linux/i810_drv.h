@@ -1,4 +1,4 @@
-/* i810_drv.h -- Private header for the i810 -*- linux-c -*-
+/* i810_drv.h -- Private header for the Matrox g200/g400 driver -*- linux-c -*-
  * Created: Mon Dec 13 01:50:01 1999 by jhartmann@precisioninsight.com
  *
  * Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
@@ -41,8 +41,6 @@ extern int  i810_open(struct inode *inode, struct file *filp);
 extern int  i810_release(struct inode *inode, struct file *filp);
 extern int  i810_ioctl(struct inode *inode, struct file *filp,
 			unsigned int cmd, unsigned long arg);
-extern int  i810_lock(struct inode *inode, struct file *filp,
-		       unsigned int cmd, unsigned long arg);
 extern int  i810_unlock(struct inode *inode, struct file *filp,
 			 unsigned int cmd, unsigned long arg);
 
@@ -54,6 +52,11 @@ extern int  i810_irq_install(drm_device_t *dev, int irq);
 extern int  i810_irq_uninstall(drm_device_t *dev);
 extern int  i810_control(struct inode *inode, struct file *filp,
 			  unsigned int cmd, unsigned long arg);
+extern int  i810_lock(struct inode *inode, struct file *filp,
+		       unsigned int cmd, unsigned long arg);
+extern void i810_dma_init(drm_device_t *dev);
+extern void i810_dma_cleanup(drm_device_t *dev);
+
 
 				/* i810_bufs.c */
 extern int  i810_addbufs(struct inode *inode, struct file *filp, 
@@ -66,25 +69,8 @@ extern int  i810_freebufs(struct inode *inode, struct file *filp,
 			 unsigned int cmd, unsigned long arg);
 extern int  i810_mapbufs(struct inode *inode, struct file *filp,
 			unsigned int cmd, unsigned long arg);
-
-				/* i810_context.c */
-extern int  i810_resctx(struct inode *inode, struct file *filp,
+extern int  i810_addmap(struct inode *inode, struct file *filp,
 		       unsigned int cmd, unsigned long arg);
-extern int  i810_addctx(struct inode *inode, struct file *filp,
-		       unsigned int cmd, unsigned long arg);
-extern int  i810_modctx(struct inode *inode, struct file *filp,
-		       unsigned int cmd, unsigned long arg);
-extern int  i810_getctx(struct inode *inode, struct file *filp,
-		       unsigned int cmd, unsigned long arg);
-extern int  i810_switchctx(struct inode *inode, struct file *filp,
-			  unsigned int cmd, unsigned long arg);
-extern int  i810_newctx(struct inode *inode, struct file *filp,
-		       unsigned int cmd, unsigned long arg);
-extern int  i810_rmctx(struct inode *inode, struct file *filp,
-		      unsigned int cmd, unsigned long arg);
-
-extern int  i810_context_switch(drm_device_t *dev, int old, int new);
-extern int  i810_context_switch_complete(drm_device_t *dev, int new);
 
 
 #endif

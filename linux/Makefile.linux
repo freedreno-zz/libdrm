@@ -77,7 +77,7 @@ MGAHEADERS=	mga_drv.h $(DRMHEADERS)
 R128OBJS=	r128_drv.o r128_context.o
 R128HEADERS=	r128_drv.h $(DRMHEADERS)
 
-I810OBJS=	i810_drv.o i810_context.o
+I810OBJS=	i810_drv.o i810_dma.o i810_bufs.o
 I810HEADERS=	i810_drv.h $(DRMHEADERS)
 
 PROGOBJS=       drmstat.po xf86drm.po xf86drmHash.po xf86drmRandom.po sigio.po
