@@ -1182,7 +1182,7 @@ void mga_do_dma_flush( drm_mga_private_t *dev_priv )
 	}
 	primary->space -= MGA_DMA_SOFTRAP_SIZE;
 
-	DRM_DEBUG( "  space = 0x%06lx\n", primary->space );
+	DRM_DEBUG( "  space = 0x%06lx\n", (unsigned long)primary->space );
 
 	primary->last_flush = primary->tail;
 
@@ -1217,7 +1217,7 @@ void mga_do_dma_wrap( drm_mga_private_t *dev_priv )
 	head = *primary->head;
 
 	DRM_DEBUG( "   head = 0x%06lx\n", head - dev_priv->primary->offset );
-	DRM_DEBUG( "   tail = 0x%06lx\n", 0 );
+	DRM_DEBUG( "   tail = 0x%06x\n", 0 );
 
 	if ( head <= tail ) {
 		primary->space = primary->size - primary->tail;
@@ -1226,7 +1226,7 @@ void mga_do_dma_wrap( drm_mga_private_t *dev_priv )
 	}
 	primary->space -= MGA_DMA_SOFTRAP_SIZE;
 
-	DRM_DEBUG( "  space = 0x%06lx\n", primary->space );
+	DRM_DEBUG( "  space = 0x%06lx\n", (unsigned long)primary->space );
 
 	primary->last_flush = 0;
 
@@ -1261,8 +1261,8 @@ static void mga_dma_service( int irq, void *device, struct pt_regs *regs )
 	spin_unlock( &primary->lock );
 
 	DRM_DEBUG( "  *** wrap interrupt:\n" );
-	DRM_DEBUG( "      head = 0x%06x\n", head - dev_priv->primary->offset );
-	DRM_DEBUG( "      tail = 0x%06x\n", tail - dev_priv->primary->offset );
+	DRM_DEBUG( "      head = 0x%06lx\n", head - dev_priv->primary->offset);
+	DRM_DEBUG( "      tail = 0x%06lx\n", tail - dev_priv->primary->offset);
 
 	mga_flush_write_combine();
 	MGA_WRITE( MGA_PRIMADDRESS, head | MGA_DMA_GENERAL );
@@ -1806,8 +1806,8 @@ if ( 0 ) {
 		udelay( 5 );
 
 		DRM_INFO( "\n" );
-		DRM_INFO( "head = 0x%08x 0x%06x\n",
-			  dev_priv->prim.status[0],
+		DRM_INFO( "head = 0x%08lx 0x%06lx\n",
+			  (unsigned long)dev_priv->prim.status[0],
 			  dev_priv->prim.status[0] -
 			  dev_priv->primary->offset );
 		DRM_INFO( "sync = 0x%08x\n", dev_priv->prim.status[1] );
@@ -1820,8 +1820,8 @@ if ( 0 ) {
 	if ( mga_do_wait_for_idle( dev_priv ) < 0 )
 		ret = -EINVAL;
 
-	DRM_INFO( "head = 0x%08x 0x%06x\n",
-		  dev_priv->prim.status[0],
+	DRM_INFO( "head = 0x%08lx 0x%06lx\n",
+		  (unsigned long)dev_priv->prim.status[0],
 		  dev_priv->prim.status[0] - dev_priv->primary->offset );
 	DRM_INFO( "sync = 0x%08x\n", dev_priv->prim.status[1] );
 	DRM_INFO( "\n" );
