@@ -77,9 +77,40 @@ test_and_set_bit(int b, volatile u_int32_t *p)
 	return r;
 }
 
-#define clear_bit(b, p)		atomic_clear_int(p, 1<<(b))
-#define set_bit(b, p)		atomic_set_int(p, 1<<(b))
-#define test_bit(b, p)		(*(u_int32_t*)p & (1<<(b)))
+static __inline void
+clear_bit(int b, volatile u_int32_t *p)
+{
+    atomic_clear_int(p + (b >> 5), 1 << (b & 0x1f));
+}
+
+static __inline void
+set_bit(int b, volatile u_int32_t *p)
+{
+    atomic_set_int(p + (b >> 5), 1 << (b & 0x1f));
+}
+
+static __inline int
+test_bit(int b, volatile u_int32_t *p)
+{
+    return p[b >> 5] & (1 << (b & 0x1f));
+}
+
+static __inline int
+find_first_zero_bit(volatile u_int32_t *p, int max)
+{
+    int b;
+
+    for (b = 0; b < max; b += 32) {
+	if (p[b >> 5]) {
+	    for (;;) {
+		if (p[b >> 5] & (1 << (b & 0x1f)))
+		    return b;
+		b++;
+	    }
+	}
+    }
+    return max;
+}
 
 #define spldrm()		spltty()
 
@@ -125,6 +156,8 @@ test_and_set_bit(int b, volatile u_int32_t *p)
 #define DRM_MEM_TOTALAGP  16
 #define DRM_MEM_BOUNDAGP  17
 #define DRM_MEM_CTXBITMAP 18
+
+#define DRM_MAX_CTXBITMAP (PAGE_SIZE * 8)
 
 				/* Backward compatibility section */
 #ifndef _PAGE_PWT
@@ -496,7 +529,7 @@ typedef struct drm_device {
 #ifdef DRM_AGP
 	drm_agp_head_t    *agp;
 #endif
-	unsigned long     *ctx_bitmap;
+	u_int32_t	  *ctx_bitmap;
 	void		  *dev_private;
 } drm_device_t;
 
