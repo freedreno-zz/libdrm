@@ -95,6 +95,7 @@ typedef struct drm_r128_private {
 
 typedef struct drm_r128_buf_priv {
 	u32 age;
+	int prim;
 	int discard;
 	int dispatched;
    	drm_r128_freelist_t *list_entry;

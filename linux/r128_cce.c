@@ -149,7 +149,7 @@ static int r128_do_pixcache_flush( drm_r128_private_t *dev_priv )
 		udelay( 1 );
 	}
 
-	DRM_DEBUG( "%s failed!\n", __FUNCTION__ );
+	DRM_ERROR( "%s failed!\n", __FUNCTION__ );
 	return -EBUSY;
 }
 
@@ -579,11 +579,15 @@ int r128_cce_stop( struct inode *inode, struct file *filp,
 		DRM_ERROR( "%s called without lock held\n", __FUNCTION__ );
 		return -EINVAL;
 	}
-	if ( !dev_priv )
+	if ( !dev_priv ) {
+		DRM_DEBUG( "%s called before init done\n", __FUNCTION__ );
 		return -EINVAL;
+	}
 
-	if ( !dev_priv->cce_running || dev_priv->cce_mode == R128_PM4_NONPM4 )
+	if ( !dev_priv->cce_running || dev_priv->cce_mode == R128_PM4_NONPM4 ){
+		DRM_DEBUG( "%s while CCE not running\n", __FUNCTION__ );
 		return 0;
+	}
 
 	/* Flush any pending CCE commands.  This ensures any outstanding
 	 * commands are exectuted by the engine before we turn it off.
@@ -621,11 +625,16 @@ int r128_cce_reset( struct inode *inode, struct file *filp,
 		DRM_ERROR( "%s called without lock held\n", __FUNCTION__ );
 		return -EINVAL;
 	}
-	if ( !dev_priv )
+	if ( !dev_priv ) {
+		DRM_DEBUG( "%s called before init done\n", __FUNCTION__ );
 		return -EINVAL;
-
-	if ( !dev_priv->cce_running || dev_priv->cce_mode == R128_PM4_NONPM4 )
+	}
+#if 0
+	if ( !dev_priv->cce_running || dev_priv->cce_mode == R128_PM4_NONPM4 ){
+		DRM_DEBUG( "%s while CCE not running\n", __FUNCTION__ );
 		return 0;
+	}
+#endif
 
 	r128_do_cce_reset( dev_priv );
 

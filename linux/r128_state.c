@@ -507,7 +507,7 @@ static void r128_cce_dispatch_vertex( drm_device_t *dev,
 	int index = buf->idx;
 	int offset = dev_priv->buffers->offset + buf->offset - dev->agp->base;
 	int size = buf->used / (vertsize * sizeof(u32));
-	int prim;
+	int prim = buf_priv->prim;
 	int i = 0;
 	RING_LOCALS;
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
@@ -524,7 +524,9 @@ static void r128_cce_dispatch_vertex( drm_device_t *dev,
 	if ( 0 )
 		r128_print_dirty( "dispatch_vertex", sarea_priv->dirty );
 
+#if 0
 	prim = R128_CCE_VC_CNTL_PRIM_TYPE_TRI_LIST;
+#endif
 
 	if ( buf->used ) {
 		buf_priv->dispatched = 1;
@@ -854,6 +856,11 @@ int r128_cce_vertex( struct inode *inode, struct file *filp,
 			   vertex.idx, dma->buf_count - 1 );
 		return -EINVAL;
 	}
+	if ( vertex.prim < 0 ||
+	     vertex.prim > R128_CCE_VC_CNTL_PRIM_TYPE_TRI_TYPE2 ) {
+		DRM_ERROR( "buffer prim %d\n", vertex.prim );
+		return -EINVAL;
+	}
 
 	buf = dma->buflist[vertex.idx];
 	buf_priv = buf->dev_private;
@@ -869,6 +876,7 @@ int r128_cce_vertex( struct inode *inode, struct file *filp,
 	}
 
 	buf->used = vertex.used;
+	buf_priv->prim = vertex.prim;
 	buf_priv->discard = vertex.discard;
 
 	r128_cce_dispatch_vertex( dev, buf );

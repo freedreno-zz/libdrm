@@ -58,6 +58,15 @@
 #define R128_BACK			0x2
 #define R128_DEPTH			0x4
 
+/* Primitive types
+ */
+#define R128_POINTS			0x1
+#define R128_LINES			0x2
+#define R128_LINE_STRIP			0x3
+#define R128_TRIANGLES			0x4
+#define R128_TRIANGLE_FAN		0x5
+#define R128_TRIANGLE_STRIP		0x6
+
 /* Vertex/indirect buffer size
  */
 #define R128_BUFFER_SIZE		16384
@@ -203,6 +212,7 @@ typedef struct drm_r128_clear {
 } drm_r128_clear_t;
 
 typedef struct drm_r128_vertex {
+	int prim;
 	int idx;			/* Index of vertex buffer */
 	int used;			/* Amount of buffer used */
 	int discard;			/* Client finished with buffer? */
