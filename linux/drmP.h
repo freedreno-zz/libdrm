@@ -71,11 +71,6 @@
 #include <asm/pgalloc.h>
 #include "drm.h"
 
-/* page_to_bus for earlier kernels, not optimal in all cases */
-#ifndef page_to_bus
-#define page_to_bus(page)	((unsigned int)(virt_to_bus(page_address(page))))
-#endif
-
 /* DRM template customization defaults
  */
 #ifndef __HAVE_AGP
@@ -184,6 +179,9 @@
 				/* Mapping helper macros */
 #define DRM_IOREMAP(map)						\
 	(map)->handle = DRM(ioremap)( (map)->offset, (map)->size )
+
+#define DRM_IOREMAP_NOCACHE(map)					\
+	(map)->handle = DRM(ioremap_nocache)((map)->offset, (map)->size)
 
 #define DRM_IOREMAPFREE(map)						\
 	do {								\
@@ -627,6 +625,7 @@ extern unsigned long DRM(alloc_pages)(int order, int area);
 extern void	     DRM(free_pages)(unsigned long address, int order,
 				     int area);
 extern void	     *DRM(ioremap)(unsigned long offset, unsigned long size);
+extern void	     *DRM(ioremap_nocache)(unsigned long offset, unsigned long size);
 extern void	     DRM(ioremapfree)(void *pt, unsigned long size);
 
 #if __REALLY_HAVE_AGP

@@ -39,17 +39,20 @@
 
 #define DRIVER_NAME		"i810"
 #define DRIVER_DESC		"Intel i810"
-#define DRIVER_DATE		"20010917"
+#define DRIVER_DATE		"20020211"
 
 /* Interface history
  *
- * 1.1 - XFree 4.1
+ * 1.1 - XFree86 4.1
  * 1.2 - Disable copying code (leave stub ioctls for backwards compatibility)
  *     - Remove requirement for interrupt (leave stubs again)
+ *     - XvMC interfaces
+ *     - XFree86 4.2
+ * 1.3 - Add VERTEX2 ioctl. (?)
  *
  */
 #define DRIVER_MAJOR		1
-#define DRIVER_MINOR		2
+#define DRIVER_MINOR		3
 #define DRIVER_PATCHLEVEL	0
 
 #define DRIVER_IOCTLS							    \
@@ -61,7 +64,12 @@
 	[DRM_IOCTL_NR(DRM_IOCTL_I810_GETBUF)] = { i810_getbuf,      1, 0 }, \
    	[DRM_IOCTL_NR(DRM_IOCTL_I810_SWAP)]   = { i810_swap_bufs,   1, 0 }, \
    	[DRM_IOCTL_NR(DRM_IOCTL_I810_COPY)]   = { i810_copybuf,     1, 0 }, \
-   	[DRM_IOCTL_NR(DRM_IOCTL_I810_DOCOPY)] = { i810_docopy,      1, 0 }, 
+   	[DRM_IOCTL_NR(DRM_IOCTL_I810_DOCOPY)] = { i810_docopy,      1, 0 }, \
+	[DRM_IOCTL_NR(DRM_IOCTL_I810_OV0INFO)] = { i810_ov0_info,   1, 0 }, \
+	[DRM_IOCTL_NR(DRM_IOCTL_I810_FSTATUS)] = { i810_fstatus,    1, 0 }, \
+	[DRM_IOCTL_NR(DRM_IOCTL_I810_OV0FLIP)] = { i810_ov0_flip,   1, 0 }, \
+	[DRM_IOCTL_NR(DRM_IOCTL_I810_MC)]      = { i810_dma_mc,     1, 1 }, \
+	[DRM_IOCTL_NR(DRM_IOCTL_I810_RSTATUS)] = { i810_rstatus,    1, 0 }
 
 
 #define __HAVE_COUNTERS         4
