@@ -313,10 +313,6 @@ struct drm_driver_fn {
 	int (*kernel_context_switch)(struct drm_device *dev, int old, int new);
 	int (*kernel_context_switch_unlock)(struct drm_device *dev);
 	int (*dma_schedule)(struct drm_device *dev, int locked);
-	int (*waitlist_destroy)(drm_waitlist_t *bl);	
-	int (*freelist_create)(drm_freelist_t *bl, int count);
-	int (*freelist_put)(struct drm_device *dev, drm_freelist_t *bl, drm_buf_t *buf);
-	int (*freelist_destroy)(drm_freelist_t *bl);
 };
 
 struct drm_device {
