@@ -40,6 +40,11 @@
 /* Currently Savage4 not implement DMA */
 /* mark off by Jiayo Hsu, Oct. 23, 2001*/
 
+#ifdef DO_MUNMAP_4_ARGS
+#define DO_MUNMAP(m, a, l)	do_munmap(m, a, l, 1)
+#else
+#define DO_MUNMAP(m, a, l)	do_munmap(m, a, l)
+#endif
 
 #define DRIVER_IOCTLS \
 	[DRM_IOCTL_NR(DRM_IOCTL_SAVAGE_ALLOC_CONTINUOUS_MEM)] \
@@ -97,10 +102,10 @@ int savage_alloc_continuous_mem(struct inode *inode, struct file *filp,
   /*Map the memory to user space*/
   down_write(&current->mm->mmap_sem);
   addr=do_mmap(NULL,0,size,PROT_READ|PROT_WRITE,MAP_PRIVATE,cont_mem.phyaddress);
-  if (addr<=0)
+  if (addr <= 0)
     return -EFAULT;
   pgprot_val(flags)=_PAGE_PRESENT | _PAGE_RW |_PAGE_USER ;
-  if (remap_page_range(addr,cont_mem.phyaddress,size,flags))
+  if (remap_page_range(DRM_RPR_ARG(NULL) addr,cont_mem.phyaddress,size,flags))
     return -EFAULT;
   up_write(&current->mm->mmap_sem);
   
@@ -164,7 +169,7 @@ int savage_get_physics_address(struct inode *inode, struct file *filp,
   
   pgd=pgd_offset(mm,buf);
   pmd=pmd_offset(pgd,buf);
-  pte=pte_offset(pmd,buf);
+  pte=pte_offset_kernel(pmd,buf);
   
   if (!pte_present(*pte))
     return -EFAULT;
@@ -215,11 +220,7 @@ int savage_free_cont_mem(struct inode *inode, struct file *filp,
   DRM(free)(list, sizeof(*list), DRM_MEM_MAPS);
 
   /*unmap the user space */
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,4,18))
-  if ( do_munmap(current->mm,cont_mem.linear,size,1)!=0)
-#else
-  if ( do_munmap(current->mm,cont_mem.linear,size)!=0)
-#endif
+  if ( DO_MUNMAP(current->mm,cont_mem.linear,size)!=0)
     return -EFAULT;
   /*free the page*/
   free_pages((unsigned long)map->handle, get_order(size));
