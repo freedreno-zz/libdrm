@@ -33,9 +33,6 @@
 #include "sis_drm.h"
 #include "sis_ds.h"
 #include "sis_drv.h"
-#include <linux/fb.h>
-#include <linux/sisfb.h>
-#include <linux/interrupt.h>
 
 #define MAX_CONTEXT 100
 #define VIDEO_TYPE 0 
@@ -73,7 +70,7 @@ static int del_alloc_set(int context, int type, unsigned int val)
 }
 
 /* fb management via fb device */ 
-#if 1
+#if 0
 int sis_fb_alloc(struct inode *inode, struct file *filp, unsigned int cmd,
 		  unsigned long arg)
 {
@@ -81,7 +78,8 @@ int sis_fb_alloc(struct inode *inode, struct file *filp, unsigned int cmd,
   struct sis_memreq req;
   int retval = 0;
    
-  copy_from_user_ret(&fb, (drm_sis_mem_t *)arg, sizeof(fb), -EFAULT);
+  if (copy_from_user(&fb, (drm_sis_mem_t *)arg, sizeof(fb)))
+	  return -EFAULT;
   
   req.size = fb.size;
   sis_malloc(&req);
@@ -101,7 +99,7 @@ int sis_fb_alloc(struct inode *inode, struct file *filp, unsigned int cmd,
     fb.free = 0;
   }
    
-  copy_to_user_ret((drm_sis_mem_t *)arg, &fb, sizeof(fb), -EFAULT);
+  if (copy_to_user((drm_sis_mem_t *)arg, &fb, sizeof(fb))) return -EFAULT;
 
   DRM_DEBUG("alloc fb, size = %d, offset = %ld\n", fb.size, req.offset);
 
@@ -114,7 +112,8 @@ int sis_fb_free(struct inode *inode, struct file *filp, unsigned int cmd,
   drm_sis_mem_t fb;
   int retval = 0;
     
-  copy_from_user_ret(&fb, (drm_sis_mem_t *)arg, sizeof(fb), -EFAULT);
+  if (copy_from_user(&fb, (drm_sis_mem_t *)arg, sizeof(fb)))
+	  return -EFAULT;
   
   if(!fb.free){
     return -1;
@@ -155,7 +154,8 @@ int sis_agp_init(struct inode *inode, struct file *filp, unsigned int cmd,
 {
   drm_sis_agp_t agp;
    
-  copy_from_user_ret(&agp, (drm_sis_agp_t *)arg, sizeof(agp), -EFAULT);
+  if (copy_from_user(&agp, (drm_sis_agp_t *)arg, sizeof(agp)))
+	  return -EFAULT;
 
   AgpHeap = mmInit(agp.offset, agp.size);
 
@@ -174,7 +174,8 @@ int sis_agp_alloc(struct inode *inode, struct file *filp, unsigned int cmd,
   if(!AgpHeap)
     return -1;
   
-  copy_from_user_ret(&agp, (drm_sis_mem_t *)arg, sizeof(agp), -EFAULT);
+  if (copy_from_user(&agp, (drm_sis_mem_t *)arg, sizeof(agp)))
+	  return -EFAULT;
   
   block = mmAllocMem(AgpHeap, agp.size, 0, 0);
   if(block){
@@ -193,7 +194,7 @@ int sis_agp_alloc(struct inode *inode, struct file *filp, unsigned int cmd,
     agp.free = 0;
   }
    
-  copy_to_user_ret((drm_sis_mem_t *)arg, &agp, sizeof(agp), -EFAULT);
+  if (copy_to_user((drm_sis_mem_t *)arg, &agp, sizeof(agp))) return -EFAULT;
 
   DRM_DEBUG("alloc agp, size = %d, offset = %d\n", agp.size, agp.offset);
 
@@ -209,7 +210,8 @@ int sis_agp_free(struct inode *inode, struct file *filp, unsigned int cmd,
   if(!AgpHeap)
     return -1;
     
-  copy_from_user_ret(&agp, (drm_sis_mem_t *)arg, sizeof(agp), -EFAULT);
+  if (copy_from_user(&agp, (drm_sis_mem_t *)arg, sizeof(agp)))
+	  return -EFAULT;
   
   if(!agp.free){
     return -1;

@@ -10,11 +10,11 @@
  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
  * and/or sell copies of the Software, and to permit persons to whom the
  * Software is furnished to do so, subject to the following conditions:
- * 
+ *
  * The above copyright notice and this permission notice (including the next
  * paragraph) shall be included in all copies or substantial portions of the
  * Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
@@ -72,7 +72,7 @@ static drm_ioctl_desc_t	      sis_ioctls[] = {
 	[DRM_IOCTL_NR(DRM_IOCTL_UNBLOCK)]    = { drm_unblock,	  1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_AUTH_MAGIC)] = { drm_authmagic,	  1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_ADD_MAP)]    = { drm_addmap,	  1, 1 },
-	
+
 	[DRM_IOCTL_NR(DRM_IOCTL_ADD_CTX)]    = { sis_addctx,	  1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_RM_CTX)]     = { sis_rmctx,	  1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_MOD_CTX)]    = { sis_modctx,	  1, 1 },
@@ -103,7 +103,7 @@ static drm_ioctl_desc_t	      sis_ioctls[] = {
         [DRM_IOCTL_NR(SIS_IOCTL_AGP_INIT)]   = { sis_agp_init,	  1, 1 },
         [DRM_IOCTL_NR(SIS_IOCTL_AGP_ALLOC)]  = { sis_agp_alloc,	  1, 1 },
         [DRM_IOCTL_NR(SIS_IOCTL_AGP_FREE)]   = { sis_agp_free,	  1, 1 },
-        
+
 #if defined(SIS_STEREO)
 	[DRM_IOCTL_NR(DRM_IOCTL_CONTROL)]    = { sis_control,	  1, 1 },
         [DRM_IOCTL_NR(SIS_IOCTL_FLIP)]       = { sis_flip,	  1, 1 },
@@ -139,7 +139,7 @@ __setup("sis=", sis_options);
 static int sis_setup(drm_device_t *dev)
 {
 	int i;
-	
+
 	atomic_set(&dev->ioctl_count, 0);
 	atomic_set(&dev->vma_count, 0);
 	dev->buf_use	  = 0;
@@ -181,7 +181,7 @@ static int sis_setup(drm_device_t *dev)
 
 	dev->ctx_start	    = 0;
 	dev->lck_start	    = 0;
-	
+
 	dev->buf_rp	  = dev->buf;
 	dev->buf_wp	  = dev->buf;
 	dev->buf_end	  = dev->buf + DRM_BSZ;
@@ -190,15 +190,15 @@ static int sis_setup(drm_device_t *dev)
 	init_waitqueue_head(&dev->buf_writers);
 
 	sis_res_ctx.handle=-1;
-			
+
 	DRM_DEBUG("\n");
-			
+
 	/* The kernel's context could be created here, but is now created
 	   in drm_dma_enqueue.	This is more resource-efficient for
 	   hardware that does not do DMA, but may mean that
 	   drm_select_queue fails between the time the interrupt is
 	   initialized and the time the queues are initialized. */
-			
+
 	return 0;
 }
 
@@ -218,12 +218,12 @@ static int sis_takedown(drm_device_t *dev)
 
 	down(&dev->struct_sem);
 	del_timer(&dev->timer);
-	
+
 	if (dev->devname) {
 		drm_free(dev->devname, strlen(dev->devname)+1, DRM_MEM_DRIVER);
 		dev->devname = NULL;
 	}
-	
+
 	if (dev->unique) {
 		drm_free(dev->unique, strlen(dev->unique)+1, DRM_MEM_DRIVER);
 		dev->unique = NULL;
@@ -242,7 +242,7 @@ static int sis_takedown(drm_device_t *dev)
 	if (dev->agp) {
 		drm_agp_mem_t *temp;
 		drm_agp_mem_t *temp_next;
-	   
+
 		temp = dev->agp->memory;
 		while(temp != NULL) {
 			temp_next = temp->next;
@@ -250,7 +250,7 @@ static int sis_takedown(drm_device_t *dev)
 			drm_free(temp, sizeof(*temp), DRM_MEM_AGPLISTS);
 			temp = temp_next;
 		}
-		if (dev->agp->acquired) (*drm_agp.release)();
+		if (dev->agp->acquired) _drm_agp_release();
 	}
 #endif
 				/* Clear vma list (only built for debugging) */
@@ -261,7 +261,7 @@ static int sis_takedown(drm_device_t *dev)
 		}
 		dev->vmalist = NULL;
 	}
-	
+
 				/* Clear map area and mtrr information */
 	if (dev->maplist) {
 		for (i = 0; i < dev->map_count; i++) {
@@ -299,14 +299,14 @@ static int sis_takedown(drm_device_t *dev)
 		dev->maplist   = NULL;
 		dev->map_count = 0;
 	}
-	
+
 	if (dev->lock.hw_lock) {
 		dev->lock.hw_lock    = NULL; /* SHM removed */
 		dev->lock.pid	     = 0;
 		wake_up_interruptible(&dev->lock.lock_queue);
 	}
 	up(&dev->struct_sem);
-	
+
 	return 0;
 }
 
@@ -323,7 +323,7 @@ static int sis_init(void)
 	memset((void *)dev, 0, sizeof(*dev));
 	dev->count_lock	  = SPIN_LOCK_UNLOCKED;
 	sema_init(&dev->struct_sem, 1);
-	
+
 #ifdef MODULE
 	drm_parse_options(sis);
 #endif
@@ -355,7 +355,7 @@ static int sis_init(void)
 		 SIS_PATCHLEVEL,
 		 SIS_DATE,
 		 sis_misc.minor);
-	
+
 	return 0;
 }
 
@@ -366,7 +366,7 @@ static void sis_cleanup(void)
 	drm_device_t	      *dev = &sis_device;
 
 	DRM_DEBUG("\n");
-	
+
 	drm_proc_cleanup();
 	if (misc_deregister(&sis_misc)) {
 		DRM_ERROR("Cannot unload module\n");
@@ -394,17 +394,16 @@ int sis_version(struct inode *inode, struct file *filp, unsigned int cmd,
 	drm_version_t version;
 	int	      len;
 
-	copy_from_user_ret(&version,
-			   (drm_version_t *)arg,
-			   sizeof(version),
-			   -EFAULT);
+	if (copy_from_user(&version, (drm_version_t *)arg, sizeof(version)))
+		return -EFAULT;
 
 #define DRM_COPY(name,value)				     \
 	len = strlen(value);				     \
 	if (len > name##_len) len = name##_len;		     \
 	name##_len = strlen(value);			     \
 	if (len && name) {				     \
-		copy_to_user_ret(name, value, len, -EFAULT); \
+		if (copy_to_user(name, value, len))          \
+			return -EFAULT;                      \
 	}
 
 	version.version_major	   = SIS_MAJOR;
@@ -415,10 +414,8 @@ int sis_version(struct inode *inode, struct file *filp, unsigned int cmd,
 	DRM_COPY(version.date, SIS_DATE);
 	DRM_COPY(version.desc, SIS_DESC);
 
-	copy_to_user_ret((drm_version_t *)arg,
-			 &version,
-			 sizeof(version),
-			 -EFAULT);
+	if (copy_to_user((drm_version_t *)arg, &version, sizeof(version)))
+		return -EFAULT;
 	return 0;
 }
 
@@ -426,7 +423,7 @@ int sis_open(struct inode *inode, struct file *filp)
 {
 	drm_device_t  *dev    = &sis_device;
 	int	      retcode = 0;
-	
+
 	DRM_DEBUG("open_count = %d\n", dev->open_count);
 	if (!(retcode = drm_open_helper(inode, filp, dev))) {
 #if LINUX_VERSION_CODE < 0x020333
@@ -494,7 +491,7 @@ int sis_ioctl(struct inode *inode, struct file *filp, unsigned int cmd,
 	atomic_inc(&dev->ioctl_count);
 	atomic_inc(&dev->total_ioctl);
 	++priv->ioctl_count;
-	
+
 	DRM_DEBUG("pid = %d, cmd = 0x%02x, nr = 0x%02x, dev 0x%x, auth = %d\n",
 		  current->pid, cmd, nr, dev->device, priv->authenticated);
 
@@ -514,7 +511,7 @@ int sis_ioctl(struct inode *inode, struct file *filp, unsigned int cmd,
 			retcode = (func)(inode, filp, cmd, arg);
 		}
 	}
-	
+
 	atomic_dec(&dev->ioctl_count);
 	return retcode;
 }
@@ -533,7 +530,8 @@ int sis_lock(struct inode *inode, struct file *filp, unsigned int cmd,
         dev->lck_start = start = get_cycles();
 #endif
 
-        copy_from_user_ret(&lock, (drm_lock_t *)arg, sizeof(lock), -EFAULT);
+        if (copy_from_user(&lock, (drm_lock_t *)arg, sizeof(lock)))
+		return -EFAULT;
 
         if (lock.context == DRM_KERNEL_CONTEXT) {
                 DRM_ERROR("Process %d using kernel context %d\n",
@@ -551,7 +549,7 @@ int sis_lock(struct inode *inode, struct file *filp, unsigned int cmd,
         if (lock.context < 0 || lock.context >= dev->queue_count)
                 return -EINVAL;
 #endif
-        
+
         if (!ret) {
 #if 0
                 if (_DRM_LOCKING_CONTEXT(dev->lock.hw_lock->lock)
@@ -563,7 +561,7 @@ int sis_lock(struct inode *inode, struct file *filp, unsigned int cmd,
                                 /* Can't take lock if we just had it and
                                    there is contention. */
                                 DRM_DEBUG("%d (pid %d) delayed j=%d dev=%d jiffies=%d\n",
-					lock.context, current->pid, j, 
+					lock.context, current->pid, j,
 					dev->lock.lock_time, jiffies);
                                 current->state = TASK_INTERRUPTIBLE;
 				current->policy |= SCHED_YIELD;
@@ -587,7 +585,7 @@ int sis_lock(struct inode *inode, struct file *filp, unsigned int cmd,
                                 atomic_inc(&dev->total_locks);
                                 break;  /* Got lock */
                         }
-                        
+
                                 /* Contention */
                         atomic_inc(&dev->total_sleeps);
 #if 1
@@ -655,7 +653,7 @@ int sis_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 #if DRM_DMA_HISTOGRAM
         atomic_inc(&dev->histo.lacq[drm_histogram_slot(get_cycles() - start)]);
 #endif
-        
+
         return ret;
 }
 
@@ -667,8 +665,9 @@ int sis_unlock(struct inode *inode, struct file *filp, unsigned int cmd,
 	drm_device_t	  *dev	  = priv->dev;
 	drm_lock_t	  lock;
 
-	copy_from_user_ret(&lock, (drm_lock_t *)arg, sizeof(lock), -EFAULT);
-	
+	if (copy_from_user(&lock, (drm_lock_t *)arg, sizeof(lock)))
+		return -EFAULT;
+
 	if (lock.context == DRM_KERNEL_CONTEXT) {
 		DRM_ERROR("Process %d using kernel context %d\n",
 			  current->pid, lock.context);

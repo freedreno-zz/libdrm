@@ -11,11 +11,11 @@
  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
  * and/or sell copies of the Software, and to permit persons to whom the
  * Software is furnished to do so, subject to the following conditions:
- * 
+ *
  * The above copyright notice and this permission notice (including the next
  * paragraph) shall be included in all copies or substantial portions of the
  * Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
@@ -23,12 +23,12 @@
  * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
- * 
+ *
  * Authors:
  *    Rickard E. (Rik) Faith <faith@valinux.com>
  *    Daryll Strauss <daryll@valinux.com>
  *    Sung-Ching Lin <sclin@sis.com.tw>
- * 
+ *
  */
 
 #define __NO_VERSION__
@@ -56,21 +56,21 @@ int sis_context_switch(drm_device_t *dev, int old, int new)
 #if DRM_DMA_HISTOGRAM
         dev->ctx_start = get_cycles();
 #endif
-        
+
         DRM_DEBUG("Context switch from %d to %d\n", old, new);
 
         if (new == dev->last_context) {
                 clear_bit(0, &dev->context_flag);
                 return 0;
         }
-        
+
         if (drm_flags & DRM_FLAG_NOCTX) {
                 sis_context_switch_complete(dev, new);
         } else {
                 sprintf(buf, "C %d %d\n", old, new);
                 drm_write_string(dev, buf);
         }
-        
+
         return 0;
 }
 
@@ -78,7 +78,7 @@ int sis_context_switch_complete(drm_device_t *dev, int new)
 {
         dev->last_context = new;  /* PRE/POST: This is the _only_ writer. */
         dev->last_switch  = jiffies;
-        
+
         if (!_DRM_LOCK_IS_HELD(dev->lock.hw_lock->lock)) {
                 DRM_ERROR("Lock isn't held after context switch\n");
         }
@@ -89,11 +89,11 @@ int sis_context_switch_complete(drm_device_t *dev, int new)
 #if DRM_DMA_HISTOGRAM
         atomic_inc(&dev->histo.ctx[drm_histogram_slot(get_cycles()
                                                       - dev->ctx_start)]);
-                   
+
 #endif
         clear_bit(0, &dev->context_flag);
         wake_up(&dev->context_wait);
-        
+
         return 0;
 }
 
@@ -106,19 +106,19 @@ int sis_resctx(struct inode *inode, struct file *filp, unsigned int cmd,
 	int		i;
 
 	DRM_DEBUG("%d\n", DRM_RESERVED_CONTEXTS);
-	copy_from_user_ret(&res, (drm_ctx_res_t *)arg, sizeof(res), -EFAULT);
+	if (copy_from_user(&res, (drm_ctx_res_t *)arg, sizeof(res)))
+		return -EFAULT;
 	if (res.count >= DRM_RESERVED_CONTEXTS) {
 		memset(&ctx, 0, sizeof(ctx));
 		for (i = 0; i < DRM_RESERVED_CONTEXTS; i++) {
 			ctx.handle = i;
-			copy_to_user_ret(&res.contexts[i],
-					 &i,
-					 sizeof(i),
-					 -EFAULT);
+			if (copy_to_user(&res.contexts[i], &i, sizeof(i)))
+				return -EFAULT;
 		}
 	}
 	res.count = DRM_RESERVED_CONTEXTS;
-	copy_to_user_ret((drm_ctx_res_t *)arg, &res, sizeof(res), -EFAULT);
+	if (copy_to_user((drm_ctx_res_t *)arg, &res, sizeof(res)))
+		return -EFAULT;
 	return 0;
 }
 
@@ -130,7 +130,8 @@ int sis_addctx(struct inode *inode, struct file *filp, unsigned int cmd,
 	drm_device_t	*dev	= priv->dev;
 	drm_ctx_t	ctx;
 
-	copy_from_user_ret(&ctx, (drm_ctx_t *)arg, sizeof(ctx), -EFAULT);
+	if (copy_from_user(&ctx, (drm_ctx_t *)arg, sizeof(ctx)))
+		return -EFAULT;
 	if ((ctx.handle = sis_alloc_queue(dev)) == DRM_KERNEL_CONTEXT) {
 				/* Skip kernel's context and get a new one. */
 		ctx.handle = sis_alloc_queue(dev);
@@ -141,11 +142,12 @@ int sis_addctx(struct inode *inode, struct file *filp, unsigned int cmd,
 				/* Should this return -EBUSY instead? */
 		return -ENOMEM;
 	}
-   
+
 	/* new added */
 	sis_init_context(ctx.handle);
 
-	copy_to_user_ret((drm_ctx_t *)arg, &ctx, sizeof(ctx), -EFAULT);
+	if (copy_to_user((drm_ctx_t *)arg, &ctx, sizeof(ctx)))
+		return -EFAULT;
 	return 0;
 }
 
@@ -154,7 +156,8 @@ int sis_modctx(struct inode *inode, struct file *filp, unsigned int cmd,
 {
 	drm_ctx_t ctx;
 
-	copy_from_user_ret(&ctx, (drm_ctx_t*)arg, sizeof(ctx), -EFAULT);
+	if (copy_from_user(&ctx, (drm_ctx_t*)arg, sizeof(ctx)))
+		return -EFAULT;
 	if (ctx.flags==_DRM_CONTEXT_PRESERVED)
 		sis_res_ctx.handle=ctx.handle;
 	return 0;
@@ -165,10 +168,12 @@ int sis_getctx(struct inode *inode, struct file *filp, unsigned int cmd,
 {
 	drm_ctx_t ctx;
 
-	copy_from_user_ret(&ctx, (drm_ctx_t*)arg, sizeof(ctx), -EFAULT);
+	if (copy_from_user(&ctx, (drm_ctx_t*)arg, sizeof(ctx)))
+		return -EFAULT;
 	/* This is 0, because we don't hanlde any context flags */
 	ctx.flags = 0;
-	copy_to_user_ret((drm_ctx_t*)arg, &ctx, sizeof(ctx), -EFAULT);
+	if (copy_to_user((drm_ctx_t*)arg, &ctx, sizeof(ctx)))
+		return -EFAULT;
 	return 0;
 }
 
@@ -179,7 +184,8 @@ int sis_switchctx(struct inode *inode, struct file *filp, unsigned int cmd,
 	drm_device_t	*dev	= priv->dev;
 	drm_ctx_t	ctx;
 
-	copy_from_user_ret(&ctx, (drm_ctx_t *)arg, sizeof(ctx), -EFAULT);
+	if (copy_from_user(&ctx, (drm_ctx_t *)arg, sizeof(ctx)))
+		return -EFAULT;
 	DRM_DEBUG("%d\n", ctx.handle);
 	return sis_context_switch(dev, dev->last_context, ctx.handle);
 }
@@ -191,7 +197,8 @@ int sis_newctx(struct inode *inode, struct file *filp, unsigned int cmd,
 	drm_device_t	*dev	= priv->dev;
 	drm_ctx_t	ctx;
 
-	copy_from_user_ret(&ctx, (drm_ctx_t *)arg, sizeof(ctx), -EFAULT);
+	if (copy_from_user(&ctx, (drm_ctx_t *)arg, sizeof(ctx)))
+		return -EFAULT;
 	DRM_DEBUG("%d\n", ctx.handle);
 	sis_context_switch_complete(dev, ctx.handle);
 
@@ -205,7 +212,8 @@ int sis_rmctx(struct inode *inode, struct file *filp, unsigned int cmd,
 	drm_device_t    *dev    = priv->dev;
 	drm_ctx_t	ctx;
 
-	copy_from_user_ret(&ctx, (drm_ctx_t *)arg, sizeof(ctx), -EFAULT);
+	if (copy_from_user(&ctx, (drm_ctx_t *)arg, sizeof(ctx)))
+		return -EFAULT;
 	DRM_DEBUG("%d\n", ctx.handle);
 	drm_ctxbitmap_free(dev, ctx.handle);
 
