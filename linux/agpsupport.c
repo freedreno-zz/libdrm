@@ -55,14 +55,22 @@ typedef struct drm_agp_fill {
 } drm_agp_fill_t;
 
 static drm_agp_fill_t drm_agp_fill[] = {
-	{ "agp_free_memory",     (drm_agp_func_u *)&drm_agp.free_memory     },
-	{ "agp_allocate_memory", (drm_agp_func_u *)&drm_agp.allocate_memory },
-	{ "agp_bind_memory",     (drm_agp_func_u *)&drm_agp.bind_memory     },
-	{ "agp_unbind_memory",   (drm_agp_func_u *)&drm_agp.unbind_memory   },
-	{ "agp_enable",          (drm_agp_func_u *)&drm_agp.enable          },
-	{ "agp_backend_acquire", (drm_agp_func_u *)&drm_agp.acquire         },
-	{ "agp_backend_release", (drm_agp_func_u *)&drm_agp.release         },
-	{ "agp_copy_info",       (drm_agp_func_u *)&drm_agp.copy_info       },
+	{ __MODULE_STRING(agp_free_memory),
+	   (drm_agp_func_u *)&drm_agp.free_memory     },
+	{ __MODULE_STRING(agp_allocate_memory), 
+	   (drm_agp_func_u *)&drm_agp.allocate_memory },
+	{ __MODULE_STRING(agp_bind_memory),     
+	   (drm_agp_func_u *)&drm_agp.bind_memory     },
+	{ __MODULE_STRING(agp_unbind_memory),   
+	   (drm_agp_func_u *)&drm_agp.unbind_memory   },
+	{ __MODULE_STRING(agp_enable),          
+	   (drm_agp_func_u *)&drm_agp.enable          },
+	{ __MODULE_STRING(agp_backend_acquire), 
+	   (drm_agp_func_u *)&drm_agp.acquire         },
+	{ __MODULE_STRING(agp_backend_release), 
+	   (drm_agp_func_u *)&drm_agp.release         },
+	{ __MODULE_STRING(agp_copy_info),       
+	   (drm_agp_func_u *)&drm_agp.copy_info       },
 	{ NULL, NULL }
 };
 
@@ -257,10 +265,15 @@ drm_agp_head_t *drm_agp_init(void)
 
 	for (fill = &drm_agp_fill[0]; fill->name; fill++) {
 		char *n  = (char *)fill->name;
+#if 0
+		*fill->f = (drm_agp_func_u)get_module_symbol(NULL, n);
+#endif
 		*fill->f = (drm_agp_func_u)get_module_symbol(NULL, n);
 		DRM_DEBUG("%s resolves to 0x%08lx\n", n, (*fill->f).address);
 		if (!(*fill->f).address) agp_available = 0;
 	}
+   
+	printk("agp_available = %d\n", agp_available);
 
 	if (agp_available) {
 		if (!(head = drm_alloc(sizeof(*head), DRM_MEM_AGPLISTS)))
