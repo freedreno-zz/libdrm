@@ -192,6 +192,7 @@ static int mga_dma_initialize(drm_device_t *dev, drm_mga_init_t *init) {
 			for(i = 0 ; i < 4096; i++) mga_delay();
 		}
 
+	   	MGA_WRITE(MGAREG_PRIMADDRESS, phys_head | TT_GENERAL);
 
 		MGA_WRITE(MGAREG_PRIMEND, ((phys_head + num_dwords * 4) | 
 					   PDEA_pagpxfer_enable));
