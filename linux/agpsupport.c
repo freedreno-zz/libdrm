@@ -269,7 +269,7 @@ drm_agp_head_t *drm_agp_init(void)
 		*fill->f = (drm_agp_func_u)get_module_symbol(NULL, n);
 #endif
 		*fill->f = (drm_agp_func_u)get_module_symbol(NULL, n);
-		DRM_DEBUG("%s resolves to 0x%08lx\n", n, (*fill->f).address);
+		printk("%s resolves to 0x%08lx\n", n, (*fill->f).address);
 		if (!(*fill->f).address) agp_available = 0;
 	}
    

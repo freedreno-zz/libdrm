@@ -37,7 +37,7 @@ EXPORT_SYMBOL(i810_init);
 EXPORT_SYMBOL(i810_cleanup);
 
 #define I810_NAME	 "i810"
-#define I810_DESC	 "Matrox g200/g400"
+#define I810_DESC	 "Intel i810"
 #define I810_DATE	 "19991213"
 #define I810_MAJOR	 0
 #define I810_MINOR	 0
@@ -71,14 +71,19 @@ static drm_ioctl_desc_t	      i810_ioctls[] = {
 	[DRM_IOCTL_NR(DRM_IOCTL_SET_UNIQUE)] = { drm_setunique,	  1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_BLOCK)]	     = { drm_block,	  1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_UNBLOCK)]    = { drm_unblock,	  1, 1 },
+#if 0
 	[DRM_IOCTL_NR(DRM_IOCTL_CONTROL)]    = { i810_control,	  1, 1 },
+#endif
 	[DRM_IOCTL_NR(DRM_IOCTL_AUTH_MAGIC)] = { drm_authmagic,	  1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_ADD_MAP)]    = { drm_addmap,	  1, 1 },
+
+#if 0
 	[DRM_IOCTL_NR(DRM_IOCTL_ADD_BUFS)]   = { i810_addbufs,	  1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_MARK_BUFS)]  = { i810_markbufs,	  1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_INFO_BUFS)]  = { i810_infobufs,	  1, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_MAP_BUFS)]   = { i810_mapbufs,	  1, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_FREE_BUFS)]  = { i810_freebufs,	  1, 0 },
+#endif
 
 	[DRM_IOCTL_NR(DRM_IOCTL_ADD_CTX)]    = { i810_addctx,	  1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_RM_CTX)]     = { i810_rmctx,	  1, 1 },
@@ -99,7 +104,7 @@ static drm_ioctl_desc_t	      i810_ioctls[] = {
         [DRM_IOCTL_NR(DRM_IOCTL_AGP_ACQUIRE)]	= {drm_agp_acquire, 1, 1},
         [DRM_IOCTL_NR(DRM_IOCTL_AGP_RELEASE)]	= {drm_agp_release, 1, 1},
         [DRM_IOCTL_NR(DRM_IOCTL_AGP_ENABLE)]	= {drm_agp_enable,  1, 1},
-        [DRM_IOCTL_NR(DRM_IOCTL_AGP_INFO)]	= {drm_agp_info,    1, 1},
+        [DRM_IOCTL_NR(DRM_IOCTL_AGP_INFO)]	= {drm_agp_info,    1, 0},
         [DRM_IOCTL_NR(DRM_IOCTL_AGP_ALLOC)]	= {drm_agp_alloc,   1, 1},
         [DRM_IOCTL_NR(DRM_IOCTL_AGP_FREE)]	= {drm_agp_free,    1, 1},
         [DRM_IOCTL_NR(DRM_IOCTL_AGP_BIND)]	= {drm_agp_unbind,  1, 1},
@@ -228,7 +233,7 @@ static int i810_takedown(drm_device_t *dev)
 
 	DRM_DEBUG("\n");
 
-	if (dev->irq) i810_irq_uninstall(dev);
+/*  	if (dev->irq) i810_irq_uninstall(dev); */
 	
 	down(&dev->struct_sem);
 	del_timer(&dev->timer);
@@ -552,33 +557,7 @@ int i810_lock(struct inode *inode, struct file *filp, unsigned int cmd,
                   lock.context, current->pid, dev->lock.hw_lock->lock,
                   lock.flags);
 
-#if 0
-				/* dev->queue_count == 0 right now for
-                                   i810.  FIXME? */
-        if (lock.context < 0 || lock.context >= dev->queue_count)
-                return -EINVAL;
-#endif
-        
         if (!ret) {
-#if 0
-                if (_DRM_LOCKING_CONTEXT(dev->lock.hw_lock->lock)
-                    != lock.context) {
-                        long j = jiffies - dev->lock.lock_time;
-
-                        if (lock.context == i810_res_ctx.handle &&
-				j >= 0 && j < DRM_LOCK_SLICE) {
-                                /* Can't take lock if we just had it and
-                                   there is contention. */
-                                DRM_DEBUG("%d (pid %d) delayed j=%d dev=%d jiffies=%d\n",
-					lock.context, current->pid, j, 
-					dev->lock.lock_time, jiffies);
-                                current->state = TASK_INTERRUPTIBLE;
-				current->policy |= SCHED_YIELD;
-                                schedule_timeout(DRM_LOCK_SLICE-j);
-				DRM_DEBUG("jiffies=%d\n", jiffies);
-                        }
-                }
-#endif
                 add_wait_queue(&dev->lock.lock_queue, &entry);
                 for (;;) {
                         if (!dev->lock.hw_lock) {
@@ -597,9 +576,7 @@ int i810_lock(struct inode *inode, struct file *filp, unsigned int cmd,
                                 /* Contention */
                         atomic_inc(&dev->total_sleeps);
                         current->state = TASK_INTERRUPTIBLE;
-#if 1
 			current->policy |= SCHED_YIELD;
-#endif
                         schedule();
                         if (signal_pending(current)) {
                                 ret = -ERESTARTSYS;
@@ -610,58 +587,20 @@ int i810_lock(struct inode *inode, struct file *filp, unsigned int cmd,
                 remove_wait_queue(&dev->lock.lock_queue, &entry);
         }
 
-#if 0
-	if (!ret && dev->last_context != lock.context &&
-		lock.context != i810_res_ctx.handle &&
-		dev->last_context != i810_res_ctx.handle) {
-		add_wait_queue(&dev->context_wait, &entry);
-	        current->state = TASK_INTERRUPTIBLE;
-                /* PRE: dev->last_context != lock.context */
-	        i810_context_switch(dev, dev->last_context, lock.context);
-		/* POST: we will wait for the context
-                   switch and will dispatch on a later call
-                   when dev->last_context == lock.context
-                   NOTE WE HOLD THE LOCK THROUGHOUT THIS
-                   TIME! */
-		current->policy |= SCHED_YIELD;
-	        schedule();
-	        current->state = TASK_RUNNING;
-	        remove_wait_queue(&dev->context_wait, &entry);
-	        if (signal_pending(current)) {
-	                ret = -EINTR;
-	        } else if (dev->last_context != lock.context) {
-			DRM_ERROR("Context mismatch: %d %d\n",
-                        	dev->last_context, lock.context);
-	        }
-	}
-#endif
-
         if (!ret) {
                 if (lock.flags & _DRM_LOCK_READY) {
 				/* Wait for space in DMA/FIFO */
 		}
                 if (lock.flags & _DRM_LOCK_QUIESCENT) {
 				/* Make hardware quiescent */
-#if 0
-                        i810_quiescent(dev);
-#endif
 		}
         }
 
-#if 0
-	DRM_ERROR("pid = %5d, old counter = %5ld\n", 
-		current->pid, current->counter);
-#endif
 	if (lock.context != i810_res_ctx.handle) {
 		current->counter = 5;
 		current->priority = DEF_PRIORITY/4;
 	}
-#if 0
-	while (current->counter > 25)
-		current->counter >>= 1; /* decrease time slice */
-	DRM_ERROR("pid = %5d, new counter = %5ld\n",
-		 current->pid, current->counter);
-#endif
+
         DRM_DEBUG("%d %s\n", lock.context, ret ? "interrupted" : "has lock");
 
 #if DRM_DMA_HISTOGRAM
@@ -694,7 +633,7 @@ int i810_unlock(struct inode *inode, struct file *filp, unsigned int cmd,
 	if (_DRM_LOCK_IS_CONT(dev->lock.hw_lock->lock))
 		atomic_inc(&dev->total_contends);
 	drm_lock_transfer(dev, &dev->lock.hw_lock->lock, DRM_KERNEL_CONTEXT);
-	i810_dma_schedule(dev, 1);
+/*  	i810_dma_schedule(dev, 1); */
 	if (!dev->context_flag) {
 		if (drm_lock_free(dev, &dev->lock.hw_lock->lock,
 				  DRM_KERNEL_CONTEXT)) {

@@ -390,13 +390,15 @@ int drm_free_agp(agp_memory *handle, int pages)
 int drm_bind_agp(agp_memory *handle, unsigned int start)
 {
 	int retcode = -EINVAL;
-	
+
+   printk("drm_bind_agp called\n");
 	if (!handle) {
 		DRM_MEM_ERROR(DRM_MEM_BOUNDAGP,
 			      "Attempt to bind NULL AGP handle\n");
 		return retcode;
 	}
 
+   printk("drm_agp.bind_memory : %p\n", drm_agp.bind_memory);
 	if (drm_agp.bind_memory) {
 		if (!(retcode = (*drm_agp.bind_memory)(handle, start))) {
 			spin_lock(&drm_mem_lock);
@@ -404,6 +406,7 @@ int drm_bind_agp(agp_memory *handle, unsigned int start)
 			drm_mem_stats[DRM_MEM_BOUNDAGP].bytes_allocated
 				+= handle->page_count << PAGE_SHIFT;
 			spin_unlock(&drm_mem_lock);
+		   printk("drm_agp.bind_memory: retcode %d\n", retcode);
 			return retcode;
 		}
 	}

@@ -32,19 +32,19 @@
 
 #define __NO_VERSION__
 #include "drmP.h"
-#include "mga_drv.h"
+#include "i810_drv.h"
 
 #include <linux/interrupt.h>	/* For task queue support */
 
-#define MGA_REG(reg)		0 /* for now */
-#define MGA_BASE(reg)		((unsigned long) \
-				dev->maplist[MGA_REG(reg)]->handle)
-#define MGA_ADDR(reg)		(MGA_BASE(reg) + MGA_OFF(reg))
-#define MGA_DEREF(reg)		*(__volatile__ int *)MGA_ADDR(reg)
-#define MGA_READ(reg)		MGA_DEREF(reg)
-#define MGA_WRITE(reg,val) 	do { MGA_DEREF(reg) = val; } while (0)
+#define I810_REG(reg)		0 /* for now */
+#define I810_BASE(reg)		((unsigned long) \
+				dev->maplist[I810_REG(reg)]->handle)
+#define I810_ADDR(reg)		(I810_BASE(reg) + I810_OFF(reg))
+#define I810_DEREF(reg)		*(__volatile__ int *)I810_ADDR(reg)
+#define I810_READ(reg)		I810_DEREF(reg)
+#define I810_WRITE(reg,val) 	do { I810_DEREF(reg) = val; } while (0)
 
-typedef _mga_primary_buffer {
+typedef _i810_primary_buffer {
 	u32 *head;
 	u32 *dma_ptr;
 	u8 tempIndex[4];
@@ -52,9 +52,9 @@ typedef _mga_primary_buffer {
 	int num_dwords;
 	int max_dwords;
 	unsigned long phys_head;
-} mgaPrimBuf;
+} i810PrimBuf;
 
-static mgaPrimBuf buffer;
+static i810PrimBuf buffer;
 typedef enum {
 	TT_GENERAL,
 	TT_BLIT,
@@ -83,7 +83,7 @@ buffer.num_dwords += 5;					\
 
 #define CHECK_OVERFLOW(length) do {			\
 if((buffer.max_dwords - buffer.num_dwords) < length) {	\
-	mga_prim_overflow();				\
+	i810_prim_overflow();				\
 }							\
 }while(0)
 
@@ -96,14 +96,14 @@ static inline void i810_dma_dispatch(drm_device_t *dev, unsigned long address,
 	int use_agp = PDEA_pagpxfer_enable;
 
 	CHECK_OVERFLOW(10);
-	DMAOUTREG(MGAREG_DMAPAD, 0);
-	DMAOUTREG(MGAREG_DMAPAD, 0);
-	DMAOUTREG(MGAREG_SECADDRESS, address | transferType);
-	DMAOUTREG(MGAREG_SECEND, (address + length) | use_agp);
-	DMAOUTREG(MGAREG_DMAPAD, 0);
-	DMAOUTREG(MGAREG_DMAPAD, 0);
-	DMAOUTREG(MGAREG_DWGSYNC, 0);
-	DMAOUTREG(MGAREG_SOFTRAP, 0);
+	DMAOUTREG(I810REG_DMAPAD, 0);
+	DMAOUTREG(I810REG_DMAPAD, 0);
+	DMAOUTREG(I810REG_SECADDRESS, address | transferType);
+	DMAOUTREG(I810REG_SECEND, (address + length) | use_agp);
+	DMAOUTREG(I810REG_DMAPAD, 0);
+	DMAOUTREG(I810REG_DMAPAD, 0);
+	DMAOUTREG(I810REG_DWGSYNC, 0);
+	DMAOUTREG(I810REG_SOFTRAP, 0);
 	/* Needs to write out to PRIMEND */
 }
 
@@ -159,7 +159,7 @@ static void i810_dma_service(int irq, void *device, struct pt_regs *regs)
 	GAMMA_WRITE(GAMMA_GDELAYTIMER, 0xc350/2); /* 0x05S */
 	GAMMA_WRITE(GAMMA_GCOMMANDINTFLAGS, 8);
 	GAMMA_WRITE(GAMMA_GINTFLAGS, 0x2001);
-	if (mga_dma_is_ready(dev)) {
+	if (i810_dma_is_ready(dev)) {
 				/* Free previous buffer */
 		if (test_and_set_bit(0, &dev->dma_flag)) {
 			atomic_inc(&dma->total_missed_free);
@@ -227,7 +227,7 @@ static int i810_do_dma(drm_device_t *dev, int locked)
 		return 0;
 	}
 	
-	if (!mga_dma_is_ready(dev)) {
+	if (!i810_dma_is_ready(dev)) {
 		clear_bit(0, &dev->dma_flag);
 		return -EBUSY;
 	}
@@ -273,7 +273,7 @@ static int i810_do_dma(drm_device_t *dev, int locked)
 	buf->time_dispatched = get_cycles();
 #endif
 
-	mga_dma_dispatch(dev, address, length);
+	i810_dma_dispatch(dev, address, length);
 	drm_free_buffer(dev, dma->this_buffer);
 	dma->this_buffer = buf;
 
@@ -346,14 +346,14 @@ again:
 				   or the DMA engine wasn't ready.  Try
 				   again. */
 		atomic_inc(&dma->total_tried);
-		if (!(retcode = mga_do_dma(dev, locked))) {
+		if (!(retcode = i810_do_dma(dev, locked))) {
 			atomic_inc(&dma->total_hit);
 			++processed;
 		}
 	} else {
 		do {
 			next = drm_select_queue(dev,
-					     mga_dma_schedule_timer_wrapper);
+					     i810_dma_schedule_timer_wrapper);
 			if (next >= 0) {
 				q   = dev->queuelist[next];
 				buf = drm_waitlist_get(&q->waitlist);
@@ -366,7 +366,7 @@ again:
 			}
 		} while (next >= 0 && !dma->next_buffer);
 		if (dma->next_buffer) {
-			if (!(retcode = mga_do_dma(dev, locked))) {
+			if (!(retcode = i810_do_dma(dev, locked))) {
 				++processed;
 			}
 		}
@@ -375,9 +375,9 @@ again:
 	if (--expire) {
 		if (missed != atomic_read(&dma->total_missed_sched)) {
 			atomic_inc(&dma->total_lost);
-			if (mga_dma_is_ready(dev)) goto again;
+			if (i810_dma_is_ready(dev)) goto again;
 		}
-		if (processed && mga_dma_is_ready(dev)) {
+		if (processed && i810_dma_is_ready(dev)) {
 			atomic_inc(&dma->total_lost);
 			processed = 0;
 			goto again;
@@ -506,7 +506,7 @@ static int i810_dma_priority(drm_device_t *dev, drm_dma_t *d)
 		buf->time_queued     = get_cycles();
 		buf->time_dispatched = buf->time_queued;
 #endif
-		mga_dma_dispatch(dev, address, length);
+		i810_dma_dispatch(dev, address, length);
 		atomic_add(length, &dma->total_bytes);
 		atomic_inc(&dma->total_dmas);
 		
@@ -519,7 +519,7 @@ static int i810_dma_priority(drm_device_t *dev, drm_dma_t *d)
 
 cleanup:
 	if (last_buf) {
-		mga_dma_ready(dev);
+		i810_dma_ready(dev);
 		drm_free_buffer(dev, last_buf);
 	}
 	
@@ -551,7 +551,7 @@ static int i810_dma_send_buffers(drm_device_t *dev, drm_dma_t *d)
 		return retcode;
 	}
 	
-	mga_dma_schedule(dev, 0);
+	i810_dma_schedule(dev, 0);
 	
 	if (d->flags & _DRM_DMA_BLOCK) {
 		DRM_DEBUG("%d waiting\n", current->pid);
@@ -621,9 +621,9 @@ int i810_dma(struct inode *inode, struct file *filp, unsigned int cmd,
 
 	if (d.send_count) {
 		if (d.flags & _DRM_DMA_PRIORITY)
-			retcode = mga_dma_priority(dev, &d);
+			retcode = i810_dma_priority(dev, &d);
 		else 
-			retcode = mga_dma_send_buffers(dev, &d);
+			retcode = i810_dma_send_buffers(dev, &d);
 	}
 
 	d.granted_count = 0;
@@ -665,16 +665,16 @@ int i810_irq_install(drm_device_t *dev, int irq)
 
 	dev->tq.next	      = NULL;
 	dev->tq.sync	      = 0;
-	dev->tq.routine	      = mga_dma_schedule_tq_wrapper;
+	dev->tq.routine	      = i810_dma_schedule_tq_wrapper;
 	dev->tq.data	      = dev;
 
 
 				/* Before installing handler */
-	MGA_WRITE(MGAREG_IEN, 0);
+	I810_WRITE(I810REG_IEN, 0);
 	
 				/* Install handler */
 	if ((retcode = request_irq(dev->irq,
-				   mga_dma_service,
+				   i810_dma_service,
 				   0,
 				   dev->devname,
 				   dev))) {
@@ -685,7 +685,7 @@ int i810_irq_install(drm_device_t *dev, int irq)
 	}
 
 				/* After installing handler */
-	MGA_WRITE(MGAREG_IEN, 0x00000001);
+	I810_WRITE(I810REG_IEN, 0x00000001);
 	return 0;
 }
 
@@ -702,7 +702,7 @@ int i810_irq_uninstall(drm_device_t *dev)
 	
 	DRM_DEBUG("%d\n", irq);
 	
-	MGA_WRITE(MGAREG_IEN, 0);
+	I810_WRITE(I810REG_IEN, 0);
 	free_irq(irq, dev);
 
 	return 0;
@@ -721,11 +721,11 @@ int i810_control(struct inode *inode, struct file *filp, unsigned int cmd,
 	
 	switch (ctl.func) {
 	case DRM_INST_HANDLER:
-		if ((retcode = mga_irq_install(dev, ctl.irq)))
+		if ((retcode = i810_irq_install(dev, ctl.irq)))
 			return retcode;
 		break;
 	case DRM_UNINST_HANDLER:
-		if ((retcode = mga_irq_uninstall(dev)))
+		if ((retcode = i810_irq_uninstall(dev)))
 			return retcode;
 		break;
 	default:
@@ -812,9 +812,9 @@ int i810_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 	
 	if (!ret) {
 		if (lock.flags & _DRM_LOCK_READY)
-			mga_dma_ready(dev);
+			i810_dma_ready(dev);
 		if (lock.flags & _DRM_LOCK_QUIESCENT)
-			mga_dma_quiescent(dev);
+			i810_dma_quiescent(dev);
 	}
 	DRM_DEBUG("%d %s\n", lock.context, ret ? "interrupted" : "has lock");
 
