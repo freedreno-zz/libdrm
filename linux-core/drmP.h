@@ -522,7 +522,7 @@ typedef struct drm_device {
 	drm_agp_head_t    *agp;
 #endif
 	unsigned long     *ctx_bitmap;
-	void		  *SAREAprivate;
+	void		  *dev_private;
 } drm_device_t;
 
 

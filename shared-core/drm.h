@@ -327,4 +327,5 @@ typedef struct drm_agp_info {
 #define DRM_IOCTL_AGP_BIND    DRM_IOWR(0x36, drm_agp_binding_t)
 #define DRM_IOCTL_AGP_UNBIND  DRM_IOW( 0x37, drm_agp_binding_t)
 
+/* 0x40 is reserved for mga dma init */
 #endif

@@ -54,22 +54,37 @@
 #define ADRINDEX0(r)	(u8)((r - DWGREG0) >> 2)
 #define ADRINDEX1(r)	(u8)(((r - DWGREG1) >> 2) | 0x80)
 #define ADRINDEX(r)	(ISREG0(r) ? ADRINDEX0(r) : ADRINDEX1(r)) 
+#define DMALOCALS()	u8 tempIndex[4]; u32 *dma_ptr; u32 phys_head; \
+			int outcount, num_dwords; unsigned long flags
 
-#define DMAOUTREG(reg, val) do {			\
-buffer.tempIndex[buffer.outcount]=ADRINDEX(reg);	\
-buffer.dma_ptr[1+buffer.outcount] = val;		\
-if( ++buffer.outcount == 4) {				\
-buffer.outcount = 0;					\
-buffer.dma_ptr[0] = *(u32 *)buffer.tempIndex;		\
-buffer.dma_ptr+=5;					\
-buffer.num_dwords += 5;					\
-}							\
+#define	DMAGETPTR() do {		\
+dma_ptr = dev_priv->current_dma_ptr;	\
+phys_head = dev_priv->prim_phys_head;	\
+outcount = 0;				\
+num_dwords = dev_priv->prim_num_dwords; \
+} while(0)
+
+#define DMAADVANCE()	do {		\
+dev_priv->prim_num_dwords = num_dwords; \
+dev_priv->current_dma_ptr = dma_ptr;	\
+} while(0);
+
+#define DMAOUTREG(reg, val) do {	\
+tempIndex[outcount]=ADRINDEX(reg);	\
+dma_ptr[1+outcount] = val;		\
+if( ++outcount == 4) {			\
+outcount = 0;				\
+dma_ptr[0] = *(u32 *)tempIndex;		\
+dma_ptr+=5;				\
+num_dwords += 5;			\
+}					\
 }while (0)
 
-#define CHECK_OVERFLOW(length) do {			\
-if((buffer.max_dwords - buffer.num_dwords) < length) {	\
-	mga_prim_overflow(dev);				\
-}							\
+#define CHECK_OVERFLOW(length) do {				\
+if((dev_priv->prim_max_dwords - dev_priv->prim_num_dwords) < 	\
+	length) {						\
+	mga_prim_overflow(dev);					\
+}								\
 }while(0)
 
 #define PDEA_pagpxfer_enable 	     0x2
@@ -78,17 +93,6 @@ if((buffer.max_dwords - buffer.num_dwords) < length) {	\
 #define MGA_FXBNDRY(x1,x2)           DMAOUTREG(MGAREG_FXBNDRY,((x2) << 16) | (x1))
 #define MGA_DWGCTL_EXEC(x)           DMAOUTREG(MGAREG_DWGCTL+MGAREG_MGA_EXEC,x)
 
-typedef struct _mga_primary_buffer {
-	u32 *head;
-	u32 *dma_ptr;
-	u8 tempIndex[4];
-	int outcount;
-	int num_dwords;
-	int max_dwords;
-	unsigned long phys_head;
-} mgaPrimBuf;
-
-static mgaPrimBuf buffer;
 typedef enum {
 	TT_GENERAL,
 	TT_BLIT,
@@ -96,12 +100,14 @@ typedef enum {
 	TT_VERTEX
 } transferType_t;
 
+/* MUST BE CALLED WITH DISPATCH LOCK HELD */
 static inline void mga_prim_overflow(drm_device_t *dev)
 {
-	buffer.num_dwords = 0;
-	buffer.outcount = 0;
-   	buffer.dma_ptr = buffer.head;
-      	MGA_WRITE(MGAREG_PRIMADDRESS, buffer.phys_head | TT_GENERAL);
+   	drm_mga_private_t *dev_private_ptr = dev->dev_private;
+   
+	dev_private_ptr->prim_num_dwords = 0;
+   	dev_private_ptr->current_dma_ptr = dev_private_ptr->prim_head;
+      	MGA_WRITE(MGAREG_PRIMADDRESS, dev_private_ptr->prim_phys_head | TT_GENERAL);
 }
 
 static void mga_delay(void)
@@ -109,19 +115,98 @@ static void mga_delay(void)
    	return;
 }
 
-void mga_dma_init(drm_device_t *dev)
+int mga_dma_cleanup(drm_device_t *dev)
 {
-   	int i;
+   if(dev->dev_private) {
+      drm_mga_private_t *dev_priv = (drm_mga_private_t *) dev->dev_private;
+      int temp;
+      
+      if(dev_priv->ioremap) {
+	 temp = dev_priv->warp_mc_size + dev_priv->primary_size;
+	 temp = ((temp + PAGE_SIZE - 1) / 
+		 PAGE_SIZE) * PAGE_SIZE;
+	 drm_ioremapfree((void *) dev_priv->ioremap, temp);
+      }
+      drm_free(dev->dev_private, sizeof(drm_mga_private_t), DRM_MEM_DRIVER);
+      dev->dev_private = NULL;
+   }
+   return 0;
+}
 
-   	memset(&buffer, 0, sizeof(mgaPrimBuf));
-	buffer.phys_head = dev->agp->agp_info.aper_base;
-	buffer.head = (u32 *) drm_ioremap(buffer.phys_head, 65536);
-	buffer.max_dwords = 16383;
-   	mga_prim_overflow(dev);
-   	DMAOUTREG(MGAREG_DMAPAD, 0);
+static int mga_dma_initialize(drm_device_t *dev, drm_mga_private_t *dev_priv,
+			      drm_mga_init_t *init) {
+   drm_map_t *prim_map = NULL;
+   drm_map_t *sarea_map = NULL;
+   int temp;
+   
+   dev->dev_private = (void *) dev_priv;
+   printk("dev_private\n");
+   memset(dev_priv, 0, sizeof(drm_mga_private_t));
+   if((init->reserved_map_idx >= dev->map_count) ||
+      (init->buffer_map_idx >= dev->map_count)) {
+      mga_dma_cleanup(dev);
+      printk("reserved_map or buffer_map are invalid\n");
+      return -EINVAL;
+   }
+
+   dev_priv->reserved_map_idx = init->reserved_map_idx;
+   dev_priv->buffer_map_idx = init->buffer_map_idx;
+   sarea_map = dev->maplist[0];
+   dev_priv->sarea_priv = (drm_mga_sarea_t *) 
+     				((u8 *)sarea_map->handle + 
+				 init->sarea_priv_offset);
+   printk("sarea_priv\n");
+
+   /* Scale primary size to the next page */
+   dev_priv->primary_size = ((init->primary_size + PAGE_SIZE - 1) / 
+			     PAGE_SIZE) * PAGE_SIZE;
+   dev_priv->warp_mc_size = init->warp_mc_size;
+   dev_priv->type = init->type;
+   dev_priv->fbOffset = init->fbOffset;
+   dev_priv->backOffset = init->backOffset;
+   dev_priv->depthOffset = init->depthOffset;
+   dev_priv->textureOffset = init->textureOffset;
+   dev_priv->textureSize = init->textureSize;
+   dev_priv->cpp = init->cpp;
+   dev_priv->sgram = init->sgram;
+   dev_priv->stride = init->stride;
+   
+   printk("memcpy\n");
+   memcpy(&dev_priv->WarpIndex, &init->WarpIndex, 
+	  sizeof(mgaWarpIndex) * MGA_MAX_WARP_PIPES);
+   printk("memcpy done\n");
+   prim_map = dev->maplist[init->reserved_map_idx];
+   dev_priv->prim_phys_head = dev->agp->base + init->reserved_map_agpstart;
+   temp = init->warp_mc_size + dev_priv->primary_size;
+   temp = ((temp + PAGE_SIZE - 1) / 
+			     PAGE_SIZE) * PAGE_SIZE;
+   printk("temp : %x\n", temp);
+   printk("dev->agp->base: %lx\n", dev->agp->base);
+   printk("init->reserved_map_agpstart: %lx\n", init->reserved_map_agpstart);
+   dev_priv->ioremap = drm_ioremap(dev->agp->base + init->reserved_map_agpstart, 
+					    temp);
+   if(dev_priv->ioremap == NULL) {
+      printk("Ioremap failed\n");
+      mga_dma_cleanup(dev);
+      return -ENOMEM;
+   }
+   dev_priv->prim_head = (u32 *)dev_priv->ioremap;
+   printk("dev_priv->prim_head : %lx\n", dev_priv->prim_head);
+   dev_priv->current_dma_ptr = dev_priv->prim_head;
+   dev_priv->prim_num_dwords = 0;
+   dev_priv->prim_max_dwords = dev_priv->primary_size / sizeof(unsigned long);
+   
+   printk("dma initialization\n");
+   /* Private is now filled in, initialize the hardware */
+     {
+	DMALOCALS();
+	mga_prim_overflow(dev);
+	DMAGETPTR();
+	DMAOUTREG(MGAREG_DMAPAD, 0);
    	DMAOUTREG(MGAREG_DMAPAD, 0);
    	DMAOUTREG(MGAREG_DWGSYNC, 0);
    	DMAOUTREG(MGAREG_SOFTRAP, 0);
+	DMAADVANCE();
 
 	/* Poll for the first buffer to insure that
 	 * the status register will be correct
@@ -129,32 +214,62 @@ void mga_dma_init(drm_device_t *dev)
    
    	MGA_WRITE(MGAREG_DWGSYNC, MGA_SYNC_TAG);
    	while(MGA_READ(MGAREG_DWGSYNC) != MGA_SYNC_TAG) {
+	   	int i;
 	        for(i = 0 ; i < 4096; i++) mga_delay();
 	}
-	MGA_WRITE(MGAREG_PRIMEND, (buffer.phys_head + 
-		 (buffer.num_dwords*sizeof(unsigned long))) | 
+	MGA_WRITE(MGAREG_PRIMEND, (phys_head + 
+		 (num_dwords*sizeof(unsigned long))) | 
 		  PDEA_pagpxfer_enable);
    	while(MGA_READ(MGAREG_DWGSYNC) == MGA_SYNC_TAG) {
+	   	int i;
 	   	for(i = 0; i < 4096; i++) mga_delay();
 	}
+
+     }
+   
+   printk("dma init was successful\n");
+   return 0;
 }
 
-void mga_dma_cleanup(drm_device_t *dev)
+int mga_dma_init(struct inode *inode, struct file *filp,
+		 unsigned int cmd, unsigned long arg)
 {
-	if(buffer.head != NULL)
-		drm_ioremapfree((void *)buffer.head, 65536);
+   drm_file_t *priv = filp->private_data;
+   drm_device_t *dev = priv->dev;
+   drm_mga_private_t *dev_priv;
+   drm_mga_init_t init;
+   int retcode = 0;
+   
+   copy_from_user_ret(&init, (drm_mga_init_t *)arg, sizeof(init), -EFAULT);
+   
+   switch(init.func) {
+    case MGA_INIT_DMA:
+      	dev_priv = drm_alloc(sizeof(drm_mga_private_t), DRM_MEM_DRIVER);
+      	if(dev_priv == NULL) return -ENOMEM;
+      	retcode = mga_dma_initialize(dev, dev_priv, &init);
+        break;
+    case MGA_CLEANUP_DMA:
+      	retcode = mga_dma_cleanup(dev);
+      	break;
+    default:
+      	retcode = -EINVAL;
+      	break;
+   }
+   return retcode;
 }
 
 static void mga_dma_dispatch(drm_device_t *dev, unsigned long address,
 			     unsigned long length)
 {
+   	drm_mga_private_t *dev_priv = dev->dev_private;
 	int use_agp = PDEA_pagpxfer_enable;
    	static int j = 0;
    	static int k = 0;
 	int cmd;
+   	DMALOCALS();
 
 	CHECK_OVERFLOW(20);
-
+   	DMAGETPTR();
    	cmd = DC_opcod_iload |       /* image load */
      	DC_atype_rpl |               /* raster replace mode */
      	DC_linear_linear |           /* linear source */
@@ -179,63 +294,113 @@ static void mga_dma_dispatch(drm_device_t *dev, unsigned long address,
 	DMAOUTREG(MGAREG_SECEND, (address + length) | use_agp);
 	DMAOUTREG(MGAREG_DMAPAD, 0);
 	DMAOUTREG(MGAREG_DMAPAD, 0);
-      	DMAOUTREG(MGAREG_DMAPAD, 0);
+      	DMAOUTREG(MGAREG_DWGSYNC, 0);
    	DMAOUTREG(MGAREG_SOFTRAP, 0);
+   	DMAADVANCE();
 
-	MGA_WRITE(MGAREG_PRIMEND, (buffer.phys_head + 
-		 (buffer.num_dwords*sizeof(unsigned long))) | 
+   	MGA_WRITE(MGAREG_DWGSYNC, MGA_SYNC_TAG);
+   	while(MGA_READ(MGAREG_DWGSYNC) != MGA_SYNC_TAG) ;
+
+	MGA_WRITE(MGAREG_PRIMEND, (phys_head + 
+		 (num_dwords*sizeof(unsigned long))) | 
 		  use_agp);
+
       	k += 20;
    	j += 5;
    	if( j < 1280-512) j = 0;
    	if( k < 512) k = 0;
 }
 
+/* Frees dispatch lock */
 static inline void mga_dma_quiescent(drm_device_t *dev)
 {
-	while((MGA_READ(MGAREG_STATUS) & 0x00020000) == 0) ;
+   	drm_mga_private_t *dev_priv = (drm_mga_private_t *)dev->dev_private;
+
+   	while(1) {
+	   atomic_inc(&dev_priv->dispatch_lock);
+	   if(atomic_read(&dev_priv->dispatch_lock) == 1) {
+	      break;
+	   } else {
+	      atomic_dec(&dev_priv->dispatch_lock);
+	   }
+	}
+	while((MGA_READ(MGAREG_STATUS) & 0x00020001) != 0x00020000) ;
       	MGA_WRITE(MGAREG_DWGSYNC, MGA_SYNC_TAG);
    	while(MGA_READ(MGAREG_DWGSYNC) != MGA_SYNC_TAG) ;
+   	atomic_dec(&dev_priv->dispatch_lock);
 }
 
 static inline void mga_dma_ready(drm_device_t *dev)
 {
-   	while((MGA_READ(MGAREG_STATUS) & 0x00020000) == 0) ;
+   drm_mga_private_t *dev_priv = (drm_mga_private_t *)dev->dev_private;
+
+   while(1) {
+      atomic_inc(&dev_priv->dispatch_lock);
+      if(atomic_read(&dev_priv->dispatch_lock) == 1) {
+	 atomic_dec(&dev_priv->dispatch_lock);
+	 break;
+      } else {
+	 atomic_dec(&dev_priv->dispatch_lock);
+      }
+   }
 }
+
+/* Keeps dispatch lock held */
 
 static inline int mga_dma_is_ready(drm_device_t *dev)
 {
-   if((MGA_READ(MGAREG_STATUS) & 0x00020000) == 0)
-     return 0;
-   else
-     return 1;
+   drm_mga_private_t *dev_priv = (drm_mga_private_t *)dev->dev_private;
+   
+   atomic_inc(&dev_priv->dispatch_lock);
+   if(atomic_read(&dev_priv->dispatch_lock) == 1) {
+      /* We got the lock */
+      return 1;
+   } else {
+      atomic_dec(&dev_priv->dispatch_lock);
+      return 0;
+   }
+}
+
+static inline int mga_dma_is_ready_no_hold(drm_device_t *dev)
+{
+   drm_mga_private_t *dev_priv = (drm_mga_private_t *)dev->dev_private;
+   
+   atomic_inc(&dev_priv->dispatch_lock);
+   if(atomic_read(&dev_priv->dispatch_lock) == 1) {
+      /* We got the lock, but free it */
+      atomic_dec(&dev_priv->dispatch_lock);
+      return 1;
+   } else {
+      atomic_dec(&dev_priv->dispatch_lock);
+      return 0;
+   }
 }
 
 static void mga_dma_service(int irq, void *device, struct pt_regs *regs)
 {
 	drm_device_t	 *dev = (drm_device_t *)device;
 	drm_device_dma_t *dma = dev->dma;
-   
-	atomic_inc(&dev->total_irq);
+   	drm_mga_private_t *dev_priv = (drm_mga_private_t *)dev->dev_private;
 
-	if (mga_dma_is_ready(dev)) {
+	atomic_dec(&dev_priv->dispatch_lock);   	
+	atomic_inc(&dev->total_irq);
+      	MGA_WRITE(MGAREG_ICLEAR, 0xfa7);
+
 				/* Free previous buffer */
-		if (test_and_set_bit(0, &dev->dma_flag)) {
-			atomic_inc(&dma->total_missed_free);
-			return;
-		}
-		if (dma->this_buffer) {
-			drm_free_buffer(dev, dma->this_buffer);
-			dma->this_buffer = NULL;
-		}
-		clear_bit(0, &dev->dma_flag);
+   	if (test_and_set_bit(0, &dev->dma_flag)) {
+	   	atomic_inc(&dma->total_missed_free);
+	   	return;
+	}
+   	if (dma->this_buffer) {
+	   	drm_free_buffer(dev, dma->this_buffer);
+	   	dma->this_buffer = NULL;
+	}
+   	clear_bit(0, &dev->dma_flag);
 
 				/* Dispatch new buffer */
-		queue_task(&dev->tq, &tq_immediate);
-		mark_bh(IMMEDIATE_BH);
-	}
+   	queue_task(&dev->tq, &tq_immediate);
+   	mark_bh(IMMEDIATE_BH);
 
-   	MGA_WRITE(MGAREG_ICLEAR, 0xfa7);
 }
 
 /* Only called by mga_dma_schedule. */
@@ -250,6 +415,8 @@ static int mga_do_dma(drm_device_t *dev, int locked)
 #if DRM_DMA_HISTOGRAM
 	cycles_t	 dma_start, dma_stop;
 #endif
+      	drm_mga_private_t *dev_priv = (drm_mga_private_t *)dev->dev_private;
+
 	if (test_and_set_bit(0, &dev->dma_flag)) {
 		atomic_inc(&dma->total_missed_dma);
 		return -EBUSY;
@@ -288,11 +455,11 @@ static int mga_do_dma(drm_device_t *dev, int locked)
 		return 0;
 	}
 	
-	if (!mga_dma_is_ready(dev)) {
+	if (mga_dma_is_ready(dev) == 0) {
 		clear_bit(0, &dev->dma_flag);
 		return -EBUSY;
 	}
-
+   
 	if (buf->while_locked) {
 		if (!_DRM_LOCK_IS_HELD(dev->lock.hw_lock->lock)) {
 			DRM_ERROR("Dispatching buffer %d from pid %d"
@@ -304,6 +471,7 @@ static int mga_do_dma(drm_device_t *dev, int locked)
 					      DRM_KERNEL_CONTEXT)) {
 			atomic_inc(&dma->total_missed_lock);
 			clear_bit(0, &dev->dma_flag);
+		   	atomic_dec(&dev_priv->dispatch_lock);
 			return -EBUSY;
 		}
 	}
@@ -317,6 +485,7 @@ static int mga_do_dma(drm_device_t *dev, int locked)
 			drm_free_buffer(dev, buf);
 		}
 		retcode = -EBUSY;
+	   	atomic_dec(&dev_priv->dispatch_lock);
 		goto cleanup;
 			
 				/* POST: we will wait for the context
@@ -355,7 +524,9 @@ cleanup:
 	dma_stop = get_cycles();
 	atomic_inc(&dev->histo.dma[drm_histogram_slot(dma_stop - dma_start)]);
 #endif
-
+	/* We hold the dispatch lock until the interrupt handler
+	 * frees it
+	 */
 	return retcode;
 }
 
@@ -435,9 +606,9 @@ again:
 	if (--expire) {
 		if (missed != atomic_read(&dma->total_missed_sched)) {
 			atomic_inc(&dma->total_lost);
-			if (mga_dma_is_ready(dev)) goto again;
+		   	if (mga_dma_is_ready_no_hold(dev)) goto again;
 		}
-		if (processed && mga_dma_is_ready(dev)) {
+		if (processed && mga_dma_is_ready_no_hold(dev)) {
 			atomic_inc(&dma->total_lost);
 			processed = 0;
 			goto again;
@@ -587,7 +758,7 @@ static int mga_dma_priority(drm_device_t *dev, drm_dma_t *d)
 		buf->time_queued     = get_cycles();
 		buf->time_dispatched = buf->time_queued;
 #endif
-	   address = dev->agp->base + 65536 + (idx * 524288);
+	   address = buf->bus_address;
 #if 0
 	   if (drm_lock_free(dev, &dev->lock.hw_lock->lock,
 			     DRM_KERNEL_CONTEXT)) {
@@ -710,15 +881,10 @@ int mga_dma(struct inode *inode, struct file *filp, unsigned int cmd,
 	}
 
 	if (d.send_count) {
-#if 1
 		if (d.flags & _DRM_DMA_PRIORITY)
 			retcode = mga_dma_priority(dev, &d);
 		else 
 			retcode = mga_dma_send_buffers(dev, &d);
-#endif
-#if 0
-	   retcode = mga_dma_priority(dev, &d);
-#endif
 	}
 
 	d.granted_count = 0;
@@ -817,9 +983,6 @@ int mga_control(struct inode *inode, struct file *filp, unsigned int cmd,
 	drm_control_t	ctl;
 	int		retcode;
    
-#if 1
-   	mga_dma_init(dev);
-#endif	
 	copy_from_user_ret(&ctl, (drm_control_t *)arg, sizeof(ctl), -EFAULT);
 	
 	switch (ctl.func) {
@@ -915,10 +1078,14 @@ int mga_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 	drm_flush_unblock(dev, lock.context, lock.flags); /* cleanup phase */
 	
 	if (!ret) {
-		if (lock.flags & _DRM_LOCK_READY)
+		if (lock.flags & _DRM_LOCK_READY) {
+		   	printk("_DRM_LOCK_READY\n");
 			mga_dma_ready(dev);
-		if (lock.flags & _DRM_LOCK_QUIESCENT)
+		}
+		if (lock.flags & _DRM_LOCK_QUIESCENT) {
+		   	printk("_DRM_LOCK_QUIESCENT\n");
 			mga_dma_quiescent(dev);
+		}
 	}
 	printk("%d %s\n", lock.context, ret ? "interrupted" : "has lock");
 

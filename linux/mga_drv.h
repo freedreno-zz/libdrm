@@ -31,6 +31,33 @@
 
 #ifndef _MGA_DRV_H_
 #define _MGA_DRV_H_
+#include "mga_drm_public.h"
+
+typedef struct _drm_mga_private {
+   	int reserved_map_idx;
+   	int buffer_map_idx;
+   	drm_mga_sarea_t *sarea_priv;
+   	int primary_size;
+   	int warp_mc_size;
+   	int type;
+   	int fbOffset;
+   	int backOffset;
+   	int depthOffset;
+   	int textureOffset;
+   	int textureSize;
+   	int cpp;
+   	int stride;
+   	int sgram;
+   	mgaWarpIndex WarpIndex[MGA_MAX_WARP_PIPES];
+   	__volatile__ unsigned long softrap_age;
+   	atomic_t dispatch_lock;
+   	void *ioremap;
+   	u32 *prim_head;
+   	u32 *current_dma_ptr;
+   	u32 prim_phys_head;
+   	int prim_num_dwords;
+   	int prim_max_dwords;
+} drm_mga_private_t;
 
 				/* mga_drv.c */
 extern int  mga_init(void);
@@ -54,8 +81,16 @@ extern int  mga_control(struct inode *inode, struct file *filp,
 			  unsigned int cmd, unsigned long arg);
 extern int  mga_lock(struct inode *inode, struct file *filp,
 		       unsigned int cmd, unsigned long arg);
+#if 0
 extern void mga_dma_init(drm_device_t *dev);
 extern void mga_dma_cleanup(drm_device_t *dev);
+
+#endif
+extern int mga_dma_init(struct inode *inode, struct file *filp,
+			unsigned int cmd, unsigned long arg);
+extern int mga_dma_cleanup(drm_device_t *dev);
+
+/* mga_dma_init does init and release */
 
 
 				/* mga_bufs.c */

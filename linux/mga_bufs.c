@@ -32,6 +32,7 @@
 
 #define __NO_VERSION__
 #include "drmP.h"
+#include "mga_drv.h"
 #include "linux/un.h"
 
 int mga_addbufs_agp(struct inode *inode, struct file *filp, unsigned int cmd,
@@ -69,7 +70,7 @@ int mga_addbufs_agp(struct inode *inode, struct file *filp, unsigned int cmd,
    page_order = order - PAGE_SHIFT > 0 ? order - PAGE_SHIFT : 0;
    total = PAGE_SIZE << page_order;
    byte_count = 0;
-
+#if 0
    printk("count: %d\n", count);
    printk("order: %d\n", order);
    printk("size: %d\n", size);
@@ -78,7 +79,7 @@ int mga_addbufs_agp(struct inode *inode, struct file *filp, unsigned int cmd,
    printk("page_order: %d\n", page_order);
    printk("total: %d\n", total);
    printk("byte_count: %d\n", byte_count);
-   
+#endif
    if (order < DRM_MIN_ORDER || order > DRM_MAX_ORDER) return -EINVAL;
    if (dev->queue_count) return -EBUSY; /* Not while in use */
    spin_lock(&dev->count_lock);
@@ -116,10 +117,12 @@ int mga_addbufs_agp(struct inode *inode, struct file *filp, unsigned int cmd,
       buf->total = alignment;
       buf->order = order;
       buf->used = 0;
+#if 0
       printk("offset : %d\n", offset);
-      buf->offset = agp_offset + offset;
+#endif
+      buf->offset = offset; /* Hrm */
       buf->bus_address = dev->agp->base + agp_offset + offset;
-      buf->address = agp_offset + offset + dev->agp->base;
+      buf->address = (void *)(agp_offset + offset + dev->agp->base);
       buf->next = NULL;
       buf->waiting = 0;
       buf->pending = 0;
@@ -148,10 +151,13 @@ int mga_addbufs_agp(struct inode *inode, struct file *filp, unsigned int cmd,
      dma->buflist[i] = &entry->buflist[i - dma->buf_count];
    
    dma->buf_count  += entry->buf_count;
+#if 0
    printk("dma->buf_count : %d\n", dma->buf_count);
+#endif
    dma->byte_count += byte_count;
-   
+#if 0
    printk("entry->buf_count : %d\n", entry->buf_count);
+#endif
    drm_freelist_create(&entry->freelist, entry->buf_count);
    for (i = 0; i < entry->buf_count; i++) {
       drm_freelist_put(dev, &entry->freelist, &entry->buflist[i]);
@@ -168,7 +174,7 @@ int mga_addbufs_agp(struct inode *inode, struct file *filp, unsigned int cmd,
 		    -EFAULT);
    
    atomic_dec(&dev->buf_alloc);
-   
+#if 0
    printk("count: %d\n", count);
    printk("order: %d\n", order);
    printk("size: %d\n", size);
@@ -177,9 +183,11 @@ int mga_addbufs_agp(struct inode *inode, struct file *filp, unsigned int cmd,
    printk("page_order: %d\n", page_order);
    printk("total: %d\n", total);
    printk("byte_count: %d\n", byte_count);
-
+#endif
    dma->flags = _DRM_DMA_USE_AGP;
+#if 0
    printk("dma->flags : %lx\n", dma->flags);
+#endif
    return 0;
 }
 
@@ -541,28 +549,29 @@ int mga_mapbufs(struct inode *inode, struct file *filp, unsigned int cmd,
 			   (drm_buf_map_t *)arg,
 			   sizeof(request),
 			   -EFAULT);
+#if 0
 	printk("mga_mapbufs\n");
    	printk("dma->flags : %lx\n", dma->flags);
+#endif
    if (request.count >= dma->buf_count) {
       if(dma->flags & _DRM_DMA_USE_AGP) {
-	 /* This is an ugly vicious hack */
+	 drm_mga_private_t *dev_priv = dev->dev_private;
 	 drm_map_t *map = NULL;
-	 for(i = 0; i < dev->map_count; i++) {
-	    map = dev->maplist[i];
-	    if(map->type == _DRM_AGP) break;
-	 }
-	 if (i >= dev->map_count || !map) {
-	    printk("i : %d\n", i);
+	 
+	 map = dev->maplist[dev_priv->buffer_map_idx];
+	 if (!map) {
+	    printk("map is null\n");
 	    retcode = -EINVAL;
 	    goto done;
 	 }
+#if 0
 	 printk("map->offset : %lx\n", map->offset);
 	 printk("map->size : %lx\n", map->size);
 	 printk("map->type : %d\n", map->type);
 	 printk("map->flags : %x\n", map->flags);
 	 printk("map->handle : %lx\n", map->handle);
 	 printk("map->mtrr : %d\n", map->mtrr);
-	 
+#endif	 
 	 virtual = do_mmap(filp, 0, map->size, PROT_READ|PROT_WRITE,
 			   MAP_SHARED, (unsigned long)map->offset);
       } else {
@@ -613,7 +622,8 @@ int mga_mapbufs(struct inode *inode, struct file *filp, unsigned int cmd,
 		    &request,
 		    sizeof(request),
 		    -EFAULT);
-   
+#if 0
    printk("retcode : %d\n", retcode);
+#endif
    return retcode;
 }

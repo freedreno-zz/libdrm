@@ -154,7 +154,7 @@ int drm_freelist_put(drm_device_t *dev, drm_freelist_t *bl, drm_buf_t *buf)
 	buf->list	= DRM_LIST_FREE;
 	do {
 		old       = bl->next;
-		bl->next  = old;
+		buf->next  = old;
 		prev      = cmpxchg(&bl->next, old, buf);
 		if (++count > DRM_LOOPING_LIMIT) {
 			DRM_ERROR("Looping\n");

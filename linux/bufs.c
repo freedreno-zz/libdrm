@@ -60,7 +60,7 @@ int drm_addmap(struct inode *inode, struct file *filp, unsigned int cmd,
 		return -EFAULT;
 	}
 
-	DRM_DEBUG("offset = 0x%08lx, size = 0x%08lx, type = %d\n",
+	DRM_INFO("offset = 0x%08lx, size = 0x%08lx, type = %d\n",
 		  map->offset, map->size, map->type);
 	if ((map->offset & (~PAGE_MASK)) || (map->size & (~PAGE_MASK))) {
 		drm_free(map, sizeof(*map), DRM_MEM_MAPS);
@@ -111,6 +111,7 @@ int drm_addmap(struct inode *inode, struct file *filp, unsigned int cmd,
 		return -EINVAL;
 	}
 
+   	printk("Past switch\n");
 	down(&dev->struct_sem);
 	if (dev->maplist) {
 		++dev->map_count;
@@ -135,6 +136,7 @@ int drm_addmap(struct inode *inode, struct file *filp, unsigned int cmd,
 				 sizeof(map->offset),
 				 -EFAULT);
 	}		
+   	printk("AddMap succeeded\n");
 	return 0;
 }
 
