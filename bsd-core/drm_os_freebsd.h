@@ -30,6 +30,8 @@
 #include <pci/pcivar.h>
 #if __FreeBSD_version >= 500000
 #include <sys/selinfo.h>
+#else
+#include <sys/select.h>
 #endif
 #include <sys/bus.h>
 #if __FreeBSD_version >= 400005
