@@ -498,8 +498,6 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 	RING_LOCALS;
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
-	radeon_update_ring_snapshot( dev_priv );
-
 	if ( dev_priv->page_flipping && dev_priv->current_page == 1 ) {
 		unsigned int tmp = flags;
 
@@ -656,8 +654,6 @@ static void radeon_cp_dispatch_swap( drm_device_t *dev )
 	RING_LOCALS;
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
-	radeon_update_ring_snapshot( dev_priv );
-
 #if RADEON_PERFORMANCE_BOXES
 	/* Do some trivial performance monitoring...
 	 */
@@ -725,8 +721,6 @@ static void radeon_cp_dispatch_flip( drm_device_t *dev )
 	RING_LOCALS;
 	DRM_DEBUG( "%s: page=%d\n", __FUNCTION__, dev_priv->current_page );
 
-	radeon_update_ring_snapshot( dev_priv );
-
 #if RADEON_PERFORMANCE_BOXES
 	/* Do some trivial performance monitoring...
 	 */
@@ -776,8 +770,6 @@ static void radeon_cp_dispatch_vertex( drm_device_t *dev,
 	int i = 0;
 	RING_LOCALS;
 	DRM_DEBUG( "%s: nbox=%d\n", __FUNCTION__, sarea_priv->nbox );
-
-	radeon_update_ring_snapshot( dev_priv );
 
 	if ( 0 )
 		radeon_print_dirty( "dispatch_vertex", sarea_priv->dirty );
@@ -845,8 +837,6 @@ static void radeon_cp_dispatch_indirect( drm_device_t *dev,
 	DRM_DEBUG( "indirect: buf=%d s=0x%x e=0x%x\n",
 		   buf->idx, start, end );
 
-	radeon_update_ring_snapshot( dev_priv );
-
 	if ( start != end ) {
 		int offset = (dev_priv->agp_buffers_offset
 			      + buf->offset + start);
@@ -908,8 +898,6 @@ static void radeon_cp_dispatch_indices( drm_device_t *dev,
 	int i = 0;
 	RING_LOCALS;
 	DRM_DEBUG( "indices: s=%d e=%d c=%d\n", start, end, count );
-
-	radeon_update_ring_snapshot( dev_priv );
 
 	if ( 0 )
 		radeon_print_dirty( "dispatch_indices", sarea_priv->dirty );
@@ -1066,8 +1054,10 @@ static int radeon_cp_dispatch_texture( drm_device_t *dev,
 		image->height -= height;
 		image->data = (char *)image->data + size;
 
-		if ( copy_to_user( tex->image, image, sizeof(*image) ) )
+		if ( copy_to_user( tex->image, image, sizeof(*image) ) ) {
+			DRM_ERROR( "EFAULT on tex->image\n" );
 			return -EFAULT;
+		}
 	} else if ( size < 4 ) {
 		size = 4;
 	}
@@ -1101,16 +1091,21 @@ static int radeon_cp_dispatch_texture( drm_device_t *dev,
 		/* Texture image width is larger than the minimum, so we
 		 * can upload it directly.
 		 */
-		if ( copy_from_user( buffer, data, dwords * sizeof(u32) ) )
+		if ( copy_from_user( buffer, data, dwords * sizeof(u32) ) ) {
+			DRM_ERROR( "EFAULT on data, %d dwords\n", dwords );
 			return -EFAULT;
+		}
 	} else {
 		/* Texture image width is less than the minimum, so we
 		 * need to pad out each image scanline to the minimum
 		 * width.
 		 */
 		for ( i = 0 ; i < tex->height ; i++ ) {
-			if ( copy_from_user( buffer, data, tex_width ) )
+			if ( copy_from_user( buffer, data, tex_width ) ) {
+				DRM_ERROR( "EFAULT on pad, %d bytes\n",
+					   tex_width );
 				return -EFAULT;
+			}
 			buffer += 8;
 			data += tex_width;
 		}
@@ -1142,8 +1137,6 @@ static void radeon_cp_dispatch_stipple( drm_device_t *dev, u32 *stipple )
 	int i;
 	RING_LOCALS;
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
-
-	radeon_update_ring_snapshot( dev_priv );
 
 	BEGIN_RING( 35 );
 
@@ -1179,7 +1172,6 @@ int radeon_cp_clear( struct inode *inode, struct file *filp,
 	if ( copy_from_user( &clear, (drm_radeon_clear_t *)arg,
 			     sizeof(clear) ) )
 		return -EFAULT;
-
 
 	RING_SPACE_TEST_WITH_RETURN( dev_priv );
 
