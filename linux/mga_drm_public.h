@@ -150,7 +150,7 @@ typedef struct _xf86drmClipRectRec {
 #define MGA_UPLOAD_TEX1IMAGE  0x20
 #define MGA_UPLOAD_2D 	      0x40
 #define MGA_WAIT_AGE          0x80 /* handled client-side */
-#define MGA_UPLOAD_CLIPRECTS  0x100
+#define MGA_UPLOAD_CLIPRECTS  0x100 /* handled client-side */
 #define MGA_DMA_FLUSH	      0x200 /* set when someone gets the lock
                                        quiescent */
 
@@ -232,7 +232,7 @@ typedef struct
 
 	/* LRU lists for texture memory in agp space and on the card
 	 */
-	mgaTexRegion texList[MGA_NR_TEX_HEAPS][MGA_NR_TEX_REGIONS+1];	
+	mgaTexRegion texList[MGA_NR_TEX_REGIONS+1][MGA_NR_TEX_HEAPS];	
 	int texAge[MGA_NR_TEX_HEAPS];	      
 	
 	/* Mechanism to validate card state.

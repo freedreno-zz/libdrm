@@ -49,7 +49,7 @@ static void mgaEmitClipRect( drm_mga_private_t *dev_priv, xf86drmClipRectRec *bo
 	 * way I could get it to never clip the last triangle under any
 	 * circumstances is by inserting TWO dwgsync commands.
 	 */
- 	if (dev_priv->chipset == MGA_CARD_TYPE_G400) { 
+ 	if (dev_priv->chipset == MGA_CARD_TYPE_G400 && 0) { 
 		PRIMOUTREG( MGAREG_DMAPAD, 0 );
 		PRIMOUTREG( MGAREG_DMAPAD, 0 );
 		PRIMOUTREG( MGAREG_DWGSYNC, dev_priv->last_sync_tag - 1 );
@@ -343,37 +343,9 @@ static void mgaEmitState( drm_mga_private_t *dev_priv )
 
 static int mgaCalcState( drm_mga_private_t *dev_priv )
 {
-   	drm_mga_sarea_t *sarea_priv = dev_priv->sarea_priv;
-	unsigned int dirty = sarea_priv->dirty;
-	int size = 0;
-   
-   	if (dev_priv->chipset == MGA_CARD_TYPE_G400) {	   
-		int multitex = sarea_priv->WarpPipe & MGA_T2;
-
-		if (sarea_priv->WarpPipe != dev_priv->WarpPipe) {
-			size += 25;
-		}
-		if (dirty & MGA_UPLOAD_CTX) {
-		   	size += 15;
-		}
-		if (dirty & MGA_UPLOAD_TEX0) {
-		   	size += 30;
-		}
-		if ((dirty & MGA_UPLOAD_TEX1) && multitex) {
-		   	size += 25;
-		}
-	} else {
-		if (sarea_priv->WarpPipe != dev_priv->WarpPipe) {
-		   	size += 15;
-		}
-		if (dirty & MGA_UPLOAD_CTX) {
-		   	size += 15;
-		}
-		if (dirty & MGA_UPLOAD_TEX0) {
-		   	size += 20;
-		}
-	}	  
-	return size;
+	/* It doesn't hurt to overestimate.
+	 */
+	return 25+15+30+25;
 }
 
 /* Disallow all write destinations except the front and backbuffer.
@@ -525,23 +497,23 @@ static inline void mga_dma_dispatch_vertex(drm_device_t *dev,
    	PRIMLOCALS;
    	int primary_needed;
 
-   DRM_DEBUG("dispatch vertex %d addr 0x%lx, length 0x%x nbox %d dirty %x\n", 
+	DRM_DEBUG("dispatch vertex %d addr 0x%lx, length 0x%x nbox %d dirty %x\n", 
 		  buf->idx, address, length, sarea_priv->nbox, sarea_priv->dirty);
 
-   	primary_needed = mgaCalcState( dev_priv );
-   	/* Primary needed is in dwords */
-   	if (sarea_priv->nbox == 0) {
-	   primary_needed += 5;
-	} else {
-	   primary_needed += (5 * sarea_priv->nbox);
-	   primary_needed += (10 * sarea_priv->nbox);
-	}
-   	primary_needed += 5; /* For the dwgsync */
-   	PRIM_OVERFLOW(dev, dev_priv, primary_needed);
+
    	dev_priv->last_sync_tag = mga_create_sync_tag(dev);
-   	if(real_idx == idx) {
-	   buf_priv->age = dev_priv->last_sync_tag;
-	}
+   	if(real_idx == idx) 
+		buf_priv->age = dev_priv->last_sync_tag;
+
+
+	/* Overestimating this doesn't hurt.
+	 */
+	primary_needed = (25+15+30+25+ 
+			  10 + 
+			  15 * MGA_NR_SAREA_CLIPRECTS);
+
+
+   	PRIM_OVERFLOW(dev, dev_priv, primary_needed);
    	mgaEmitState( dev_priv );
    	do {
 	   	if (i < sarea_priv->nbox) {
@@ -636,7 +608,7 @@ static inline void mga_dma_dispatch_clear( drm_device_t *dev, int flags,
 			  pbox[i].x1, pbox[i].y1, pbox[i].x2, 
 			  pbox[i].y2, flags);
 
-	   	if ( flags & MGA_CLEAR_FRONT ) {	    
+	   	if ( flags & MGA_FRONT ) {	    
 		   	DRM_DEBUG("clear front\n");
 			PRIMOUTREG( MGAREG_DMAPAD, 0);
 			PRIMOUTREG( MGAREG_DMAPAD, 0);
@@ -649,7 +621,7 @@ static inline void mga_dma_dispatch_clear( drm_device_t *dev, int flags,
 			PRIMOUTREG(MGAREG_DWGCTL+MGAREG_MGA_EXEC, cmd );
 		}
 
-		if ( flags & MGA_CLEAR_BACK ) {
+		if ( flags & MGA_BACK ) {
 			DRM_DEBUG("clear back\n");
 			PRIMOUTREG( MGAREG_DMAPAD, 0);
 			PRIMOUTREG( MGAREG_DMAPAD, 0);
@@ -662,7 +634,7 @@ static inline void mga_dma_dispatch_clear( drm_device_t *dev, int flags,
 			PRIMOUTREG(MGAREG_DWGCTL+MGAREG_MGA_EXEC, cmd );
 		}
 
-		if ( flags & MGA_CLEAR_DEPTH ) {
+		if ( flags & MGA_DEPTH ) {
 			DRM_DEBUG("clear depth\n");
 			PRIMOUTREG( MGAREG_DMAPAD, 0);
 			PRIMOUTREG( MGAREG_DMAPAD, 0);
@@ -835,6 +807,8 @@ int mga_vertex(struct inode *inode, struct file *filp,
 	copy_from_user_ret(&vertex, (drm_mga_vertex_t *)arg, sizeof(vertex),
 			   -EFAULT);
    
+
+	DRM_DEBUG("mga_vertex\n");
 	buf = dma->buflist[ vertex.real_idx ];
    	buf_priv = buf->dev_private;
    
