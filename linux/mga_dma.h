@@ -33,7 +33,7 @@ typedef struct {
 
 #define MGA_VERBOSE 0
 
-#define MGA_NUM_PRIM_BUFS 	4
+#define MGA_NUM_PRIM_BUFS 	16
 /* Primary buffer versions of above -- pretty similar really.
  */
 
@@ -45,6 +45,7 @@ drm_mga_prim_buf_t *tmp_buf = 						\
 	dev_priv->prim_bufs[dev_priv->current_prim_idx];		\
 if( (tmp_buf->max_dwords - tmp_buf->num_dwords) < length ||    		\
      tmp_buf->sec_used > (MGA_DMA_BUF_NR / 2)) {       			\
+	atomic_set(&tmp_buf->force_fire, 1);				\
 	mga_advance_primary(dev);					\
 	mga_dma_schedule(dev, 1);					\
    }									\

@@ -49,6 +49,8 @@
 
 #define PDEA_pagpxfer_enable 	     0x2
 
+static int mga_flush_queue(drm_device_t *dev);
+
 static unsigned long mga_alloc_page(drm_device_t *dev)
 {
    unsigned long address;
@@ -106,13 +108,85 @@ static void mga_freelist_init(drm_device_t *dev)
 	}
 }
 
-unsigned int mga_create_sync_tag(drm_mga_private_t *dev_priv)
+void mga_wait_usec(int waittime)
 {
+   struct timeval timep;
+   int top_usec = 0;
+   int bot_usec = 0;
+   int i;
+   
+   while(1) {
+      do_gettimeofday(&timep);
+      top_usec = timep.tv_usec;
+      if((bot_usec = 0) || (top_usec < bot_usec)) {
+	 bot_usec = top_usec;
+      } else if ((top_usec - bot_usec) > waittime) {
+	 break;
+      }
+      for(i = 0 ; i < 4096; i++) mga_delay();
+   }
+   
+   return;
+}
+
+void mga_reset_abort(drm_device_t *dev)
+{
+   	drm_mga_private_t *dev_priv = (drm_mga_private_t *)dev->dev_private;
+	u32 temp;
+   	u32 reset;
+   
+   	pci_read_config_dword(dev_priv->device,
+			      0x04,
+			      &temp);
+   	reset = temp;
+   	reset &= 0x38000000;
+   	if(reset != 0) {
+	   /* Do a softreset */
+	   DRM_ERROR("Doing a soft reset : reset %x\n", reset);
+	   MGA_WRITE(0x1e40, 0x00000001);
+	   mga_wait_usec(10);
+	   MGA_WRITE(0x1e40, 0x00000000);
+	   pci_write_config_dword(dev_priv->device,
+				  0x04,
+				  temp);
+	}
+}
+
+/* Frees dispatch lock */
+static inline void mga_dma_quiescent(drm_device_t *dev)
+{
+   	drm_mga_private_t *dev_priv = (drm_mga_private_t *)dev->dev_private;
+      	drm_mga_sarea_t *sarea_priv = dev_priv->sarea_priv;
+   	__volatile__ unsigned int *status = 
+     		(__volatile__ unsigned int *)dev_priv->status_page;
+
+   	while(1) {
+	   if(!test_and_set_bit(0, &dev_priv->dispatch_lock)) {
+	      	break;
+	   }
+	}
+
+   	DRM_DEBUG("quiescent status : %x\n", MGA_READ(MGAREG_STATUS));
+   	mga_reset_abort(dev);
+   	while((MGA_READ(MGAREG_STATUS) & 0x00030001) != 0x00020000) ;
+   	DRM_DEBUG("status[1] : %x last_sync_tag : %x\n", status[1],
+	       dev_priv->last_sync_tag);
+   	sarea_priv->dirty |= MGA_DMA_FLUSH;
+   	clear_bit(0, &dev_priv->dispatch_lock);
+}
+
+unsigned int mga_create_sync_tag(drm_device_t *dev)
+{
+      	drm_mga_private_t *dev_priv = 
+     		(drm_mga_private_t *) dev->dev_private;
    	unsigned int temp;
    
    	dev_priv->sync_tag++;
    	if(dev_priv->sync_tag > 0x3fffffff) {
 	   	/* Make sure we are always at least 1 */
+		mga_flush_queue(dev);
+	   	mga_dma_quiescent(dev);
+	   	
 	   	dev_priv->sync_tag = 1;
 	   	/* Do a full dma flush */
 	}
@@ -232,7 +306,7 @@ void mga_fire_primary(drm_device_t *dev, drm_mga_prim_buf_t *prim)
 	int use_agp = PDEA_pagpxfer_enable;
       	PRIMLOCALS;
    
-   	dev_priv->last_sync_tag = mga_create_sync_tag(dev_priv);
+   	dev_priv->last_sync_tag = mga_create_sync_tag(dev);
 
 	/* We never check for overflow, b/c there is always room */
    	PRIMPTR(prim);
@@ -282,10 +356,13 @@ int mga_advance_primary(drm_device_t *dev)
 	   	add_wait_queue(&dev_priv->wait_queue, &entry);
 		for (;;) {
 		   	current->state = TASK_INTERRUPTIBLE;
+		   	mga_dma_schedule(dev, 0);
 		   	if(!test_and_set_bit(0, &prim_buffer->in_use)) break;
 		   	atomic_inc(&dev->total_sleeps);
-		   	mga_dma_schedule(dev, 0);
+#if 0
 		   	schedule_timeout(HZ/60);
+#endif
+		   	schedule();
 			if (signal_pending(current)) {
 				ret = -ERESTARTSYS;
 				break;
@@ -314,9 +391,13 @@ int mga_dma_schedule(drm_device_t *dev, int locked)
 		atomic_inc(&dma->total_missed_dma);
 		return -EBUSY;
 	}
+
+   	if(atomic_read(&dev_priv->in_flush) || 
+	   atomic_read(&dev_priv->in_wait)) {
+	   locked = 1;
+	}
    
-   	if (!locked && !atomic_read(&dev_priv->in_flush) &&
-	    !atomic_read(&dev_priv->in_wait) && 
+   	if (!locked && 
 	    !drm_lock_take(&dev->lock.hw_lock->lock,
 				      DRM_KERNEL_CONTEXT)) {
 	   	atomic_inc(&dma->total_missed_lock);
@@ -342,8 +423,7 @@ int mga_dma_schedule(drm_device_t *dev, int locked)
 		}
 	}
    	
-	if (!locked && !atomic_read(&dev_priv->in_flush) 
-	    && !atomic_read(&dev_priv->in_wait)) {
+	if (!locked) {
 		if (drm_lock_free(dev, &dev->lock.hw_lock->lock,
 				  DRM_KERNEL_CONTEXT)) {
 			DRM_ERROR("\n");
@@ -388,8 +468,8 @@ static void mga_dma_task_queue(void *device)
    	drm_device_t *dev = (drm_device_t *) device;
    	drm_mga_private_t *dev_priv = (drm_mga_private_t *)dev->dev_private;
 
-   	wake_up_interruptible(&dev_priv->wait_queue);
 	mga_dma_schedule(dev, 0);
+      	wake_up_interruptible(&dev_priv->wait_queue);
    	if(atomic_read(&dev_priv->in_flush) == 1 &&
 	   dev_priv->next_prim->num_dwords == 0) {
 	   	/* Everything is on the hardware */
@@ -542,7 +622,7 @@ static int mga_dma_initialize(drm_device_t *dev, drm_mga_init_t *init) {
 		PRIMLOCALS;
 		PRIMGETPTR( dev_priv );
 	   
-	   	dev_priv->last_sync_tag = mga_create_sync_tag(dev_priv);
+	   	dev_priv->last_sync_tag = mga_create_sync_tag(dev);
 	   
 		PRIMOUTREG(MGAREG_DMAPAD, 0);
 		PRIMOUTREG(MGAREG_DMAPAD, 0);
@@ -593,73 +673,15 @@ int mga_dma_init(struct inode *inode, struct file *filp,
 
 	return -EINVAL;
 }
-
-void mga_wait_usec(int waittime)
+#if 0
+static int __gettimeinmillis(void)
 {
-   struct timeval timep;
-   int top_usec = 0;
-   int bot_usec = 0;
-   int i;
-   
-   while(1) {
-      do_gettimeofday(&timep);
-      top_usec = timep.tv_usec;
-      if((bot_usec = 0) || (top_usec < bot_usec)) {
-	 bot_usec = top_usec;
-      } else if ((top_usec - bot_usec) > waittime) {
-	 break;
-      }
-      for(i = 0 ; i < 4096; i++) mga_delay();
-   }
-   
-   return;
+   struct timeval timep;   
+   do_gettimeofday(&timep);
+   return(timep.tv_sec * 1000) + (timep.tv_usec / 1000);
 }
+#endif
 
-void mga_reset_abort(drm_device_t *dev)
-{
-   	drm_mga_private_t *dev_priv = (drm_mga_private_t *)dev->dev_private;
-	u32 temp;
-   	u32 reset;
-   
-   	pci_read_config_dword(dev_priv->device,
-			      0x04,
-			      &temp);
-   	reset = temp;
-   	reset &= 0x38000000;
-   	if(reset != 0) {
-	   /* Do a softreset */
-	   DRM_DEBUG("Doing a soft reset : reset %x\n", reset);
-	   MGA_WRITE(0x1e40, 0x00000001);
-	   mga_wait_usec(10);
-	   MGA_WRITE(0x1e40, 0x00000000);
-	   pci_write_config_dword(dev_priv->device,
-				  0x04,
-				  temp);
-	}
-}
-
-/* Frees dispatch lock */
-static inline void mga_dma_quiescent(drm_device_t *dev)
-{
-   	drm_mga_private_t *dev_priv = (drm_mga_private_t *)dev->dev_private;
-      	drm_mga_sarea_t *sarea_priv = dev_priv->sarea_priv;
-   	__volatile__ unsigned int *status = 
-     		(__volatile__ unsigned int *)dev_priv->status_page;
-
-   	while(1) {
-	   if(!test_and_set_bit(0, &dev_priv->dispatch_lock)) {
-	      	break;
-	   }
-	}
-
-   	DRM_DEBUG("quiescent status : %x\n", MGA_READ(MGAREG_STATUS));
-   	mga_reset_abort(dev);
-   	while((MGA_READ(MGAREG_STATUS) & 0x00030001) != 0x00020000) ;
-   	DRM_DEBUG("status[1] : %x last_sync_tag : %x\n", status[1],
-	       dev_priv->last_sync_tag);
-   	sarea_priv->dirty |= MGA_DMA_FLUSH;
-   	clear_bit(0, &dev_priv->dispatch_lock);
-}
 
 int mga_irq_install(drm_device_t *dev, int irq)
 {
@@ -758,9 +780,13 @@ static int mga_flush_queue(drm_device_t *dev)
    		current->state = TASK_INTERRUPTIBLE;
    		add_wait_queue(&dev_priv->flush_queue, &entry);
    		for (;;) {
-	   		if (atomic_read(&dev_priv->in_flush) == 0) break;
 		   	mga_dma_schedule(dev, 0);
+	   		if (atomic_read(&dev_priv->in_flush) == 0) break;
+		   	atomic_inc(&dev->total_sleeps);
+#if 0
 	      		schedule_timeout(HZ/60);
+#endif
+		   	schedule();
 	      		if (signal_pending(current)) {
 		   		ret = -EINTR; /* Can't restart */
 		   		break;
@@ -827,6 +853,17 @@ int mga_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 	 */
 
 	if (!ret) {
+	   	if (_DRM_LOCKING_CONTEXT(dev->lock.hw_lock->lock)
+		    == lock.context && _DRM_LOCK_IS_CONT(dev->lock.hw_lock->lock)) {
+		   	long j = jiffies - dev->lock.lock_time;
+
+		   	if (j > 0 && j <= DRM_LOCK_SLICE) {
+				/* Can't take lock if we just had it and
+				   there is contention. */
+				current->state = TASK_INTERRUPTIBLE;
+				schedule_timeout(j);
+			}
+		}
 		add_wait_queue(&dev->lock.lock_queue, &entry);
 		for (;;) {
 			if (!dev->lock.hw_lock) {

@@ -306,28 +306,36 @@ static void mgaEmitState( drm_mga_private_t *dev_priv )
 			dev_priv->WarpPipe = sarea_priv->WarpPipe;
 		}
 
-		if (dirty & MGA_UPLOAD_CTX)
+		if (dirty & MGA_UPLOAD_CTX) {
 			mgaEmitContext( dev_priv );
+		   	sarea_priv->dirty &= ~MGA_UPLOAD_CTX;
+		}
 
-		if (dirty & MGA_UPLOAD_TEX0)
+		if (dirty & MGA_UPLOAD_TEX0) {
 			mgaG400EmitTex0( dev_priv );
+		   	sarea_priv->dirty &= ~MGA_UPLOAD_TEX0;
+		}
 
-		if ((dirty & MGA_UPLOAD_TEX1) && multitex)
+		if ((dirty & MGA_UPLOAD_TEX1) && multitex) {
 			mgaG400EmitTex1( dev_priv );
+		   	sarea_priv->dirty &= ~MGA_UPLOAD_TEX1;
+		}
 	} else {
 		if (sarea_priv->WarpPipe != dev_priv->WarpPipe) { 
 			mgaG200EmitPipe( dev_priv );
 			dev_priv->WarpPipe = sarea_priv->WarpPipe;
 		}
 
-		if (dirty & MGA_UPLOAD_CTX)
+		if (dirty & MGA_UPLOAD_CTX) {
 			mgaEmitContext( dev_priv );
+		   	sarea_priv->dirty &= ~MGA_UPLOAD_CTX;
+		}
 
-		if (dirty & MGA_UPLOAD_TEX0)
+		if (dirty & MGA_UPLOAD_TEX0) {
 			mgaG200EmitTex( dev_priv );
+		   	sarea_priv->dirty &= ~MGA_UPLOAD_TEX0;
+		}
 	}
-   
-   	sarea_priv->dirty = 0;
 }
 
 /* WARNING if you change any of the state functions 
@@ -530,7 +538,7 @@ static inline void mga_dma_dispatch_vertex(drm_device_t *dev,
 	}
    	primary_needed += 5; /* For the dwgsync */
    	PRIM_OVERFLOW(dev, dev_priv, primary_needed);
-   	dev_priv->last_sync_tag = mga_create_sync_tag(dev_priv);
+   	dev_priv->last_sync_tag = mga_create_sync_tag(dev);
    	if(real_idx == idx) {
 	   buf_priv->age = dev_priv->last_sync_tag;
 	}
@@ -583,7 +591,7 @@ static inline void mga_dma_dispatch_general(drm_device_t *dev, drm_buf_t *buf)
    	PRIM_OVERFLOW(dev, dev_priv, 10);
    	PRIMGETPTR(dev_priv);
 
-      	dev_priv->last_sync_tag = mga_create_sync_tag(dev_priv);
+      	dev_priv->last_sync_tag = mga_create_sync_tag(dev);
    	buf_priv->age = dev_priv->last_sync_tag;
 
 	PRIMOUTREG( MGAREG_DMAPAD, 0);
@@ -619,7 +627,7 @@ static inline void mga_dma_dispatch_clear( drm_device_t *dev, int flags,
    	if(primary_needed == 0) primary_needed = 35;
 	PRIM_OVERFLOW(dev, dev_priv, primary_needed);
 	PRIMGETPTR( dev_priv );
-      	dev_priv->last_sync_tag = mga_create_sync_tag(dev_priv);
+      	dev_priv->last_sync_tag = mga_create_sync_tag(dev);
 
 	for (i = 0 ; i < nbox ; i++) {
 		unsigned int height = pbox[i].y2 - pbox[i].y1;
@@ -690,7 +698,7 @@ static inline void mga_dma_dispatch_swap( drm_device_t *dev )
 	PRIM_OVERFLOW(dev, dev_priv, primary_needed);
 	PRIMGETPTR( dev_priv );
    
-      	dev_priv->last_sync_tag = mga_create_sync_tag(dev_priv);
+      	dev_priv->last_sync_tag = mga_create_sync_tag(dev);
 
 	PRIMOUTREG(MGAREG_DSTORG, dev_priv->frontOffset);
 	PRIMOUTREG(MGAREG_MACCESS, dev_priv->mAccess);
