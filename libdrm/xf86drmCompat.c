@@ -1031,10 +1031,10 @@ Bool drmI830CleanupDma(int driSubFD)
    init.func = I810_CLEANUP_DMA;
 
    if(ioctl(driSubFD, DRM_IOCTL_I830_INIT, &init)) {
-      return FALSE;
+      return 0; /* FALSE */
    }
 
-   return TRUE;
+   return 1; /* TRUE */
 }
 
 Bool drmI830InitDma(int driSubFD, drmCompatI830Init *info)
@@ -1062,9 +1062,9 @@ Bool drmI830InitDma(int driSubFD, drmCompatI830Init *info)
    init.cpp = info->cpp;
 
    if(ioctl(driSubFD, DRM_IOCTL_I830_INIT, &init)) {
-      return FALSE;
+      return 0; /* FALSE */
    }
-   return TRUE;
+   return 1; /* TRUE */
 }
 
 /* WARNING: Do not change, or add, anything to this file.  It is only provided
