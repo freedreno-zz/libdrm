@@ -747,13 +747,13 @@ int drmDestroyDrawable(int fd, drmDrawable handle)
 
 int drmAgpAcquire(int fd)
 {
-    if (ioctl(fd, DRM_IOCTL_AGP_ACQUIRE)) return -errno;
+    if (ioctl(fd, DRM_IOCTL_AGP_ACQUIRE, NULL)) return -errno;
     return 0;
 }
 
 int drmAgpRelease(int fd)
 {
-    if (ioctl(fd, DRM_IOCTL_AGP_RELEASE)) return -errno;
+    if (ioctl(fd, DRM_IOCTL_AGP_RELEASE, NULL)) return -errno;
     return 0;
 }
 
@@ -826,7 +826,7 @@ unsigned long drmAgpGetMode(int fd)
 {
     drm_agp_info_t i;
 
-    if (ioctl(fd, DRM_IOCTL_AGP_INFO, &i)) return -errno;
+    if (ioctl(fd, DRM_IOCTL_AGP_INFO, &i)) return 0;
     return i.mode;
 }
 
@@ -834,7 +834,7 @@ unsigned long drmAgpBase(int fd)
 {
     drm_agp_info_t i;
 
-    if (ioctl(fd, DRM_IOCTL_AGP_INFO, &i)) return -errno;
+    if (ioctl(fd, DRM_IOCTL_AGP_INFO, &i)) return 0;
     return i.aperture_base;
 }
 
@@ -842,7 +842,7 @@ unsigned long drmAgpSize(int fd)
 {
     drm_agp_info_t i;
 
-    if (ioctl(fd, DRM_IOCTL_AGP_INFO, &i)) return -errno;
+    if (ioctl(fd, DRM_IOCTL_AGP_INFO, &i)) return 0;
     return i.aperture_size;
 }
 
@@ -850,7 +850,7 @@ unsigned long drmAgpMemoryUsed(int fd)
 {
     drm_agp_info_t i;
 
-    if (ioctl(fd, DRM_IOCTL_AGP_INFO, &i)) return -errno;
+    if (ioctl(fd, DRM_IOCTL_AGP_INFO, &i)) return 0;
     return i.memory_used;
 }
 
@@ -858,7 +858,7 @@ unsigned long drmAgpMemoryAvail(int fd)
 {
     drm_agp_info_t i;
 
-    if (ioctl(fd, DRM_IOCTL_AGP_INFO, &i)) return -errno;
+    if (ioctl(fd, DRM_IOCTL_AGP_INFO, &i)) return 0;
     return i.memory_allowed;
 }
 
@@ -866,7 +866,7 @@ unsigned int drmAgpVendorId(int fd)
 {
     drm_agp_info_t i;
 
-    if (ioctl(fd, DRM_IOCTL_AGP_INFO, &i)) return -errno;
+    if (ioctl(fd, DRM_IOCTL_AGP_INFO, &i)) return 0;
     return i.id_vendor;
 }
 
@@ -874,7 +874,7 @@ unsigned int drmAgpDeviceId(int fd)
 {
     drm_agp_info_t i;
 
-    if (ioctl(fd, DRM_IOCTL_AGP_INFO, &i)) return -errno;
+    if (ioctl(fd, DRM_IOCTL_AGP_INFO, &i)) return 0;
     return i.id_device;
 }
 
