@@ -40,8 +40,6 @@
 #define R128_MAX_VBUF_AGE	0x10000000
 #define R128_VB_AGE_REG		R128_GUI_SCRATCH_REG0
 
-extern int r128_do_engine_reset(drm_device_t *dev);
-
 int R128_READ_PLL(drm_device_t *dev, int addr)
 {
 	R128_WRITE8(R128_CLOCK_CNTL_INDEX, addr & 0x1f);
@@ -214,7 +212,6 @@ static int r128_do_wait_for_fifo(drm_device_t *dev, int entries)
 		if (slots >= entries) return 0;
 		udelay(1);
 	}
-	(void)r128_do_engine_reset(dev);
 	return -EBUSY;
 }
 
@@ -232,7 +229,6 @@ static int r128_do_wait_for_idle(drm_device_t *dev)
 		}
 		udelay(1);
 	}
-	(void)r128_do_engine_reset(dev);
 	return -EBUSY;
 }
 
@@ -269,7 +265,7 @@ int r128_do_engine_reset(drm_device_t *dev)
 	}
 
 	/* Reset the CCE mode */
-	r128_do_wait_for_idle(dev);
+	(void)r128_do_wait_for_idle(dev);
 	R128_WRITE(R128_PM4_BUFFER_CNTL,
 		   dev_priv->cce_mode | dev_priv->ring_sizel2qw);
 	(void)R128_READ(R128_PM4_BUFFER_ADDR); /* as per the sample code */
@@ -304,7 +300,6 @@ static int r128_do_cce_wait_for_fifo(drm_device_t *dev, int entries)
 		if (slots >= entries) return 0;
 		udelay(1);
 	}
-	(void)r128_do_engine_reset(dev);
 	return -EBUSY;
 }
 
@@ -329,7 +324,6 @@ int r128_do_cce_wait_for_idle(drm_device_t *dev)
 			}
 			udelay(1);
 		}
-		(void)r128_do_engine_reset(dev);
 		return -EBUSY;
 	} else {
 		int ret = r128_do_cce_wait_for_fifo(dev, dev_priv->cce_fifo_size);
@@ -342,13 +336,12 @@ int r128_do_cce_wait_for_idle(drm_device_t *dev)
 			}
 			udelay(1);
 		}
-		(void)r128_do_engine_reset(dev);
 		return -EBUSY;
 	}
 }
 
-int r128_wait_idle(struct inode *inode, struct file *filp,
-		   unsigned int cmd, unsigned long arg)
+int r128_cce_idle(struct inode *inode, struct file *filp,
+		  unsigned int cmd, unsigned long arg)
 {
         drm_file_t         *priv     = filp->private_data;
         drm_device_t       *dev      = priv->dev;
@@ -363,17 +356,19 @@ int r128_wait_idle(struct inode *inode, struct file *filp,
 }
 
 static int r128_submit_packets_ring_secure(drm_device_t *dev,
-					   u32 *commands, int count)
+					   u32 *commands, int *count)
 {
 	drm_r128_private_t *dev_priv  = dev->dev_private;
 	int                 write     = dev_priv->sarea_priv->ring_write;
 	int                *write_ptr = dev_priv->ring_start + write;
+	int                 c         = *count;
+	int                 wrapped   = 0;
 	u32                 tmp       = 0;
 	int                 psize     = 0;
 	int                 writing   = 1;
 	int                 timeout;
 
-	while (count > 0) {
+	while (c > 0) {
 		tmp = *commands++;
 		if (!psize) {
 			writing = 1;
@@ -411,23 +406,27 @@ static int r128_submit_packets_ring_secure(drm_device_t *dev,
 			*write_ptr++ = tmp;
 		}
 		if (write >= dev_priv->ring_entries) {
-			write = 0;
+			write     = 0;
 			write_ptr = dev_priv->ring_start;
+			wrapped   = 1;
 		}
 		timeout = 0;
 		while (write == *dev_priv->ring_read_ptr) {
 			(void)R128_READ(R128_PM4_BUFFER_DL_RPTR);
 			if (timeout++ >= dev_priv->usec_timeout)
-				return r128_do_engine_reset(dev);
+				return -EBUSY;
 			udelay(1);
 		}
-		count--;
+		c--;
 	}
 
-	if (write < 32) {
+	if (wrapped) {
+		int size = write;
+
+		if (size > 32) size = 32;
 		memcpy(dev_priv->ring_end,
 		       dev_priv->ring_start,
-		       write * sizeof(u32));
+		       size * sizeof(u32));
 	}
 
 	/* Make sure WC cache has been flushed */
@@ -436,11 +435,13 @@ static int r128_submit_packets_ring_secure(drm_device_t *dev,
 	dev_priv->sarea_priv->ring_write = write;
 	R128_WRITE(R128_PM4_BUFFER_DL_WPTR, write);
 
+	*count = 0;
+
 	return 0;
 }
 
 static int r128_submit_packets_pio_secure(drm_device_t *dev,
-					  u32 *commands, int count)
+					  u32 *commands, int *count)
 {
 	u32  tmp     = 0;
 	int  psize   = 0;
@@ -448,7 +449,7 @@ static int r128_submit_packets_pio_secure(drm_device_t *dev,
 	int  addr    = R128_PM4_FIFO_DATA_EVEN;
 	int  ret;
 
-	while (count > 0) {
+	while (*count > 0) {
 		tmp = *commands++;
 		if (!psize) {
 			writing = 1;
@@ -488,7 +489,7 @@ static int r128_submit_packets_pio_secure(drm_device_t *dev,
 			addr ^= 0x0004;
 		}
 
-		count--;
+		*count -= 1;
 	}
 
 	if (addr == R128_PM4_FIFO_DATA_ODD) {
@@ -500,34 +501,40 @@ static int r128_submit_packets_pio_secure(drm_device_t *dev,
 }
 
 static int r128_submit_packets_ring(drm_device_t *dev,
-				    u32 *commands, int count)
+				    u32 *commands, int *count)
 {
 	drm_r128_private_t *dev_priv  = dev->dev_private;
 	int                 write     = dev_priv->sarea_priv->ring_write;
 	int                *write_ptr = dev_priv->ring_start + write;
+	int                 c         = *count;
+	int                 wrapped   = 0;
 	int                 timeout;
 
-	while (count > 0) {
+	while (c > 0) {
 		write++;
 		*write_ptr++ = *commands++;
 		if (write >= dev_priv->ring_entries) {
 			write     = 0;
 			write_ptr = dev_priv->ring_start;
+			wrapped   = 1;
 		}
 		timeout = 0;
 		while (write == *dev_priv->ring_read_ptr) {
 			(void)R128_READ(R128_PM4_BUFFER_DL_RPTR);
 			if (timeout++ >= dev_priv->usec_timeout)
-				return r128_do_engine_reset(dev);
+				return -EBUSY;
 			udelay(1);
 		}
-		count--;
+		c--;
 	}
 
-	if (write < 32) {
+	if (wrapped) {
+		int size = write;
+
+		if (size > 32) size = 32;
 		memcpy(dev_priv->ring_end,
 		       dev_priv->ring_start,
-		       write * sizeof(u32));
+		       size * sizeof(u32));
 	}
 
 	/* Make sure WC cache has been flushed */
@@ -536,25 +543,28 @@ static int r128_submit_packets_ring(drm_device_t *dev,
 	dev_priv->sarea_priv->ring_write = write;
 	R128_WRITE(R128_PM4_BUFFER_DL_WPTR, write);
 
+	*count = 0;
+
 	return 0;
 }
 
 static int r128_submit_packets_pio(drm_device_t *dev,
-				   u32 *commands, int count)
+				   u32 *commands, int *count)
 {
 	int  ret;
 
-	while (count > 1) {
+	while (*count > 1) {
 		if ((ret = r128_do_cce_wait_for_fifo(dev, 2)) < 0) return ret;
 		R128_WRITE(R128_PM4_FIFO_DATA_EVEN, *commands++);
 		R128_WRITE(R128_PM4_FIFO_DATA_ODD,  *commands++);
-		count -= 2;
+		*count -= 2;
 	}
 
-	if (count) {
+	if (*count) {
 		if ((ret = r128_do_cce_wait_for_fifo(dev, 2)) < 0) return ret;
 		R128_WRITE(R128_PM4_FIFO_DATA_EVEN, *commands++);
 		R128_WRITE(R128_PM4_FIFO_DATA_ODD,  R128_CCE_PACKET2);
+		*count = 0;
 	}
 
 	return 0;
@@ -563,22 +573,30 @@ static int r128_submit_packets_pio(drm_device_t *dev,
 static int r128_do_submit_packets(drm_device_t *dev, u32 *buffer, int count)
 {
 	drm_r128_private_t *dev_priv = dev->dev_private;
+	int                 c = count;
 	int                 ret;
 
 	if (dev_priv->cce_is_bm_mode) {
-		if (dev_priv->cce_secure)
-			ret = r128_submit_packets_ring_secure(dev, buffer, count);
-		else
-			ret = r128_submit_packets_ring(dev, buffer, count);
+		int left = 0;
+
+		if (c >= dev_priv->ring_entries) {
+			c    = dev_priv->ring_entries-1;
+			left = count - c;
+		}
+
+		/* Since this is only used by the kernel we can use the
+                   insecure ring buffer submit packet routine */
+		ret = r128_submit_packets_ring(dev, buffer, &c);
+
+		c += left;
 	} else {
-		if (dev_priv->cce_secure)
-			ret = r128_submit_packets_pio_secure(dev,
-							     buffer, count);
-		else
-			ret = r128_submit_packets_pio(dev, buffer, count);
+		/* Since this is only used by the kernel we can use the
+                   insecure PIO submit packet routine */
+		ret = r128_submit_packets_pio(dev, buffer, &c);
 	}
 
-	return ret;
+	if (ret < 0) return ret;
+	else         return c;
 }
 
 int r128_submit_pkt(struct inode *inode, struct file *filp,
@@ -589,7 +607,7 @@ int r128_submit_pkt(struct inode *inode, struct file *filp,
 	drm_r128_private_t *dev_priv = dev->dev_private;
 	drm_r128_packet_t   packet;
 	u32                *buffer;
-	int                 count;
+	int                 c;
 	int                 size;
 	int                 ret = 0;
 
@@ -602,41 +620,47 @@ int r128_submit_pkt(struct inode *inode, struct file *filp,
 	copy_from_user_ret(&packet, (drm_r128_packet_t *)arg, sizeof(packet),
 			   -EFAULT);
 
-	count = packet.count;
-	size  = count * sizeof(u32);
+	c    = packet.count;
+	size = c * sizeof(*buffer);
 
 	if (dev_priv->cce_is_bm_mode) {
 		int left = 0;
 
-		if (count >= dev_priv->ring_entries) {
-			count = dev_priv->ring_entries-1;
-			left  = packet.count - count;
+		if (c >= dev_priv->ring_entries) {
+			c    = dev_priv->ring_entries-1;
+			size = c * sizeof(*buffer);
+			left = packet.count - c;
 		}
 
 		if ((buffer = kmalloc(size, 0)) == NULL) return -ENOMEM;
 		copy_from_user_ret(buffer, packet.buffer, size, -EFAULT);
 
 		if (dev_priv->cce_secure)
-			ret = r128_submit_packets_ring_secure(dev,
-							      buffer, count);
+			ret = r128_submit_packets_ring_secure(dev, buffer, &c);
 		else
-			ret = r128_submit_packets_ring(dev, buffer, count);
+			ret = r128_submit_packets_ring(dev, buffer, &c);
 
-		if (!ret) ret = left;
+		c += left;
 	} else {
 		if ((buffer = kmalloc(size, 0)) == NULL) return -ENOMEM;
 		copy_from_user_ret(buffer, packet.buffer, size, -EFAULT);
 
 		if (dev_priv->cce_secure)
-			ret = r128_submit_packets_pio_secure(dev,
-							     buffer, count);
+			ret = r128_submit_packets_pio_secure(dev, buffer, &c);
 		else
-			ret = r128_submit_packets_pio(dev, buffer, count);
+			ret = r128_submit_packets_pio(dev, buffer, &c);
 	}
 
 	kfree(buffer);
 
-	return ret;
+	packet.count = c;
+	copy_to_user_ret((drm_r128_packet_t *)arg, &packet, sizeof(packet),
+			 -EFAULT);
+
+	if (ret)        return ret;
+	else if (c > 0) return -EAGAIN;
+
+	return 0;
 }
 
 static int r128_send_vertbufs(drm_device_t *dev, drm_r128_vertex_t *v)
@@ -645,22 +669,17 @@ static int r128_send_vertbufs(drm_device_t *dev, drm_r128_vertex_t *v)
 	drm_r128_private_t  *dev_priv = dev->dev_private;
 	drm_r128_buf_priv_t *buf_priv;
 	drm_buf_t           *buf;
-	int                  i;
+	int                  i, ret;
 	u32                  cce[2];
 
-	if (++dev_priv->submit_age == R128_MAX_VBUF_AGE) {
-		dev_priv->submit_age = 0;
-		(void)r128_do_cce_wait_for_idle(dev);
-		r128_mark_vertbufs_done(dev);
-	}
-
+	/* Make sure we have valid data */
 	for (i = 0; i < v->send_count; i++) {
 		int idx = v->send_indices[i];
 
 		if (idx < 0 || idx >= dma->buf_count) {
 			DRM_ERROR("Index %d (of %d max)\n",
 				  idx, dma->buf_count - 1);
-			continue;
+			return -EINVAL;
 		}
 		buf = dma->buflist[idx];
 		if (buf->pid != current->pid) {
@@ -674,31 +693,55 @@ static int r128_send_vertbufs(drm_device_t *dev, drm_r128_vertex_t *v)
 				  v->send_indices[i], i);
 			return -EINVAL;
 		}
-		buf->pending = 1;
+	}
 
-		/* FIXME: Add support for sending vertex buffer to the
-		   CCE here instead of in client code.  The v->prim
-		   holds the primitive type that should be drawn.
-
-		   This will require us to loop over the clip rects here
-		   as well, which implies that we extend the kernel
-		   driver to allow cliprects to be stored here.  Note
-		   that the cliprects could possibly come from the X
-		   server instead of the client, but this will require
-		   additional changes to the DRI to allow for this
-		   optimization. */
-
-		buf_priv      = buf->dev_private;
-		buf_priv->age = dev_priv->submit_age;
+	/* Wait for idle, if we've wrapped to make sure that all pending
+           buffers have been processed */
+	if (dev_priv->submit_age == R128_MAX_VBUF_AGE) {
+		if ((ret = r128_do_cce_wait_for_idle(dev)) < 0) return ret;
+		dev_priv->submit_age = 0;
+		r128_mark_vertbufs_done(dev);
 	}
 
 	/* Make sure WC cache has been flushed (if in PIO mode) */
 	if (!dev_priv->cce_is_bm_mode) r128_flush_write_combine();
 
+	/* FIXME: Add support for sending vertex buffer to the CCE here
+	   instead of in client code.  The v->prim holds the primitive
+	   type that should be drawn.  Loop over the list buffers in
+	   send_indices[] and submit a packet for each VB.
+
+	   This will require us to loop over the clip rects here as
+	   well, which implies that we extend the kernel driver to allow
+	   cliprects to be stored here.  Note that the cliprects could
+	   possibly come from the X server instead of the client, but
+	   this will require additional changes to the DRI to allow for
+	   this optimization. */
+
 	/* Submit a CCE packet that writes submit_age to R128_VB_AGE_REG */
 	cce[0] = R128CCE0(R128_CCE_PACKET0, R128_VB_AGE_REG, 0);
 	cce[1] = dev_priv->submit_age;
-	r128_do_submit_packets(dev, cce, 2);
+	if ((ret = r128_do_submit_packets(dev, cce, 2)) < 0) {
+		/* Until we add support for sending VBs to the CCE in
+		   this routine, we can recover from this error.  After
+		   we add that support, we won't be able to easily
+		   recover, so we will probably have to implement
+		   another mechanism for handling timeouts from packets
+		   submitted directly by the kernel. */
+		return ret;
+	}
+
+	/* Now that the submit packet request has succeeded, we can mark
+           the buffers as pending */
+	for (i = 0; i < v->send_count; i++) {
+		buf = dma->buflist[v->send_indices[i]];
+		buf->pending = 1;
+
+		buf_priv      = buf->dev_private;
+		buf_priv->age = dev_priv->submit_age;
+	}
+
+	dev_priv->submit_age++;
 
 	return 0;
 }
@@ -706,6 +749,7 @@ static int r128_send_vertbufs(drm_device_t *dev, drm_r128_vertex_t *v)
 static drm_buf_t *r128_freelist_get(drm_device_t *dev)
 {
 	drm_device_dma_t    *dma      = dev->dma;
+	drm_r128_private_t  *dev_priv = dev->dev_private;
 	drm_r128_buf_priv_t *buf_priv;
 	drm_buf_t           *buf;
 	int                  i, t;
@@ -718,7 +762,7 @@ static drm_buf_t *r128_freelist_get(drm_device_t *dev)
 		if (buf->pid == 0) return buf;
 	}
 
-	for (t = 0; t < 5; t++) { /* FIXME: Arbitrary */
+	for (t = 0; t < dev_priv->usec_timeout; t++) {
 		u32 done_age = R128_READ(R128_VB_AGE_REG);
 
 		for (i = 0; i < dma->buf_count; i++) {
@@ -731,6 +775,7 @@ static drm_buf_t *r128_freelist_get(drm_device_t *dev)
 				return buf;
 			}
 		}
+		udelay(1);
 	}
 
 	return NULL;

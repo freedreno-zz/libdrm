@@ -105,7 +105,7 @@ static drm_ioctl_desc_t	      r128_ioctls[] = {
 	[DRM_IOCTL_NR(DRM_IOCTL_R128_INIT)]   = { r128_init_cce,   1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_R128_RESET)]  = { r128_eng_reset,  1, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_R128_PACKET)] = { r128_submit_pkt, 1, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_R128_W4IDLE)] = { r128_wait_idle,  1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_R128_CCEIDL)] = { r128_cce_idle,   1, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_R128_VERTEX)] = { r128_vertex_buf, 1, 0 },
 };
 #define R128_IOCTL_COUNT DRM_ARRAY_SIZE(r128_ioctls)

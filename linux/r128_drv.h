@@ -79,8 +79,8 @@ extern int r128_eng_reset(struct inode *inode, struct file *filp,
 			  unsigned int cmd, unsigned long arg);
 extern int r128_submit_pkt(struct inode *inode, struct file *filp,
 			   unsigned int cmd, unsigned long arg);
-extern int r128_wait_idle(struct inode *inode, struct file *filp,
-			  unsigned int cmd, unsigned long arg);
+extern int r128_cce_idle(struct inode *inode, struct file *filp,
+			 unsigned int cmd, unsigned long arg);
 extern int r128_vertex_buf(struct inode *inode, struct file *filp,
 			   unsigned int cmd, unsigned long arg);
 
