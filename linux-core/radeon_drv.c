@@ -34,8 +34,8 @@
 
 #define RADEON_NAME		"radeon"
 #define RADEON_DESC		"ATI Radeon"
-#define RADEON_DATE		"20010105"
-#define RADEON_MAJOR		1
+#define RADEON_DATE		"20010309"
+#define RADEON_MAJOR		2
 #define RADEON_MINOR		0
 #define RADEON_PATCHLEVEL	0
 
