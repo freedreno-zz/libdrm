@@ -1407,4 +1407,44 @@ int drmRemoveSIGIOHandler(int fd)
 
     return xf86RemoveSIGIOHandler(fd);
 }
+
+int drmCommandNone(int fd, unsigned long drmCommandIndex)
+{
+  void *data = NULL; /* dummy */
+  unsigned long request;
+
+  request = DRM_IO( DRM_COMMAND_BASE + drmCommandIndex);
+
+  return ioctl(fd, request, data);
+}
+
+int drmCommandRead(int fd, unsigned long drmCommandIndex,
+                   void *data, unsigned long size )
+{
+  unsigned long request;
+
+  request = DRM_IOR( DRM_COMMAND_BASE + drmCommandIndex, size);
+
+  return ioctl(fd, request, data);
+}
+
+int drmCommandWrite(int fd, unsigned long drmCommandIndex,
+                   void *data, unsigned long size )
+{
+  unsigned long request;
+
+  request = DRM_IOW( DRM_COMMAND_BASE + drmCommandIndex, size);
+
+  return ioctl(fd, request, data);
+}
+
+int drmCommandWriteRead(int fd, unsigned long drmCommandIndex,
+                   void *data, unsigned long size )
+{
+  unsigned long request;
+
+  request = DRM_IOWR( DRM_COMMAND_BASE + drmCommandIndex, size);
+
+  return ioctl(fd, request, data);
+}
 #endif

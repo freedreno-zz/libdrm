@@ -428,6 +428,14 @@ typedef struct drm_scatter_gather {
 #define DRM_IOCTL_SG_ALLOC		DRM_IOW( 0x38, drm_scatter_gather_t)
 #define DRM_IOCTL_SG_FREE		DRM_IOW( 0x39, drm_scatter_gather_t)
 
+/* Device specfic ioctls should only be in their respective headers,
+ * however, a few device specific ioctls defined before XFree86 4.3
+ * are left here to preserve compatability.  Do not add new device
+ * specific ioctls here.
+ *
+ * The device specific ioctl range is 0x40 to 0x79.                  */
+#define DRM_COMMAND_BASE                0x40
+
 /* MGA specific ioctls */
 #define DRM_IOCTL_MGA_INIT		DRM_IOW( 0x40, drm_mga_init_t)
 #define DRM_IOCTL_MGA_FLUSH		DRM_IOW( 0x41, drm_lock_t)
@@ -475,7 +483,7 @@ typedef struct drm_scatter_gather {
 #define DRM_IOCTL_R128_CLEAR2		DRM_IOW( 0x51, drm_r128_clear2_t)
 
 /* Radeon specific ioctls */
-#define DRM_IOCTL_RADEON_CP_INIT	DRM_IOW( 0x40, drm_radeon_init_t)
+#define DRM_COMPAT_IOCTL_RADEON_CP_INIT DRM_IOW( 0x40, drm_radeon_init_t)
 #define DRM_IOCTL_RADEON_CP_START	DRM_IO(  0x41)
 #define DRM_IOCTL_RADEON_CP_STOP	DRM_IOW( 0x42, drm_radeon_cp_stop_t)
 #define DRM_IOCTL_RADEON_CP_RESET	DRM_IO(  0x43)

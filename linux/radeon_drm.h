@@ -236,7 +236,12 @@ typedef struct {
 
 /* WARNING: If you change any of these defines, make sure to change the
  * defines in the Xserver file (xf86drmRadeon.h)
+ *
+ * KW: actually it's illegal to change any of this (backwards compatibility).
  */
+
+#define DRM_IOCTL_RADEON_CP_INIT       DRM_IOW( 0x40, drm_radeon_init_t)
+
 typedef struct drm_radeon_init {
 	enum {
 		RADEON_INIT_CP    = 0x01,
