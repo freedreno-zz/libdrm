@@ -40,8 +40,6 @@
 #include <vm/vm.h>
 #include <vm/pmap.h>
 
-#define splmga	spltty		/* XXX bogus */
-
 #define MGA_REG(reg)		2
 #define MGA_BASE(reg)		((unsigned long) \
 				((drm_device_t *)dev)->maplist[MGA_REG(reg)]->handle)
@@ -234,7 +232,7 @@ drm_buf_t *mga_freelist_get(drm_device_t *dev)
 	if(failed >= 1000 && dev_priv->tail->age >= dev_priv->last_prim_age) {
 		DRM_DEBUG("I'm waiting on the freelist!!! %d\n", 
 		       dev_priv->last_prim_age);
-		s = splmga();
+		s = splsofttq();
 	   	set_bit(MGA_IN_GETBUF, &dev_priv->dispatch_status);
 	   	for (;;) {
 		   	mga_dma_schedule(dev, 0);
@@ -474,7 +472,7 @@ int mga_advance_primary(drm_device_t *dev)
    
       	/* In use is cleared in interrupt handler */
    
-	s = splmga();
+	s = splsofttq();
    	if(test_and_set_bit(MGA_BUF_IN_USE, &prim_buffer->buffer_status)) {
 	   	for (;;) {
 		   	mga_dma_schedule(dev, 0);
@@ -958,7 +956,7 @@ static int mga_flush_queue(drm_device_t *dev)
 	}
    
    	if(dev_priv->next_prim->num_dwords != 0) {
-		s = splmga();
+		s = splsofttq();
 		set_bit(MGA_IN_FLUSH, &dev_priv->dispatch_status);
    		for (;;) {
 		   	mga_dma_schedule(dev, 0);
@@ -1092,7 +1090,7 @@ int mga_flush_ioctl(dev_t kdev, u_long cmd, caddr_t data,
 			dev_priv->prim_bufs[dev_priv->current_prim_idx];
 
 		if(temp_buf && temp_buf->num_dwords) {
-			s = splmga();
+			s = splsofttq();
 			set_bit(MGA_BUF_FORCE_FIRE, &temp_buf->buffer_status);
 			mga_advance_primary(dev);
 			mga_dma_schedule(dev, 1);

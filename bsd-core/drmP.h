@@ -77,9 +77,11 @@ typedef u_int32_t spinlock_t;
 static __inline u_int32_t
 test_and_set_bit(int b, volatile u_int32_t *p)
 {
+	int s = splhigh();
 	u_int32_t m = 1<<b;
 	u_int32_t r = *p & m;
 	*p |= m;
+	splx(s);
 	return r;
 }
 

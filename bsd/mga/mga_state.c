@@ -797,6 +797,7 @@ int mga_clear_bufs(dev_t kdev, u_long cmd, caddr_t data,
 	    (drm_mga_private_t *) dev->dev_private;
 	drm_mga_sarea_t *sarea_priv = dev_priv->sarea_priv;
 	drm_mga_clear_t clear;
+	int s;
 
 	clear = *(drm_mga_clear_t *) data;
 	DRM_DEBUG("%s\n", __FUNCTION__);
@@ -816,7 +817,9 @@ int mga_clear_bufs(dev_t kdev, u_long cmd, caddr_t data,
 			       clear.clear_color, clear.clear_depth);
 	PRIMUPDATE(dev_priv);
 	mga_flush_write_combine();
+	s = splsofttq();
 	mga_dma_schedule(dev, 1);
+	splx(s);
 	return 0;
 }
 
@@ -827,6 +830,8 @@ int mga_swap_bufs(dev_t kdev, u_long cmd, caddr_t data,
 	drm_mga_private_t *dev_priv =
 	    (drm_mga_private_t *) dev->dev_private;
 	drm_mga_sarea_t *sarea_priv = dev_priv->sarea_priv;
+	int s;
+
 	DRM_DEBUG("%s\n", __FUNCTION__);
 
 	if (!_DRM_LOCK_IS_HELD(dev->lock.hw_lock->lock)) {
@@ -845,7 +850,9 @@ int mga_swap_bufs(dev_t kdev, u_long cmd, caddr_t data,
 	set_bit(MGA_BUF_SWAP_PENDING,
 		&dev_priv->current_prim->buffer_status);
 	mga_flush_write_combine();
+	s = splsofttq();
 	mga_dma_schedule(dev, 1);
+	splx(s);
 	return 0;
 }
 
@@ -861,6 +868,8 @@ int mga_iload(dev_t kdev, u_long cmd, caddr_t data,
 	drm_mga_buf_priv_t *buf_priv;
 	drm_mga_iload_t iload;
 	unsigned long bus_address;
+	int s;
+
 	DRM_DEBUG("%s\n", __FUNCTION__);
 
 	DRM_DEBUG("Starting Iload\n");
@@ -891,7 +900,9 @@ int mga_iload(dev_t kdev, u_long cmd, caddr_t data,
 	buf_priv->discard = 1;
 	mga_freelist_put(dev, buf);
 	mga_flush_write_combine();
+	s = splsofttq();
 	mga_dma_schedule(dev, 1);
+	splx(s);
 	return 0;
 }
 
@@ -905,6 +916,7 @@ int mga_vertex(dev_t kdev, u_long cmd, caddr_t data,
 	drm_buf_t *buf;
 	drm_mga_buf_priv_t *buf_priv;
 	drm_mga_vertex_t vertex;
+
 	DRM_DEBUG("%s\n", __FUNCTION__);
 
 	vertex = *(drm_mga_vertex_t *) data;

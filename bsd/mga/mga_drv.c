@@ -683,6 +683,7 @@ mga_unlock(dev_t kdev, u_long cmd, caddr_t data, int flags, struct proc *p)
 {
         drm_device_t      *dev    = kdev->si_drv1;
 	drm_lock_t	  lock;
+	int		  s;
 
 	lock = *(drm_lock_t *) data;
 	
@@ -699,7 +700,10 @@ mga_unlock(dev_t kdev, u_long cmd, caddr_t data, int flags, struct proc *p)
 	if (_DRM_LOCK_IS_CONT(dev->lock.hw_lock->lock))
 		atomic_inc(&dev->total_contends);
 	drm_lock_transfer(dev, &dev->lock.hw_lock->lock, DRM_KERNEL_CONTEXT);
+
+	s = splsofttq();
 	mga_dma_schedule(dev, 1);
+	splx(s);
 
 	if (drm_lock_free(dev, &dev->lock.hw_lock->lock,
 			  DRM_KERNEL_CONTEXT)) {
