@@ -76,4 +76,4 @@ typedef struct drm_gamma_init {
 	unsigned int buffers_offset;
 } drm_gamma_init_t;
 
-#endif _GAMMA_DRM_H_
+#endif /* _GAMMA_DRM_H_ */
