@@ -56,6 +56,12 @@ struct vm_operations_struct   drm_vm_dma_ops = {
 	close:	 drm_vm_close,
 };
 
+struct vm_operations_struct   drm_vm_sg_ops = {
+	nopage:	 drm_vm_sg_nopage,
+	open:	 drm_vm_open,
+	close:	 drm_vm_close,
+};
+
 #if LINUX_VERSION_CODE < 0x020317
 unsigned long drm_vm_nopage(struct vm_area_struct *vma,
 			    unsigned long address,
@@ -169,6 +175,49 @@ struct page *drm_vm_dma_nopage(struct vm_area_struct *vma,
 	return physical;
 #else
 	return virt_to_page(physical);
+#endif
+}
+
+#if LINUX_VERSION_CODE < 0x020317
+unsigned long drm_vm_sg_nopage(struct vm_area_struct *vma,
+			       unsigned long address,
+			       int write_access)
+#else
+				/* Return type changed in 2.3.23 */
+struct page *drm_vm_sg_nopage(struct vm_area_struct *vma,
+			      unsigned long address,
+			      int write_access)
+#endif
+{
+#if LINUX_VERSION_CODE >= 0x020300
+	drm_map_t	 *map	 = (drm_map_t *)vma->vm_private_data;
+#else
+	drm_map_t	 *map	 = (drm_map_t *)vma->vm_pte;
+#endif
+	drm_file_t *priv = vma->vm_file->private_data;
+	drm_device_t *dev = priv->dev;
+	drm_sg_mem_t *entry = dev->sg;
+	unsigned long offset;
+	unsigned long map_offset;
+	unsigned long page_offset;
+	struct page *page;
+
+	if (!entry)                return NOPAGE_SIGBUS; /* Error */
+	if (address > vma->vm_end) return NOPAGE_SIGBUS; /* Disallow mremap */
+	if (!entry->pagelist)      return NOPAGE_OOM ;  /* Nothing allocated */
+
+
+	offset = address - vma->vm_start;
+	map_offset = map->offset - dev->sg->handle;
+	page_offset = (offset >> PAGE_SHIFT) + (map_offset >> PAGE_SHIFT);
+	page = entry->pagelist[page_offset];
+	atomic_inc(&page->count);                       /* Dec. by kernel */
+
+
+#if LINUX_VERSION_CODE < 0x020317
+	return (unsigned long)virt_to_phys(page->virtual);
+#else
+	return page;
 #endif
 }
 
@@ -311,6 +360,12 @@ int drm_mmap(struct file *filp, struct vm_area_struct *vma)
 #endif
 	}
 
+	if (map->type == _DRM_SCATTER_GATHER) {
+		DRM_DEBUG("%s: scatter/gather\n", __FUNCTION__);
+		DRM_DEBUG("start = 0x%lx, end = 0x%lx, offset = 0x%lx\n",
+			  vma->vm_start, vma->vm_end, VM_OFFSET(vma));
+	}
+
 	switch (map->type) {
 	case _DRM_FRAME_BUFFER:
 	case _DRM_REGISTERS:
@@ -354,6 +409,15 @@ int drm_mmap(struct file *filp, struct vm_area_struct *vma)
 				   DRM_KERNEL advisory is supported. */
 		vma->vm_flags |= VM_LOCKED;
 		break;
+	case _DRM_SCATTER_GATHER:
+		vma->vm_ops = &drm_vm_sg_ops;
+#if LINUX_VERSION_CODE >= 0x020300
+		vma->vm_private_data = (void *)map;
+#else
+		vma->vm_pte = (unsigned long)map;
+#endif
+		vma->vm_flags |= VM_LOCKED;
+		break;
 	default:
 		return -EINVAL;	/* This should never happen. */
 	}
@@ -366,5 +430,9 @@ int drm_mmap(struct file *filp, struct vm_area_struct *vma)
 #endif
 	vma->vm_file  =	 filp;	/* Needed for drm_vm_open() */
 	drm_vm_open(vma);
+
+	if(map->type == _DRM_SCATTER_GATHER) {
+		DRM_DEBUG("%s: scatter/gather done.\n", __FUNCTION__);
+	}
 	return 0;
 }

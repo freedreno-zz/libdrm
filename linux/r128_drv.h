@@ -59,6 +59,7 @@ typedef struct drm_r128_private {
 
 	int cce_mode;
 	int cce_fifo_size;
+	int cce_secure;
 	int cce_running;
 
    	drm_r128_freelist_t *head;
@@ -89,6 +90,9 @@ typedef struct drm_r128_private {
 	u32 back_pitch_offset_c;
 	u32 depth_pitch_offset_c;
 	u32 span_pitch_offset_c;
+
+	void *pci_gart_page;
+	unsigned long phys_pci_gart_page;
 
 	drm_map_t *sarea;
 	drm_map_t *fb;
@@ -216,6 +220,11 @@ extern int  r128_context_switch_complete(drm_device_t *dev, int new);
 #define R128_AUX3_SC_TOP		0x168c
 #define R128_AUX3_SC_BOTTOM		0x1690
 
+#define R128_BM_CHUNK_0_VAL		0x0a18
+#	define R128_BM_PTR_FORCE_TO_PCI 	(1 << 21)
+#	define R128_BM_PM4_RD_FORCE_TO_PCI	(1 << 22)
+#	define R128_BM_GLOBAL_FORCE_TO_PCI	(1 << 23)
+
 #define R128_BRUSH_DATA0		0x1480
 #define R128_BUS_CNTL			0x0030
 #	define R128_BUS_MASTER_DIS		(1 << 6)
@@ -275,6 +284,7 @@ extern int  r128_context_switch_complete(drm_device_t *dev, int new);
 #	define R128_PC_FLUSH_ALL		0x00ff
 #	define R128_PC_BUSY			(1 << 31)
 
+#define R128_PCI_GART_PAGE		0x017c
 #define R128_PRIM_TEX_CNTL_C		0x1cb0
 
 #define R128_SCALE_3D_CNTL		0x1a00

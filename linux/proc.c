@@ -165,9 +165,9 @@ static int _drm_vm_info(char *buf, char **start, off_t offset, int len,
 	drm_device_t *dev = (drm_device_t *)data;
 	drm_map_t    *map;
 				/* Hardcoded from _DRM_FRAME_BUFFER,
-                                   _DRM_REGISTERS, _DRM_SHM, and
-                                   _DRM_AGP. */
-	const char   *types[] = { "FB", "REG", "SHM", "AGP" };
+                                   _DRM_REGISTERS, _DRM_SHM,
+                                   _DRM_AGP, and _DRM_SCATTER_GATHER. */
+	const char   *types[] = { "FB", "REG", "SHM", "AGP", "SG" };
 	const char   *type;
 	int	     i;
 
@@ -178,7 +178,7 @@ static int _drm_vm_info(char *buf, char **start, off_t offset, int len,
 		       "address mtrr\n\n");
 	for (i = 0; i < dev->map_count; i++) {
 		map = dev->maplist[i];
-		if (map->type < 0 || map->type > 3) type = "??";
+		if (map->type < 0 || map->type > 4) type = "??";
 		else				    type = types[map->type];
 		DRM_PROC_PRINT("%4d 0x%08lx 0x%08lx %4.4s  0x%02x 0x%08lx ",
 			       i,
@@ -411,7 +411,7 @@ static int _drm_vma_info(char *buf, char **start, off_t offset, int len,
 			pte = pte_offset(pmd, i);
 			if (pte_present(*pte)) {
 				address = __pa(pte_page(*pte))
-					+ (i & (PAGE_SIZE-1));
+					/*+ (i & (PAGE_SIZE-1));*/
 				DRM_PROC_PRINT("      0x%08lx -> 0x%08lx"
 					       " %c%c%c%c%c\n",
 					       i,

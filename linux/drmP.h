@@ -109,6 +109,8 @@
 #define DRM_MEM_TOTALAGP  16
 #define DRM_MEM_BOUNDAGP  17
 #define DRM_MEM_CTXBITMAP 18
+#define DRM_MEM_SG	  19
+#define DRM_MEM_SGLISTS   20
 
 #define DRM_MAX_CTXBITMAP (PAGE_SIZE * 8)
 
@@ -480,7 +482,8 @@ typedef struct drm_device_dma {
 	unsigned long	  *pagelist;
 	unsigned long	  byte_count;
 	enum {
-	   _DRM_DMA_USE_AGP = 0x01
+	   _DRM_DMA_USE_AGP = 0x01,
+	   _DRM_DMA_USE_SG  = 0x02
 	} flags;
 
 				/* DMA support */
@@ -511,6 +514,13 @@ typedef struct drm_agp_head {
    	int 		   agp_mtrr;
 } drm_agp_head_t;
 #endif
+
+typedef struct drm_sg_mem {
+	unsigned long	   handle;
+	void		   *virtual;
+	int		   pages;
+	struct page	   **pagelist;
+} drm_sg_mem_t;
 
 typedef struct drm_sigdata {
 	int           context;
@@ -599,6 +609,7 @@ typedef struct drm_device {
 #if defined(CONFIG_AGP) || defined(CONFIG_AGP_MODULE)
 	drm_agp_head_t    *agp;
 #endif
+	drm_sg_mem_t	  *sg;		/* Scatter / gather memory	   */
 	unsigned long     *ctx_bitmap;
 	void		  *dev_private;
 	drm_sigdata_t     sigdata; /* For block_all_signals */
@@ -639,6 +650,9 @@ extern unsigned long drm_vm_shm_nopage_lock(struct vm_area_struct *vma,
 extern unsigned long drm_vm_dma_nopage(struct vm_area_struct *vma,
 				       unsigned long address,
 				       int write_access);
+extern unsigned long drm_vm_sg_nopage(struct vm_area_struct *vma,
+				      unsigned long address,
+				      int write_access);
 #else
 				/* Return type changed in 2.3.23 */
 extern struct page *drm_vm_nopage(struct vm_area_struct *vma,
@@ -653,6 +667,9 @@ extern struct page *drm_vm_shm_nopage_lock(struct vm_area_struct *vma,
 extern struct page *drm_vm_dma_nopage(struct vm_area_struct *vma,
 				      unsigned long address,
 				      int write_access);
+extern struct page *drm_vm_sg_nopage(struct vm_area_struct *vma,
+				     unsigned long address,
+				     int write_access);
 #endif
 extern void	     drm_vm_open(struct vm_area_struct *vma);
 extern void	     drm_vm_close(struct vm_area_struct *vma);
@@ -831,5 +848,14 @@ extern int            drm_agp_free_memory(agp_memory *handle);
 extern int            drm_agp_bind_memory(agp_memory *handle, off_t start);
 extern int            drm_agp_unbind_memory(agp_memory *handle);
 #endif
+
+				/* Scatter/gather memory supprt (scatter.c) */
+extern int	      drm_sg_alloc(struct inode *inode, struct file *filp,
+				   unsigned int cmd, unsigned long arg);
+extern int	      drm_sg_free(struct inode *inode, struct file *filp,
+				  unsigned int cmd, unsigned long arg);
+
+#define page_to_pfn( page )	((unsigned long)((page)-mem_map))
+
 #endif
 #endif

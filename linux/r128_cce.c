@@ -37,6 +37,7 @@
 #include <linux/delay.h>
 
 #define R128_FIFO_DEBUG		0
+#define DEBUG_RING_AFTER_INIT	0
 
 
 /* CCE microcode (from ATI) */
@@ -128,6 +129,12 @@ static void r128_status( drm_r128_private_t *dev_priv )
 		(unsigned int)R128_READ( R128_PM4_MICRO_CNTL ) );
 	printk( "PM4_BUFFER_CNTL    = 0x%08x\n",
 		(unsigned int)R128_READ( R128_PM4_BUFFER_CNTL ) );
+	printk( "PM4_BUFFER_DL_WPTR = 0x%08x\n",
+	        (unsigned int)R128_READ( R128_PM4_BUFFER_DL_WPTR ) );
+	printk( "PM4_BUFFER_DL_RPTR = 0x%08x\n",
+	        (unsigned int)R128_READ( R128_PM4_BUFFER_DL_RPTR ) );
+	printk( "*ring.head         = 0x%08x\n",
+	        (unsigned int)*dev_priv->ring.head );
 }
 #endif
 
@@ -228,7 +235,13 @@ static int r128_do_cce_idle( drm_r128_private_t *dev_priv )
 	int i;
 
 	for ( i = 0 ; i < dev_priv->usec_timeout ; i++ ) {
-		if ( *dev_priv->ring.head == dev_priv->ring.tail ) {
+#if 0
+		if ( R128_READ( R128_PM4_BUFFER_DL_WPTR ) ==
+		     R128_READ( R128_PM4_BUFFER_DL_RPTR ) )
+#else
+		if ( *dev_priv->ring.head == dev_priv->ring.tail )
+#endif
+		{
 			int pm4stat = R128_READ( R128_PM4_STAT );
 			if ( ( (pm4stat & R128_PM4_FIFOCNT_MASK) >=
 			       dev_priv->cce_fifo_size ) &&
@@ -241,7 +254,7 @@ static int r128_do_cce_idle( drm_r128_private_t *dev_priv )
 	}
 
 #if R128_FIFO_DEBUG
-	DRM_ERROR( "failed!\n" );
+	DRM_ERROR( "cce idle failed!\n" );
 	r128_status( dev_priv );
 #endif
 	return -EBUSY;
@@ -335,7 +348,11 @@ static void r128_cce_init_ring_buffer( drm_device_t *dev )
 	/* The manual (p. 2) says this address is in "VM space".  This
 	 * means it's an offset from the start of AGP space.
 	 */
-	ring_start = dev_priv->cce_ring->offset - dev->agp->base;
+	if ( !dev_priv->is_pci ) {
+		ring_start = dev_priv->cce_ring->offset - dev->agp->base;
+	} else {
+		ring_start = dev_priv->cce_ring->offset - dev->sg->handle;
+	}
 	R128_WRITE( R128_PM4_BUFFER_OFFSET, ring_start | R128_AGP_OFFSET );
 
 	R128_WRITE( R128_PM4_BUFFER_DL_WPTR, 0 );
@@ -343,8 +360,23 @@ static void r128_cce_init_ring_buffer( drm_device_t *dev )
 
 	/* DL_RPTR_ADDR is a physical address in AGP space. */
 	*dev_priv->ring.head = 0;
-	R128_WRITE( R128_PM4_BUFFER_DL_RPTR_ADDR,
-		    dev_priv->ring_rptr->offset );
+	if ( !dev_priv->is_pci ) {
+		R128_WRITE( R128_PM4_BUFFER_DL_RPTR_ADDR,
+			    dev_priv->ring_rptr->offset );
+	} else {
+		drm_sg_mem_t *entry = dev->sg;
+		unsigned long tmp_ofs, page_ofs;
+
+		tmp_ofs = dev_priv->ring_rptr->offset - dev->sg->handle;
+		page_ofs = tmp_ofs >> PAGE_SHIFT;
+
+		R128_WRITE( R128_PM4_BUFFER_DL_RPTR_ADDR,
+			    virt_to_bus(entry->pagelist[page_ofs]->virtual));
+
+		DRM_INFO( "ring rptr: offset=0x%08lx handle=0x%08lx\n",
+			  virt_to_bus(entry->pagelist[page_ofs]->virtual),
+			  entry->handle + tmp_ofs );
+	}
 
 	/* Set watermark control */
 	R128_WRITE( R128_PM4_BUFFER_WM_CNTL,
@@ -379,7 +411,8 @@ static int r128_do_init_cce( drm_device_t *dev, drm_r128_init_t *init )
 	 * Fail here so we can remove all checks for PCI cards around
 	 * the CCE ring code.
 	 */
-	if ( dev_priv->is_pci ) {
+
+	if ( dev_priv->is_pci && !dev->sg) {
 		drm_free( dev_priv, sizeof(*dev_priv), DRM_MEM_DRIVER );
 		dev->dev_private = NULL;
 		return -EINVAL;
@@ -390,10 +423,12 @@ static int r128_do_init_cce( drm_device_t *dev, drm_r128_init_t *init )
 	     dev_priv->usec_timeout > R128_MAX_USEC_TIMEOUT ) {
 		drm_free( dev_priv, sizeof(*dev_priv), DRM_MEM_DRIVER );
 		dev->dev_private = NULL;
+		printk("USec timeout is screwed\n");
 		return -EINVAL;
 	}
 
 	dev_priv->cce_mode = init->cce_mode;
+	dev_priv->cce_secure = init->cce_secure;
 
 	/* GH: Simple idle check.
 	 */
@@ -409,6 +444,7 @@ static int r128_do_init_cce( drm_device_t *dev, drm_r128_init_t *init )
 	     ( init->cce_mode != R128_PM4_64BM_64VCBM_64INDBM ) ) {
 		drm_free( dev_priv, sizeof(*dev_priv), DRM_MEM_DRIVER );
 		dev->dev_private = NULL;
+		printk("CCE mode is screwed\n");
 		return -EINVAL;
 	}
 
@@ -479,9 +515,25 @@ static int r128_do_init_cce( drm_device_t *dev, drm_r128_init_t *init )
 		(drm_r128_sarea_t *)((u8 *)dev_priv->sarea->handle +
 				     init->sarea_priv_offset);
 
-	DO_IOREMAP( dev_priv->cce_ring );
-	DO_IOREMAP( dev_priv->ring_rptr );
-	DO_IOREMAP( dev_priv->buffers );
+	if(dev_priv->is_pci) {
+		printk("dev->sg->virtual (cce_ring): %p\n", dev->sg->virtual);
+
+		dev_priv->cce_ring->handle = 
+			(void *)dev_priv->cce_ring->offset;
+		printk("cce_ring : %p\n", dev_priv->cce_ring->handle);
+
+		dev_priv->ring_rptr->handle = 
+			(void *)dev_priv->ring_rptr->offset;
+		printk("ring_rptr : %p\n", dev_priv->ring_rptr->handle);
+
+		dev_priv->buffers->handle = (void *)dev_priv->buffers->offset;
+		printk("buffers : %p\n", dev_priv->buffers->handle);
+	} else {
+		DO_IOREMAP( dev_priv->cce_ring );
+		DO_IOREMAP( dev_priv->ring_rptr );
+		DO_IOREMAP( dev_priv->buffers );
+	}
+
 #if 0
 	if ( !dev_priv->is_pci ) {
 		DO_IOREMAP( dev_priv->agp_textures );
@@ -507,10 +559,83 @@ static int r128_do_init_cce( drm_device_t *dev, drm_r128_init_t *init )
 	R128_WRITE( R128_LAST_DISPATCH_REG,
 		    dev_priv->sarea_priv->last_dispatch );
 
+	if ( dev_priv->is_pci && r128_pcigart_init( dev ) < 0) {
+		DRM_ERROR( "failed to init PCIGART!\n" );
+		drm_free( dev_priv, sizeof(*dev_priv),
+			  DRM_MEM_DRIVER );
+		dev->dev_private = NULL;
+		return -EINVAL;
+	}
+
+	printk("Initializing ring buffer\n");
 	r128_cce_init_ring_buffer( dev );
+	printk("Initializing microcode\n");
 	r128_cce_load_microcode( dev_priv );
+	printk("Reseting engine\n");
 	r128_do_engine_reset( dev );
 
+	printk("Waiting for idle\n");
+	r128_do_wait_for_idle( dev_priv );
+
+	{
+		printk( "GUI_STAT           = 0x%08x\n",
+                        (unsigned int)R128_READ( R128_GUI_STAT ) );
+		printk( "PM4_STAT           = 0x%08x\n",
+		        (unsigned int)R128_READ( R128_PM4_STAT ) );
+		printk( "PM4_BUFFER_DL_WPTR = 0x%08x\n",
+		        (unsigned int)R128_READ( R128_PM4_BUFFER_DL_WPTR ) );
+		printk( "PM4_BUFFER_DL_RPTR = 0x%08x\n",
+		        (unsigned int)R128_READ( R128_PM4_BUFFER_DL_RPTR ) );
+		printk( "PM4_MICRO_CNTL     = 0x%08x\n",
+		        (unsigned int)R128_READ( R128_PM4_MICRO_CNTL ) );
+		printk( "PM4_BUFFER_CNTL    = 0x%08x\n",
+		        (unsigned int)R128_READ( R128_PM4_BUFFER_CNTL ) );
+		printk( "PM4_BUFFER_OFFSET  = 0x%08x\n",
+		        (unsigned int)R128_READ( R128_PM4_BUFFER_OFFSET ) );
+		printk( "PM4_BUFFER_DL_RPTR_ADDR  = 0x%08x\n",
+		        (unsigned int)R128_READ( R128_PM4_BUFFER_DL_RPTR_ADDR ));
+		printk( "PCI_GART_PAGE      = 0x%08x\n",
+		        (unsigned int)R128_READ( R128_PCI_GART_PAGE ) );
+		printk( "BM_CHUNK_0_VAL     = 0x%08x\n",
+		        (unsigned int)R128_READ( R128_BM_CHUNK_0_VAL ) );
+	}
+
+#ifdef DEBUG_RING_AFTER_INIT
+	{
+		int last_dispatch;
+		RING_LOCALS;
+
+		r128_do_cce_start( dev_priv );
+
+		printk("Doing a test write to dispatch register\n");
+
+		BEGIN_RING( 2 );
+		OUT_RING( CCE_PACKET0( R128_LAST_DISPATCH_REG, 0 ) );
+		OUT_RING( 0xcafebabe );
+		ADVANCE_RING();
+
+		r128_do_cce_flush( dev_priv );
+		r128_do_cce_idle( dev_priv );
+		last_dispatch = R128_READ( R128_LAST_DISPATCH_REG );
+		printk("last_dispatch = 0x%x\n", last_dispatch);
+
+		BEGIN_RING( 2 );
+		OUT_RING( CCE_PACKET0( R128_LAST_DISPATCH_REG, 0 ) );
+		OUT_RING( 0 );
+		ADVANCE_RING();
+
+		r128_do_cce_flush( dev_priv );
+		r128_do_cce_idle( dev_priv );
+		last_dispatch = R128_READ( R128_LAST_DISPATCH_REG );
+		printk("last_dispatch 2 = 0x%x\n", last_dispatch);
+
+		r128_do_wait_for_idle( dev_priv );
+		r128_do_engine_reset( dev );
+		r128_do_wait_for_idle( dev_priv );		
+	}
+#endif
+     
+	printk("Returning zero\n");
 	return 0;
 }
 
@@ -519,9 +644,11 @@ static int r128_do_cleanup_cce( drm_device_t *dev )
 	if ( dev->dev_private ) {
 		drm_r128_private_t *dev_priv = dev->dev_private;
 
-		DO_IOREMAPFREE( dev_priv->cce_ring );
-		DO_IOREMAPFREE( dev_priv->ring_rptr );
-		DO_IOREMAPFREE( dev_priv->buffers );
+		if(!dev_priv->is_pci) {
+			DO_IOREMAPFREE( dev_priv->cce_ring );
+			DO_IOREMAPFREE( dev_priv->ring_rptr );
+			DO_IOREMAPFREE( dev_priv->buffers );
+		}
 #if 0
 		if ( !dev_priv->is_pci ) {
 			DO_IOREMAPFREE( dev_priv->agp_textures );

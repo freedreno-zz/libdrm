@@ -46,12 +46,12 @@
 # *** Setup
 
 # **** End of SMP/MODVERSIONS detection
-
+CC=		gcc
 MODS=           gamma.o tdfx.o r128.o radeon.o
 LIBS=           libdrm.a
 
 DRMOBJS=	init.o memory.o proc.o auth.o context.o drawable.o bufs.o \
-		lists.o lock.o ioctl.o fops.o vm.o dma.o ctxbitmap.o
+		lists.o lock.o ioctl.o fops.o vm.o dma.o ctxbitmap.o scatter.o
 DRMHEADERS=	drm.h drmP.h compat-pre24.h
 
 GAMMAOBJS=      gamma_drv.o gamma_dma.o
@@ -141,7 +141,8 @@ MGAHEADERS=	mga_drv.h $(DRMHEADERS)
 I810OBJS=	i810_drv.o i810_dma.o i810_bufs.o i810_context.o
 I810HEADERS=	i810_drv.h $(DRMHEADERS)
 
-R128OBJS=	r128_drv.o r128_cce.o r128_bufs.o r128_context.o r128_state.o
+R128OBJS=	r128_drv.o r128_cce.o r128_bufs.o r128_context.o r128_state.o \
+		r128_pcigart.o
 R128HEADERS=	r128_drv.h r128_drm.h $(DRMHEADERS)
 
 RADEONOBJS=	radeon_drv.o radeon_cp.o radeon_bufs.o radeon_context.o \

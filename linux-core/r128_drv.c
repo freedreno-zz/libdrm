@@ -107,6 +107,8 @@ static drm_ioctl_desc_t	      r128_ioctls[] = {
 	[DRM_IOCTL_NR(DRM_IOCTL_AGP_BIND)]     = { drm_agp_bind,      1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_AGP_UNBIND)]   = { drm_agp_unbind,    1, 1 },
 #endif
+	[DRM_IOCTL_NR(DRM_IOCTL_SG_ALLOC)]	= { drm_sg_alloc,     1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_SG_FREE)] 	= { drm_sg_free,      1, 1 },
 
 	[DRM_IOCTL_NR(DRM_IOCTL_R128_INIT)]      = { r128_cce_init,     1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_R128_CCE_START)] = { r128_cce_start,    1, 1 },
@@ -308,6 +310,12 @@ static int r128_takedown(drm_device_t *dev)
 			case _DRM_AGP:
 				/* Do nothing here, because this is all
                                    handled in the AGP/GART driver. */
+				break;
+			case _DRM_SCATTER_GATHER:
+				if(dev->sg) {
+					drm_sg_cleanup(dev->sg);
+					dev->sg = NULL;
+				}
 				break;
 			}
 			drm_free(map, sizeof(*map), DRM_MEM_MAPS);
