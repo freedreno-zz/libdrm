@@ -191,6 +191,9 @@ unsigned int mga_create_sync_tag(drm_device_t *dev)
 	   	/* Do a full dma flush */
 	}
    	temp = dev_priv->sync_tag << 2;
+
+	dev_priv->sarea_priv->last_enqueue = temp;
+
    	DRM_DEBUG("sync_tag : %x\n", temp);
    	return temp;
 }
@@ -209,7 +212,7 @@ drm_buf_t *mga_freelist_get(drm_device_t *dev)
    	for (i = 0; i < dma->buf_count; i++) {
 	   	drm_buf_t *buf = dma->buflist[ i ];
 	   	drm_mga_buf_priv_t *buf_priv = buf->dev_private;
-	   	if(buf_priv->age < status[1]) {
+	   	if (buf_priv->age < status[1]) {
 		   	buf_priv->age = MGA_BUF_USED;
 		   	return buf;
 		}
@@ -471,6 +474,8 @@ static void mga_dma_service(int irq, void *device, struct pt_regs *regs)
    	drm_mga_prim_buf_t *last_prim_buffer;
    	int softrap_idx;
    	int next_idx;
+   	__volatile__ unsigned int *status = 
+     		(__volatile__ unsigned int *)dev_priv->status_page;
    
    	softrap_idx = MGA_READ(MGAREG_SECADDRESS);
    	atomic_inc(&dev->total_irq);
@@ -490,6 +495,9 @@ static void mga_dma_service(int irq, void *device, struct pt_regs *regs)
       	clear_bit(0, &last_prim_buffer->swap_pending);
       	clear_bit(0, &dev_priv->dispatch_lock);
       	atomic_dec(&dev_priv->pending_bufs);
+
+   	dev_priv->sarea_priv->last_dispatch = status[1];
+
    	queue_task(&dev->tq, &tq_immediate);
    	mark_bh(IMMEDIATE_BH);
 }
@@ -859,7 +867,6 @@ int mga_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 {
 	drm_file_t	  *priv	  = filp->private_data;
 	drm_device_t	  *dev	  = priv->dev;
-   	drm_mga_private_t *dev_priv = (drm_mga_private_t *) dev->dev_private;
 	DECLARE_WAITQUEUE(entry, current);
 	int		  ret	= 0;
 	drm_lock_t	  lock;
@@ -943,7 +950,6 @@ int mga_flush_ioctl(struct inode *inode, struct file *filp,
 {
    	drm_file_t	  *priv	  = filp->private_data;
    	drm_device_t	  *dev	  = priv->dev;
-      	drm_mga_private_t *dev_priv = (drm_mga_private_t *) dev->dev_private;
    	drm_device_dma_t *dma = dev->dma;
 
    

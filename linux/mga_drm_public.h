@@ -177,7 +177,7 @@ typedef struct _xf86drmClipRectRec {
 #define MGA_CARD_HEAP 0
 #define MGA_AGP_HEAP  1
 #define MGA_NR_TEX_HEAPS 2
-#define MGA_NR_TEX_REGIONS 128
+#define MGA_NR_TEX_REGIONS 16
 #define MGA_LOG_MIN_TEX_REGION_SIZE 16
 
 typedef struct {
@@ -199,7 +199,6 @@ typedef struct
    	unsigned int WarpPipe;
    	unsigned int dirty;
 
-   
    	unsigned int nbox;
    	xf86drmClipRectRec boxes[MGA_NR_SAREA_CLIPRECTS];
 
@@ -222,6 +221,7 @@ typedef struct
         unsigned int exported_nback;
 	int exported_back_x, exported_front_x, exported_w;	
 	int exported_back_y, exported_front_y, exported_h;
+   	xf86drmClipRectRec exported_boxes[MGA_NR_SAREA_CLIPRECTS];
    
 	/* Counters for aging textures and for client-side throttling.
 	 */
@@ -239,6 +239,7 @@ typedef struct
 	 */
    	int ctxOwner;		
 
+
 } drm_mga_sarea_t;	
 
 
@@ -249,13 +250,11 @@ typedef struct {
 	int clear_color;
 	int clear_depth;
 	int flags;
-	int age;
 } drm_mga_clear_t;
 
 
 typedef struct {
    	int idx;
-	int age;
 } drm_mga_swap_t;
 
 typedef struct {
@@ -264,7 +263,6 @@ typedef struct {
    	unsigned int pitch;
 	xf86drmClipRectRec texture;
    	int idx;
-	int age;
 } drm_mga_iload_t;
 
 
@@ -280,8 +278,7 @@ typedef struct {
    	int idx;		/* buffer to queue and free on completion */
    	int real_idx;		/* buffer to execute */
 	int real_used;		/* buf->used in for real buffer */
-	int age;
-	int discard;
+	int discard;		/*  */
 } drm_mga_vertex_t;
 
 
