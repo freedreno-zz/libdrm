@@ -95,6 +95,8 @@ typedef struct drm_i830_private {
 extern int  i830_dma_schedule(drm_device_t *dev, int locked);
 extern int  i830_getbuf(struct inode *inode, struct file *filp,
 			unsigned int cmd, unsigned long arg);
+extern int  i830_getbuf2(struct inode *inode, struct file *filp,
+			unsigned int cmd, unsigned long arg);
 extern int  i830_dma_init(struct inode *inode, struct file *filp,
 			  unsigned int cmd, unsigned long arg);
 extern int  i830_dma_cleanup(drm_device_t *dev);
@@ -112,6 +114,9 @@ extern int i830_docopy(struct inode *inode, struct file *filp,
 extern void i830_dma_quiescent(drm_device_t *dev);
 
 extern int i830_dma_vertex(struct inode *inode, struct file *filp,
+			  unsigned int cmd, unsigned long arg);
+
+extern int i830_dma_vertex2(struct inode *inode, struct file *filp,
 			  unsigned int cmd, unsigned long arg);
 
 extern int i830_swap_bufs(struct inode *inode, struct file *filp,
@@ -195,6 +200,9 @@ extern int i830_wait_ring(drm_device_t *dev, int n, const char *caller);
 #define STATE3D_LOAD_STATE_IMMEDIATE_2      ((0x3<<29)|(0x1d<<24)|(0x03<<16))
 #define LOAD_TEXTURE_MAP0                   (1<<11)
 
+#define STATE3D_LOAD_STATE_IMMEDIATE_1      ((0x3<<29)|(0x1d<<24)|(0x04<<16))
+#define LOAD_VB0                            (1<<4)
+
 #define INST_PARSER_CLIENT   0x00000000
 #define INST_OP_FLUSH        0x02000000
 #define INST_FLUSH_MAP_CACHE 0x00000001
@@ -251,7 +259,12 @@ extern int i830_wait_ring(drm_device_t *dev, int n, const char *caller);
 #define GFX_OP_MAP_INFO          ((0x3<<29)|(0x1d<<24)|0x4)
 #define GFX_OP_DESTBUFFER_VARS   ((0x3<<29)|(0x1d<<24)|(0x85<<16)|0x0)
 #define GFX_OP_DRAWRECT_INFO     ((0x3<<29)|(0x1d<<24)|(0x80<<16)|(0x3))
+
 #define GFX_OP_PRIMITIVE         ((0x3<<29)|(0x1f<<24))
+#define PRIM_INDIRECT            (1<<23)
+#define PRIM_INLINE              (0<<23)
+#define PRIM_INDIRECT_SEQUENTIAL (0<<17)
+#define PRIM_INDIRECT_ELTS       (1<<17)
 
 #define CMD_OP_DESTBUFFER_INFO	 ((0x3<<29)|(0x1d<<24)|(0x8e<<16)|1)
 
@@ -284,6 +297,11 @@ extern int i830_wait_ring(drm_device_t *dev, int n, const char *caller);
 #define XY_SRC_COPY_BLT_WRITE_ALPHA     (1<<21)
 #define XY_SRC_COPY_BLT_WRITE_RGB       (1<<20)
 
+#define MI_VERTEX_BUFFER        ((0x17<<23))
+#define MI_VB_PITCH_SHIFT       13
+#define MI_VB_WIDTH_SHIFT       6
+
+
 #define MI_BATCH_BUFFER 	((0x30<<23)|1)
 #define MI_BATCH_BUFFER_START 	(0x31<<23)
 #define MI_BATCH_BUFFER_END 	(0xA<<23)
@@ -294,6 +312,22 @@ extern int i830_wait_ring(drm_device_t *dev, int n, const char *caller);
 #define MI_WAIT_FOR_PLANE_A_SCANLINES (1<<1) 
 
 #define MI_LOAD_SCAN_LINES_INCL  ((0x12<<23))
+
+#define VFT0_POINT_WIDTH		(1<<12)
+#define VFT0_TEX_COUNT_MASK      	(7<<8)
+#define VFT0_TEX_COUNT_SHIFT            8
+#define VFT0_SPEC			(1<<7)
+#define VFT0_DIFFUSE     		(1<<6)
+#define VFT0_DEPTH_OFFSET   		(1<<5)
+#define VFT0_XYZ			(1<<1)
+#define VFT0_XYZW			(2<<1)
+#define VFT0_XY	        		(3<<1)
+#define VFT0_XYW			(4<<1)
+#define VFT0_XYZW_MASK                  (7<<1)
+
+#define VFT1_TEX0_MASK                  3
+#define VFT1_TEX1_SHIFT                 2
+
 
 #endif
 

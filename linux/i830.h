@@ -56,10 +56,11 @@
  *      New getparam ioctl.
  *      State for texunits 3&4 in sarea.
  *      New (alternative) layout for texture state.
+ * 1.4: New getbuf2 ioctl, supporting new security model.
  */
 #define DRIVER_MAJOR		1
-#define DRIVER_MINOR		3
-#define DRIVER_PATCHLEVEL	2
+#define DRIVER_MINOR		4
+#define DRIVER_PATCHLEVEL	0
 
 #define DRIVER_IOCTLS							    \
 	[DRM_IOCTL_NR(DRM_IOCTL_I830_INIT)]   = { i830_dma_init,    1, 1 }, \
@@ -75,7 +76,9 @@
 	[DRM_IOCTL_NR(DRM_IOCTL_I830_IRQ_EMIT)] = { i830_irq_emit,  1, 0 }, \
 	[DRM_IOCTL_NR(DRM_IOCTL_I830_IRQ_WAIT)] = { i830_irq_wait,  1, 0 }, \
 	[DRM_IOCTL_NR(DRM_IOCTL_I830_GETPARAM)] = { i830_getparam,  1, 0 }, \
-	[DRM_IOCTL_NR(DRM_IOCTL_I830_SETPARAM)] = { i830_setparam,  1, 0 } 
+	[DRM_IOCTL_NR(DRM_IOCTL_I830_SETPARAM)] = { i830_setparam,  1, 0 }, \
+	[DRM_IOCTL_NR(DRM_IOCTL_I830_GETBUF2)] = { i830_getbuf2,    1, 0 }, \
+	[DRM_IOCTL_NR(DRM_IOCTL_I830_VERTEX2)] = { i830_dma_vertex2,  1, 0 }
 
 #define __HAVE_COUNTERS         4
 #define __HAVE_COUNTER6         _DRM_STAT_IRQ

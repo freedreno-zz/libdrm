@@ -265,6 +265,8 @@ typedef struct _drm_i830_sarea {
 #define DRM_IOCTL_I830_IRQ_WAIT         DRM_IOW( 0x4b, drm_i830_irq_wait_t)
 #define DRM_IOCTL_I830_GETPARAM         DRM_IOWR(0x4c, drm_i830_getparam_t)
 #define DRM_IOCTL_I830_SETPARAM         DRM_IOWR(0x4d, drm_i830_setparam_t)
+#define DRM_IOCTL_I830_GETBUF2		DRM_IOWR(0x4e, drm_i830_dma_t)
+#define DRM_IOCTL_I830_VERTEX2		DRM_IOW( 0x4f, drm_i830_vertex_t)
 
 typedef struct _drm_i830_clear {
 	int clear_color;
