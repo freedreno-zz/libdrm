@@ -440,11 +440,9 @@ static inline void mga_dma_quiescent(drm_device_t *dev)
 	      atomic_dec(&dev_priv->dispatch_lock);
 	   }
 	}
-#if 0
 	while((MGA_READ(MGAREG_STATUS) & 0x00020001) != 0x00020000) ;
       	MGA_WRITE(MGAREG_DWGSYNC, MGA_SYNC_TAG);
    	while(MGA_READ(MGAREG_DWGSYNC) != MGA_SYNC_TAG) ;
-#endif
    	atomic_dec(&dev_priv->dispatch_lock);
 }
 
