@@ -197,6 +197,43 @@ extern int  r128_context_switch_complete(drm_device_t *dev, int new);
 #define R128_MAX_USEC_TIMEOUT	100000	/* 100 ms */
 
 
+#ifdef __powerpc__
+
+static __inline__ void
+WriteMmio32Le(void *base, const unsigned long offset,
+                  const unsigned long val)
+{
+        __asm__ __volatile__(
+                        "stwbrx %1,%2,%3\n\t"
+                        : "=m" (*(volatile unsigned char *)(base+offset))
+                        : "r" (val), "b" (base), "r" (offset));
+}
+
+static __inline__ unsigned int
+ReadMmio32Le(void *base, const unsigned long offset)
+{
+        register unsigned int val;
+        __asm__ __volatile__(
+                        "lwbrx %0,%1,%2\n\t"
+                        "eieio"
+                        : "=r" (val)
+                        : "b" (base), "r" (offset),
+                        "m" (*(volatile unsigned char *)(base+offset)));
+        return(val);
+}
+
+#define R128_BASE(reg)		((u32)(dev_priv->mmio->handle))
+#define R128_ADDR(reg)		(R128_BASE(reg) + reg)
+
+#define R128_READ(reg)		ReadMmio32Le(R128_BASE(reg),reg)
+#define R128_WRITE(reg,val)	WriteMmio32Le(R128_BASE(reg),reg,val)
+
+#define R128_DEREF8(reg)	*(__volatile__ char *)R128_ADDR(reg)
+#define R128_READ8(reg)		R128_DEREF8(reg)
+#define R128_WRITE8(reg,val)	do { R128_DEREF8(reg) = val; } while (0)
+
+#else	/* ! __powerpc__ */
+
 #define R128_BASE(reg)		((u32)(dev_priv->mmio->handle))
 #define R128_ADDR(reg)		(R128_BASE(reg) + reg)
 
@@ -207,6 +244,8 @@ extern int  r128_context_switch_complete(drm_device_t *dev, int new);
 #define R128_DEREF8(reg)	*(__volatile__ char *)R128_ADDR(reg)
 #define R128_READ8(reg)		R128_DEREF8(reg)
 #define R128_WRITE8(reg,val)	do { R128_DEREF8(reg) = val; } while (0)
+
+#endif	/* __powerpc__ */
 
 #define R128_WRITE_PLL(addr,val)                                              \
 do {                                                                          \

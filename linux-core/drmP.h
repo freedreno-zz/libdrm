@@ -49,6 +49,7 @@
 #include <asm/io.h>
 #include <asm/mman.h>
 #include <asm/uaccess.h>
+#include <asm/pgtable.h>
 #ifdef CONFIG_MTRR
 #include <asm/mtrr.h>
 #endif
@@ -148,6 +149,7 @@ typedef struct wait_queue *wait_queue_head_t;
 #ifndef __HAVE_ARCH_CMPXCHG
 				/* Include this here so that driver can be
                                    used with older kernels. */
+#if defined(__i386__)
 static inline unsigned long __cmpxchg(volatile void *ptr, unsigned long old,
 				      unsigned long new, int size)
 {
@@ -174,6 +176,33 @@ static inline unsigned long __cmpxchg(volatile void *ptr, unsigned long old,
 	}
 	return old;
 }
+#elif defined(__powerpc__)
+extern void __cmpxchg_called_with_bad_pointer(void);
+static inline unsigned long __cmpxchg(volatile void *ptr, unsigned long old,
+                                      unsigned long new, int size)
+{
+        unsigned long prev;
+
+        switch (size) {
+        case 4:
+           __asm__ __volatile__(
+                                "sync;"
+                                "0:    lwarx %0,0,%1 ;"
+                                "      cmpl 0,%0,%3;"
+                                "      bne 1f;"
+                                "      stwcx. %2,0,%1;"
+                                "      bne- 0b;"
+                                "1:    "
+                                "sync;"
+                                : "=&r"(prev)
+                                : "r"(ptr), "r"(new), "r"(old)
+                                : "cr0", "memory");
+            return prev;
+        }
+        __cmpxchg_called_with_bad_pointer();
+        return old;
+}
+#endif
 
 #define cmpxchg(ptr,o,n)						\
   ((__typeof__(*(ptr)))__cmpxchg((ptr),(unsigned long)(o),		\

@@ -72,6 +72,7 @@ static void r128_flush_write_combine(void)
 {
 	int xchangeDummy;
 
+#ifdef __i386__
 	__asm__ volatile("push %%eax ;"
 			 "xchg %%eax, %0 ;"
 			 "pop %%eax" : : "m" (xchangeDummy));
@@ -85,6 +86,10 @@ static void r128_flush_write_combine(void)
 			 "pop %%ecx ;"
 			 "pop %%ebx ;"
 			 "pop %%eax" : /* no outputs */ :  /* no inputs */ );
+#else
+	/* The lack write combining makes life easy :) */
+	mb();
+#endif
 }
 
 static void r128_status(drm_device_t *dev)
