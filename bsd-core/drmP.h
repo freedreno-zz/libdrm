@@ -103,9 +103,9 @@ find_first_zero_bit(volatile u_int32_t *p, int max)
     int b;
 
     for (b = 0; b < max; b += 32) {
-	if (p[b >> 5]) {
+	if (p[b >> 5] != ~0) {
 	    for (;;) {
-		if (p[b >> 5] & (1 << (b & 0x1f)))
+		if ((p[b >> 5] & (1 << (b & 0x1f))) == 0)
 		    return b;
 		b++;
 	    }
