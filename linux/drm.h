@@ -374,7 +374,9 @@ typedef struct drm_agp_info {
 #define DRM_IOCTL_R128_VERTEX	 DRM_IOW( 0x49, drm_r128_vertex_t)
 #define DRM_IOCTL_R128_INDICES	 DRM_IOW( 0x4a, drm_r128_indices_t)
 #define DRM_IOCTL_R128_BLIT	 DRM_IOW( 0x4b, drm_r128_blit_t)
-#define DRM_IOCTL_R128_PACKET	 DRM_IOWR(0x4c, drm_r128_packet_t)
+#define DRM_IOCTL_R128_DEPTH	 DRM_IOW( 0x4c, drm_r128_depth_t)
+#define DRM_IOCTL_R128_STIPPLE	 DRM_IOW( 0x4d, drm_r128_stipple_t)
+#define DRM_IOCTL_R128_PACKET	 DRM_IOWR(0x4e, drm_r128_packet_t)
 
 /* SiS specific ioctls */
 #define SIS_IOCTL_FB_ALLOC     DRM_IOWR( 0x44, drm_sis_mem_t)

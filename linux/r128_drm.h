@@ -94,7 +94,7 @@
 #define R128_LOCAL_TEX_HEAP		0
 #define R128_AGP_TEX_HEAP		1
 #define R128_NR_TEX_HEAPS		2
-#define R128_NR_TEX_REGIONS		16
+#define R128_NR_TEX_REGIONS		64
 #define R128_LOG_TEX_GRANULARITY	16
 
 #define R128_NR_CONTEXT_REGS		12
@@ -196,12 +196,10 @@ typedef struct drm_r128_init {
 
 	unsigned int fb_bpp;
 	unsigned int front_offset, front_pitch;
-	unsigned int front_x, front_y;
 	unsigned int back_offset, back_pitch;
-	unsigned int back_x, back_y;
 	unsigned int depth_bpp;
 	unsigned int depth_offset, depth_pitch;
-	unsigned int depth_x, depth_y;
+	unsigned int span_offset;
 
 	unsigned int fb_offset;
 	unsigned int mmio_offset;
@@ -248,6 +246,24 @@ typedef struct drm_r128_blit {
 	unsigned short x, y;
 	unsigned short width, height;
 } drm_r128_blit_t;
+
+typedef struct drm_r128_depth {
+	enum {
+		R128_WRITE_SPAN		= 0x01,
+		R128_WRITE_PIXELS	= 0x02,
+		R128_READ_SPAN		= 0x03,
+		R128_READ_PIXELS	= 0x04
+	} func;
+	int n;
+	int *x;
+	int *y;
+	unsigned int *buffer;
+	unsigned char *mask;
+} drm_r128_depth_t;
+
+typedef struct drm_r128_stipple {
+	unsigned int *mask;
+} drm_r128_stipple_t;
 
 typedef struct drm_r128_packet {
 	unsigned int *buffer;

@@ -437,18 +437,13 @@ static int r128_do_init_cce( drm_device_t *dev, drm_r128_init_t *init )
 	dev_priv->fb_bpp	= init->fb_bpp;
 	dev_priv->front_offset	= init->front_offset;
 	dev_priv->front_pitch	= init->front_pitch;
-	dev_priv->front_x	= init->front_x;
-	dev_priv->front_y	= init->front_y;
 	dev_priv->back_offset	= init->back_offset;
 	dev_priv->back_pitch	= init->back_pitch;
-	dev_priv->back_x	= init->back_x;
-	dev_priv->back_y	= init->back_y;
 
 	dev_priv->depth_bpp	= init->depth_bpp;
 	dev_priv->depth_offset	= init->depth_offset;
 	dev_priv->depth_pitch	= init->depth_pitch;
-	dev_priv->depth_x	= init->depth_x;
-	dev_priv->depth_y	= init->depth_y;
+	dev_priv->span_offset	= init->span_offset;
 
 	dev_priv->front_pitch_offset_c = (((dev_priv->front_pitch/8) << 21) |
 					  (dev_priv->front_offset >> 5));
@@ -457,6 +452,8 @@ static int r128_do_init_cce( drm_device_t *dev, drm_r128_init_t *init )
 	dev_priv->depth_pitch_offset_c = (((dev_priv->depth_pitch/8) << 21) |
 					  (dev_priv->depth_offset >> 5) |
 					  R128_DST_TILE);
+	dev_priv->span_pitch_offset_c = (((dev_priv->depth_pitch/8) << 21) |
+					 (dev_priv->span_offset >> 5));
 
 	/* FIXME: We want multiple shared areas, including one shared
 	 * only by the X Server and kernel module.

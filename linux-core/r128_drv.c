@@ -37,10 +37,10 @@
 
 #define R128_NAME		"r128"
 #define R128_DESC		"ATI Rage 128"
-#define R128_DATE		"20001129"
+#define R128_DATE		"20001201"
 #define R128_MAJOR		2
-#define R128_MINOR		0
-#define R128_PATCHLEVEL		1
+#define R128_MINOR		1
+#define R128_PATCHLEVEL		0
 
 static drm_device_t	r128_device;
 drm_ctx_t		r128_res_ctx;
@@ -119,6 +119,8 @@ static drm_ioctl_desc_t	      r128_ioctls[] = {
 	[DRM_IOCTL_NR(DRM_IOCTL_R128_VERTEX)]  = { r128_cce_vertex,   1, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_R128_INDICES)] = { r128_cce_indices,  1, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_R128_BLIT)]    = { r128_cce_blit,     1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_R128_DEPTH)]   = { r128_cce_depth,    1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_R128_STIPPLE)] = { r128_cce_stipple,  1, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_R128_PACKET)]  = { r128_cce_packet,   1, 0 },
 };
 #define R128_IOCTL_COUNT DRM_ARRAY_SIZE(r128_ioctls)

@@ -73,22 +73,18 @@ typedef struct drm_r128_private {
 	unsigned int fb_bpp;
 	unsigned int front_offset;
 	unsigned int front_pitch;
-	unsigned int front_x;
-	unsigned int front_y;
 	unsigned int back_offset;
 	unsigned int back_pitch;
-	unsigned int back_x;
-	unsigned int back_y;
 
 	unsigned int depth_bpp;
 	unsigned int depth_offset;
 	unsigned int depth_pitch;
-	unsigned int depth_x;
-	unsigned int depth_y;
+	unsigned int span_offset;
 
 	u32 front_pitch_offset_c;
 	u32 back_pitch_offset_c;
 	u32 depth_pitch_offset_c;
+	u32 span_pitch_offset_c;
 
 	drm_map_t *sarea;
 	drm_map_t *fb;
@@ -154,6 +150,10 @@ extern int r128_cce_indices( struct inode *inode, struct file *filp,
 			     unsigned int cmd, unsigned long arg );
 extern int r128_cce_blit( struct inode *inode, struct file *filp,
 			  unsigned int cmd, unsigned long arg );
+extern int r128_cce_depth( struct inode *inode, struct file *filp,
+			   unsigned int cmd, unsigned long arg );
+extern int r128_cce_stipple( struct inode *inode, struct file *filp,
+			     unsigned int cmd, unsigned long arg );
 
 				/* r128_bufs.c */
 extern int r128_addbufs(struct inode *inode, struct file *filp,
@@ -208,6 +208,7 @@ extern int  r128_context_switch_complete(drm_device_t *dev, int new);
 #define R128_AUX3_SC_TOP		0x168c
 #define R128_AUX3_SC_BOTTOM		0x1690
 
+#define R128_BRUSH_DATA0		0x1480
 #define R128_BUS_CNTL			0x0030
 #	define R128_BUS_MASTER_DIS		(1 << 6)
 
@@ -425,7 +426,7 @@ extern int R128_READ_PLL(drm_device_t *dev, int addr);
 
 #define R128_VERBOSE	0
 
-#define RING_LOCALS	int write; unsigned int mask; volatile u32 *ring;
+#define RING_LOCALS	int write; unsigned int tail_mask; volatile u32 *ring;
 
 #define BEGIN_RING( n ) do {						\
 	if ( R128_VERBOSE ) {						\
@@ -438,7 +439,7 @@ extern int R128_READ_PLL(drm_device_t *dev, int addr);
 	dev_priv->ring.space -= n * sizeof(u32);			\
 	ring = dev_priv->ring.start;					\
 	write = dev_priv->ring.tail;					\
-	mask = dev_priv->ring.tail_mask;				\
+	tail_mask = dev_priv->ring.tail_mask;				\
 } while (0)
 
 #define ADVANCE_RING() do {						\
@@ -457,7 +458,7 @@ extern int R128_READ_PLL(drm_device_t *dev, int addr);
 			   (unsigned int)(x), write );			\
 	}								\
 	ring[write++] = x;						\
-	write &= mask;							\
+	write &= tail_mask;						\
 } while (0)
 
 #define R128_PERFORMANCE_BOXES	0
