@@ -1,6 +1,5 @@
-/* mga_dma.c -- DMA support for GMX 2000 -*- linux-c -*-
+/* mga_dma.c -- DMA support for mga g200/g400 -*- linux-c -*-
  * Created: Mon Dec 13 01:50:01 1999 by jhartmann@precisioninsight.com
- * Revised: Mon Dec 13 02:19:32 1999 by jhartmann@precisioninsight.com
  *
  * Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
  * All Rights Reserved.
@@ -23,7 +22,11 @@
  * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
- * 
+ *
+ * Authors: Rickard E. (Rik) Faith <faith@precisioninsight.com>
+ *	    Jeff Hartmann <jhartmann@precisioninsight.com>
+ *
+ * $XFree86$
  *
  */
 

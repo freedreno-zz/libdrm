@@ -1,6 +1,5 @@
 /* mga_drv.h -- Private header for the Matrox g200/g400 driver -*- linux-c -*-
  * Created: Mon Dec 13 01:50:01 1999 by jhartmann@precisioninsight.com
- * Revised: Mon Dec 13 02:27:49 1999 by jhartmann@precisioninsight.com
  *
  * Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
  * All rights reserved.
@@ -23,8 +22,11 @@
  * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
- * 
- * 
+ *
+ * Authors: Rickard E. (Rik) Faith <faith@precisioninsight.com>
+ * 	    Jeff Hartmann <jhartmann@precisioninsight.com>
+ *
+ * $XFree86$
  */
 
 #ifndef _MGA_DRV_H_
@@ -52,6 +54,38 @@ extern int  mga_irq_install(drm_device_t *dev, int irq);
 extern int  mga_irq_uninstall(drm_device_t *dev);
 extern int  mga_control(struct inode *inode, struct file *filp,
 			  unsigned int cmd, unsigned long arg);
+
+				/* mga_bufs.c */
+extern int  mga_addbufs(struct inode *inode, struct file *filp, 
+			unsigned int cmd, unsigned long arg);
+extern int  mga_infobufs(struct inode *inode, struct file *filp, 
+			 unsigned int cmd, unsigned long arg);
+extern int  mga_markbufs(struct inode *inode, struct file *filp,
+			 unsigned int cmd, unsigned long arg);
+extern int  mga_freebufs(struct inode *inode, struct file *filp,
+			 unsigned int cmd, unsigned long arg);
+extern int  mga_mapbufs(struct inode *inode, struct file *filp,
+			unsigned int cmd, unsigned long arg);
+
+				/* mga_context.c */
+extern int  mga_resctx(struct inode *inode, struct file *filp,
+		       unsigned int cmd, unsigned long arg);
+extern int  mga_addctx(struct inode *inode, struct file *filp,
+		       unsigned int cmd, unsigned long arg);
+extern int  mga_modctx(struct inode *inode, struct file *filp,
+		       unsigned int cmd, unsigned long arg);
+extern int  mga_getctx(struct inode *inode, struct file *filp,
+		       unsigned int cmd, unsigned long arg);
+extern int  mga_switchctx(struct inode *inode, struct file *filp,
+			  unsigned int cmd, unsigned long arg);
+extern int  mga_newctx(struct inode *inode, struct file *filp,
+		       unsigned int cmd, unsigned long arg);
+extern int  mga_rmctx(struct inode *inode, struct file *filp,
+		      unsigned int cmd, unsigned long arg);
+
+extern int  mga_context_switch(drm_device_t *dev, int old, int new);
+extern int  mga_context_switch_complete(drm_device_t *dev, int new);
+
 
 #define MGAREG_MGA_EXEC 			0x0100
 #define MGAREG_AGP_PLL				0x1e4c

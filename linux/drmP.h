@@ -70,24 +70,27 @@
 #define DRM_FLAG_DEBUG	  0x01
 #define DRM_FLAG_NOCTX	  0x02
 
-#define DRM_MEM_DMA	  0
-#define DRM_MEM_SAREA	  1
-#define DRM_MEM_DRIVER	  2
-#define DRM_MEM_MAGIC	  3
-#define DRM_MEM_IOCTLS	  4
-#define DRM_MEM_MAPS	  5
-#define DRM_MEM_VMAS	  6
-#define DRM_MEM_BUFS	  7
-#define DRM_MEM_SEGS	  8
-#define DRM_MEM_PAGES	  9
-#define DRM_MEM_FILES	 10
-#define DRM_MEM_QUEUES	 11
-#define DRM_MEM_CMDS	 12
-#define DRM_MEM_MAPPINGS 13
-#define DRM_MEM_BUFLISTS 14
-#define DRM_MEM_AGPLISTS 15
-#define DRM_MEM_TOTALAGP 16
-#define DRM_MEM_BOUNDAGP 17
+#define DRM_MEM_DMA	   0
+#define DRM_MEM_SAREA	   1
+#define DRM_MEM_DRIVER	   2
+#define DRM_MEM_MAGIC	   3
+#define DRM_MEM_IOCTLS	   4
+#define DRM_MEM_MAPS	   5
+#define DRM_MEM_VMAS	   6
+#define DRM_MEM_BUFS	   7
+#define DRM_MEM_SEGS	   8
+#define DRM_MEM_PAGES	   9
+#define DRM_MEM_FILES	  10
+#define DRM_MEM_QUEUES	  11
+#define DRM_MEM_CMDS	  12
+#define DRM_MEM_MAPPINGS  13
+#define DRM_MEM_BUFLISTS  14
+#define DRM_MEM_AGPLISTS  15
+#define DRM_MEM_TOTALAGP  16
+#define DRM_MEM_BOUNDAGP  17
+#define DRM_MEM_CTXBITMAP 18
+
+#define DRM_MAX_CTXBITMAP (PAGE_SIZE * 4 * 8)
 
 				/* Backward compatibility section */
 				/* _PAGE_WT changed to _PAGE_PWT in 2.2.6 */
@@ -504,6 +507,7 @@ typedef struct drm_device {
 #ifdef DRM_AGP
 	drm_agp_head_t    *agp;
 #endif
+	unsigned long     *ctx_bitmap;
 } drm_device_t;
 
 
@@ -691,6 +695,12 @@ extern int	     drm_flush_unblock(drm_device_t *dev, int context,
 				       drm_lock_flags_t flags);
 extern int	     drm_flush_block_and_flush(drm_device_t *dev, int context,
 					       drm_lock_flags_t flags);
+
+				/* Context Bitmap support (ctxbitmap.c) */
+extern int	     drm_ctxbitmap_init(drm_device_t *dev);
+extern void	     drm_ctxbitmap_cleanup(drm_device_t *dev);
+extern int	     drm_ctxbitmap_next(drm_device_t *dev);
+extern void	     drm_ctxbitmap_free(drm_device_t *dev, int ctx_handle);
 
 #ifdef DRM_AGP
 				/* AGP/GART support (agpsupport.c) */

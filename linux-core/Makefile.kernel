@@ -13,7 +13,7 @@
 L_TARGET        := libdrm.a
 
 L_OBJS		:= init.o memory.o proc.o auth.o context.o drawable.o bufs.o \
-			lists.o lock.o ioctl.o fops.o vm.o dma.o
+			lists.o lock.o ioctl.o fops.o vm.o dma.o ctxbitmap.o
 
 M_OBJS		:= 
 
@@ -25,6 +25,10 @@ ifdef CONFIG_DRM_TDFX
 M_OBJS          += tdfx.o
 endif
 
+ifdef CONFIG_DRM_MGA
+M_OBJS		+= mga.o
+endif
+
 include $(TOPDIR)/Rules.make
 
 gamma.o: gamma_drv.o gamma_dma.o $(L_TARGET)
@@ -32,3 +36,7 @@ gamma.o: gamma_drv.o gamma_dma.o $(L_TARGET)
 
 tdfx.o: tdfx_drv.o tdfx_context.o $(L_TARGET)
 	$(LD) $(LD_RFLAG) -r -o $@ tdfx_drv.o tdfx_context.o -L. -ldrm
+
+mga.o: mga_drv.o mga_context.o mga_dma.o mga_bufs.o $(L_TARGET)
+	$(LD) $(LD_RFLAG) -r -o $@ mga_drv.o mga_context.o mga_bufs.o mga_dma.o -L. -ldrm
+

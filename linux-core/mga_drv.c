@@ -1,6 +1,5 @@
 /* mga_drv.c -- Matrox g200/g400 driver -*- linux-c -*-
  * Created: Mon Dec 13 01:56:22 1999 by jhartmann@precisioninsight.com
- * Revised: Mon Dec 13 02:26:34 1999 by jhartmann@precisioninsight.com
  * 
  * Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
  * All Rights Reserved.
@@ -23,7 +22,11 @@
  * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
- * 
+ *
+ * Authors: Rickard E. (Rik) Faith <faith@precisioninsight.com>
+ *	    Jeff Hartmann <jhartmann@precisioninsight.com>
+ *
+ * $XFree86$
  *
  */
 
@@ -70,26 +73,36 @@ static drm_ioctl_desc_t	      mga_ioctls[] = {
 	[DRM_IOCTL_NR(DRM_IOCTL_CONTROL)]    = { mga_control,	  1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_AUTH_MAGIC)] = { drm_authmagic,	  1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_ADD_MAP)]    = { drm_addmap,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_ADD_BUFS)]   = { drm_addbufs,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_MARK_BUFS)]  = { drm_markbufs,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_INFO_BUFS)]  = { drm_infobufs,	  1, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_MAP_BUFS)]   = { drm_mapbufs,	  1, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_FREE_BUFS)]  = { drm_freebufs,	  1, 0 },
-	
-	[DRM_IOCTL_NR(DRM_IOCTL_ADD_CTX)]    = { drm_addctx,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_RM_CTX)]     = { drm_rmctx,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_MOD_CTX)]    = { drm_modctx,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_GET_CTX)]    = { drm_getctx,	  1, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_SWITCH_CTX)] = { drm_switchctx,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_NEW_CTX)]    = { drm_newctx,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_RES_CTX)]    = { drm_resctx,	  1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_ADD_BUFS)]   = { mga_addbufs,	  1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_MARK_BUFS)]  = { mga_markbufs,	  1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_INFO_BUFS)]  = { mga_infobufs,	  1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_MAP_BUFS)]   = { mga_mapbufs,	  1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_FREE_BUFS)]  = { mga_freebufs,	  1, 0 },
+
+	[DRM_IOCTL_NR(DRM_IOCTL_ADD_CTX)]    = { mga_addctx,	  1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_RM_CTX)]     = { mga_rmctx,	  1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_MOD_CTX)]    = { mga_modctx,	  1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_GET_CTX)]    = { mga_getctx,	  1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_SWITCH_CTX)] = { mga_switchctx,	  1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_NEW_CTX)]    = { mga_newctx,	  1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_RES_CTX)]    = { mga_resctx,	  1, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_ADD_DRAW)]   = { drm_adddraw,	  1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_RM_DRAW)]    = { drm_rmdraw,	  1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_DMA)]	     = { mga_dma,	  1, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_LOCK)]	     = { mga_lock,	  1, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_UNLOCK)]     = { mga_unlock,	  1, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_FINISH)]     = { drm_finish,	  1, 0 },
+
+        [DRM_IOCTL_NR(DRM_IOCTL_AGP_ACQUIRE)]	= {drm_agp_acquire, 1, 1},
+        [DRM_IOCTL_NR(DRM_IOCTL_AGP_RELEASE)]	= {drm_agp_release, 1, 1},
+        [DRM_IOCTL_NR(DRM_IOCTL_AGP_ENABLE)]	= {drm_agp_enable,  1, 1},
+        [DRM_IOCTL_NR(DRM_IOCTL_AGP_INFO)]	= {drm_agp_info,    1, 1},
+        [DRM_IOCTL_NR(DRM_IOCTL_AGP_ALLOC)]	= {drm_agp_alloc,   1, 1},
+        [DRM_IOCTL_NR(DRM_IOCTL_AGP_FREE)]	= {drm_agp_free,    1, 1},
+        [DRM_IOCTL_NR(DRM_IOCTL_AGP_BIND)]	= {drm_agp_unbind,  1, 1},
+        [DRM_IOCTL_NR(DRM_IOCTL_AGP_UNBIND)]	= {drm_agp_bind,    1, 1},
 };
+
 #define MGA_IOCTL_COUNT DRM_ARRAY_SIZE(mga_ioctls)
 
 #ifdef MODULE
@@ -269,6 +282,8 @@ static int mga_takedown(drm_device_t *dev)
 					       - PAGE_SHIFT,
 					       DRM_MEM_SAREA);
 				break;
+			case _DRM_AGP:
+				break;
 			}
 			drm_free(map, sizeof(*map), DRM_MEM_MAPS);
 		}
@@ -319,6 +334,10 @@ int mga_init(void)
 	DRM_DEBUG("\n");
 
 	memset((void *)dev, 0, sizeof(*dev));
+	if((retcode = drm_ctxbitmap_init(dev))) {
+		DRM_ERROR("Cannot allocate memory for context bitmap.\n");
+		return retcode;
+	}
 	dev->count_lock	  = SPIN_LOCK_UNLOCKED;
 	sema_init(&dev->struct_sem, 1);
 	
@@ -328,6 +347,7 @@ int mga_init(void)
 
 	if ((retcode = misc_register(&mga_misc))) {
 		DRM_ERROR("Cannot register \"%s\"\n", MGA_NAME);
+		drm_ctxbitmap_cleanup(dev);
 		return retcode;
 	}
 	dev->device = MKDEV(MISC_MAJOR, mga_misc.minor);
@@ -343,7 +363,9 @@ int mga_init(void)
 		 MGA_PATCHLEVEL,
 		 MGA_DATE,
 		 mga_misc.minor);
-	
+
+	dev->agp    = drm_agp_init();
+
 	return 0;
 }
 
@@ -362,6 +384,7 @@ void mga_cleanup(void)
 		DRM_INFO("Module unloaded\n");
 	}
 	mga_takedown(dev);
+	drm_ctxbitmap_cleanup(dev);
 }
 
 int mga_version(struct inode *inode, struct file *filp, unsigned int cmd,
@@ -482,6 +505,151 @@ int mga_ioctl(struct inode *inode, struct file *filp, unsigned int cmd,
 	
 	atomic_dec(&dev->ioctl_count);
 	return retcode;
+}
+
+int mga_lock(struct inode *inode, struct file *filp, unsigned int cmd,
+	      unsigned long arg)
+{
+        drm_file_t        *priv   = filp->private_data;
+        drm_device_t      *dev    = priv->dev;
+        DECLARE_WAITQUEUE(entry, current);
+        int               ret   = 0;
+        drm_lock_t        lock;
+#if DRM_DMA_HISTOGRAM
+        cycles_t          start;
+
+        dev->lck_start = start = get_cycles();
+#endif
+
+        copy_from_user_ret(&lock, (drm_lock_t *)arg, sizeof(lock), -EFAULT);
+
+        if (lock.context == DRM_KERNEL_CONTEXT) {
+                DRM_ERROR("Process %d using kernel context %d\n",
+                          current->pid, lock.context);
+                return -EINVAL;
+        }
+
+        DRM_DEBUG("%d (pid %d) requests lock (0x%08x), flags = 0x%08x\n",
+                  lock.context, current->pid, dev->lock.hw_lock->lock,
+                  lock.flags);
+
+#if 0
+				/* dev->queue_count == 0 right now for
+                                   mga.  FIXME? */
+        if (lock.context < 0 || lock.context >= dev->queue_count)
+                return -EINVAL;
+#endif
+        
+        if (!ret) {
+#if 0
+                if (_DRM_LOCKING_CONTEXT(dev->lock.hw_lock->lock)
+                    != lock.context) {
+                        long j = jiffies - dev->lock.lock_time;
+
+                        if (lock.context == mga_res_ctx.handle &&
+				j >= 0 && j < DRM_LOCK_SLICE) {
+                                /* Can't take lock if we just had it and
+                                   there is contention. */
+                                DRM_DEBUG("%d (pid %d) delayed j=%d dev=%d jiffies=%d\n",
+					lock.context, current->pid, j, 
+					dev->lock.lock_time, jiffies);
+                                current->state = TASK_INTERRUPTIBLE;
+				current->policy |= SCHED_YIELD;
+                                schedule_timeout(DRM_LOCK_SLICE-j);
+				DRM_DEBUG("jiffies=%d\n", jiffies);
+                        }
+                }
+#endif
+                add_wait_queue(&dev->lock.lock_queue, &entry);
+                for (;;) {
+                        if (!dev->lock.hw_lock) {
+                                /* Device has been unregistered */
+                                ret = -EINTR;
+                                break;
+                        }
+                        if (drm_lock_take(&dev->lock.hw_lock->lock,
+                                          lock.context)) {
+                                dev->lock.pid       = current->pid;
+                                dev->lock.lock_time = jiffies;
+                                atomic_inc(&dev->total_locks);
+                                break;  /* Got lock */
+                        }
+                        
+                                /* Contention */
+                        atomic_inc(&dev->total_sleeps);
+                        current->state = TASK_INTERRUPTIBLE;
+#if 1
+			current->policy |= SCHED_YIELD;
+#endif
+                        schedule();
+                        if (signal_pending(current)) {
+                                ret = -ERESTARTSYS;
+                                break;
+                        }
+                }
+                current->state = TASK_RUNNING;
+                remove_wait_queue(&dev->lock.lock_queue, &entry);
+        }
+
+#if 0
+	if (!ret && dev->last_context != lock.context &&
+		lock.context != mga_res_ctx.handle &&
+		dev->last_context != mga_res_ctx.handle) {
+		add_wait_queue(&dev->context_wait, &entry);
+	        current->state = TASK_INTERRUPTIBLE;
+                /* PRE: dev->last_context != lock.context */
+	        mga_context_switch(dev, dev->last_context, lock.context);
+		/* POST: we will wait for the context
+                   switch and will dispatch on a later call
+                   when dev->last_context == lock.context
+                   NOTE WE HOLD THE LOCK THROUGHOUT THIS
+                   TIME! */
+		current->policy |= SCHED_YIELD;
+	        schedule();
+	        current->state = TASK_RUNNING;
+	        remove_wait_queue(&dev->context_wait, &entry);
+	        if (signal_pending(current)) {
+	                ret = -EINTR;
+	        } else if (dev->last_context != lock.context) {
+			DRM_ERROR("Context mismatch: %d %d\n",
+                        	dev->last_context, lock.context);
+	        }
+	}
+#endif
+
+        if (!ret) {
+                if (lock.flags & _DRM_LOCK_READY) {
+				/* Wait for space in DMA/FIFO */
+		}
+                if (lock.flags & _DRM_LOCK_QUIESCENT) {
+				/* Make hardware quiescent */
+#if 0
+                        mga_quiescent(dev);
+#endif
+		}
+        }
+
+#if 0
+	DRM_ERROR("pid = %5d, old counter = %5ld\n", 
+		current->pid, current->counter);
+#endif
+	if (lock.context != mga_res_ctx.handle) {
+		current->counter = 5;
+		current->priority = DEF_PRIORITY/4;
+	}
+#if 0
+	while (current->counter > 25)
+		current->counter >>= 1; /* decrease time slice */
+	DRM_ERROR("pid = %5d, new counter = %5ld\n",
+		 current->pid, current->counter);
+#endif
+        DRM_DEBUG("%d %s\n", lock.context, ret ? "interrupted" : "has lock");
+
+#if DRM_DMA_HISTOGRAM
+        atomic_inc(&dev->histo.lacq[drm_histogram_slot(get_cycles() - start)]);
+#endif
+        
+        return ret;
 }
 
 

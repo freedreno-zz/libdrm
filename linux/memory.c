@@ -63,6 +63,7 @@ static drm_mem_stats_t	  drm_mem_stats[]   = {
 	[DRM_MEM_AGPLISTS]  = { "agplist"  },
 	[DRM_MEM_TOTALAGP]  = { "totalagp" },
 	[DRM_MEM_BOUNDAGP]  = { "boundagp" },
+	[DRM_MEM_CTXBITMAP] = { "ctxbitmap"},
 	{ NULL, 0, }		/* Last entry must be null */
 };
 

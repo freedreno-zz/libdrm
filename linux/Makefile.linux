@@ -56,12 +56,12 @@ MODVERSIONS := $(shell \
 
 # **** End of SMP/MODVERSIONS detection
 
-MODS=           gamma.o tdfx.o r128.o
+MODS=           gamma.o tdfx.o mga.o
 LIBS=           libdrm.a
 PROGS=		drmstat
 
 DRMOBJS=	init.o memory.o proc.o auth.o context.o drawable.o bufs.o \
-		lists.o lock.o ioctl.o fops.o vm.o dma.o
+		lists.o lock.o ioctl.o fops.o vm.o dma.o ctxbitmap.c
 DRMHEADERS=	drm.h drmP.h
 
 GAMMAOBJS=      gamma_drv.o gamma_dma.o
@@ -70,8 +70,8 @@ GAMMAHEADERS=   gamma_drv.h $(DRMHEADERS)
 TDFXOBJS=       tdfx_drv.o tdfx_context.o
 TDFXHEADERS=    tdfx_drv.h $(DRMHEADERS)
 
-R128OBJS=       r128_drv.o r128_context.o
-R128HEADERS=    r128_drv.h $(DRMHEADERS)
+MGAOBJS=	mga_drv.o mga_context.o mga_dma.o mga_bufs.o
+MGAHEADERS=	mga_drv.h $(DRMHEADERS)
 
 PROGOBJS=       drmstat.po xf86drm.po xf86drmHash.po xf86drmRandom.po sigio.po
 PROGHEADERS=    xf86drm.h $(DRMHEADERS)
@@ -111,7 +111,7 @@ gamma.o: $(GAMMAOBJS) $(LIBS)
 tdfx.o: $(TDFXOBJS) $(LIBS)
 	$(LD) -r $^ -o $@
 
-r128.o: $(R128OBJS) $(LIBS)
+mga.o: $(MGAOBJS) $(LIBS)
 	$(LD) -r $^ -o $@
 
 drmstat: $(PROGOBJS)
@@ -135,7 +135,7 @@ ChangeLog:
 $(DRMOBJS): $(DRMHEADERS)
 $(GAMMAOBJS): $(GAMMAHEADERS)
 $(TDFXOBJS): $(TDFXHEADERS)
-$(R128OBJS): $(R128HEADERS)
+$(MGAOBJS): $(MGAHEADERS)
 $(PROGOBJS): $(PROGHEADERS)
 
 clean:
