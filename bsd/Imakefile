@@ -1,3 +1,4 @@
+
 XCOMM $XFree86: xc/programs/Xserver/hw/xfree86/os-support/bsd/drm/kernel/Imakefile,v 1.8 2001/12/13 00:24:45 alanh Exp $
 
 XCOMM This is a kludge until we determine how best to build the
@@ -18,3 +19,9 @@ all::
 
 clean::
 	$(MAKE) -f Makefile.bsd clean
+
+LinkSourceFile(r128.h,$(XF86OSSRC)/shared/drm/kernel)
+LinkSourceFile(r128_cce.c,$(XF86OSSRC)/shared/drm/kernel)
+LinkSourceFile(r128_drm.h,$(XF86OSSRC)/shared/drm/kernel)
+LinkSourceFile(r128_drv.h,$(XF86OSSRC)/shared/drm/kernel)
+LinkSourceFile(r128_state.c,$(XF86OSSRC)/shared/drm/kernel)

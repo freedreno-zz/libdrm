@@ -100,6 +100,10 @@
 #define DRM_OS_MALLOC(size)	malloc( size, DRM(M_DRM), M_NOWAIT )
 #define DRM_OS_FREE(pt)		free( pt, DRM(M_DRM) )
 #define DRM_OS_VTOPHYS(addr)	vtophys(addr)
+#define DRM_OS_READ8(addr)	*((volatile char *)(addr))
+#define DRM_OS_READ32(addr)	*((volatile long *)(addr))
+#define DRM_OS_WRITE8(addr, val)	*((volatile char *)(addr)) = (val)
+#define DRM_OS_WRITE32(addr, val)	*((volatile long *)(addr)) = (val)
 
 #define DRM_OS_PRIV					\
 	drm_file_t	*priv	= (drm_file_t *) DRM(find_file_by_proc)(dev, p); \
@@ -116,6 +120,19 @@ do {								\
 		microtime(&tv2);				\
 	}							\
 	while (((tv2.tv_sec-tv1.tv_sec)*1000000 + tv2.tv_usec - tv1.tv_usec) < udelay ); \
+} while (0)
+
+#define DRM_OS_GETSAREA()					\
+do {								\
+	drm_map_list_entry_t *listentry;			\
+	TAILQ_FOREACH(listentry, dev->maplist, link) {		\
+		drm_map_t *map = listentry->map;		\
+		if (map->type == _DRM_SHM &&			\
+			map->flags & _DRM_CONTAINS_LOCK) {	\
+			dev_priv->sarea = map;			\
+			break;					\
+		}						\
+	}							\
 } while (0)
 
 #define DRM_OS_RETURN(v)	return v;
@@ -159,6 +176,8 @@ typedef struct drm_chipinfo
 	int supported;
 	char *name;
 } drm_chipinfo_t;
+
+#define cpu_to_le32(x) (x)
 
 typedef u_int32_t dma_addr_t;
 typedef u_int32_t atomic_t;
