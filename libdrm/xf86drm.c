@@ -108,7 +108,7 @@ extern unsigned long _bus_base(void);
 #define makedev(x,y)    ((dev_t)(((x) << 8) | (y)))
 #endif
 
-#define DRM_MSG_VERBOSITY 1
+#define DRM_MSG_VERBOSITY 3
 
 static void
 drmMsg(const char *format, ...)

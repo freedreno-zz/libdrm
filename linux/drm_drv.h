@@ -109,7 +109,7 @@
 #endif
 
 static drm_device_t	*DRM(device);
-static int              *DRM(minor);
+static int		*DRM(minor);
 static int		DRM(numdevs) = 0;
 
 static struct file_operations	DRM(fops) = {
