@@ -117,6 +117,8 @@ int drm_agp_release(struct inode *inode, struct file *filp, unsigned int cmd,
 {
 	drm_file_t	 *priv	 = filp->private_data;
 	drm_device_t	 *dev	 = priv->dev;
+   
+   	printk("drm_agp_release\n");
 
 	if (!dev->agp->acquired || !drm_agp.release) return -EINVAL;
 	(*drm_agp.release)();
@@ -131,6 +133,8 @@ int drm_agp_enable(struct inode *inode, struct file *filp, unsigned int cmd,
 	drm_file_t	 *priv	 = filp->private_data;
 	drm_device_t	 *dev	 = priv->dev;
 	drm_agp_mode_t   mode;
+   
+   	printk("drm_agp_enable\n");
 
 	if (!dev->agp->acquired || !drm_agp.enable) return -EINVAL;
 
@@ -154,6 +158,9 @@ int drm_agp_alloc(struct inode *inode, struct file *filp, unsigned int cmd,
 	agp_memory       *memory;
 	unsigned long    pages;
 	u32 		 type;
+   
+   	printk("drm_agp_alloc\n");
+
 	if (!dev->agp->acquired) return -EINVAL;
 	copy_from_user_ret(&request, (drm_agp_buffer_t *)arg, sizeof(request),
 			   -EFAULT);
@@ -228,6 +235,8 @@ int drm_agp_bind(struct inode *inode, struct file *filp, unsigned int cmd,
 	int               retcode;
 	int               page;
 	
+   	printk("drm_agp_bind\n");
+
 	if (!dev->agp->acquired || !drm_agp.bind_memory) return -EINVAL;
 	copy_from_user_ret(&request, (drm_agp_binding_t *)arg, sizeof(request),
 			   -EFAULT);
@@ -248,6 +257,7 @@ int drm_agp_free(struct inode *inode, struct file *filp, unsigned int cmd,
 	drm_agp_buffer_t request;
 	drm_agp_mem_t    *entry;
 	
+   	printk("drm_agp_free\n");
 	if (!dev->agp->acquired) return -EINVAL;
 	copy_from_user_ret(&request, (drm_agp_buffer_t *)arg, sizeof(request),
 			   -EFAULT);

@@ -219,11 +219,12 @@ static int i810_wait_ring(drm_device_t *dev, int n, int timeout_millis)
 	   	} else if (curTime - startTime > timeout_millis) {
 		   	DRM_ERROR("space: %d wanted %d\n", ring->space, n);
 		   	DRM_ERROR("lockup\n");
-			schedule(); /* JEFF - what to do here ??? */
+		   	goto out_wait_ring;
 		}
 
 	   	for (i = 0 ; i < 2000 ; i++) ;
 	}
+out_wait_ring:
    
    	return iters;
 }
