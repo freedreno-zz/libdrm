@@ -24,6 +24,7 @@
  * DEALINGS IN THE SOFTWARE.
  *
  * Authors: Jeff Hartmann <jhartmann@precisioninsight.com>
+ *          Keith Whitwell <keithw@precisioninsight.com>
  *
  * $XFree86$
  */
@@ -38,11 +39,95 @@ typedef struct drm_i810_init {
 	} func;
    	int ring_map_idx;
       	int buffer_map_idx;
+	int sarea_priv_offset;
    	unsigned long ring_start;
    	unsigned long ring_end;
    	unsigned long ring_size;
+	
 } drm_i810_init_t;
 
+typedef struct _xf86drmClipRectRec {
+   	unsigned short x1;
+   	unsigned short y1;
+   	unsigned short x2;
+   	unsigned short y2;
+} xf86drmClipRectRec;
+
+
+#define I810_DMA_BUF_ORDER     16
+#define I810_DMA_BUF_SZ        (1<<I810_DMA_BUF_ORDER)
+#define I810_DMA_BUF_NR        63
+
+#define I810_NR_SAREA_CLIPRECTS 2
+
+
+/* Each region is a minimum of 32k, and there are at most 128 of them.
+ */
+#define I810_NR_TEX_REGIONS 128
+#define I810_LOG_MIN_TEX_REGION_SIZE 18
+
+ 
+
+typedef struct {
+	unsigned char next, prev; /* indices to form a circular LRU  */
+	unsigned char in_use;	/* owned by a client, or free? */
+	int age;		/* tracked by clients to update local LRU's */
+} i810TexRegion;
+
+typedef struct {
+	unsigned int nbox;
+	xf86drmClipRectRec boxes[I810_NR_SAREA_CLIPRECTS];
+
+	/* Maintain an LRU of contiguous regions of texture space.  If
+	 * you think you own a region of texture memory, and it has an age
+	 * different to the one you set, then you are mistaken and it has
+	 * been stolen by another client.  If texAge hasn't changed, there 
+	 * is no need to walk the list.
+	 *
+	 * These regions can be used as a proxy for the fine-grained texture
+	 * information of other clients - by maintaining them in the same
+	 * lru which is used to age their own textures, clients have an
+	 * approximate lru for the whole of global texture space, and can
+	 * make informed decisions as to which areas to kick out.  There is
+	 * no need to choose whether to kick out your own texture or someone
+	 * else's - simply eject them all in LRU order.
+	 */
+	i810TexRegion texList[I810_NR_TEX_REGIONS+1]; /* Last elt is sentinal */
+	int texAge;	                              /* Current age counter */
+
+
+	int lastDispatch;
+	int lastGetBuffer;	/* dodgy - not needed if dma uploads used */   
+	int ctxOwner;		/* last context to upload state */
+
+} drm_i810_sarea_t;
+
+
+typedef struct {
+   	int idx;
+	int used;
+} drm_i810_general_t;
+
+
+/* These may be placeholders if we have more cliprects than
+ * I810_NR_SAREA_CLIPRECTS.  In that case, idx != real_idx; idx is the
+ * number of a placeholder buffer, real_idx is the real buffer to be
+ * rendered multiple times.  
+ *
+ * This is a hack to work around the fact that the drm considers
+ * buffers to be only in a single state (ie on a single queue).
+ */
+typedef struct {
+   	int idx;		/* buffer to queue and free on completion */
+   	int real_idx;		/* buffer to execute */
+	int real_used;		/* buf->used in for real buffer */
+	int discard;		/* don't execute the commands */
+} drm_i810_vertex_t;
+
+
+
 #define DRM_IOCTL_I810_INIT    DRM_IOW( 0x40, drm_i810_init_t)
+#define DRM_IOCTL_I810_VERTEX  DRM_IOW( 0x41, drm_i810_vertex_t)
+#define DRM_IOCTL_I810_DMA     DRM_IOW( 0x42, drm_i810_general_t)
 
 #endif /* _I810_DRM_H_ */

@@ -33,6 +33,7 @@
 #define __NO_VERSION__
 #include "drmP.h"
 #include "i810_drv.h"
+#include "i810_dma.h"
 #include "linux/un.h"
 
 int i810_addbufs_agp(struct inode *inode, struct file *filp, unsigned int cmd,
@@ -118,9 +119,6 @@ int i810_addbufs_agp(struct inode *inode, struct file *filp, unsigned int cmd,
       buf->total = alignment;
       buf->order = order;
       buf->used = 0;
-#if 0
-      printk("offset : %d\n", offset);
-#endif
       buf->offset = offset; /* Hrm */
       buf->bus_address = dev->agp->base + agp_offset + offset;
       buf->address = (void *)(agp_offset + offset + dev->agp->base);
@@ -129,6 +127,10 @@ int i810_addbufs_agp(struct inode *inode, struct file *filp, unsigned int cmd,
       buf->pending = 0;
       init_waitqueue_head(&buf->dma_wait);
       buf->pid = 0;
+
+      buf->dev_private = drm_alloc(sizeof(drm_i810_buf_priv_t), DRM_MEM_BUFS);
+      buf->dev_priv_size = sizeof(drm_i810_buf_priv_t);
+
 #if DRM_DMA_HISTOGRAM
       buf->time_queued = 0;
       buf->time_dispatched = 0;

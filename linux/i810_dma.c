@@ -25,6 +25,7 @@
  *
  * Authors: Rickard E. (Rik) Faith <faith@precisioninsight.com>
  *	    Jeff Hartmann <jhartmann@precisioninsight.com>
+ *          Keith Whitwell <keithw@precisioninsight.com>
  *
  * $XFree86$
  *
@@ -34,6 +35,7 @@
 #include "drmP.h"
 #include "i810_drm_public.h"
 #include "i810_drv.h"
+#include "i810_dma.h"
 
 #include <linux/interrupt.h>	/* For task queue support */
 #include <linux/time.h>		/* For do_gettimeofday    */
@@ -49,24 +51,31 @@
 #define I810_READ16(reg)	I810_DEREF16(reg)
 #define I810_WRITE16(reg,val)	do { I810_DEREF16(reg) = val; } while (0)
 
-#define RING_LOCALS()	unsigned int outring, ringmask; volatile char *virt;
-#define BEGIN_LP_RING(n)                                         \
-   if (dev_priv->ring.space < n*4) i810_wait_ring(dev, n*4, 0);  \
-   dev_priv->ring.space -= n*4;                                  \
-   outring = dev_priv->ring.tail;                                \
-   ringmask = dev_priv->ring.tail_mask;                          \
-   virt = dev_priv->ring.virtual_start;
+#define RING_LOCALS	unsigned int outring, ringmask; volatile char *virt;
 
-#define ADVANCE_LP_RING() {                         \
-    dev_priv->ring.tail = outring;                  \
-    I810_WRITE(LP_RING + RING_TAIL, outring);       \
-}
 
-#define OUT_RING(n) {                                   \
-   *(volatile unsigned int *)(virt + outring) = n;      \
-   outring += 4;                                        \
-   outring &= ringmask;                                 \
-}
+#define BEGIN_LP_RING(n) do {					\
+   if (I810_VERBOSE)						\
+      printk("BEGIN_LP_RING(%d) in %s\n", n, __FUNCTION__);	\
+   if (dev_priv->ring.space < n*4) i810_wait_ring(dev, n*4, 0);	\
+   dev_priv->ring.space -= n*4;					\
+   outring = dev_priv->ring.tail;				\
+   ringmask = dev_priv->ring.tail_mask;				\
+   virt = dev_priv->ring.virtual_start;				\
+} while (0)
+
+#define ADVANCE_LP_RING() do {					\
+    if (I810_VERBOSE) printk("ADVANCE_LP_RING\n");		\
+    dev_priv->ring.tail = outring;                      	\
+    I810_WRITE(LP_RING + RING_TAIL, outring);			\
+} while(0)
+
+#define OUT_RING(n) do {				\
+   if (I810_VERBOSE) printk("   OUT_RING %x\n", (int)(n));	\
+   *(volatile unsigned int *)(virt + outring) = n;	\
+   outring += 4;					\
+   outring &= ringmask;					\
+} while (0);
 
 static unsigned long i810_alloc_page(drm_device_t *dev)
 {
@@ -101,28 +110,28 @@ static int i810_alloc_kernel_queue(drm_device_t *dev)
 	down(&dev->struct_sem);
 	
    	if(dev->queue_count != 0) {
-	   /* Reseting the kernel context here is not
-	    * a race, since it can only happen when that
-	    * queue is empty.
-	    */
-	   queue = dev->queuelist[DRM_KERNEL_CONTEXT];
-	   printk("Kernel queue already allocated\n");
+		/* Reseting the kernel context here is not
+		 * a race, since it can only happen when that
+		 * queue is empty.
+		 */
+		queue = dev->queuelist[DRM_KERNEL_CONTEXT];
+		printk("Kernel queue already allocated\n");
 	} else {
-	   queue = drm_alloc(sizeof(*queue), DRM_MEM_QUEUES);
-	   if(!queue) {
-	      up(&dev->struct_sem);
-	      printk("out of memory\n");
-	      return -ENOMEM;
-	   }
-	   ++dev->queue_count;
-	   dev->queuelist = drm_alloc(sizeof(*dev->queuelist), 
-				      DRM_MEM_QUEUES);
-	   if(!dev->queuelist) {
-	      up(&dev->struct_sem);
-	      drm_free(queue, sizeof(*queue), DRM_MEM_QUEUES);
-	      printk("out of memory\n");
-	      return -ENOMEM;
-	   }  
+		queue = drm_alloc(sizeof(*queue), DRM_MEM_QUEUES);
+		if(!queue) {
+			up(&dev->struct_sem);
+			printk("out of memory\n");
+			return -ENOMEM;
+		}
+		++dev->queue_count;
+		dev->queuelist = drm_alloc(sizeof(*dev->queuelist), 
+					   DRM_MEM_QUEUES);
+		if(!dev->queuelist) {
+			up(&dev->struct_sem);
+			drm_free(queue, sizeof(*queue), DRM_MEM_QUEUES);
+			printk("out of memory\n");
+			return -ENOMEM;
+		}  
 	}
 	   
 	memset(queue, 0, sizeof(*queue));
@@ -154,7 +163,7 @@ static int i810_alloc_kernel_queue(drm_device_t *dev)
 
 static int i810_dma_cleanup(drm_device_t *dev)
 {
-      	DRM_DEBUG("i810_dma_cleanup\n");
+      	printk("i810_dma_cleanup\n");
 
 	if(dev->dev_private) {
 	   	drm_i810_private_t *dev_priv = 
@@ -178,8 +187,7 @@ static int i810_dma_cleanup(drm_device_t *dev)
 
 static int __gettimeinmillis(void)
 {
-   struct timeval timep;
-   
+   struct timeval timep;   
    do_gettimeofday(&timep);
    return(timep.tv_sec * 1000) + (timep.tv_usec / 1000);
 }
@@ -187,14 +195,14 @@ static int __gettimeinmillis(void)
 static int i810_wait_ring(drm_device_t *dev, int n, int timeout_millis)
 {
    	drm_i810_private_t *dev_priv = dev->dev_private;
-   	drm_i810_ring_buffer *ring = &(dev_priv->ring);
+   	drm_i810_ring_buffer_t *ring = &(dev_priv->ring);
    	int iters = 0;
    	int startTime = 0;
    	int curTime = 0;
    
       	if (timeout_millis == 0) timeout_millis = 3000;
    
-   	DRM_DEBUG(  "i810_wait_ring %d\n", n);
+   	printk(  "i810_wait_ring %d\n", n);
    
    	while (ring->space < n) {
 	   	int i;
@@ -211,8 +219,9 @@ static int i810_wait_ring(drm_device_t *dev, int n, int timeout_millis)
 	   	} else if (curTime - startTime > timeout_millis) {
 		   	DRM_ERROR("space: %d wanted %d\n", ring->space, n);
 		   	DRM_ERROR("lockup\n");
+			schedule(); /* JEFF - what to do here ??? */
 		}
-	   
+
 	   	for (i = 0 ; i < 2000 ; i++) ;
 	}
    
@@ -222,9 +231,9 @@ static int i810_wait_ring(drm_device_t *dev, int n, int timeout_millis)
 static void i810_kernel_lost_context(drm_device_t *dev)
 {
       	drm_i810_private_t *dev_priv = dev->dev_private;
-   	drm_i810_ring_buffer *ring = &(dev_priv->ring);
+   	drm_i810_ring_buffer_t *ring = &(dev_priv->ring);
    
-   	DRM_DEBUG("i810_kernel_lost_context, old ring (%x,%x)\n", 
+   	printk("i810_kernel_lost_context, old ring (%x,%x)\n", 
 	       ring->head, ring->tail);
    
    	ring->head = I810_READ(LP_RING + RING_HEAD) & HEAD_ADDR;
@@ -232,49 +241,26 @@ static void i810_kernel_lost_context(drm_device_t *dev)
      	ring->space = ring->head - (ring->tail+8);
      	if (ring->space < 0) ring->space += ring->Size;
    
-   	DRM_DEBUG("new ring (%x,%x)\n", ring->head, ring->tail);
+   	printk("new ring (%x,%x)\n", ring->head, ring->tail);
 }
 
 static inline void i810_ring_write_status(drm_device_t *dev)
 {
       	drm_i810_private_t *dev_priv = dev->dev_private;
-   	RING_LOCALS();
+   	RING_LOCALS;
    
 	i810_kernel_lost_context(dev);
    	dev_priv->counter++;
-#if 1
-	BEGIN_LP_RING(8);
-#else
-   	BEGIN_LP_RING(16);
-#endif
+
+	BEGIN_LP_RING(6);
    	OUT_RING(CMD_REPORT_HEAD);
-   	OUT_RING(0);
-#if 1
    	OUT_RING(CMD_STORE_DWORD_IDX);
    	OUT_RING(5 * sizeof(unsigned long));
    	OUT_RING(dev_priv->counter);
-   	OUT_RING(0);
-   
-#endif
-		/* Add a breakpoint interrupt at the end */
-#if 1
-      	OUT_RING(0);
    	OUT_RING(GFX_OP_BREAKPOINT_INTERRUPT);
-#endif
-   /* Add a blit here just to see if my commands work */
-#if 0
-   	OUT_RING(0x02000000);
-   	OUT_RING(0);
-   	OUT_RING(0x50c00004);
-   	OUT_RING(0xcc0800);
-   	OUT_RING(0x1900320);
-   	OUT_RING(0);
-   	OUT_RING(0x800);
-   	OUT_RING(0xb80000);
-   	OUT_RING(0x02000000);
-   	OUT_RING(0);
-#endif
+	OUT_RING(0);
    	ADVANCE_LP_RING();
+
    	/* Wait for ring to complete */
       	i810_wait_ring(dev, dev_priv->ring.Size - 8, 0);
 }
@@ -284,35 +270,42 @@ static inline void i810_print_status_page(drm_device_t *dev)
       	drm_i810_private_t *dev_priv = dev->dev_private;
 	u32 *temp = (u32 *)dev_priv->hw_status_page;
 
-   	DRM_DEBUG(  "hw_status: Interrupt Status : %lx\n", temp[0]);
-   	DRM_DEBUG(  "hw_status: LpRing Head ptr : %lx\n", temp[1]);
-   	DRM_DEBUG(  "hw_status: IRing Head ptr : %lx\n", temp[2]);
-      	DRM_DEBUG(  "hw_status: Reserved : %lx\n", temp[3]);
-   	DRM_DEBUG(  "hw_status: Driver Counter : %d\n", temp[5]);   
+   	printk(  "hw_status: Interrupt Status : %x\n", temp[0]);
+   	printk(  "hw_status: LpRing Head ptr : %x\n", temp[1]);
+   	printk(  "hw_status: IRing Head ptr : %x\n", temp[2]);
+      	printk(  "hw_status: Reserved : %x\n", temp[3]);
+   	printk(  "hw_status: Driver Counter : %d\n", temp[5]);   
 }
 
 static int i810_dma_initialize(drm_device_t *dev, 
 			       drm_i810_private_t *dev_priv,
 			       drm_i810_init_t *init)
 {
-   	DRM_DEBUG(  "i810_dma_init\n");
+	drm_map_t *sarea_map;
+
+   	printk(  "i810_dma_init\n");
    	dev->dev_private = (void *) dev_priv;
    	memset(dev_priv, 0, sizeof(drm_i810_private_t));
-   	if((init->ring_map_idx >= dev->map_count) ||
-	   (init->buffer_map_idx >= dev->map_count)) {
+
+   	if (init->ring_map_idx >= dev->map_count ||
+	    init->buffer_map_idx >= dev->map_count) {
 	   	i810_dma_cleanup(dev);
 	   	DRM_ERROR("ring_map or buffer_map are invalid\n");
 	   	return -EINVAL;
 	}
    
-   	if(i810_alloc_kernel_queue(dev) != DRM_KERNEL_CONTEXT) {
-	   i810_dma_cleanup(dev);
-	   DRM_ERROR("Kernel context queue not present\n");
-	   return -ENOMEM;
+   	if (i810_alloc_kernel_queue(dev) != DRM_KERNEL_CONTEXT) {
+		i810_dma_cleanup(dev);
+		DRM_ERROR("Kernel context queue not present\n");
+		return -ENOMEM;
 	}
 
    	dev_priv->ring_map_idx = init->ring_map_idx;
    	dev_priv->buffer_map_idx = init->buffer_map_idx;
+	sarea_map = dev->maplist[0];
+	dev_priv->sarea_priv = (drm_i810_sarea_t *) 
+		((u8 *)sarea_map->handle + 
+		 init->sarea_priv_offset);
 
    	atomic_set(&dev_priv->pending_bufs, 0);
    	atomic_set(&dev_priv->dispatch_lock, 0);
@@ -326,7 +319,7 @@ static int i810_dma_initialize(drm_device_t *dev,
 						   init->ring_size);
    	dev_priv->ring.tail_mask = dev_priv->ring.Size - 1;
    
-   	if(dev_priv->ring.virtual_start == NULL) {
+   	if (dev_priv->ring.virtual_start == NULL) {
 	   	i810_dma_cleanup(dev);
 	   	DRM_ERROR("can not ioremap virtual address for"
 			  " ring buffer\n");
@@ -337,20 +330,20 @@ static int i810_dma_initialize(drm_device_t *dev,
    	dev_priv->hw_status_page = i810_alloc_page(dev);
    	memset((void *) dev_priv->hw_status_page, 0, PAGE_SIZE);
    	if(dev_priv->hw_status_page == 0UL) {
-	   i810_dma_cleanup(dev);
-	   DRM_ERROR("Can not allocate hardware status page\n");
-	   return -ENOMEM;
+		i810_dma_cleanup(dev);
+		DRM_ERROR("Can not allocate hardware status page\n");
+		return -ENOMEM;
 	}
-   	DRM_DEBUG("hw status page @ %lx\n", dev_priv->hw_status_page);
+   	printk("hw status page @ %lx\n", dev_priv->hw_status_page);
    
    	I810_WRITE(0x02080, virt_to_bus((void *)dev_priv->hw_status_page));
-   	DRM_DEBUG("Enabled hardware status page\n");
+   	printk("Enabled hardware status page\n");
 #if 0
-   	DRM_DEBUG("Doing first ring buffer write\n");
+   	printk("Doing first ring buffer write\n");
    	i810_ring_write_status(dev);
-   	DRM_DEBUG("First ring write succeeded\n");
+   	printk("First ring write succeeded\n");
 	i810_print_status_page(dev);
-   	DRM_DEBUG("Status page dump succeeded\n");
+   	printk("Status page dump succeeded\n");
 #endif
    	return 0;
 }
@@ -385,48 +378,106 @@ int i810_dma_init(struct inode *inode, struct file *filp,
    	return retcode;
 }
 
-static inline void i810_dma_dispatch(drm_device_t *dev, unsigned long address,
-				    unsigned long length)
+static void i810_dma_dispatch_general(drm_device_t *dev, drm_buf_t *buf)
 {
       	drm_i810_private_t *dev_priv = dev->dev_private;
+	unsigned long address = (unsigned long)buf->bus_address;
 	unsigned long start = address - dev->agp->base;
-   	RING_LOCALS();
+   	int length = buf->used;
+   	RING_LOCALS;
 
    	dev_priv->counter++;
-   	DRM_DEBUG(  "dispatch counter : %d\n", dev_priv->counter);
-   	DRM_DEBUG(  "i810_dma_dispatch\n");
-   	DRM_DEBUG(  "start : %lx\n", start);
-	DRM_DEBUG(  "length : %d\n", length);
-   	DRM_DEBUG(  "start + length - 4 : %d\n", start + length - 4);
+   	printk(  "dispatch counter : %ld\n", dev_priv->counter);
+   	printk(  "i810_dma_dispatch\n");
+   	printk(  "start : 0x%lx\n", start);
+	printk(  "length : 0x%x\n", length);
+   	printk(  "start + length - 4 : 0x%lx\n", start + length - 4);
    	i810_kernel_lost_context(dev);
+
+
    	BEGIN_LP_RING(8);
-   	OUT_RING(CMD_OP_BATCH_BUFFER);
-   	OUT_RING(start | BB1_PROTECTED);
-   	OUT_RING((start + length) - 4);
-      	OUT_RING(CMD_STORE_DWORD_IDX);
-   	OUT_RING(5 * sizeof(unsigned long));
-   	OUT_RING(dev_priv->counter);
-   		/* Add a breakpoint interrupt at the end */
-      	OUT_RING(CMD_REPORT_HEAD);
-   	OUT_RING(GFX_OP_BREAKPOINT_INTERRUPT);   
+   	OUT_RING( CMD_OP_BATCH_BUFFER );
+   	OUT_RING( start | BB1_PROTECTED );
+   	OUT_RING( start + length - 4 );
+      	OUT_RING( CMD_STORE_DWORD_IDX );
+   	OUT_RING( 20 );
+   	OUT_RING( dev_priv->counter );
+      	OUT_RING( CMD_REPORT_HEAD );
+   	OUT_RING( GFX_OP_BREAKPOINT_INTERRUPT );   
    	ADVANCE_LP_RING();
    
-   	/* Wait for ring to flush */
-#if 0
-   	i810_wait_ring(dev, dev_priv->ring.Size - 8, 0);
-      	i810_ring_write_status(dev);
-   	DRM_DEBUG("ring write succeeded\n");
-	i810_print_status_page(dev);
-   	DRM_DEBUG("Status page dump succeeded\n");
-#endif
    	i810_print_status_page(dev);
 }
+
+
+
+
+
+static void i810_dma_dispatch_vertex(drm_device_t *dev, drm_buf_t *buf)
+{
+   	drm_i810_private_t *dev_priv = dev->dev_private;
+	drm_i810_buf_priv_t *buf_priv = buf->dev_private;
+	drm_buf_t *real_buf = dev->dma->buflist[ buf_priv->vertex_real_idx ];
+	unsigned long address = (unsigned long)real_buf->bus_address;
+	unsigned long start = address - dev->agp->base;
+	xf86drmClipRectRec *box = buf_priv->boxes;
+	int length = buf->used;	
+	int i = 0;
+   	RING_LOCALS;
+
+   	if (I810_VERBOSE)
+		printk("dispatch vertex addr 0x%lx, length 0x%x nbox %d\n", 
+		       address, length, buf_priv->nbox);
+
+   	dev_priv->counter++;
+   	printk(  "dispatch counter : %ld\n", dev_priv->counter);
+   	printk(  "i810_dma_dispatch\n");
+   	printk(  "start : %lx\n", start);
+	printk(  "length : %d\n", length);
+   	printk(  "start + length - 4 : %ld\n", start + length - 4);
+   	i810_kernel_lost_context(dev);
+
+	if (!buf_priv->vertex_discard) {
+		do {
+			if (i < buf_priv->nbox) {
+				BEGIN_LP_RING(4);
+				OUT_RING( GFX_OP_SCISSOR | SC_UPDATE_SCISSOR | 
+					  SC_ENABLE );
+				OUT_RING( GFX_OP_SCISSOR_INFO );
+				OUT_RING( box[i].x1 | (box[i].y1 << 16) );
+				OUT_RING( box[i].x2 | (box[i].y2 << 16) );
+				ADVANCE_LP_RING();
+			}
+			
+			BEGIN_LP_RING(4);
+			OUT_RING( CMD_OP_BATCH_BUFFER );
+			OUT_RING( start | BB1_PROTECTED );
+			OUT_RING( start + length - 4 );
+			OUT_RING( 0 );
+			ADVANCE_LP_RING();
+			
+		} while (++i < buf_priv->nbox);
+	}
+
+	BEGIN_LP_RING( 6 );
+      	OUT_RING( CMD_STORE_DWORD_IDX );
+   	OUT_RING( 20 );
+   	OUT_RING( dev_priv->counter );
+      	OUT_RING( CMD_REPORT_HEAD );
+   	OUT_RING( GFX_OP_BREAKPOINT_INTERRUPT );   
+	OUT_RING( 0 );
+   	ADVANCE_LP_RING();
+}
+
+
+
+
 
 static inline void i810_dma_quiescent(drm_device_t *dev)
 {
    	drm_i810_private_t *dev_priv = (drm_i810_private_t *)dev->dev_private;
 
-   	DRM_DEBUG(  "i810_dma_quiescent\n");
+   	printk(  "i810_dma_quiescent\n");
    	while(1) {
 	   	atomic_inc(&dev_priv->dispatch_lock);
 	   	if(atomic_read(&dev_priv->dispatch_lock) == 1) {
@@ -441,13 +492,13 @@ static inline void i810_dma_quiescent(drm_device_t *dev)
 static inline void i810_dma_ready(drm_device_t *dev)
 {
    	i810_dma_quiescent(dev);
-   	DRM_DEBUG(  "i810_dma_ready\n");
+   	printk(  "i810_dma_ready\n");
 }
 
 static inline int i810_dma_is_ready(drm_device_t *dev)
 {
    	drm_i810_private_t *dev_priv = (drm_i810_private_t *)dev->dev_private;
-   	DRM_DEBUG(  "i810_dma_is_ready\n");
+   	printk(  "i810_dma_is_ready\n");
    	atomic_inc(&dev_priv->dispatch_lock);
    	if(atomic_read(&dev_priv->dispatch_lock) == 1) {
 	   	/* We got the lock */
@@ -480,7 +531,7 @@ static void i810_dma_service(int irq, void *device, struct pt_regs *regs)
    	u16 temp;
    
 	atomic_inc(&dev->total_irq);
-   	DRM_DEBUG("Interrupt Handler\n");
+   	printk("Interrupt Handler\n");
 	i810_print_status_page(dev);
       	temp = I810_READ16(I810REG_INT_IDENTITY_R);
    	temp = temp & ~(0x6000);
@@ -511,8 +562,8 @@ static int i810_do_dma(drm_device_t *dev, int locked)
 	int		 retcode = 0;
 	drm_device_dma_t *dma = dev->dma;
       	drm_i810_private_t *dev_priv = (drm_i810_private_t *)dev->dev_private;
-   	unsigned long address;
-   	unsigned long length;
+  	drm_i810_buf_priv_t *buf_priv;
+
 
    	printk("i810_do_dma\n");
 	if (test_and_set_bit(0, &dev->dma_flag)) {
@@ -570,12 +621,23 @@ static int i810_do_dma(drm_device_t *dev, int locked)
 	buf->pending	 = 1;
 	buf->waiting	 = 0;
 	buf->list	 = DRM_LIST_PEND;
-   	address = buf->bus_address;
-   	length = buf->used;
 
-   	printk("dispatch!\n");
-   	i810_dma_dispatch(dev, address, length);
-   
+	buf_priv = buf->dev_private;
+	if (I810_VERBOSE) printk("i810_do_dma - type %d\n", buf_priv->dma_type);
+
+	switch (buf_priv->dma_type) {
+	case I810_DMA_GENERAL:
+		i810_dma_dispatch_general( dev, buf );
+		break;
+	case I810_DMA_VERTEX:
+		i810_dma_dispatch_vertex( dev, buf );
+		break;
+	default:
+		printk("bad buffer type %x in dispatch\n", buf_priv->dma_type);
+		break;
+	}
+
+	
    	atomic_dec(&dev_priv->pending_bufs);
 
    	if(dma->this_buffer) {
@@ -685,67 +747,6 @@ again:
 	return retcode;
 }
 
-static int i810_dma_send_buffers(drm_device_t *dev, drm_dma_t *d)
-{
-	DECLARE_WAITQUEUE(entry, current);
-	drm_buf_t	  *last_buf = NULL;
-	int		  retcode   = 0;
-	drm_device_dma_t  *dma	    = dev->dma;
-      	drm_i810_private_t *dev_priv = dev->dev_private;
-
-   	d->context = DRM_KERNEL_CONTEXT;
-	
-	if ((retcode = drm_dma_enqueue(dev, d))) {
-		return retcode;
-	}
-   
-   	atomic_inc(&dev_priv->pending_bufs);
-	i810_dma_schedule(dev, 1);
-   	return retcode;
-}
-
-int i810_dma(struct inode *inode, struct file *filp, unsigned int cmd,
-	      unsigned long arg)
-{
-	drm_file_t	  *priv	    = filp->private_data;
-	drm_device_t	  *dev	    = priv->dev;
-	drm_device_dma_t  *dma	    = dev->dma;
-	int		  retcode   = 0;
-	drm_dma_t	  d;
-
-        DRM_DEBUG("i810_dma start\n");
-   	copy_from_user_ret(&d, (drm_dma_t *)arg, sizeof(d), -EFAULT);
-	DRM_DEBUG("%d %d: %d send, %d req\n",
-		  current->pid, d.context, d.send_count, d.request_count);
-
-	if (d.send_count < 0 || d.send_count > dma->buf_count) {
-		DRM_ERROR("Process %d trying to send %d buffers (of %d max)\n",
-			  current->pid, d.send_count, dma->buf_count);
-		return -EINVAL;
-	}
-	if (d.request_count < 0 || d.request_count > dma->buf_count) {
-		DRM_ERROR("Process %d trying to get %d buffers (of %d max)\n",
-			  current->pid, d.request_count, dma->buf_count);
-		return -EINVAL;
-	}
-
-	if (d.send_count) {
-	   	retcode = i810_dma_send_buffers(dev, &d);
-	}
-
-	d.granted_count = 0;
-
-	if (!retcode && d.request_count) {
-		retcode = drm_dma_get_buffers(dev, &d);
-	}
-
-	DRM_DEBUG("%d returning, granted = %d\n",
-		  current->pid, d.granted_count);
-	copy_to_user_ret((drm_dma_t *)arg, &d, sizeof(d), -EFAULT);
-
-   	DRM_DEBUG("i810_dma end (granted)\n");
-	return retcode;
-}
 
 int i810_irq_install(drm_device_t *dev, int irq)
 {
@@ -762,8 +763,8 @@ int i810_irq_install(drm_device_t *dev, int irq)
 	dev->irq = irq;
 	up(&dev->struct_sem);
 	
-   	DRM_DEBUG(  "Interrupt Install : %d\n", irq);
-	DRM_DEBUG("%d\n", irq);
+   	printk(  "Interrupt Install : %d\n", irq);
+	printk("%d\n", irq);
 
 	dev->context_flag     = 0;
 	dev->interrupt_flag   = 0;
@@ -821,10 +822,10 @@ int i810_irq_uninstall(drm_device_t *dev)
 	
 	if (!irq) return -EINVAL;
 
-   	DRM_DEBUG(  "Interrupt UnInstall: %d\n", irq);
+   	printk(  "Interrupt UnInstall: %d\n", irq);
 
 	
-	DRM_DEBUG("%d\n", irq);
+	printk("%d\n", irq);
    
    	temp = I810_READ16(I810REG_INT_IDENTITY_R);
    	temp = temp & ~(0x6000);
@@ -849,7 +850,7 @@ int i810_control(struct inode *inode, struct file *filp, unsigned int cmd,
 	drm_control_t	ctl;
 	int		retcode;
    
-   	DRM_DEBUG(  "i810_control\n");
+   	printk(  "i810_control\n");
 
 	copy_from_user_ret(&ctl, (drm_control_t *)arg, sizeof(ctl), -EFAULT);
 	

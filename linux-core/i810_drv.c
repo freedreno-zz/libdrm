@@ -33,6 +33,9 @@
 #define EXPORT_SYMTAB
 #include "drmP.h"
 #include "i810_drv.h"
+#include "i810_dma.h"
+
+
 EXPORT_SYMBOL(i810_init);
 EXPORT_SYMBOL(i810_cleanup);
 
@@ -105,6 +108,8 @@ static drm_ioctl_desc_t	      i810_ioctls[] = {
 	[DRM_IOCTL_NR(DRM_IOCTL_AGP_BIND)]    = { drm_agp_bind,    1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_AGP_UNBIND)]  = { drm_agp_unbind,  1, 1 },
    	[DRM_IOCTL_NR(DRM_IOCTL_I810_INIT)]   = { i810_dma_init,   1, 1 },
+   	[DRM_IOCTL_NR(DRM_IOCTL_I810_VERTEX)]   = { i810_dma_vertex,   1, 1 },
+   	[DRM_IOCTL_NR(DRM_IOCTL_I810_DMA)]   = { i810_dma_general,   1, 1 },
 };
 
 #define I810_IOCTL_COUNT DRM_ARRAY_SIZE(i810_ioctls)
