@@ -316,6 +316,6 @@ typedef struct drm_agp_info {
 #define DRM_IOCTL_AGP_ALLOC   DRM_IOWR(0x34, drm_agp_buffer_t)
 #define DRM_IOCTL_AGP_FREE    DRM_IOW( 0x35, drm_agp_buffer_t)
 #define DRM_IOCTL_AGP_BIND    DRM_IOWR(0x36, drm_agp_binding_t)
-#define DRM_IOCTL_AGP_UNBIND  DRM_IOW( 0x37, drm_agp_binging_t)
+#define DRM_IOCTL_AGP_UNBIND  DRM_IOW( 0x37, drm_agp_binding_t)
 
 #endif
