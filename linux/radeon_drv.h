@@ -562,6 +562,15 @@ extern int radeon_cp_flip( struct inode *inode, struct file *filp,
 #define R200_SE_VTE_CNTL                  0x20b0
 #define R200_SE_TCL_OUTPUT_VTX_COMP_SEL   0x2250
 #define R200_PP_TAM_DEBUG3                0x2d9c
+#define R200_PP_CNTL_X                    0x2cc4
+#define R200_SE_VAP_CNTL_STATUS           0x2140
+#define R200_RE_SCISSOR_TL_0              0x1cd8
+#define R200_RE_SCISSOR_TL_1              0x1ce0
+#define R200_RE_SCISSOR_TL_2              0x1ce8
+#define R200_RB3D_DEPTHXY_OFFSET          0x1d60 
+#define R200_RE_AUX_SCISSOR_CNTL                   0x26f0
+#define R200_SE_VTX_STATE_CNTL                     0x2180
+#define R200_RE_POINTSIZE                          0x2648
 
 
 #define SE_VAP_CNTL__TCL_ENA_MASK                          0x00000001

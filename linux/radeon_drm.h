@@ -119,7 +119,16 @@
 #define R200_EMIT_VTE_CNTL                          48 /* vte/1 */
 #define R200_EMIT_OUTPUT_VTX_COMP_SEL               49 /* vtx/1 */
 #define R200_EMIT_PP_TAM_DEBUG3                     50 /* tam/1 */
-#define RADEON_MAX_STATE_PACKETS                    51
+#define R200_EMIT_PP_CNTL_X                         51 /* cst/1 */
+#define R200_EMIT_RB3D_DEPTHXY_OFFSET               52 /* cst/1 */
+#define R200_EMIT_RE_AUX_SCISSOR_CNTL               53 /* cst/1 */
+#define R200_EMIT_RE_SCISSOR_TL_0                   54 /* cst/2 */
+#define R200_EMIT_RE_SCISSOR_TL_1                   55 /* cst/2 */
+#define R200_EMIT_RE_SCISSOR_TL_2                   56 /* cst/2 */
+#define R200_EMIT_SE_VAP_CNTL_STATUS                57 /* cst/1 */
+#define R200_EMIT_SE_VTX_STATE_CNTL                 58 /* cst/1 */
+#define R200_EMIT_RE_POINTSIZE                      59 /* cst/1 */
+#define RADEON_MAX_STATE_PACKETS                    60
 
 
 /* Commands understood by cmd_buffer ioctl.  More can be added but
