@@ -513,7 +513,7 @@ int mga_release(struct inode *inode, struct file *filp)
 		if (dev->dev_private)
 			((drm_mga_private_t *)dev->dev_private)
 				->dispatch_status &= MGA_IN_DISPATCH;
-
+		
 		drm_lock_free(dev,
 			      &dev->lock.hw_lock->lock,
 			      _DRM_LOCKING_CONTEXT(dev->lock.hw_lock->lock));

@@ -109,7 +109,9 @@ int r128_resctx(struct inode *inode, struct file *filp, unsigned int cmd,
 		memset(&ctx, 0, sizeof(ctx));
 		for (i = 0; i < DRM_RESERVED_CONTEXTS; i++) {
 			ctx.handle = i;
-			if (copy_to_user(&res.contexts[i], &i, sizeof(i)))
+			if (copy_to_user(&res.contexts[i],
+					 &i,
+					 sizeof(i)))
 				return -EFAULT;
 		}
 	}

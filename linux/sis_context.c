@@ -28,7 +28,7 @@
  *    Rickard E. (Rik) Faith <faith@valinux.com>
  *    Daryll Strauss <daryll@valinux.com>
  *    Sung-Ching Lin <sclin@sis.com.tw>
- *
+ * 
  */
 
 #define __NO_VERSION__
@@ -142,7 +142,7 @@ int sis_addctx(struct inode *inode, struct file *filp, unsigned int cmd,
 				/* Should this return -EBUSY instead? */
 		return -ENOMEM;
 	}
-
+   
 	/* new added */
 	sis_init_context(ctx.handle);
 

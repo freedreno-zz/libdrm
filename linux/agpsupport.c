@@ -108,7 +108,7 @@ int drm_agp_enable(struct inode *inode, struct file *filp, unsigned int cmd,
 
 	if (copy_from_user(&mode, (drm_agp_mode_t *)arg, sizeof(mode)))
 		return -EFAULT;
-
+	
 	dev->agp->mode    = mode.mode;
 	drm_agp->enable(mode.mode);
 	dev->agp->base    = dev->agp->agp_info.aper_base;
@@ -201,7 +201,7 @@ int drm_agp_bind(struct inode *inode, struct file *filp, unsigned int cmd,
 	drm_agp_mem_t     *entry;
 	int               retcode;
 	int               page;
-
+	
 	if (!dev->agp->acquired || !drm_agp->bind_memory) return -EINVAL;
 	if (copy_from_user(&request, (drm_agp_binding_t *)arg, sizeof(request)))
 		return -EFAULT;
@@ -271,9 +271,9 @@ drm_agp_head_t *drm_agp_init(void)
 
 #if LINUX_VERSION_CODE >= 0x020400
 		case VIA_MVP4:		head->chipset = "VIA MVP4";      break;
-		case VIA_APOLLO_KX133:	head->chipset = "VIA Apollo KX133";
+		case VIA_APOLLO_KX133:	head->chipset = "VIA Apollo KX133"; 
 			break;
-		case VIA_APOLLO_KT133:	head->chipset = "VIA Apollo KT133";
+		case VIA_APOLLO_KT133:	head->chipset = "VIA Apollo KT133"; 
 			break;
 #endif
 

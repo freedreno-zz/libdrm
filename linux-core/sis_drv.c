@@ -72,7 +72,7 @@ static drm_ioctl_desc_t	      sis_ioctls[] = {
 	[DRM_IOCTL_NR(DRM_IOCTL_UNBLOCK)]    = { drm_unblock,	  1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_AUTH_MAGIC)] = { drm_authmagic,	  1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_ADD_MAP)]    = { drm_addmap,	  1, 1 },
-
+	
 	[DRM_IOCTL_NR(DRM_IOCTL_ADD_CTX)]    = { sis_addctx,	  1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_RM_CTX)]     = { sis_rmctx,	  1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_MOD_CTX)]    = { sis_modctx,	  1, 1 },
@@ -242,7 +242,7 @@ static int sis_takedown(drm_device_t *dev)
 	if (dev->agp) {
 		drm_agp_mem_t *temp;
 		drm_agp_mem_t *temp_next;
-
+	   
 		temp = dev->agp->memory;
 		while(temp != NULL) {
 			temp_next = temp->next;
@@ -423,7 +423,7 @@ int sis_open(struct inode *inode, struct file *filp)
 {
 	drm_device_t  *dev    = &sis_device;
 	int	      retcode = 0;
-
+	
 	DRM_DEBUG("open_count = %d\n", dev->open_count);
 	if (!(retcode = drm_open_helper(inode, filp, dev))) {
 #if LINUX_VERSION_CODE < 0x020333
@@ -667,7 +667,7 @@ int sis_unlock(struct inode *inode, struct file *filp, unsigned int cmd,
 
 	if (copy_from_user(&lock, (drm_lock_t *)arg, sizeof(lock)))
 		return -EFAULT;
-
+	
 	if (lock.context == DRM_KERNEL_CONTEXT) {
 		DRM_ERROR("Process %d using kernel context %d\n",
 			  current->pid, lock.context);
