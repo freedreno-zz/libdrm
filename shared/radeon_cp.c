@@ -994,11 +994,8 @@ static int radeon_do_init_cp( drm_device_t *dev, drm_radeon_init_t *init )
 	}
 
 	dev_priv->is_r200 = (init->func == RADEON_INIT_R200_CP);
+	dev_priv->do_boxes = 1;
 	dev_priv->cp_mode = init->cp_mode;
-
-	/* Simple idle check.
-	 */
-	atomic_set( &dev_priv->idle_count, 0 );
 
 	/* We don't support anything other than bus-mastering ring mode,
 	 * but the ring can be in either AGP or PCI space for the ring
@@ -1438,14 +1435,20 @@ drm_buf_t *radeon_freelist_get( drm_device_t *dev )
 	drm_buf_t *buf;
 	int i, t;
 	int start;
+	u32 done_age = DRM_READ32(&dev_priv->scratch[1]);
+
+	dev_priv->stats.requested_bufs++;
+	if (done_age == dev_priv->sarea_priv->last_dispatch)
+		dev_priv->stats.boxes |= RADEON_BOX_DMA_IDLE;
 
 	if ( ++dev_priv->last_buf >= dma->buf_count )
 		dev_priv->last_buf = 0;
 
 	start = dev_priv->last_buf;
+	
+/* 	printk("start %d count %d\n", start, dma->buf_count); */
 
 	for ( t = 0 ; t < dev_priv->usec_timeout ; t++ ) {
-		u32 done_age = DRM_READ32(&dev_priv->scratch[1]);
 		DRM_DEBUG("done_age = %d\n",done_age);
 		for ( i = start ; i < dma->buf_count ; i++ ) {
 			buf = dma->buflist[i];
@@ -1453,13 +1456,17 @@ drm_buf_t *radeon_freelist_get( drm_device_t *dev )
 			if ( buf->pid == 0 || (buf->pending && 
 					       buf_priv->age <= done_age) ) {
 				buf->pending = 0;
+/* 				if (t) printk("wait: %d\n", t); */
 				return buf;
 			}
 			start = 0;
 		}
-		DRM_UDELAY( 1 );
+		dev_priv->stats.freelist_loops++;
+		if (t) DRM_UDELAY( 1 );
+		done_age = DRM_READ32(&dev_priv->scratch[1]);
 	}
 
+	dev_priv->stats.freelist_timeouts++;
 	DRM_ERROR( "returning NULL!\n" );
 	return NULL;
 }
@@ -1487,11 +1494,24 @@ int radeon_wait_ring( drm_radeon_private_t *dev_priv, int n )
 {
 	drm_radeon_ring_buffer_t *ring = &dev_priv->ring;
 	int i;
+	u32 last_head = GET_RING_HEAD(ring);
+
 
 	for ( i = 0 ; i < dev_priv->usec_timeout ; i++ ) {
-		radeon_update_ring_snapshot( ring );
+		u32 head = GET_RING_HEAD(ring);
+
+		ring->space = (head - ring->tail) * sizeof(u32);
+		if ( ring->space <= 0 )
+			ring->space += ring->size;
 		if ( ring->space > n )
 			return 0;
+		
+		dev_priv->stats.boxes |= RADEON_BOX_RING_FULL;
+
+		if (head != last_head)
+			i = 0;
+		last_head = head;
+
 		DRM_UDELAY( 1 );
 	}
 

@@ -284,14 +284,6 @@ static struct {
 
 
 
-
-
-
-
-
-
-
-#if RADEON_PERFORMANCE_BOXES
 /* ================================================================
  * Performance monitoring functions
  */
@@ -300,9 +292,11 @@ static void radeon_clear_box( drm_radeon_private_t *dev_priv,
 			      int x, int y, int w, int h,
 			      int r, int g, int b )
 {
-	u32 pitch, offset;
 	u32 color;
 	RING_LOCALS;
+
+	x += dev_priv->sarea_priv->boxes[0].x1;
+	y += dev_priv->sarea_priv->boxes[0].y1;
 
 	switch ( dev_priv->color_fmt ) {
 	case RADEON_COLOR_FORMAT_RGB565:
@@ -316,8 +310,11 @@ static void radeon_clear_box( drm_radeon_private_t *dev_priv,
 		break;
 	}
 
-	offset = dev_priv->back_offset;
-	pitch = dev_priv->back_pitch >> 3;
+	BEGIN_RING( 4 );
+	RADEON_WAIT_UNTIL_3D_IDLE();		
+	OUT_RING( CP_PACKET0( RADEON_DP_WRITE_MASK, 0 ) );
+	OUT_RING( 0xffffffff );
+	ADVANCE_RING();
 
 	BEGIN_RING( 6 );
 
@@ -329,7 +326,12 @@ static void radeon_clear_box( drm_radeon_private_t *dev_priv,
 		  RADEON_ROP3_P |
 		  RADEON_GMC_CLR_CMP_CNTL_DIS );
 
-	OUT_RING( (pitch << 22) | (offset >> 5) );
+ 	if ( dev_priv->page_flipping && dev_priv->current_page == 1 ) { 
+		OUT_RING( dev_priv->front_pitch_offset );
+ 	} else {	 
+		OUT_RING( dev_priv->back_pitch_offset );
+ 	} 
+
 	OUT_RING( color );
 
 	OUT_RING( (x << 16) | y );
@@ -340,16 +342,61 @@ static void radeon_clear_box( drm_radeon_private_t *dev_priv,
 
 static void radeon_cp_performance_boxes( drm_radeon_private_t *dev_priv )
 {
-	if ( atomic_read( &dev_priv->idle_count ) == 0 ) {
-		radeon_clear_box( dev_priv, 64, 4, 8, 8, 0, 255, 0 );
-	} else {
-		atomic_set( &dev_priv->idle_count, 0 );
+	if (dev_priv->stats.requested_bufs) {
+		int i = dev_priv->stats.freelist_loops / 
+			dev_priv->stats.requested_bufs;
+
+		if (dev_priv->stats.requested_bufs > 100)
+			dev_priv->stats.requested_bufs = 100;
+
+		radeon_clear_box( dev_priv, 16, 4, 8, 
+				  dev_priv->stats.requested_bufs,
+				  255, 255, 255 );
+
+		if (i)
+			radeon_clear_box( dev_priv, 32, 4, 8, 8, 0, 64, 0 );
+
+		if (i > 10)
+			radeon_clear_box( dev_priv, 32, 13, 8, 8, 0, 128, 0 );
+
+		if (i > 100)
+			radeon_clear_box( dev_priv, 32, 22, 8, 8, 0, 255, 0 );
 	}
+
+	if ( dev_priv->stats.freelist_timeouts ) 
+		radeon_clear_box( dev_priv, 48, 4, 8, 8, 255, 0, 0 );
+
+	if ( dev_priv->stats.boxes & RADEON_BOX_DMA_IDLE ) 
+		radeon_clear_box( dev_priv, 64, 4, 8, 8, 0, 255, 0 );
+
+	if ( dev_priv->stats.boxes & RADEON_BOX_RING_FULL ) 
+		radeon_clear_box( dev_priv, 80, 4, 8, 8, 0, 0, 255 );
+
+	if ( dev_priv->stats.boxes & RADEON_BOX_FLIP ) 
+		radeon_clear_box( dev_priv, 96, 4, 8, 8, 255, 255, 0 );
+
+	if (dev_priv->stats.last_frame_reads > 1) 
+		radeon_clear_box( dev_priv, 112, 4, 8, 8, 0, 64, 32 );
+
+	if (dev_priv->stats.last_frame_reads > 100) 
+		radeon_clear_box( dev_priv, 112, 13, 8, 8, 0, 128, 64 );
+	
+	if (dev_priv->stats.last_frame_reads > 1000) 
+		radeon_clear_box( dev_priv, 112, 22, 8, 8, 0, 255, 128 );
+
+	if (dev_priv->stats.last_clear_reads > 1)
+		radeon_clear_box( dev_priv, 128, 4, 8, 8, 32, 64, 0 );
+	
+	if (dev_priv->stats.last_clear_reads > 100)
+		radeon_clear_box( dev_priv, 128, 13, 8, 8, 64, 128, 0 );
+	
+	if (dev_priv->stats.last_clear_reads > 1000)
+		radeon_clear_box( dev_priv, 128, 22, 8, 8, 128, 255, 0 );
+
+
+	memset( &dev_priv->stats, 0, sizeof(dev_priv->stats) );
+
 }
-
-#endif
-
-
 /* ================================================================
  * CP command dispatch functions
  */
@@ -675,11 +722,12 @@ static void radeon_cp_dispatch_swap( drm_device_t *dev )
 	RING_LOCALS;
 	DRM_DEBUG( "\n" );
 
-#if RADEON_PERFORMANCE_BOXES
+
 	/* Do some trivial performance monitoring...
 	 */
-	radeon_cp_performance_boxes( dev_priv );
-#endif
+	if (dev_priv->do_boxes)
+		radeon_cp_performance_boxes( dev_priv );
+
 
 	/* Wait for the 3D stream to idle before dispatching the bitblt.
 	 * This will prevent data corruption between the two streams.
@@ -753,11 +801,12 @@ static void radeon_cp_dispatch_flip( drm_device_t *dev )
 		dev_priv->current_page,
 		dev_priv->sarea_priv->pfCurrentPage);
 
-#if RADEON_PERFORMANCE_BOXES
 	/* Do some trivial performance monitoring...
 	 */
-	radeon_cp_performance_boxes( dev_priv );
-#endif
+	if (dev_priv->do_boxes) {
+		dev_priv->stats.boxes |= RADEON_BOX_FLIP;
+		radeon_cp_performance_boxes( dev_priv );
+	}
 
 	BEGIN_RING( 4 );
 
@@ -2053,12 +2102,14 @@ int radeon_cp_getparam( DRM_IOCTL_ARGS )
 		value = dev_priv->agp_buffers_offset;
 		break;
 	case RADEON_PARAM_LAST_FRAME:
+		dev_priv->stats.last_frame_reads++;
 		value = DRM_READ32(&dev_priv->scratch[0]);
 		break;
 	case RADEON_PARAM_LAST_DISPATCH:
 		value = DRM_READ32(&dev_priv->scratch[1]);
 		break;
 	case RADEON_PARAM_LAST_CLEAR:
+		dev_priv->stats.last_clear_reads++;
 		value = DRM_READ32(&dev_priv->scratch[2]);
 		break;
 	default:

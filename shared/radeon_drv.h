@@ -85,8 +85,16 @@ typedef struct drm_radeon_private {
 	unsigned long phys_pci_gart;
 	dma_addr_t bus_pci_gart;
 
-	atomic_t idle_count;
+	struct {
+		u32 boxes;
+		int freelist_timeouts;
+		int freelist_loops;
+		int requested_bufs;
+		int last_frame_reads;
+		int last_clear_reads;
+	} stats;
 
+	int do_boxes;
 	int page_flipping;
 	int current_page;
 	u32 crtc_offset;
@@ -136,14 +144,6 @@ extern drm_buf_t *radeon_freelist_get( drm_device_t *dev );
 
 extern int radeon_wait_ring( drm_radeon_private_t *dev_priv, int n );
 
-static __inline__ void
-radeon_update_ring_snapshot( drm_radeon_ring_buffer_t *ring )
-{
-	ring->space = (GET_RING_HEAD(ring) - ring->tail) * sizeof(u32);
-	if ( ring->space <= 0 )
-		ring->space += ring->size;
-}
-
 extern int radeon_do_cp_idle( drm_radeon_private_t *dev_priv );
 extern int radeon_do_cleanup_cp( drm_device_t *dev );
 extern int radeon_do_cleanup_pageflip( drm_device_t *dev );
@@ -160,6 +160,12 @@ extern int radeon_cp_vertex2( DRM_IOCTL_ARGS );
 extern int radeon_cp_cmdbuf( DRM_IOCTL_ARGS );
 extern int radeon_cp_getparam( DRM_IOCTL_ARGS );
 extern int radeon_cp_flip( DRM_IOCTL_ARGS );
+
+/* Flags for stats.boxes
+ */
+#define RADEON_BOX_DMA_IDLE   0x1
+#define RADEON_BOX_RING_FULL  0x2
+#define RADEON_BOX_FLIP       0x4
 
 
 
@@ -677,28 +683,6 @@ do {									\
 
 #define RING_SPACE_TEST_WITH_RETURN( dev_priv )				\
 do {									\
-	drm_radeon_ring_buffer_t *ring = &dev_priv->ring; int i;	\
-	if ( ring->space < ring->high_mark ) {				\
-		for ( i = 0 ; i < dev_priv->usec_timeout ; i++ ) {	\
-			radeon_update_ring_snapshot( ring );		\
-			if ( ring->space >= ring->high_mark )		\
-				goto __ring_space_done;			\
-			DRM_UDELAY( 1 );				\
-		}							\
-		DRM_ERROR( "ring space check from memory failed, reading register...\n" );	\
-		/* If ring space check fails from RAM, try reading the	\
-		   register directly */					\
-		ring->space = 4 * ( RADEON_READ( RADEON_CP_RB_RPTR ) - ring->tail );	\
-		if ( ring->space <= 0 )					\
-			ring->space += ring->size;			\
-		if ( ring->space >= ring->high_mark )			\
-			goto __ring_space_done;				\
-									\
-		DRM_ERROR( "ring space check failed!\n" );		\
-		return DRM_ERR(EBUSY);				\
-	}								\
- __ring_space_done:							\
-	;								\
 } while (0)
 
 #define VB_AGE_TEST_WITH_RETURN( dev_priv )				\
@@ -813,7 +797,5 @@ do {									\
 	write &= mask;						\
 } while (0)
 
-
-#define RADEON_PERFORMANCE_BOXES	0
 
 #endif /* __RADEON_DRV_H__ */
