@@ -33,7 +33,7 @@ typedef struct {
 
 #define MGA_VERBOSE 0
 
-#define MGA_NUM_PRIM_BUFS 	16
+#define MGA_NUM_PRIM_BUFS 	8
 /* Primary buffer versions of above -- pretty similar really.
  */
 

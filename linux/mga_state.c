@@ -779,7 +779,8 @@ int mga_swap_bufs(struct inode *inode, struct file *filp,
 	dev_priv->sarea_priv->dirty |= MGA_UPLOAD_CTX;
 	mga_dma_dispatch_swap( dev );
       	PRIMUPDATE(dev_priv);
-   	atomic_set(&dev_priv->current_prim->force_fire, 1);
+   	set_bit(0, &dev_priv->current_prim->swap_pending);
+   	dev_priv->current_prim->swap_pending = 1;
 	mga_dma_schedule(dev, 1);
       	sarea_priv->last_dispatch = status[1];
    	return 0;

@@ -41,6 +41,7 @@ typedef struct {
    	u32 phys_head;
    	int sec_used;
    	int idx;
+   	int swap_pending;
    	u32 in_use;
    	atomic_t force_fire;
 } drm_mga_prim_buf_t;
@@ -67,6 +68,7 @@ typedef struct _drm_mga_private {
    	u32 dispatch_lock;
    	atomic_t in_flush;
    	atomic_t in_wait;
+   	atomic_t pending_bufs;
    	unsigned int last_sync_tag;
    	unsigned int sync_tag;
    	void *status_page;
