@@ -1834,7 +1834,7 @@ static __inline__ int radeon_emit_scalars(
 
 /* God this is ugly
  */
-static inline int radeon_emit_scalars2( 
+static __inline__ int radeon_emit_scalars2( 
 	drm_radeon_private_t *dev_priv,
 	drm_radeon_cmd_header_t header,
 	drm_radeon_cmd_buffer_t *cmdbuf )
@@ -1856,7 +1856,7 @@ static inline int radeon_emit_scalars2(
 	return 0;
 }
 
-static inline int radeon_emit_vectors( 
+static __inline__ int radeon_emit_vectors( 
 	drm_radeon_private_t *dev_priv,
 	drm_radeon_cmd_header_t header,
 	drm_radeon_cmd_buffer_t *cmdbuf )

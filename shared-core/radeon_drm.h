@@ -95,8 +95,8 @@
 #define R200_EMIT_PP_TXCBLEND_3                     24 /* tex3/4 */
 #define R200_EMIT_PP_TXCBLEND_4                     25 /* tex4/4 */
 #define R200_EMIT_PP_TXCBLEND_5                     26 /* tex5/4 */
-#define R200_EMIT_PP_TXCBLEND_6                     27 /* ???/4 */
-#define R200_EMIT_PP_TXCBLEND_7                     28 /* ???/4 */
+#define R200_EMIT_PP_TXCBLEND_6                     27 /* /4 */
+#define R200_EMIT_PP_TXCBLEND_7                     28 /* /4 */
 #define R200_EMIT_TCL_LIGHT_MODEL_CTL_0             29 /* tcl/7 */
 #define R200_EMIT_TFACTOR_0                         30 /* tf/7 */
 #define R200_EMIT_VTX_FMT_0                         31 /* vtx/5 */
