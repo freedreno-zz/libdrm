@@ -35,6 +35,8 @@
 #include <linux/interrupt.h>	/* For task queue support */
 #include <linux/delay.h>
 
+#define USER_INT_FLAG 0x2
+#define MAX_NOPID (2048-1)
 
 void DRM(dma_service)( DRM_IRQ_ARGS )
 {
@@ -43,35 +45,39 @@ void DRM(dma_service)( DRM_IRQ_ARGS )
    	u16 temp;
 
       	temp = I830_READ16(I830REG_INT_IDENTITY_R);
-	DRM_DEBUG("%x\n", temp);
-
+	temp &= USER_INT_FLAG;
    	if (temp == 0) 
 		return;
 
 	I830_WRITE16(I830REG_INT_IDENTITY_R, temp); 
-
-	if (temp & 2) {
-		atomic_inc(&dev_priv->irq_received);
-		DRM_WAKEUP( &dev_priv->irq_queue ); 
-	}
+	DRM_WAKEUP( &dev_priv->irq_queue ); 
 }
 
 
 int i830_emit_irq(drm_device_t *dev)
 {
 	drm_i830_private_t *dev_priv = dev->dev_private;
+	int ret;
 	RING_LOCALS;
 
 	DRM_DEBUG("%s\n", __FUNCTION__);
 
 	atomic_inc(&dev_priv->irq_emitted);
+	ret = atomic_read(&dev_priv->irq_emitted);
+
+	if (ret > MAX_NOPID) {
+		DRM_DEBUG("wrap NOPID\n");
+		i830_wait_irq(dev, MAX_NOPID); /* or drain the ring */
+		atomic_set(&dev_priv->irq_emitted, 0);
+		ret = 0;
+	}
 
    	BEGIN_LP_RING(2);
-      	OUT_RING( 0 );
+      	OUT_RING( 0 | (1<<22) | ret  );
       	OUT_RING( GFX_OP_USER_INTERRUPT );
       	ADVANCE_LP_RING();
 
-	return atomic_read(&dev_priv->irq_emitted);
+	return ret;
 }
 
 
@@ -81,13 +87,22 @@ int i830_wait_irq(drm_device_t *dev, int irq_nr)
 	   (drm_i830_private_t *)dev->dev_private;
 	int ret = 0;
 
- 	if (atomic_read(&dev_priv->irq_received) >= irq_nr)  
+ 	if (I830_READ(NOPID) >= irq_nr)  
  		return 0; 
 
 	dev_priv->sarea_priv->perf_boxes |= I830_BOX_WAIT;
 
 	DRM_WAIT_ON( ret, dev_priv->irq_queue, 3 * DRM_HZ,
-		     atomic_read(&dev_priv->irq_received) >= irq_nr );
+		     I830_READ(NOPID) >= irq_nr );
+
+	/* This can happen with signals, etc, so isn't necessarily an
+	 * error.
+	 */
+	if (ret) {
+		DRM_INFO("%s: rec: %d emitted: %d\n", __FUNCTION__,
+			 I830_READ(NOPID),
+			 atomic_read(&dev_priv->irq_emitted));
+	}
 
 	return ret;
 }
@@ -154,7 +169,7 @@ void DRM(driver_irq_preinstall)( drm_device_t *dev ) {
 	drm_i830_private_t *dev_priv =
 		(drm_i830_private_t *)dev->dev_private;
 
-	I830_WRITE16( I830REG_HWSTAM, 0xffff );
+	I830_WRITE16( I830REG_HWSTAM, 0xfffe );
 	I830_WRITE16( I830REG_INT_MASK_R, 0x0 );
 	I830_WRITE16( I830REG_INT_ENABLE_R, 0x0 );
 }
@@ -163,8 +178,7 @@ void DRM(driver_irq_postinstall)( drm_device_t *dev ) {
 	drm_i830_private_t *dev_priv =
 		(drm_i830_private_t *)dev->dev_private;
 
-	I830_WRITE16( I830REG_INT_ENABLE_R, 0x2 );
-	atomic_set(&dev_priv->irq_received, 0);
+	I830_WRITE16( I830REG_INT_ENABLE_R, USER_INT_FLAG );
 	atomic_set(&dev_priv->irq_emitted, 0);
 	init_waitqueue_head(&dev_priv->irq_queue);
 }
@@ -175,6 +189,7 @@ void DRM(driver_irq_uninstall)( drm_device_t *dev ) {
 	if (!dev_priv)
 		return;
 
+	I830_WRITE16( I830REG_HWSTAM, 0xffff );
 	I830_WRITE16( I830REG_INT_MASK_R, 0xffff );
 	I830_WRITE16( I830REG_INT_ENABLE_R, 0x0 );
 }

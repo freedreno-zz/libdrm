@@ -213,9 +213,8 @@ extern int i830_wait_ring(drm_device_t *dev, int n, const char *caller);
 #define I830REG_INT_MASK_R 	0x020a8
 #define I830REG_INT_ENABLE_R	0x020a0
 
-#define I830_IRQ_RESERVED ((1<<13)|(3<<2))
 
-
+#define NOPID                   0x2094
 #define LP_RING     		0x2030
 #define HP_RING     		0x2040
 #define RING_TAIL      		0x00

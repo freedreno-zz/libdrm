@@ -141,7 +141,7 @@ do {									\
  * hardware and the driver.
  */
 /* XXX: Add vblank support? */
-#define USE_IRQS 0
+#define USE_IRQS 1
 
 #if USE_IRQS
 #define __HAVE_DMA_IRQ		1
