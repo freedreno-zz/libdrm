@@ -350,10 +350,12 @@ static inline void radeon_emit_zbias( drm_radeon_private_t *dev_priv,
 				      drm_radeon_context2_regs_t *ctx )
 {
 	RING_LOCALS;
-	DRM_DEBUG( "    %s\n", __FUNCTION__ );
+/*  	printk( "    %s %x %x\n", __FUNCTION__, */
+/*  		ctx->se_zbias_factor, */
+/*  		ctx->se_zbias_constant ); */
 
 	BEGIN_RING( 3 );
-	OUT_RING( CP_PACKET0( RADEON_SE_ZBIAS_FACTOR, 2 ) );
+	OUT_RING( CP_PACKET0( RADEON_SE_ZBIAS_FACTOR, 1 ) );
   	OUT_RING( ctx->se_zbias_factor ); 
   	OUT_RING( ctx->se_zbias_constant ); 
 	ADVANCE_RING();

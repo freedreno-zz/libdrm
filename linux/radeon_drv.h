@@ -359,7 +359,7 @@ extern int radeon_cp_vertex2( struct inode *inode, struct file *filp,
 #define RADEON_SE_CNTL_STATUS		0x2140
 #define RADEON_SE_LINE_WIDTH		0x1db8
 #define RADEON_SE_VPORT_XSCALE		0x1d98
-#define RADEON_SE_ZBIAS_FACTOR		0x1dac
+#define RADEON_SE_ZBIAS_FACTOR		0x1db0
 #define RADEON_SURFACE_ACCESS_FLAGS	0x0bf8
 #define RADEON_SURFACE_ACCESS_CLR	0x0bfc
 #define RADEON_SURFACE_CNTL		0x0b00
