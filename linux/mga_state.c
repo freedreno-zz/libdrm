@@ -57,8 +57,8 @@ void mgaEmitClipRect( drm_mga_private_t *dev_priv, xf86drmClipRectRec *box )
 	}
 
 	PRIMOUTREG( MGAREG_CXBNDRY, ((box->x2)<<16)|(box->x1) );
-	PRIMOUTREG( MGAREG_YTOP, box->y1 * dev_priv->stride );
-	PRIMOUTREG( MGAREG_YBOT, box->y2 * dev_priv->stride );
+	PRIMOUTREG( MGAREG_YTOP, box->y1 * dev_priv->stride/2 );
+	PRIMOUTREG( MGAREG_YBOT, box->y2 * dev_priv->stride/2 );
 	PRIMOUTREG( MGAREG_DMAPAD, 0 );
 
 	PRIMADVANCE( dev_priv );

@@ -122,6 +122,8 @@ extern int  mga_swap_bufs(struct inode *inode, struct file *filp,
 			  unsigned int cmd, unsigned long arg);
 extern int  mga_iload(struct inode *inode, struct file *filp,
 		      unsigned int cmd, unsigned long arg);
+extern int  mga_vertex(struct inode *inode, struct file *filp,
+		      unsigned int cmd, unsigned long arg);
 				/* mga_context.c */
 extern int  mga_resctx(struct inode *inode, struct file *filp,
 		       unsigned int cmd, unsigned long arg);

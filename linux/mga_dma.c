@@ -316,7 +316,6 @@ static void __mga_iload_small(drm_device_t *dev,
 {
    	drm_mga_private_t *dev_priv = dev->dev_private;
    	drm_mga_buf_priv_t *buf_priv = buf->dev_private;
-/*        	drm_mga_sarea_t *sarea_priv = dev_priv->sarea_priv; */
    	unsigned long address = (unsigned long)buf->bus_address;
 	int length = buf->used;
 	int y1 = buf_priv->boxes[0].y1;
@@ -356,11 +355,6 @@ static void __mga_iload_small(drm_device_t *dev,
    	PRIMOUTREG(MGAREG_SOFTRAP, 0);
 
    	PRIMADVANCE(dev_priv);
-#if 0
-   	/* For now we need to set this in the ioctl */
-	sarea_priv->dirty |= MGASAREA_NEW_CONTEXT;
-#endif
-
       	MGA_WRITE(MGAREG_PRIMADDRESS, dev_priv->prim_phys_head | TT_GENERAL);
 	MGA_WRITE(MGAREG_PRIMEND, (phys_head + num_dwords * 4) | use_agp);   
 }
@@ -371,7 +365,6 @@ static void __mga_iload_xy(drm_device_t *dev,
 {
       	drm_mga_private_t *dev_priv = dev->dev_private;
    	drm_mga_buf_priv_t *buf_priv = buf->dev_private;
-/*        	drm_mga_sarea_t *sarea_priv = dev_priv->sarea_priv; */
 	unsigned long address = (unsigned long)buf->bus_address;
    	int length = buf->used;
 	int y1 = buf_priv->boxes[0].y1;
@@ -429,10 +422,6 @@ static void __mga_iload_xy(drm_device_t *dev,
    	PRIMOUTREG(MGAREG_DMAPAD, 0);
    	PRIMOUTREG(MGAREG_SOFTRAP, 0);
    	PRIMADVANCE(dev_priv);
-#if 0
-   	/* For now we need to set this in the ioctl */
-	sarea_priv->dirty |= MGASAREA_NEW_CONTEXT;
-#endif
 
       	MGA_WRITE(MGAREG_PRIMADDRESS, dev_priv->prim_phys_head | TT_GENERAL);
 	MGA_WRITE(MGAREG_PRIMEND, (phys_head + num_dwords * 4) | use_agp);
@@ -460,10 +449,12 @@ static void mga_dma_dispatch_iload(drm_device_t *dev, drm_buf_t *buf)
 
 static void mga_dma_dispatch_vertex(drm_device_t *dev, drm_buf_t *buf)
 {
+
    	drm_mga_private_t *dev_priv = dev->dev_private;
 	drm_mga_buf_priv_t *buf_priv = buf->dev_private;
-	unsigned long address = (unsigned long)buf->bus_address;
-	int length = buf->used;
+	drm_buf_t *real_buf = dev->dma->buflist[ buf_priv->vertex_real_idx ];
+	unsigned long address = (unsigned long)real_buf->bus_address;
+	int length = buf->used;	/* this is correct */
 	int use_agp = PDEA_pagpxfer_enable;
 	int i, count;
    	PRIMLOCALS;
@@ -475,7 +466,6 @@ static void mga_dma_dispatch_vertex(drm_device_t *dev, drm_buf_t *buf)
 		count = 1;
 
 	mgaEmitState( dev_priv, buf_priv );
-
 
    	printk("dispatch vertex addr 0x%lx, length 0x%x nbox %d\n", 
 	       address, length, buf_priv->nbox);
@@ -490,15 +480,16 @@ static void mga_dma_dispatch_vertex(drm_device_t *dev, drm_buf_t *buf)
 		PRIMOUTREG( MGAREG_SECADDRESS, ((__u32)address) | TT_VERTEX);
 		PRIMOUTREG( MGAREG_SECEND, (((__u32)(address + length)) | 
 					    use_agp));
+		PRIMADVANCE( dev_priv );
 
-		PRIMOUTREG( MGAREG_DMAPAD, 0);
-		PRIMOUTREG( MGAREG_DMAPAD, 0);
-		PRIMOUTREG( MGAREG_DMAPAD, 0);
-		PRIMOUTREG( MGAREG_SOFTRAP, 0);
-		PRIMADVANCE(dev_priv);
 	}
 
-	PRIMGETPTR( dev_priv );
+	PRIMGETPTR(dev_priv);
+	PRIMOUTREG( MGAREG_DMAPAD, 0);
+	PRIMOUTREG( MGAREG_DMAPAD, 0);
+	PRIMOUTREG( MGAREG_DMAPAD, 0);
+	PRIMOUTREG( MGAREG_SOFTRAP, 0);
+	PRIMADVANCE( dev_priv );
 
       	MGA_WRITE(MGAREG_PRIMADDRESS, dev_priv->prim_phys_head | TT_GENERAL);
 	MGA_WRITE(MGAREG_PRIMEND, (phys_head + num_dwords * 4) | use_agp);

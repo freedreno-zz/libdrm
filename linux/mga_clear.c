@@ -104,8 +104,6 @@ int mgaSwapBuffers(drm_device_t *dev, drm_mga_swap_t *args)
 		buf_priv->dma_type = MGA_DMA_DISCARD;
 	}
 
-	   
-
 	/* Make sure we restore the 3D state next time.
 	 */
 	dev_priv->sarea_priv->dirty |= MGA_UPLOAD_CTX;
@@ -192,6 +190,48 @@ static int mgaIload(drm_device_t *dev, drm_mga_iload_t *args)
 }
 
 
+static int mgaDmaVertex(drm_device_t *dev, drm_mga_vertex_t *args)
+{
+	drm_device_dma_t *dma = dev->dma;
+	drm_mga_private_t *dev_priv = (drm_mga_private_t *)dev->dev_private;
+	drm_mga_buf_priv_t *buf_priv;
+	drm_buf_t *buf;
+	drm_dma_t d;
+
+
+	buf = dma->buflist[ args->idx ];
+
+	printk("mgaDmaVertex idx %d used %d\n", args->idx, buf->used);
+
+	buf_priv = buf->dev_private;
+	buf_priv->dma_type = MGA_DMA_VERTEX;
+	buf_priv->vertex_real_idx = args->real_idx;
+	buf->used = args->real_used;
+
+	if (!mgaCopyAndVerifyState(dev_priv, buf_priv, ~0)) 
+		buf_priv->dma_type = MGA_DMA_DISCARD;
+	   
+	d.context = DRM_KERNEL_CONTEXT;
+	d.send_count = 1;
+	d.send_indices = &buf->idx;
+	d.send_sizes = &buf->used;
+   	d.flags = 0;
+	d.request_count = 0;
+	d.request_size = 0;
+	d.request_indices = NULL;
+	d.request_sizes = NULL;
+	d.granted_count = 0;	 
+
+   	atomic_inc(&dev_priv->pending_bufs);
+      	if((drm_dma_enqueue(dev, &d)) != 0) 
+     		atomic_dec(&dev_priv->pending_bufs);
+	mga_dma_schedule(dev, 1);
+   	return 0;
+}
+
+
+
+
 int mga_clear_bufs(struct inode *inode, struct file *filp,
 		   unsigned int cmd, unsigned long arg)
 {
@@ -241,6 +281,23 @@ int mga_iload(struct inode *inode, struct file *filp,
 	return retcode;
 }
 
+int mga_vertex(struct inode *inode, struct file *filp,
+	       unsigned int cmd, unsigned long arg)
+{
+	drm_file_t *priv = filp->private_data;
+	drm_device_t *dev = priv->dev;
+	drm_mga_vertex_t vertex;
+	int retcode = 0;
+
+	copy_from_user_ret(&vertex, (drm_mga_vertex_t *)arg, sizeof(vertex),
+			   -EFAULT);
+   
+	retcode = mgaDmaVertex(dev, &vertex);
+   
+	return retcode;
+
+}
+
 
 int mga_dma(struct inode *inode, struct file *filp, unsigned int cmd,
 	    unsigned long arg)
@@ -261,41 +318,20 @@ int mga_dma(struct inode *inode, struct file *filp, unsigned int cmd,
 	d.context = DRM_KERNEL_CONTEXT;
 	d.flags &= ~_DRM_DMA_WHILE_LOCKED;
 
-	/* Maybe multiple buffers is useful for iload...
-	 * But this ioctl is only for *despatching* vertex data...
+	/* Please don't send us buffers.
 	 */
-	if (d.send_count < 0 || d.send_count > 1) {
-		DRM_ERROR("Process %d trying to send %d buffers (max 1)\n",
+	if (d.send_count != 0) {
+		DRM_ERROR("Process %d trying to send %d buffers via drmDMA\n",
 			  current->pid, d.send_count);
 		return -EINVAL;
 	}
-
 	
-	/* But it *is* used to request buffers for all types of dma:
+	/* We'll send you buffers.
 	 */
 	if (d.request_count < 0 || d.request_count > dma->buf_count) {
 		DRM_ERROR("Process %d trying to get %d buffers (of %d max)\n",
 			  current->pid, d.request_count, dma->buf_count);
 		return -EINVAL;
-	}
-
-	if (d.send_count) {
-		int idx = d.send_indices[0];
-		drm_mga_buf_priv_t *buf_priv = dma->buflist[ idx ]->dev_private;
-		drm_mga_private_t *dev_priv = dev->dev_private;
-
-		buf_priv->dma_type = MGA_DMA_VERTEX;
-
-		/* Snapshot the relevent bits of the sarea... 
-		 */
-		if (!mgaCopyAndVerifyState( dev_priv, buf_priv, ~0 ))
-			dma->buflist[ idx ]->used = 0;
-
-	      	atomic_inc(&dev_priv->pending_bufs);
-		retcode = drm_dma_enqueue(dev, &d);
-	      	if(retcode != 0) 
-     			atomic_dec(&dev_priv->pending_bufs);
-		mga_dma_schedule(dev, 1);
 	}
 	
 	d.granted_count = 0;

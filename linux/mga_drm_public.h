@@ -154,7 +154,7 @@ typedef struct _xf86drmClipRectRec {
 #define MGA_UPLOAD_TEX0IMAGE  0x10
 #define MGA_UPLOAD_TEX1IMAGE  0x20
 #define MGA_UPLOAD_2D 	      0x40
-#define MGA_REQUIRE_QUIESCENT 0x80
+#define MGA_REQUIRE_QUIESCENT 0x80 /* handled client-side */
 #define MGA_UPLOAD_CLIPRECTS  0x100
 
 
@@ -209,7 +209,6 @@ typedef struct {
 
 typedef struct {
    	int idx;
-	int flags;		/* not actually used? */
 } drm_mga_swap_t;
 
 typedef struct {
@@ -221,8 +220,24 @@ typedef struct {
 } drm_mga_iload_t;
 
 
+/* These may be placeholders if we have more cliprects than
+ * MGA_NR_SAREA_CLIPRECTS.  In that case, idx != real_idx; idx is
+ * the number of a bogus buffer, real_idx is the real buffer to be
+ * rendered multiple times.  
+ *
+ * This is a hack to work around the 'generalized gamma driver' 
+ * known as the drm.  
+ */
+typedef struct {
+   	int idx;		/* buffer to queue and free on completion */
+   	int real_idx;		/* buffer to execute */
+	int real_used;		/* buf->used in for real buffer */
+} drm_mga_vertex_t;
+
+
 #define DRM_IOCTL_MGA_INIT    DRM_IOW( 0x40, drm_mga_init_t)
 #define DRM_IOCTL_MGA_SWAP    DRM_IOW( 0x41, drm_mga_swap_t)
 #define DRM_IOCTL_MGA_CLEAR   DRM_IOW( 0x42, drm_mga_clear_t)
 #define DRM_IOCTL_MGA_ILOAD   DRM_IOW( 0x43, drm_mga_iload_t)
+#define DRM_IOCTL_MGA_VERTEX  DRM_IOW( 0x44, drm_mga_vertex_t)
 #endif

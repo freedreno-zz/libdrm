@@ -20,12 +20,14 @@ typedef struct {
 	unsigned short clear_zval;
 	unsigned int   clear_flags;
 
+	unsigned int   vertex_real_idx;
+
    	unsigned int nbox;
    	xf86drmClipRectRec boxes[MGA_NR_SAREA_CLIPRECTS];
 } drm_mga_buf_priv_t;
 
 
-#define MGA_DMA_GENERAL 0
+#define MGA_DMA_GENERAL 0	/* not used */
 #define MGA_DMA_VERTEX  1
 #define MGA_DMA_SETUP   2
 #define MGA_DMA_ILOAD   3
