@@ -207,6 +207,7 @@ static int mgaDmaVertex(drm_device_t *dev, drm_mga_vertex_t *args)
 	buf_priv = buf->dev_private;
 	buf_priv->dma_type = MGA_DMA_VERTEX;
 	buf_priv->vertex_real_idx = args->real_idx;
+	buf_priv->vertex_discard = args->discard;
 	buf_priv->age = args->age;
 	buf->used = args->real_used;
 

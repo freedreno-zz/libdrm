@@ -255,4 +255,6 @@ typedef struct {
 #define DRM_IOCTL_MGA_CLEAR   DRM_IOW( 0x42, drm_mga_clear_t)
 #define DRM_IOCTL_MGA_ILOAD   DRM_IOW( 0x43, drm_mga_iload_t)
 #define DRM_IOCTL_MGA_VERTEX  DRM_IOW( 0x44, drm_mga_vertex_t)
+#define DRM_IOCTL_MGA_FLUSH   DRM_IO ( 0x45 )
+
 #endif

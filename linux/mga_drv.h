@@ -95,14 +95,12 @@ extern int  mga_control(struct inode *inode, struct file *filp,
 			  unsigned int cmd, unsigned long arg);
 extern int  mga_lock(struct inode *inode, struct file *filp,
 		       unsigned int cmd, unsigned long arg);
-#if 0
-extern void mga_dma_init(drm_device_t *dev);
-extern void mga_dma_cleanup(drm_device_t *dev);
 
-#endif
 extern int mga_dma_init(struct inode *inode, struct file *filp,
 			unsigned int cmd, unsigned long arg);
 extern int mga_dma_cleanup(drm_device_t *dev);
+extern int mga_flush_ioctl(struct inode *inode, struct file *filp,
+			   unsigned int cmd, unsigned long arg);
 
 /* mga_dma_init does init and release */
 
