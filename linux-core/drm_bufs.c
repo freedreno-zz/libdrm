@@ -166,7 +166,10 @@ int DRM(addmap)( struct inode *inode, struct file *filp,
 }
 
 
-/* Remove a map private from list and deallocate resources */
+/* Remove a map private from list and deallocate resources if the mapping
+ * isn't in use.
+ */
+
 int DRM(rmmap)(struct inode *inode, struct file *filp, 
 	       unsigned int cmd, unsigned long arg)
 {
@@ -174,9 +177,10 @@ int DRM(rmmap)(struct inode *inode, struct file *filp,
 	drm_device_t	*dev	= priv->dev;
 	struct list_head *list;
 	drm_map_list_t *r_list;
-
+	drm_vma_entry_t *pt, *prev;
 	drm_map_t *map;
 	drm_map_t request;
+	int found_maps = 0;
 
 	if (copy_from_user(&request, (drm_map_t *)arg, 
 			   sizeof(request))) {
@@ -201,34 +205,41 @@ int DRM(rmmap)(struct inode *inode, struct file *filp,
 		return -EINVAL;
 	}
 	map = r_list->map;
-	list_del(list);	
-	up(&dev->struct_sem);
-
+	list_del(list);
 	DRM(free)(list, sizeof(*list), DRM_MEM_MAPS);
-	/* Zap any pages that are still mapped and remove no_page vm_op. */
-	DRM(rmmap_fixup_vmas)(dev, map);
 
-	switch (map->type) {
-	case _DRM_REGISTERS:
-	case _DRM_FRAME_BUFFER:
-#ifdef __REALLY_HAVE_MTRR
-		if (map->mtrr >= 0) {
-			int retcode;
-			retcode = mtrr_del(map->mtrr,
-					   map->offset,
-					   map->size);
-			DRM_DEBUG("mtrr_del = %d\n", retcode);
-		}
+	for (pt = dev->vmalist, prev = NULL; pt; prev = pt, pt = pt->next) {
+#if LINUX_VERSION_CODE >= 0x020300
+		if (pt->vma->vm_private_data == map) found_maps++;
+#else
+		if (pt->vma->vm_pte == map) found_maps++;
 #endif
-		DRM(ioremapfree)(map->handle, map->size);
-		break;
-	case _DRM_SHM:
-		vfree(map->handle);
-		break;
-	case _DRM_AGP:
-		break;
 	}
-	DRM(free)(map, sizeof(*map), DRM_MEM_MAPS);
+
+	if(!found_maps) {
+		switch (map->type) {
+		case _DRM_REGISTERS:
+		case _DRM_FRAME_BUFFER:
+#ifdef __REALLY_HAVE_MTRR
+			if (map->mtrr >= 0) {
+				int retcode;
+				retcode = mtrr_del(map->mtrr,
+						   map->offset,
+						   map->size);
+				DRM_DEBUG("mtrr_del = %d\n", retcode);
+			}
+#endif
+			DRM(ioremapfree)(map->handle, map->size);
+			break;
+		case _DRM_SHM:
+			vfree(map->handle);
+			break;
+		case _DRM_AGP:
+			break;
+		}
+		DRM(free)(map, sizeof(*map), DRM_MEM_MAPS);
+	}
+	up(&dev->struct_sem);
 	return 0;
 }
 

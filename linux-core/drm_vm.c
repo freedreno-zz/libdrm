@@ -41,7 +41,7 @@ struct vm_operations_struct   drm_vm_ops = {
 struct vm_operations_struct   drm_vm_shm_ops = {
 	nopage:	 DRM(vm_shm_nopage),
 	open:	 DRM(vm_open),
-	close:	 DRM(vm_close),
+	close:	 DRM(vm_shm_close),
 };
 
 struct vm_operations_struct   drm_vm_dma_ops = {
@@ -110,6 +110,89 @@ struct page *DRM(vm_shm_nopage)(struct vm_area_struct *vma,
 #else
 	return virt_to_page(physical);
 #endif
+}
+
+/* Special close routine which deletes map information if we are the last
+ * person to close a mapping and its not in the global maplist.
+ */
+
+void DRM(vm_shm_close)(struct vm_area_struct *vma)
+{
+	drm_file_t	*priv	= vma->vm_file->private_data;
+	drm_device_t	*dev	= priv->dev;
+	drm_vma_entry_t *pt, *prev;
+	drm_map_t *map;
+	drm_map_list_t *r_list;
+	struct list_head *list;
+	int found_maps = 0;
+
+	DRM_DEBUG("0x%08lx,0x%08lx\n",
+		  vma->vm_start, vma->vm_end - vma->vm_start);
+#if LINUX_VERSION_CODE < 0x020333
+	MOD_DEC_USE_COUNT; /* Needed before Linux 2.3.51 */
+#endif
+	atomic_dec(&dev->vma_count);
+
+#if LINUX_VERSION_CODE >= 0x020300
+	map = vma->vm_private_data;
+#else
+	map = vma->vm_pte;
+#endif
+
+	down(&dev->struct_sem);
+	for (pt = dev->vmalist, prev = NULL; pt; prev = pt, pt = pt->next) {
+#if LINUX_VERSION_CODE >= 0x020300
+		if (pt->vma->vm_private_data == map) found_maps++;
+#else
+		if (pt->vma->vm_pte == map) found_maps++;
+#endif
+		if (pt->vma == vma) {
+			if (prev) {
+				prev->next = pt->next;
+			} else {
+				dev->vmalist = pt->next;
+			}
+			DRM(free)(pt, sizeof(*pt), DRM_MEM_VMAS);
+		}
+	}
+	/* We were the only map that was found */
+	if(found_maps == 1 && 
+	   map->flags & _DRM_REMOVABLE) {
+		/* Check to see if we are in the maplist, if we are not, then
+		 * we delete this mappings information.
+		 */
+		found_maps = 0;
+		list = &dev->maplist->head;
+		list_for_each(list, &dev->maplist->head) {
+			r_list = (drm_map_list_t *) list;
+			if (r_list->map == map) found_maps++;
+		}
+
+		if(!found_maps) {
+			switch (map->type) {
+			case _DRM_REGISTERS:
+			case _DRM_FRAME_BUFFER:
+#ifdef __REALLY_HAVE_MTRR
+				if (map->mtrr >= 0) {
+					int retcode;
+					retcode = mtrr_del(map->mtrr,
+							   map->offset,
+							   map->size);
+					DRM_DEBUG("mtrr_del = %d\n", retcode);
+				}
+#endif
+				DRM(ioremapfree)(map->handle, map->size);
+				break;
+			case _DRM_SHM:
+				vfree(map->handle);
+				break;
+			case _DRM_AGP:
+				break;
+			}
+			DRM(free)(map, sizeof(*map), DRM_MEM_MAPS);
+		}
+	}
+	up(&dev->struct_sem);
 }
 
 #if LINUX_VERSION_CODE < 0x020317
@@ -330,40 +413,4 @@ int DRM(mmap)(struct file *filp, struct vm_area_struct *vma)
 	vma->vm_file  =	 filp;	/* Needed for drm_vm_open() */
 	DRM(vm_open)(vma);
 	return 0;
-}
-
-/* Support for rmmap so we can safely delete mappings without forcing
- * them to be unmapped (which isn't possible if the process forked)
- * before we call rmmap.
- */
-
-void DRM(rmmap_fixup_vmas)(drm_device_t *dev, drm_map_t *map)
-{
-	drm_vma_entry_t *pt, *prev;
-
-	lock_kernel();
-	down(&dev->struct_sem);
-	for (pt = dev->vmalist, prev = NULL; pt; prev = pt, pt = pt->next) {
-#if LINUX_VERSION_CODE >= 0x020300
-		if (pt->vma->vm_private_data == (void *)map)
-#else
-		if (pt->vma->vm_pte == (unsigned long)map)
-#endif
-		{
-			/* Zap the mappings */
-			flush_cache_range(pt->vma->vm_mm,
-					  pt->vma->vm_start,
-					  pt->vma->vm_end - pt->vma->vm_start);
-			zap_page_range(pt->vma->vm_mm,
-				       pt->vma->vm_start,
-				       pt->vma->vm_end - pt->vma->vm_start);
-			flush_tlb_range(pt->vma->vm_mm,
-					pt->vma->vm_start,
-					pt->vma->vm_end - pt->vma->vm_start);
-			/* Change the vm_ops so no page isn't defined */
-			pt->vma->vm_ops = &drm_vm_ops;
-		}
-	}
-	up(&dev->struct_sem);
-	unlock_kernel();
 }

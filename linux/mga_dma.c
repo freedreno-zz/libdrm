@@ -56,7 +56,11 @@ int mga_do_wait_for_idle( drm_mga_private_t *dev_priv )
 
 	for ( i = 0 ; i < dev_priv->usec_timeout ; i++ ) {
 		status = MGA_READ( MGA_STATUS ) & MGA_ENGINE_IDLE_MASK;
-		if ( status == MGA_ENDPRDMASTS ) return 0;
+		if ( status == MGA_ENDPRDMASTS ) {
+			/* printk("I'm not busy, flushing pixel cache\n"); */
+			MGA_WRITE8( MGA_CRTC_INDEX, 0 );
+			return 0;
+		}
 		udelay( 1 );
 	}
 
