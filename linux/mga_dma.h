@@ -16,6 +16,10 @@ typedef struct {
    	unsigned int WarpPipe;
    	unsigned int dirty;
 
+	unsigned short clear_color;
+	unsigned short clear_zval;
+	unsigned int   clear_flags;
+
    	unsigned int nbox;
    	xf86drmClipRectRec boxes[MGA_NR_SAREA_CLIPRECTS];
 } drm_mga_buf_priv_t;
@@ -25,6 +29,9 @@ typedef struct {
 #define MGA_DMA_VERTEX  1
 #define MGA_DMA_SETUP   2
 #define MGA_DMA_ILOAD   3
+#define MGA_DMA_CLEAR   4	/* placeholder */
+#define MGA_DMA_SWAP    5	/* placeholder */
+#define MGA_DMA_BAD     6
 
 
 #define DWGREG0 	0x1c00
@@ -115,11 +122,14 @@ typedef struct {
 	dev_priv->current_dma_ptr = dma_ptr;		\
 } while (0)
 
-#define PRIMADVANCE(dev_priv)	do {			\
-	if (VERBO)					\
-		printk(KERN_INFO "PRIMADVANCE\n");	\
-	dev_priv->prim_num_dwords = num_dwords;		\
-	dev_priv->current_dma_ptr = dma_ptr;		\
+#define PRIMADVANCE(dev_priv)	do {				\
+	if (VERBO) {						\
+		printk(KERN_INFO "PRIMADVANCE\n");		\
+                if (outcount & 3) 				\
+                      printk(KERN_INFO " --- truncation\n");	\
+        }							\
+	dev_priv->prim_num_dwords = num_dwords;			\
+	dev_priv->current_dma_ptr = dma_ptr;			\
 } while (0)
 
 
@@ -137,6 +147,27 @@ typedef struct {
 		num_dwords += 5;					\
 	}								\
 }while (0)
+
+
+
+
+#define MGA_CLEAR_CMD (DC_opcod_trap | DC_arzero_enable | 		\
+		       DC_sgnzero_enable | DC_shftzero_enable | 	\
+		       (0xC << DC_bop_SHIFT) | DC_clipdis_enable | 	\
+		       DC_solid_enable | DC_transc_enable)
+	  
+
+#define MGA_COPY_CMD (DC_opcod_bitblt | DC_atype_rpl | DC_linear_xy |	\
+		      DC_solid_disable | DC_arzero_disable | 		\
+		      DC_sgnzero_enable | DC_shftzero_enable | 		\
+		      (0xC << DC_bop_SHIFT) | DC_bltmod_bfcol | 	\
+		      DC_pattern_disable | DC_transc_disable | 		\
+		      DC_clipdis_enable)				\
+
+#define MGA_ILOAD_CMD (DC_opcod_iload | DC_atype_rpl |          	\
+		       DC_linear_linear | DC_bltmod_bfcol |       	\
+		       (0xC << DC_bop_SHIFT) | DC_sgnzero_enable |	\
+		       DC_shftzero_enable | DC_clipdis_enable)
 
 
 #endif

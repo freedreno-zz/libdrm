@@ -81,9 +81,8 @@ static void mgaEmitContext(drm_mga_private_t *dev_priv,
 	PRIMOUTREG( MGAREG_ALPHACTRL, regs[MGA_CTXREG_ALPHACTRL] );
 	PRIMOUTREG( MGAREG_FOGCOL, regs[MGA_CTXREG_FOGCOLOR] );
 	PRIMOUTREG( MGAREG_WFLAG, regs[MGA_CTXREG_WFLAG] );
-
 	
-	PRIMOUTREG( MGAREG_ZORG, dev_priv->depthOffset );
+	PRIMOUTREG( MGAREG_ZORG, dev_priv->depthOffset ); /* invarient */
 /*  	PRIMOUTREG( MGAREG_DMAPAD, 0 ); */
 
  	if (dev_priv->chipset == MGA_CARD_TYPE_G400) { 
@@ -258,8 +257,8 @@ static void mgaG400EmitPipe(drm_mga_private_t *dev_priv,
 	PRIMOUTREG(MGAREG_DMAPAD, 0xffffffff);
 	PRIMOUTREG(MGAREG_DMAPAD, 0xffffffff);
 	PRIMOUTREG(MGAREG_DMAPAD, 0xffffffff);
-	PRIMOUTREG(MGAREG_WIADDR2, (dev_priv->WarpIndex[pipe].phys_addr | 
-				   WIA_wmode_start | WIA_wagp_agp));
+	PRIMOUTREG(MGAREG_WIADDR2, (__u32)(dev_priv->WarpIndex[pipe].phys_addr |
+					   WIA_wmode_start | WIA_wagp_agp));
 	PRIMADVANCE(dev_priv);
 }
 
@@ -288,8 +287,8 @@ static void mgaG200EmitPipe( drm_mga_private_t *dev_priv,
 	PRIMOUTREG(MGAREG_DMAPAD, 0xffffffff);
 	PRIMOUTREG(MGAREG_DMAPAD, 0xffffffff);
 	PRIMOUTREG(MGAREG_DMAPAD, 0xffffffff);
-	PRIMOUTREG(MGAREG_WIADDR, (dev_priv->WarpIndex[pipe].phys_addr | 
-				  WIA_wmode_start | WIA_wagp_agp));
+	PRIMOUTREG(MGAREG_WIADDR, (__u32)(dev_priv->WarpIndex[pipe].phys_addr | 
+					  WIA_wmode_start | WIA_wagp_agp));
 
 	PRIMADVANCE(dev_priv);
 }
@@ -330,24 +329,28 @@ static int mgaCopyContext(drm_mga_private_t *dev_priv,
 			  drm_mga_buf_priv_t *buf_priv)
 {
 	drm_mga_sarea_t *sarea_priv = dev_priv->sarea_priv;
-	unsigned int *regs = sarea_priv->ContextState;
+	unsigned int *regs = buf_priv->ContextState;
 	int i;
+
+	memcpy(regs, 
+	       sarea_priv->ContextState, 
+	       sizeof(buf_priv->ContextState));
 
 	for (i = 0 ; i < MGA_CTX_SETUP_SIZE ; i++)
 		printk("ctx %d: %x\n", i, regs[i]);
 
-	
-	if (regs[MGA_CTXREG_DSTORG] != dev_priv->frontOrg &&
-	    regs[MGA_CTXREG_DSTORG] != dev_priv->backOrg) {
+
+	if (regs[MGA_CTXREG_DSTORG] != dev_priv->frontOffset &&
+	    regs[MGA_CTXREG_DSTORG] != dev_priv->backOffset) {
 		printk("BAD DSTORG: %x (front %x, back %x)\n\n", 
-		       regs[MGA_CTXREG_DSTORG], dev_priv->frontOrg,
-		       dev_priv->backOrg);
+		       regs[MGA_CTXREG_DSTORG], dev_priv->frontOffset,
+		       dev_priv->backOffset);
+  	        regs[MGA_CTXREG_DSTORG] = 0;
 		return -1;
 	}
 	else
 		printk("DSTORG OK: %x\n", regs[MGA_CTXREG_DSTORG]);
 
-	memcpy(buf_priv->ContextState, regs, sizeof(buf_priv->ContextState));
 	return 0;
 }
 
@@ -360,10 +363,14 @@ static int mgaCopyTex(drm_mga_private_t *dev_priv,
 {
 	drm_mga_sarea_t *sarea_priv = dev_priv->sarea_priv;
 
-	if ((sarea_priv->TexState[unit][MGA_TEXREG_ORG] & 0x3) == 0x1) {
+	memcpy(buf_priv->TexState[unit], sarea_priv->TexState[unit],
+	       sizeof(buf_priv->TexState[0]));
+
+	if ((buf_priv->TexState[unit][MGA_TEXREG_ORG] & 0x3) == 0x1) {
 		printk("BAD TEXREG_ORG: %x, unit %d\n", 
 		       sarea_priv->TexState[unit][MGA_TEXREG_ORG],
 		       unit);
+		buf_priv->TexState[unit][MGA_TEXREG_ORG] = 0;
 		return -1;
 	} 
 	else 
@@ -371,27 +378,35 @@ static int mgaCopyTex(drm_mga_private_t *dev_priv,
 		       sarea_priv->TexState[unit][MGA_TEXREG_ORG],
 		       unit);
 
-	memcpy(buf_priv->TexState[unit], sarea_priv->TexState[unit],
-	       sizeof(buf_priv->TexState[0]));
-
 	return 0;
 }
 
 
 int mgaCopyAndVerifyState( drm_mga_private_t *dev_priv, 
-			   drm_mga_buf_priv_t *buf_priv )
+			   drm_mga_buf_priv_t *buf_priv,
+			   unsigned int interested )
 {
 	drm_mga_sarea_t *sarea_priv = dev_priv->sarea_priv;
-	unsigned int dirty = sarea_priv->dirty ;
+	unsigned int dirty = interested & sarea_priv->dirty;
 	int rv = 0;
 
-	buf_priv->dirty = sarea_priv->dirty;
+	buf_priv->dirty = dirty;
+	sarea_priv->dirty &= ~interested;
+
 	buf_priv->WarpPipe = sarea_priv->WarpPipe;
 
-	if ((buf_priv->nbox = sarea_priv->nbox) != 0) 
-	   memcpy( buf_priv->boxes, 
-		   sarea_priv->boxes,
-		   buf_priv->nbox * sizeof(xf86drmClipRectRec));
+/*  	if (interested & MGA_UPLOAD_CLIPRECTS)  */
+	{		
+		buf_priv->nbox = sarea_priv->nbox;
+
+		if (buf_priv->nbox >= MGA_NR_SAREA_CLIPRECTS)
+			buf_priv->nbox = MGA_NR_SAREA_CLIPRECTS;
+
+		if (buf_priv->nbox)
+			memcpy( buf_priv->boxes, 
+				sarea_priv->boxes,
+				buf_priv->nbox * sizeof(xf86drmClipRectRec));
+	}
 
 	if (dirty & MGA_UPLOAD_CTX)
 		rv |= mgaCopyContext( dev_priv, buf_priv );

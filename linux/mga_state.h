@@ -4,7 +4,8 @@
 #include "mga_drv.h"
 
 int mgaCopyAndVerifyState( drm_mga_private_t *dev_priv, 
-			   drm_mga_buf_priv_t *buf_priv );
+			   drm_mga_buf_priv_t *buf_priv,
+			   unsigned int interested );
 
 void mgaEmitClipRect( drm_mga_private_t *dev_priv, xf86drmClipRectRec *box );
 

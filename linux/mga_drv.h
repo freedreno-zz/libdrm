@@ -40,7 +40,7 @@ typedef struct _drm_mga_private {
    	int primary_size;
    	int warp_ucode_size;
    	int chipset;
-   	int fbOffset;
+   	int frontOffset;
    	int backOffset;
    	int depthOffset;
    	int textureOffset;
@@ -64,9 +64,6 @@ typedef struct _drm_mga_private {
 
 	/* Some validated register values:
 	 */	
-	u32 frontOrg;
-	u32 backOrg;
-	u32 depthOrg;
 	u32 mAccess;
 
 } drm_mga_private_t;

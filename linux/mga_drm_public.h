@@ -155,9 +155,11 @@ typedef struct _xf86drmClipRectRec {
 #define MGA_UPLOAD_TEX1IMAGE  0x20
 #define MGA_UPLOAD_2D 	      0x40
 #define MGA_REQUIRE_QUIESCENT 0x80
+#define MGA_UPLOAD_CLIPRECTS  0x100
 
 
-#define MGA_DMA_BUF_SZ        65536
+#define MGA_DMA_BUF_ORDER     16
+#define MGA_DMA_BUF_SZ        (1<<MGA_DMA_BUF_ORDER)
 #define MGA_DMA_BUF_NR        63
 
 

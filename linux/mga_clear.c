@@ -36,19 +36,6 @@
 #include "mga_dma.h"
 #include "mga_state.h"
 
-#define MGA_CLEAR_CMD (DC_opcod_trap | DC_arzero_enable | 		\
-		       DC_sgnzero_enable | DC_shftzero_enable | 	\
-		       (0xC << DC_bop_SHIFT) | DC_clipdis_enable | 	\
-		       DC_solid_enable | DC_transc_enable)
-	  
-
-#define MGA_COPY_CMD (DC_opcod_bitblt | DC_atype_rpl | DC_linear_xy |	\
-		      DC_solid_disable | DC_arzero_disable | 		\
-		      DC_sgnzero_enable | DC_shftzero_enable | 		\
-		      (0xC << DC_bop_SHIFT) | DC_bltmod_bfcol | 	\
-		      DC_pattern_disable | DC_transc_disable | 		\
-		      DC_clipdis_enable)				\
-
 
 
 /* Build and queue a TT_GENERAL secondary buffer to do the clears.
@@ -60,84 +47,35 @@ static int mgaClearBuffers(drm_device_t *dev,
 			   int clear_depth,
 			   int flags)
 {
-	int cmd, i;	
 	drm_device_dma_t *dma = dev->dma;
-	drm_mga_private_t *dev_priv = (drm_mga_private_t *)dev->dev_private;   
-	drm_mga_sarea_t *sarea_priv = dev_priv->sarea_priv;
-	xf86drmClipRectRec *pbox = sarea_priv->boxes;
-	int nbox = sarea_priv->nbox;
+	drm_freelist_t *freelist = &dma->bufs[MGA_DMA_BUF_ORDER].freelist;
+	drm_mga_private_t *dev_priv = (drm_mga_private_t *)dev->dev_private;
+	drm_mga_buf_priv_t *buf_priv;
 	drm_buf_t *buf;
 	drm_dma_t d;
-	int order = 16;		/* ??? what orders do we have ???*/
-	DMALOCALS;
 
+	buf = drm_freelist_get(freelist, _DRM_DMA_WAIT);
+	if (!buf) return -1;
 
-	printk("dma %p dev_priv %p sarea_priv %p pbox %p nbox %d\n",
-	       dma, dev_priv, sarea_priv, pbox, nbox);
+	buf->pid     = current->pid;
 
+	buf_priv = buf->dev_private;
+	buf_priv->dma_type = MGA_DMA_CLEAR;
+	buf_priv->clear_color = clear_color;
+	buf_priv->clear_zval = clear_depth;
+	buf_priv->clear_flags = flags;
 
-	if (!nbox) 
+	if (!mgaCopyAndVerifyState(dev_priv, buf_priv, MGA_UPLOAD_CLIPRECTS)) {
+		drm_freelist_put( dev, freelist, buf );
 		return -EINVAL;
-
-	if ( dev_priv->sgram ) 
-		cmd = MGA_CLEAR_CMD | DC_atype_blk;
-	else
-		cmd = MGA_CLEAR_CMD | DC_atype_rstr;
-	    
-	buf = drm_freelist_get(&dma->bufs[order].freelist, _DRM_DMA_WAIT);
-	if (!buf) {
-		printk("didn't get dma buffer for clear, order %d\n", order);
-		return 0;
 	}
-
-	printk("buf %p buf->address %p buf->used %d\n", buf, buf->address,
-	       buf->used);
-	return 0;
-
-	DMAGETPTR( buf );
-
-	for (i = 0 ; i < nbox ; i++) {
-		unsigned int height = pbox[i].y2 - pbox[i].y1;
-		
-		/* Is it necessary to be this paranoid?  I don't think so.
-		if (pbox[i].x1 > dev_priv->width) continue;
-		if (pbox[i].y1 > dev_priv->height) continue;
-		if (pbox[i].x2 > dev_priv->width) continue;
-		if (pbox[i].y2 > dev_priv->height) continue;
-		if (pbox[i].x2 <= pbox[i].x1) continue;
-		if (pbox[i].y2 <= pbox[i].x1) continue;
-		 */
-
-		DMAOUTREG(MGAREG_YDSTLEN, (pbox[i].y1<<16)|height);
-		DMAOUTREG(MGAREG_FXBNDRY, (pbox[i].x2<<16)|pbox[i].x1);
-
-		if ( flags & MGA_CLEAR_FRONT ) {	    
-			DMAOUTREG(MGAREG_FCOL, clear_color);
-			DMAOUTREG(MGAREG_DSTORG, dev_priv->frontOrg);
-			DMAOUTREG(MGAREG_DWGCTL+MGAREG_MGA_EXEC, cmd );
-		}
-
-		if ( flags & MGA_CLEAR_BACK ) {
-			DMAOUTREG(MGAREG_FCOL, clear_color);
-			DMAOUTREG(MGAREG_DSTORG, dev_priv->backOrg);
-			DMAOUTREG(MGAREG_DWGCTL+MGAREG_MGA_EXEC, cmd );
-		}
-
-		if ( flags & MGA_CLEAR_DEPTH ) 
-		{
-			DMAOUTREG(MGAREG_FCOL, clear_depth);
-			DMAOUTREG(MGAREG_DSTORG, dev_priv->depthOrg);
-			DMAOUTREG(MGAREG_DWGCTL+MGAREG_MGA_EXEC, cmd );
-		}
-	}
-
-	DMAADVANCE( buf );
+	   
 
 	/* Make sure we restore the 3D state next time.
 	 */
-	sarea_priv->dirty |= MGA_UPLOAD_CTX;
+	dev_priv->sarea_priv->dirty |= MGA_UPLOAD_CTX;
+	buf->used = 1;	
 
-	((drm_mga_buf_priv_t *)buf->dev_private)->dma_type = MGA_DMA_GENERAL;
 
 	d.context = DRM_KERNEL_CONTEXT;
 	d.send_count = 1;
@@ -148,10 +86,10 @@ static int mgaClearBuffers(drm_device_t *dev,
 	d.request_size = 0;
 	d.request_indices = NULL;
 	d.request_sizes = NULL;
-	d.granted_count = 0;	   
+	d.granted_count = 0;	 
 
-      	atomic_inc(&dev_priv->pending_bufs);
-   	if((drm_dma_enqueue(dev, &d)) != 0) 
+   	atomic_inc(&dev_priv->pending_bufs);
+      	if((drm_dma_enqueue(dev, &d)) != 0) 
      		atomic_dec(&dev_priv->pending_bufs);
 	mga_dma_schedule(dev, 1);
    	return 0;
@@ -160,60 +98,30 @@ static int mgaClearBuffers(drm_device_t *dev,
 int mgaSwapBuffers(drm_device_t *dev, int flags) 
 {
 	drm_device_dma_t *dma = dev->dma;
+	drm_freelist_t *freelist = &dma->bufs[MGA_DMA_BUF_ORDER].freelist;
 	drm_mga_private_t *dev_priv = (drm_mga_private_t *)dev->dev_private;
-	drm_mga_sarea_t *sarea_priv = dev_priv->sarea_priv;
-	xf86drmClipRectRec *pbox = sarea_priv->boxes;
-	int nbox = sarea_priv->nbox;
+	drm_mga_buf_priv_t *buf_priv;
 	drm_buf_t *buf;
 	drm_dma_t d;
-	int order = 16;		/* ??? */
-	int i;
-	DMALOCALS;	
 
-	if (!nbox) 
+	buf = drm_freelist_get(freelist, _DRM_DMA_WAIT);
+	if (!buf) return -1;
+
+	buf->pid     = current->pid;
+	buf_priv = buf->dev_private;
+	buf_priv->dma_type = MGA_DMA_SWAP;
+
+	if (!mgaCopyAndVerifyState(dev_priv, buf_priv, MGA_UPLOAD_CLIPRECTS)) {
+		drm_freelist_put( dev, freelist, buf );
 		return -EINVAL;
-
-	buf = drm_freelist_get(&dma->bufs[order].freelist, _DRM_DMA_WAIT);
-	if (!buf) {
-		printk("didn't get dma buffer for swap, order %d\n", order);
-		return 0;
 	}
-
-	DMAGETPTR(buf);
-
-	DMAOUTREG(MGAREG_DSTORG, dev_priv->frontOrg);
-	DMAOUTREG(MGAREG_MACCESS, dev_priv->mAccess);
-	DMAOUTREG(MGAREG_SRCORG, dev_priv->backOrg);
-	DMAOUTREG(MGAREG_AR5, dev_priv->stride); /* unnecessary? */
-	DMAOUTREG(MGAREG_DWGCTL, MGA_COPY_CMD); 
-	     
-	for (i = 0 ; i < nbox; i++) {
-		unsigned int h = pbox[i].y2 - pbox[i].y1;
-		unsigned int start = pbox[i].y1 * dev_priv->stride;
-
-		/*
-		if (pbox[i].x1 > dev_priv->width) continue;
-		if (pbox[i].y1 > dev_priv->height) continue;
-		if (pbox[i].x2 > dev_priv->width) continue;
-		if (pbox[i].y2 > dev_priv->height) continue;
-		if (pbox[i].x2 <= pbox[i].x1) continue;
-		if (pbox[i].y2 <= pbox[i].x1) continue;		
-		*/
-
-		DMAOUTREG(MGAREG_AR0, start + pbox[i].x2 - 1);
-		DMAOUTREG(MGAREG_AR3, start + pbox[i].x1);		
-		DMAOUTREG(MGAREG_FXBNDRY, pbox[i].x1|((pbox[i].x2 - 1)<<16));
-		DMAOUTREG(MGAREG_YDSTLEN+MGAREG_MGA_EXEC, (pbox[i].y1<<16)|h);
-	}
-  
-	DMAOUTREG(MGAREG_SRCORG, 0);
-	DMAADVANCE( buf );
+	   
 
 	/* Make sure we restore the 3D state next time.
 	 */
-	sarea_priv->dirty |= MGA_UPLOAD_CTX;
+	dev_priv->sarea_priv->dirty |= MGA_UPLOAD_CTX;
+	buf->used = 1;	
 
-	((drm_mga_buf_priv_t *)buf->dev_private)->dma_type = MGA_DMA_GENERAL;
 
 	d.context = DRM_KERNEL_CONTEXT;
 	d.send_count = 1;
@@ -293,13 +201,6 @@ static int mgaIload(drm_device_t *dev, drm_mga_iload_t *args)
 }
 
 
-/* Necessary?  Not necessary??
- */
-/*  static int check_lock(void) */
-/*  { */
-/*  	return 1; */
-/*  } */
-
 int mga_clear_bufs(struct inode *inode, struct file *filp,
 		   unsigned int cmd, unsigned long arg)
 {
@@ -308,13 +209,11 @@ int mga_clear_bufs(struct inode *inode, struct file *filp,
 	drm_mga_clear_t clear;
 	int retcode;
    
+	return 0;
 
 	copy_from_user_ret(&clear, (drm_mga_clear_t *)arg,
 			   sizeof(clear), -EFAULT);
    
-/*  	if (!check_lock( dev )) */
-/*  		return -EIEIO; */
-		
 	retcode = mgaClearBuffers(dev, clear.clear_color,
 				  clear.clear_depth,
 				  clear.flags);
@@ -331,9 +230,7 @@ int mga_swap_bufs(struct inode *inode, struct file *filp,
 	int retcode = 0;
 
 	return 0;
-/*  	if (!check_lock( dev )) */
-/*  		return -EIEIO; */
-   
+
 	copy_from_user_ret(&swap, (drm_mga_swap_t *)arg,
 			   sizeof(swap), -EFAULT);
    
@@ -349,9 +246,6 @@ int mga_iload(struct inode *inode, struct file *filp,
 	drm_device_t *dev = priv->dev;
 	drm_mga_iload_t iload;
 	int retcode = 0;
-
-/*  	if (!check_lock( dev )) */
-/*  		return -EIEIO; */
 
 	copy_from_user_ret(&iload, (drm_mga_iload_t *)arg, 
 			   sizeof(iload), -EFAULT);
@@ -406,12 +300,9 @@ int mga_dma(struct inode *inode, struct file *filp, unsigned int cmd,
 
 		buf_priv->dma_type = MGA_DMA_VERTEX;
 
-/*         	if (!check_lock( dev )) */
-/*  		        return -EIEIO; */
-
 		/* Snapshot the relevent bits of the sarea... 
 		 */
-		if (!mgaCopyAndVerifyState( dev_priv, buf_priv ))
+		if (!mgaCopyAndVerifyState( dev_priv, buf_priv, ~0 ))
 			dma->buflist[ idx ]->used = 0;
 
 	      	atomic_inc(&dev_priv->pending_bufs);

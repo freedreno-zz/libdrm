@@ -105,8 +105,8 @@ static drm_ioctl_desc_t	      mga_ioctls[] = {
 	[DRM_IOCTL_NR(DRM_IOCTL_AGP_BIND)]    = { drm_agp_bind,    1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_AGP_UNBIND)]  = { drm_agp_unbind,  1, 1 },
    	[DRM_IOCTL_NR(DRM_IOCTL_MGA_INIT)]    = { mga_dma_init,    1, 1 },
-   	[DRM_IOCTL_NR(DRM_IOCTL_MGA_SWAP)]    = { mga_clear_bufs,  1, 1 },
-   	[DRM_IOCTL_NR(DRM_IOCTL_MGA_CLEAR)]   = { mga_swap_bufs,   1, 1 },
+   	[DRM_IOCTL_NR(DRM_IOCTL_MGA_SWAP)]    = { mga_swap_bufs,  1, 1 },
+   	[DRM_IOCTL_NR(DRM_IOCTL_MGA_CLEAR)]   = { mga_clear_bufs,   1, 1 },
    	[DRM_IOCTL_NR(DRM_IOCTL_MGA_ILOAD)]   = { mga_iload,       1, 1 },
 };
 

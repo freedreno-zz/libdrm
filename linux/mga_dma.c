@@ -187,7 +187,7 @@ static int mga_dma_initialize(drm_device_t *dev, drm_mga_init_t *init) {
 				  PAGE_SIZE) * PAGE_SIZE;
 	dev_priv->warp_ucode_size = init->warp_ucode_size;
 	dev_priv->chipset = init->chipset;
-	dev_priv->fbOffset = init->frontOffset;
+	dev_priv->frontOffset = init->frontOffset;
 	dev_priv->backOffset = init->backOffset;
 	dev_priv->depthOffset = init->depthOffset;
 	dev_priv->textureOffset = init->textureOffset;
@@ -266,7 +266,7 @@ static int mga_dma_initialize(drm_device_t *dev, drm_mga_init_t *init) {
 		/* Poll for the first buffer to insure that
 		 * the status register will be correct
 		 */
-	   	printk("phys_head : %lx\n", phys_head);
+	   	printk("phys_head : %x\n", phys_head);
    
 		MGA_WRITE(MGAREG_DWGSYNC, MGA_SYNC_TAG);
 
@@ -308,10 +308,7 @@ int mga_dma_init(struct inode *inode, struct file *filp,
 	return -EINVAL;
 }
 
-#define MGA_ILOAD_CMD (DC_opcod_iload | DC_atype_rpl |          	\
-		       DC_linear_linear | DC_bltmod_bfcol |       	\
-		       (0xC << DC_bop_SHIFT) | DC_sgnzero_enable |	\
-		       DC_shftzero_enable | DC_clipdis_enable)
+
 
 static void __mga_iload_small(drm_device_t *dev,
 			      drm_buf_t *buf,
@@ -350,8 +347,8 @@ static void __mga_iload_small(drm_device_t *dev,
 
    	PRIMOUTREG(MGAREG_DMAPAD, 0);
    	PRIMOUTREG(MGAREG_DMAPAD, 0);
-   	PRIMOUTREG(MGAREG_SECADDRESS, address | TT_BLIT);
-   	PRIMOUTREG(MGAREG_SECEND, (address + length) | use_agp);
+   	PRIMOUTREG(MGAREG_SECADDRESS, ((__u32)address) | TT_BLIT);
+   	PRIMOUTREG(MGAREG_SECEND, ((__u32)(address + length)) | use_agp);
 
    	PRIMOUTREG(MGAREG_DMAPAD, 0);
    	PRIMOUTREG(MGAREG_DMAPAD, 0);
@@ -424,8 +421,8 @@ static void __mga_iload_xy(drm_device_t *dev,
 	   	   
    	PRIMOUTREG(MGAREG_DMAPAD, 0);
    	PRIMOUTREG(MGAREG_DMAPAD, 0);
-   	PRIMOUTREG(MGAREG_SECADDRESS, address | TT_BLIT);
-   	PRIMOUTREG(MGAREG_SECEND, (address + length) | use_agp);
+   	PRIMOUTREG(MGAREG_SECADDRESS, ((__u32)address) | TT_BLIT);
+   	PRIMOUTREG(MGAREG_SECEND, ((__u32)(address + length)) | use_agp);
 	   
    	PRIMOUTREG(MGAREG_DMAPAD, 0);
    	PRIMOUTREG(MGAREG_DMAPAD, 0);
@@ -480,7 +477,7 @@ static void mga_dma_dispatch_vertex(drm_device_t *dev, drm_buf_t *buf)
 	mgaEmitState( dev_priv, buf_priv );
 
 
-   	printk("dispatch vertex addr 0x%x, length 0x%x nbox %d\n", 
+   	printk("dispatch vertex addr 0x%lx, length 0x%x nbox %d\n", 
 	       address, length, buf_priv->nbox);
 
 	for (i = 0 ; i < count ; i++) {		
@@ -490,8 +487,9 @@ static void mga_dma_dispatch_vertex(drm_device_t *dev, drm_buf_t *buf)
 		PRIMGETPTR(dev_priv);
 		PRIMOUTREG( MGAREG_DMAPAD, 0);
 		PRIMOUTREG( MGAREG_DMAPAD, 0);
-		PRIMOUTREG( MGAREG_SECADDRESS, address | TT_VERTEX);
-		PRIMOUTREG( MGAREG_SECEND, (address + length) | use_agp);
+		PRIMOUTREG( MGAREG_SECADDRESS, ((__u32)address) | TT_VERTEX);
+		PRIMOUTREG( MGAREG_SECEND, (((__u32)(address + length)) | 
+					    use_agp));
 
 		PRIMOUTREG( MGAREG_DMAPAD, 0);
 		PRIMOUTREG( MGAREG_DMAPAD, 0);
@@ -526,10 +524,146 @@ static void mga_dma_dispatch_general(drm_device_t *dev, drm_buf_t *buf)
 
 	PRIMOUTREG( MGAREG_DMAPAD, 0);
 	PRIMOUTREG( MGAREG_DMAPAD, 0);
-	PRIMOUTREG( MGAREG_SECADDRESS, address | TT_GENERAL);
-	PRIMOUTREG( MGAREG_SECEND, (address + length) | use_agp);
+	PRIMOUTREG( MGAREG_SECADDRESS, ((__u32)address) | TT_GENERAL);
+	PRIMOUTREG( MGAREG_SECEND, (((__u32)(address + length)) | use_agp));
 
 	PRIMOUTREG( MGAREG_DMAPAD, 0);
+	PRIMOUTREG( MGAREG_DMAPAD, 0);
+      	PRIMOUTREG( MGAREG_DMAPAD, 0);
+   	PRIMOUTREG( MGAREG_SOFTRAP, 0);
+   	PRIMADVANCE(dev_priv);
+
+      	MGA_WRITE(MGAREG_PRIMADDRESS, dev_priv->prim_phys_head | TT_GENERAL);
+	MGA_WRITE(MGAREG_PRIMEND, (phys_head + num_dwords * 4) | use_agp);
+}
+
+
+static void mga_dma_dispatch_clear( drm_device_t *dev, drm_buf_t *buf )
+{
+   	drm_mga_private_t *dev_priv = dev->dev_private;
+	drm_mga_buf_priv_t *buf_priv = buf->dev_private;
+	int nbox = buf_priv->nbox;
+	xf86drmClipRectRec *pbox = buf_priv->boxes;
+	int flags = buf_priv->clear_flags;
+	unsigned int cmd;
+	int use_agp = PDEA_pagpxfer_enable;
+	int i;
+   	PRIMLOCALS;
+
+	if ( dev_priv->sgram ) 
+		cmd = MGA_CLEAR_CMD | DC_atype_blk;
+	else
+		cmd = MGA_CLEAR_CMD | DC_atype_rstr;
+
+
+	PRIMRESET( dev_priv );
+	PRIMGETPTR( dev_priv );
+
+	for (i = 0 ; i < nbox ; i++) {
+		unsigned int height = pbox[i].y2 - pbox[i].y1;
+		
+		printk("dispatch clear %d,%d-%d,%d flags %x!\n",
+		       pbox[i].x1,
+		       pbox[i].y1,
+		       pbox[i].x2,
+		       pbox[i].y2,
+		       flags);
+
+
+/*  		if ( flags & MGA_CLEAR_FRONT )  */
+		{	    
+		PRIMOUTREG( MGAREG_DMAPAD, 0);
+		PRIMOUTREG( MGAREG_DMAPAD, 0);
+		PRIMOUTREG(MGAREG_YDSTLEN, (pbox[i].y1<<16)|height);
+		PRIMOUTREG(MGAREG_FXBNDRY, (pbox[i].x2<<16)|pbox[i].x1);
+
+			printk("clear front\n");
+			PRIMOUTREG( MGAREG_DMAPAD, 0);
+			PRIMOUTREG(MGAREG_FCOL, buf_priv->clear_color);
+			PRIMOUTREG(MGAREG_DSTORG, dev_priv->frontOffset);
+			PRIMOUTREG(MGAREG_DWGCTL+MGAREG_MGA_EXEC, cmd );
+		}
+
+		if ( flags & MGA_CLEAR_BACK ) {
+		PRIMOUTREG( MGAREG_DMAPAD, 0);
+		PRIMOUTREG( MGAREG_DMAPAD, 0);
+		PRIMOUTREG(MGAREG_YDSTLEN, (pbox[i].y1<<16)|height);
+		PRIMOUTREG(MGAREG_FXBNDRY, (pbox[i].x2<<16)|pbox[i].x1);
+
+			printk("clear back\n");
+			PRIMOUTREG( MGAREG_DMAPAD, 0);
+			PRIMOUTREG(MGAREG_FCOL, buf_priv->clear_color);
+			PRIMOUTREG(MGAREG_DSTORG, dev_priv->backOffset);
+			PRIMOUTREG(MGAREG_DWGCTL+MGAREG_MGA_EXEC, cmd );
+		}
+
+		if ( flags & MGA_CLEAR_DEPTH ) 
+		{
+		PRIMOUTREG( MGAREG_DMAPAD, 0);
+		PRIMOUTREG( MGAREG_DMAPAD, 0);
+		PRIMOUTREG(MGAREG_YDSTLEN, (pbox[i].y1<<16)|height);
+		PRIMOUTREG(MGAREG_FXBNDRY, (pbox[i].x2<<16)|pbox[i].x1);
+
+			printk("clear depth\n");
+			PRIMOUTREG( MGAREG_DMAPAD, 0);
+			PRIMOUTREG(MGAREG_FCOL, buf_priv->clear_zval);
+			PRIMOUTREG(MGAREG_DSTORG, dev_priv->depthOffset);
+			PRIMOUTREG(MGAREG_DWGCTL+MGAREG_MGA_EXEC, cmd );
+		}
+	}
+
+	PRIMOUTREG( MGAREG_DMAPAD, 0);
+	PRIMOUTREG( MGAREG_DMAPAD, 0);
+      	PRIMOUTREG( MGAREG_DMAPAD, 0);
+   	PRIMOUTREG( MGAREG_SOFTRAP, 0);
+   	PRIMADVANCE(dev_priv);
+
+      	MGA_WRITE(MGAREG_PRIMADDRESS, dev_priv->prim_phys_head | TT_GENERAL);
+	MGA_WRITE(MGAREG_PRIMEND, (phys_head + num_dwords * 4) | use_agp);
+}
+
+
+
+static void mga_dma_dispatch_swap( drm_device_t *dev, drm_buf_t *buf )
+{
+   	drm_mga_private_t *dev_priv = dev->dev_private;
+	drm_mga_buf_priv_t *buf_priv = buf->dev_private;
+	int nbox = buf_priv->nbox;
+	xf86drmClipRectRec *pbox = buf_priv->boxes;
+	int use_agp = PDEA_pagpxfer_enable;
+	int i;
+
+   	PRIMLOCALS;
+	PRIMRESET( dev_priv );
+	PRIMGETPTR( dev_priv );
+
+	PRIMOUTREG(MGAREG_DSTORG, dev_priv->frontOffset);
+	PRIMOUTREG(MGAREG_MACCESS, dev_priv->mAccess);
+	PRIMOUTREG(MGAREG_SRCORG, dev_priv->backOffset);
+	PRIMOUTREG(MGAREG_AR5, dev_priv->stride);  
+
+	PRIMOUTREG( MGAREG_DMAPAD, 0);
+	PRIMOUTREG( MGAREG_DMAPAD, 0);
+	PRIMOUTREG( MGAREG_DMAPAD, 0);
+	PRIMOUTREG(MGAREG_DWGCTL, MGA_COPY_CMD); 
+	     
+	for (i = 0 ; i < nbox; i++) {
+		unsigned int h = pbox[i].y2 - pbox[i].y1;
+		unsigned int start = pbox[i].y1 * dev_priv->stride;
+		
+		printk("dispatch swap %d,%d-%d,%d!\n",
+		       pbox[i].x1,
+		       pbox[i].y1,
+		       pbox[i].x2,
+		       pbox[i].y2);
+
+		PRIMOUTREG(MGAREG_AR0, start + pbox[i].x2 - 1);
+		PRIMOUTREG(MGAREG_AR3, start + pbox[i].x1);		
+		PRIMOUTREG(MGAREG_FXBNDRY, pbox[i].x1|((pbox[i].x2 - 1)<<16));
+		PRIMOUTREG(MGAREG_YDSTLEN+MGAREG_MGA_EXEC, (pbox[i].y1<<16)|h);
+	}
+  
+	PRIMOUTREG( MGAREG_SRCORG, 0);
 	PRIMOUTREG( MGAREG_DMAPAD, 0);
       	PRIMOUTREG( MGAREG_DMAPAD, 0);
    	PRIMOUTREG( MGAREG_SOFTRAP, 0);
@@ -555,7 +689,8 @@ static inline void mga_dma_quiescent(drm_device_t *dev)
 #if 1
    MGA_WRITE(MGAREG_DWGSYNC, MGA_SYNC_TAG);
    while(MGA_READ(MGAREG_DWGSYNC) != MGA_SYNC_TAG) ;
-   MGA_WRITE(MGAREG_DWGSYNC, 0);
+   MGA_WRITE(MGAREG_DWGSYNC, 0); 
+   while(MGA_READ(MGAREG_DWGSYNC) != 0) ;
 #endif
    	atomic_dec(&dev_priv->dispatch_lock);
 }
@@ -699,10 +834,17 @@ static int mga_do_dma(drm_device_t *dev, int locked)
 	case MGA_DMA_ILOAD:
 		mga_dma_dispatch_iload(dev, buf);
 		break;
+	case MGA_DMA_SWAP:
+		mga_dma_dispatch_swap(dev, buf);
+		break;
+	case MGA_DMA_CLEAR:
+		mga_dma_dispatch_clear(dev, buf);
+		break;
 	default:
 		printk("bad buffer type %x in dispatch\n", buf_priv->dma_type);
 		break;
 	}
+
    	atomic_dec(&dev_priv->pending_bufs);
 
    	if(dma->this_buffer) {
