@@ -299,83 +299,71 @@ static inline void radeon_emit_misc( drm_radeon_private_t *dev_priv )
 
 static inline void radeon_emit_tex0( drm_radeon_private_t *dev_priv )
 {
-#if 0
 	drm_radeon_sarea_t *sarea_priv = dev_priv->sarea_priv;
-	drm_radeon_context_regs_t *ctx = &sarea_priv->context_state;
 	drm_radeon_texture_regs_t *tex = &sarea_priv->tex_state[0];
-	int i;
 	RING_LOCALS;
 	DRM_DEBUG( "    %s\n", __FUNCTION__ );
 
-	BEGIN_RING( 7 + RADEON_TEX_MAXLEVELS );
+	BEGIN_RING( 9 );
 
-	OUT_RING( CP_PACKET0( RADEON_PRIM_TEX_CNTL_C,
-			       2 + RADEON_TEX_MAXLEVELS ) );
-	OUT_RING( tex->tex_cntl );
-	OUT_RING( tex->tex_combine_cntl );
-	OUT_RING( ctx->tex_size_pitch_c );
-	for ( i = 0 ; i < RADEON_TEX_MAXLEVELS ; i++ ) {
-		OUT_RING( tex->tex_offset[i] );
-	}
+	OUT_RING( CP_PACKET0( RADEON_PP_TXFILTER_0, 5 ) );
+	OUT_RING( tex->pp_txfilter );
+	OUT_RING( tex->pp_txformat );
+	OUT_RING( tex->pp_txoffset );
+	OUT_RING( tex->pp_txcblend );
+	OUT_RING( tex->pp_txablend );
+	OUT_RING( tex->pp_tfactor );
 
-	OUT_RING( CP_PACKET0( RADEON_CONSTANT_COLOR_C, 1 ) );
-	OUT_RING( ctx->constant_color_c );
-	OUT_RING( tex->tex_border_color );
+	OUT_RING( CP_PACKET0( RADEON_PP_BORDER_COLOR_0, 0 ) );
+	OUT_RING( tex->pp_border_color );
 
 	ADVANCE_RING();
-#endif
 }
 
 static inline void radeon_emit_tex1( drm_radeon_private_t *dev_priv )
 {
-#if 0
 	drm_radeon_sarea_t *sarea_priv = dev_priv->sarea_priv;
 	drm_radeon_texture_regs_t *tex = &sarea_priv->tex_state[1];
-	int i;
 	RING_LOCALS;
 	DRM_DEBUG( "    %s\n", __FUNCTION__ );
 
-	BEGIN_RING( 5 + RADEON_TEX_MAXLEVELS );
+	BEGIN_RING( 9 );
 
-	OUT_RING( CP_PACKET0( RADEON_SEC_TEX_CNTL_C,
-			       1 + RADEON_TEX_MAXLEVELS ) );
-	OUT_RING( tex->tex_cntl );
-	OUT_RING( tex->tex_combine_cntl );
-	for ( i = 0 ; i < RADEON_TEX_MAXLEVELS ; i++ ) {
-		OUT_RING( tex->tex_offset[i] );
-	}
+	OUT_RING( CP_PACKET0( RADEON_PP_TXFILTER_1, 5 ) );
+	OUT_RING( tex->pp_txfilter );
+	OUT_RING( tex->pp_txformat );
+	OUT_RING( tex->pp_txoffset );
+	OUT_RING( tex->pp_txcblend );
+	OUT_RING( tex->pp_txablend );
+	OUT_RING( tex->pp_tfactor );
 
-	OUT_RING( CP_PACKET0( RADEON_SEC_TEXTURE_BORDER_COLOR_C, 0 ) );
-	OUT_RING( tex->tex_border_color );
+	OUT_RING( CP_PACKET0( RADEON_PP_BORDER_COLOR_1, 0 ) );
+	OUT_RING( tex->pp_border_color );
 
 	ADVANCE_RING();
-#endif
 }
 
 static inline void radeon_emit_tex2( drm_radeon_private_t *dev_priv )
 {
-#if 0
 	drm_radeon_sarea_t *sarea_priv = dev_priv->sarea_priv;
 	drm_radeon_texture_regs_t *tex = &sarea_priv->tex_state[2];
-	int i;
 	RING_LOCALS;
 	DRM_DEBUG( "    %s\n", __FUNCTION__ );
 
-	BEGIN_RING( 5 + RADEON_TEX_MAXLEVELS );
+	BEGIN_RING( 9 );
 
-	OUT_RING( CP_PACKET0( RADEON_SEC_TEX_CNTL_C,
-			       1 + RADEON_TEX_MAXLEVELS ) );
-	OUT_RING( tex->tex_cntl );
-	OUT_RING( tex->tex_combine_cntl );
-	for ( i = 0 ; i < RADEON_TEX_MAXLEVELS ; i++ ) {
-		OUT_RING( tex->tex_offset[i] );
-	}
+	OUT_RING( CP_PACKET0( RADEON_PP_TXFILTER_2, 5 ) );
+	OUT_RING( tex->pp_txfilter );
+	OUT_RING( tex->pp_txformat );
+	OUT_RING( tex->pp_txoffset );
+	OUT_RING( tex->pp_txcblend );
+	OUT_RING( tex->pp_txablend );
+	OUT_RING( tex->pp_tfactor );
 
-	OUT_RING( CP_PACKET0( RADEON_SEC_TEXTURE_BORDER_COLOR_C, 0 ) );
-	OUT_RING( tex->tex_border_color );
+	OUT_RING( CP_PACKET0( RADEON_PP_BORDER_COLOR_2, 0 ) );
+	OUT_RING( tex->pp_border_color );
 
 	ADVANCE_RING();
-#endif
 }
 
 static inline void radeon_emit_state( drm_radeon_private_t *dev_priv )
@@ -1083,10 +1071,7 @@ static void radeon_cp_dispatch_indices( drm_device_t *dev,
 	drm_radeon_private_t *dev_priv = dev->dev_private;
 	drm_radeon_buf_priv_t *buf_priv = buf->dev_private;
 	drm_radeon_sarea_t *sarea_priv = dev_priv->sarea_priv;
-
-	int vertsize = sarea_priv->vertsize;
 	int format = sarea_priv->vc_format;
-	int index = buf->idx;
 	int offset = dev_priv->buffers->offset - dev->agp->base;
 	int prim = buf_priv->prim;
 
@@ -1477,7 +1462,8 @@ int radeon_cp_indices( struct inode *inode, struct file *filp,
 		return -EINVAL;
 	}
 	if ( (buf->offset + elts.start) & 0x3 ) {
-		DRM_ERROR( "buffer start 0x%x\n", buf->offset + elts.start );
+		DRM_ERROR( "buffer start 0x%x\n",
+			   (u32)(buf->offset + elts.start) );
 		return -EINVAL;
 	}
 

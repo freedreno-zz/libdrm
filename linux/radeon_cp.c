@@ -709,6 +709,10 @@ static int radeon_do_init_cp( drm_device_t *dev, drm_radeon_init_t *init )
 	radeon_cp_init_ring_buffer( dev );
 	radeon_do_engine_reset( dev );
 
+#if ROTATE_BUFS
+	dev_priv->last_buf = 0;
+#endif
+
 	return 0;
 }
 
@@ -952,6 +956,9 @@ drm_buf_t *radeon_freelist_get( drm_device_t *dev )
 	drm_radeon_buf_priv_t *buf_priv;
 	drm_buf_t *buf;
 	int i, t;
+#if ROTATE_BUFS
+	int start;
+#endif
 
 	/* FIXME: Optimize -- use freelist code */
 
@@ -962,10 +969,18 @@ drm_buf_t *radeon_freelist_get( drm_device_t *dev )
 			return buf;
 	}
 
+#if ROTATE_BUFS
+	if (++dev_priv->last_buf >= dma->buf_count)
+		dev_priv->last_buf = 0;
+	start = dev_priv->last_buf;
+#endif
 	for ( t = 0 ; t < dev_priv->usec_timeout ; t++ ) {
 		u32 done_age = RADEON_READ( RADEON_LAST_DISPATCH_REG );
-
+#if ROTATE_BUFS
+		for ( i = start ; i < dma->buf_count ; i++ ) {
+#else
 		for ( i = 0 ; i < dma->buf_count ; i++ ) {
+#endif
 			buf = dma->buflist[i];
 			buf_priv = buf->dev_private;
 			if ( buf->pending && buf_priv->age <= done_age ) {
@@ -975,6 +990,9 @@ drm_buf_t *radeon_freelist_get( drm_device_t *dev )
 				buf->pending = 0;
 				return buf;
 			}
+#if ROTATE_BUFS
+			start = 0;
+#endif
 		}
 		udelay( 1 );
 	}
@@ -986,8 +1004,14 @@ drm_buf_t *radeon_freelist_get( drm_device_t *dev )
 void radeon_freelist_reset( drm_device_t *dev )
 {
 	drm_device_dma_t *dma = dev->dma;
+#if ROTATE_BUFS
+	drm_radeon_private_t *dev_priv = dev->dev_private;
+#endif
 	int i;
 
+#if ROTATE_BUFS
+	dev_priv->last_buf = 0;
+#endif
 	for ( i = 0 ; i < dma->buf_count ; i++ ) {
 		drm_buf_t *buf = dma->buflist[i];
 		drm_radeon_buf_priv_t *buf_priv = buf->dev_private;

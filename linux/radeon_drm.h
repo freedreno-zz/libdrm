@@ -187,11 +187,12 @@ typedef struct {
 	unsigned int pp_txablend;
 	unsigned int pp_tfactor;
 
-	unsigned int pp_cubic_faces;
-
 	unsigned int pp_border_color;
 
+#ifdef CUBIC_ENABLE
+	unsigned int pp_cubic_faces;
 	unsigned int pp_cubic_offset[5];
+#endif
 } drm_radeon_texture_regs_t;
 
 typedef struct {

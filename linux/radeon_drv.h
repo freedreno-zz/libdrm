@@ -65,6 +65,14 @@ typedef struct drm_radeon_private {
 
    	drm_radeon_freelist_t *head;
    	drm_radeon_freelist_t *tail;
+/* FIXME: ROTATE_BUFS is a hask to cycle through bufs until freelist
+   code is used.  Note this hides a problem with the scratch register
+   (used to keep track of last buffer completed) being written to before
+   the last buffer has actually completed rendering. */
+#define ROTATE_BUFS 1
+#if ROTATE_BUFS
+	int last_buf;
+#endif
 
 	int usec_timeout;
 	int is_pci;
@@ -220,10 +228,16 @@ extern int  radeon_context_switch_complete(drm_device_t *dev, int new);
 #define RADEON_MC_FB_LOCATION		0x0148
 #define RADEON_MCLK_CNTL		0x0012
 
+#define RADEON_PP_BORDER_COLOR_0	0x1d40
+#define RADEON_PP_BORDER_COLOR_1	0x1d44
+#define RADEON_PP_BORDER_COLOR_2	0x1d48
 #define RADEON_PP_CNTL			0x1c38
 #define RADEON_PP_LUM_MATRIX		0x1d00
 #define RADEON_PP_MISC			0x1c14
 #define RADEON_PP_ROT_MATRIX_0		0x1d58
+#define RADEON_PP_TXFILTER_0		0x1c54
+#define RADEON_PP_TXFILTER_1		0x1c6c
+#define RADEON_PP_TXFILTER_2		0x1c84
 
 #define RADEON_RB2D_DSTCACHE_CTLSTAT	0x342c
 #	define RADEON_RB2D_DC_FLUSH_ALL		0xf
