@@ -1007,6 +1007,28 @@ unsigned int drmAgpDeviceId(int fd)
     return i.id_device;
 }
 
+int drmScatterGatherAlloc(int fd, unsigned long size, unsigned long *handle)
+{
+    drm_scatter_gather_t sg;
+
+    *handle = 0;
+    sg.size   = size;
+    sg.handle = 0;
+    if (ioctl(fd, DRM_IOCTL_SG_ALLOC, &sg)) return -errno;
+    *handle = sg.handle;
+    return 0;
+}
+
+int drmScatterGatherFree(int fd, unsigned long handle)
+{
+    drm_scatter_gather_t sg;
+
+    sg.size   = 0;
+    sg.handle = handle;
+    if (ioctl(fd, DRM_IOCTL_SG_FREE, &sg)) return -errno;
+    return 0;
+}
+
 int drmError(int err, const char *label)
 {
     switch (err) {
