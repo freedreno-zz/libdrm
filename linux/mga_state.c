@@ -310,8 +310,6 @@ static int mgaG200EmitPipe( drm_device_t *dev, drm_buf_t *buf )
 	return 0;
 }
 
-
-
 void mgaEmitState( drm_device_t *dev )
 {
 	drm_buf_t *buf;

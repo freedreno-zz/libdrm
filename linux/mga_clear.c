@@ -48,11 +48,10 @@
 		      DC_pattern_disable | DC_transc_disable | 		\
 		      DC_clipdis_enable)				\
 
-
-void mgaClearBuffers( drm_device_t *dev,
-		      int clear_color,
-		      int clear_depth,
-		      int flags )
+static int mgaClearBuffers(drm_device_t *dev,
+			   int clear_color,
+			   int clear_depth,
+			   int flags)
 {
 	int cmd, i;	
 	drm_device_dma_t *dma = dev->dma;
@@ -67,7 +66,7 @@ void mgaClearBuffers( drm_device_t *dev,
 
 
 	if (!nbox) 
-		return;
+		return -EINVAL;
 
 	if ( dev_priv->sgram ) 
 		cmd = MGA_CLEAR_CMD | DC_atype_blk;
@@ -132,10 +131,10 @@ void mgaClearBuffers( drm_device_t *dev,
 	d.granted_count = 0;	   
 
 	drm_dma_enqueue(dev, &d);
+   	return 0;
 }
 
-
-void mgaSwapBuffers( drm_device_t *dev ) 
+int mgaSwapBuffers(drm_device_t *dev, int flags) 
 {
 	drm_device_dma_t *dma = dev->dma;
 	drm_mga_private_t *dev_priv = (drm_mga_private_t *)dev->dev_private;
@@ -149,11 +148,11 @@ void mgaSwapBuffers( drm_device_t *dev )
 	DMALOCALS;	
 
 	if (!nbox) 
-		return;
+		return -EINVAL;
 
 	buf = drm_freelist_get(&dma->bufs[order].freelist, _DRM_DMA_WAIT);
 
-	DMAGETPTR( buf );
+	DMAGETPTR(buf);
 
 	DMAOUTREG(MGAREG_DSTORG, dev_priv->frontOrg);
 	DMAOUTREG(MGAREG_MACCESS, dev_priv->mAccess);
@@ -199,5 +198,56 @@ void mgaSwapBuffers( drm_device_t *dev )
 	d.granted_count = 0;	 
   
 	drm_dma_enqueue(dev, &d);
+   	return 0;
 }
 
+
+int mga_clear_bufs(struct inode *inode, struct file *filp,
+		   unsigned int cmd, unsigned long arg)
+{
+   drm_file_t *priv = filp->private_data;
+   drm_device_t *dev = priv->dev;
+   drm_mga_clear_t clear;
+   int retcode;
+   
+   copy_from_user_ret(&clear, (drm_mga_clear_t *)arg,
+		      sizeof(clear), -EFAULT);
+   
+   retcode = mgaClearBuffers(dev, clear.clear_color,
+			   clear.clear_depth,
+			   clear.flags);
+   
+   return retcode;
+}
+
+int mga_swap_bufs(struct inode *inode, struct file *filp,
+		  unsigned int cmd, unsigned long arg)
+{
+   drm_file_t *priv = filp->private_data;
+   drm_device_t *dev = priv->dev;
+   drm_mga_swap_t swap;
+   int retcode = 0;
+   
+   copy_from_user_ret(&swap, (drm_mga_swap_t *)arg,
+		      sizeof(swap), -EFAULT);
+   
+   retcode = mgaSwapBuffers(dev, swap.flags);
+   
+   return retcode;
+}
+
+int mga_iload(struct inode *inode, struct file *filp,
+	      unsigned int cmd, unsigned long arg)
+{
+   drm_file_t *priv = filp->private_data;
+   drm_device_t *dev = priv->dev;
+   drm_mga_iload_t iload;
+   int retcode = 0;
+
+   copy_from_user_ret(&iload, (drm_mga_iload_t *)arg, 
+		      sizeof(iload), -EFAULT);
+   
+   retcode = mgaIload(dev, &iload);
+   
+   return retcode;
+}

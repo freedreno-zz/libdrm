@@ -215,7 +215,7 @@ typedef struct _drm_mga_sarea {
  
 
 #define DRM_IOCTL_MGA_INIT    DRM_IOW( 0x40, drm_mga_init_t)
-#define DRM_IOCTL_MGA_SWAP    DRM_IOW( 0x40, drm_mga_swap_t)
-#define DRM_IOCTL_MGA_CLEAR   DRM_IOW( 0x40, drm_mga_clear_t)
-
+#define DRM_IOCTL_MGA_SWAP    DRM_IOW( 0x41, drm_mga_swap_t)
+#define DRM_IOCTL_MGA_CLEAR   DRM_IOW( 0x42, drm_mga_clear_t)
+#define DRM_IOCTL_MGA_ILOAD   DRM_IOW( 0x43, drm_mga_iload_t)
 #endif

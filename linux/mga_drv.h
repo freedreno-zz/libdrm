@@ -116,6 +116,13 @@ extern int  mga_mapbufs(struct inode *inode, struct file *filp,
 			unsigned int cmd, unsigned long arg);
 extern int  mga_addmap(struct inode *inode, struct file *filp,
 		       unsigned int cmd, unsigned long arg);
+				/* mga_state.c */
+extern int  mga_clear_bufs(struct inode *inode, struct file *filp,
+			   unsigned int cmd, unsigned long arg);
+extern int  mga_swap_bufs(struct inode *inode, struct file *filp,
+			  unsigned int cmd, unsigned long arg);
+extern int  mga_iload(struct inode *inode, struct file *filp,
+		      unsigned int cmd, unsigned long arg);
 
 
 
