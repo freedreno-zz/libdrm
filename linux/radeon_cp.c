@@ -394,7 +394,7 @@ static int radeon_do_wait_for_idle( drm_radeon_private_t *dev_priv )
 	int i, ret;
 
 	ret = radeon_do_wait_for_fifo( dev_priv, 64 );
-	if ( !ret ) return ret;
+	if ( ret ) return ret;
 
 	for ( i = 0 ; i < dev_priv->usec_timeout ; i++ ) {
 		if ( !(RADEON_READ( RADEON_RBBM_STATUS )
