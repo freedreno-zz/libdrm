@@ -44,7 +44,7 @@ static unsigned long r128_alloc_pages( void )
 	unsigned long addr_end;
 	struct page *page;
 
-	DRM_INFO( "%s\n", __FUNCTION__ );
+	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
 	address = __get_free_pages( GFP_KERNEL, 3 );
 	if ( address == 0UL ) {
@@ -59,7 +59,7 @@ static unsigned long r128_alloc_pages( void )
 		SetPageReserved( page );
 	}
 
-	DRM_INFO( "%s: returning 0x%08lx\n", __FUNCTION__, address );
+	DRM_DEBUG( "%s: returning 0x%08lx\n", __FUNCTION__, address );
 	return address;
 }
 
@@ -68,7 +68,7 @@ static void r128_free_pages( unsigned long address )
 	unsigned long addr_end;
 	struct page *page;
 
-	DRM_INFO( "%s\n", __FUNCTION__ );
+	DRM_DEBUG( "%s\n", __FUNCTION__ );
 	if ( !address ) return;
 
 	addr_end = address + ((PAGE_SIZE * (1 << 3)) - 1);
@@ -91,7 +91,7 @@ int r128_pcigart_init( drm_device_t *dev )
 	unsigned long pages;
 	unsigned long *pci_gart;
 	int i;
-	DRM_INFO( "%s\n", __FUNCTION__ );
+	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
 #if 0
 	dev_priv->phys_pci_gart_page = 0;
@@ -120,7 +120,7 @@ int r128_pcigart_init( drm_device_t *dev )
 	dev_priv->phys_pci_gart_page = address;
 	dev_priv->pci_gart_page = (unsigned long *)address;
 
-	DRM_INFO( "%s: phys=0x%08lx virt=%p\n",
+	DRM_DEBUG( "%s: phys=0x%08lx virt=%p\n",
 		  __FUNCTION__, dev_priv->phys_pci_gart_page,
 		  dev_priv->pci_gart_page );
 
@@ -131,9 +131,9 @@ int r128_pcigart_init( drm_device_t *dev )
 		pci_gart[i] = virt_to_bus( entry->pagelist[i]->virtual );
 	}
 
-	DRM_INFO( "%s: writing PCI_GART_PAGE...\n", __FUNCTION__ );
+	DRM_DEBUG( "%s: writing PCI_GART_PAGE...\n", __FUNCTION__ );
 	R128_WRITE( R128_PCI_GART_PAGE, virt_to_bus((void *)address) );
-	DRM_INFO( "%s: writing PCI_GART_PAGE... done.\n", __FUNCTION__ );
+	DRM_DEBUG( "%s: writing PCI_GART_PAGE... done.\n", __FUNCTION__ );
 
 	asm volatile ( "wbinvd" ::: "memory" );
 
@@ -143,15 +143,12 @@ int r128_pcigart_init( drm_device_t *dev )
 int r128_pcigart_cleanup( drm_device_t *dev )
 {
 	drm_r128_private_t *dev_priv = dev->dev_private;
-	DRM_INFO( "%s\n", __FUNCTION__ );
-#if 0
-	if ( dev_priv->pci_gart_page ) {
-		iounmap( dev_priv->pci_gart_page );
-	}
-#endif
+	DRM_DEBUG( "%s\n", __FUNCTION__ );
+
 	if ( dev_priv->phys_pci_gart_page ) {
 		r128_free_pages( dev_priv->phys_pci_gart_page );
 	}
 
 	return 0;
 }
+

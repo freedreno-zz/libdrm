@@ -854,6 +854,7 @@ extern int	      drm_sg_alloc(struct inode *inode, struct file *filp,
 				   unsigned int cmd, unsigned long arg);
 extern int	      drm_sg_free(struct inode *inode, struct file *filp,
 				  unsigned int cmd, unsigned long arg);
+extern void	      drm_sg_cleanup(drm_sg_mem_t *entry);
 
 #define page_to_pfn( page )	((unsigned long)((page)-mem_map))
 

@@ -140,6 +140,7 @@ extern int r128_fullscreen( struct inode *inode, struct file *filp,
 			    unsigned int cmd, unsigned long arg );
 extern int r128_cce_buffers( struct inode *inode, struct file *filp,
 			     unsigned int cmd, unsigned long arg );
+extern int r128_do_cce_idle( drm_r128_private_t *dev_priv );
 
 extern void r128_freelist_reset( drm_device_t *dev );
 extern drm_buf_t *r128_freelist_get( drm_device_t *dev );
@@ -192,6 +193,9 @@ extern int  r128_rmctx(struct inode *inode, struct file *filp,
 extern int  r128_context_switch(drm_device_t *dev, int old, int new);
 extern int  r128_context_switch_complete(drm_device_t *dev, int new);
 
+				/* r128_pcigart.c */
+extern int r128_pcigart_cleanup(drm_device_t *dev);
+extern int r128_pcigart_init(drm_device_t *dev);
 
 /* Register definitions, register access macros and drmAddMap constants
  * for Rage 128 kernel driver.

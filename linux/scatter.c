@@ -33,9 +33,9 @@
 #include "drmP.h"
 #include <linux/wrapper.h>
 
-#define DEBUG_SCATTER 1
+#define DEBUG_SCATTER 0
 
-static void drm_sg_cleanup( drm_sg_mem_t *entry )
+void drm_sg_cleanup( drm_sg_mem_t *entry )
 {
 	int i;
 
@@ -69,12 +69,12 @@ int drm_sg_alloc( struct inode *inode, struct file *filp,
 	drm_device_t *dev = priv->dev;
 	drm_scatter_gather_t request;
 	drm_sg_mem_t *entry;
-	unsigned long pages;
+	unsigned long pages, i, j;
 	pgd_t *pgd;
 	pmd_t *pmd;
 	pte_t *pte;
-	int i, j;
-	DRM_INFO( "%s\n", __FUNCTION__ );
+
+	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
 	if ( dev->sg ) return -EINVAL;
 
@@ -150,7 +150,7 @@ int drm_sg_alloc( struct inode *inode, struct file *filp,
 
 	dev->sg = entry;
 
-#ifdef DEBUG_SCATTER
+#if DEBUG_SCATTER
 	/* Verify that each page points to its virtual address, and vice 
 	 * versa.
 	 */
@@ -203,7 +203,7 @@ int drm_sg_free( struct inode *inode, struct file *filp,
 
 	if ( !entry || entry->handle != request.handle ) return -EINVAL;
 
-	DRM_INFO( "sg free virtual  = %p\n", entry->virtual );
+	DRM_DEBUG( "sg free virtual  = %p\n", entry->virtual );
 
 	drm_sg_cleanup( entry );
 
