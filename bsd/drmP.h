@@ -613,6 +613,7 @@ extern drm_buf_t     *DRM(freelist_get)(drm_freelist_t *bl, int block);
 #endif /* __HAVE_DMA */
 #if __HAVE_VBL_IRQ
 extern int           DRM(vblank_wait)(drm_device_t *dev, unsigned int *vbl_seq);
+extern void          DRM(vbl_send_signals)( drm_device_t *dev );
 #endif
 
 #if __REALLY_HAVE_AGP
