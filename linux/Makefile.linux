@@ -77,7 +77,8 @@ MODCFLAGS=      $(CFLAGS) -D__KERNEL__ -DMODULE -fomit-frame-pointer
 PRGCFLAGS=      $(CFLAGS) -g -ansi -pedantic -DPOSIX_C_SOURCE=199309L \
 		-D_POSIX_SOURCE -D_XOPEN_SOURCE -D_BSD_SOURCE -D_SVID_SOURCE \
 		-I../../../../../../include -I../../../../../../../../include \
-		-I../../../../../../../../programs/Xserver/hw/xfree86/common
+		-I../../../../../../../../programs/Xserver/hw/xfree86/common \
+		-I. -I../../.. -I../../../../../../../../lib/X11
 PRGLIBS=
 
 # **** Start of SMP/MODVERSIONS detection
@@ -205,6 +206,9 @@ endif
 libdrm.a: $(DRMOBJS)
 	-$(RM) -f $@
 	$(AR) rcs $@ $(DRMOBJS)
+
+dristat: dristat.c
+	$(CC) $(PRGCFLAGS) $< -o $@
 
 gamma_drv.o: gamma_drv.c
 	$(CC) $(MODCFLAGS) -DEXPORT_SYMTAB -I$(TREE) -c $< -o $@

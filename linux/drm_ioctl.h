@@ -97,3 +97,65 @@ int DRM(setunique)(struct inode *inode, struct file *filp,
 
 	return 0;
 }
+
+
+int DRM(getmap)( struct inode *inode, struct file *filp,
+		 unsigned int cmd, unsigned long arg )
+{
+	drm_file_t   *priv = filp->private_data;
+	drm_device_t *dev  = priv->dev;
+	drm_map_t    map;
+	int          idx;
+
+	if (copy_from_user(&map, (drm_map_t *)arg, sizeof(map)))
+		return -EFAULT;
+	idx = map.offset;
+	down(&dev->struct_sem);
+	if (idx < 0 || idx >= dev->map_count) {
+		up(&dev->struct_sem);
+		return -EINVAL;
+	}
+	map.offset = dev->maplist[idx]->offset;
+	map.size   = dev->maplist[idx]->size;
+	map.type   = dev->maplist[idx]->type;
+	map.flags  = dev->maplist[idx]->flags;
+	map.handle = dev->maplist[idx]->handle;
+	map.mtrr   = dev->maplist[idx]->mtrr;
+	up(&dev->struct_sem);
+
+	if (copy_to_user((drm_map_t *)arg, &map, sizeof(map))) return -EFAULT;
+	return 0;
+}
+
+int DRM(getclient)( struct inode *inode, struct file *filp,
+		    unsigned int cmd, unsigned long arg )
+{
+	drm_file_t   *priv = filp->private_data;
+	drm_device_t *dev  = priv->dev;
+	drm_client_t client;
+	drm_file_t   *pt;
+	int          idx;
+	int          i;
+
+	if (copy_from_user(&client, (drm_client_t *)arg, sizeof(client)))
+		return -EFAULT;
+	idx = client.idx;
+	down(&dev->struct_sem);
+	for (i = 0, pt = dev->file_first; i < idx && pt; i++, pt = pt->next)
+		;
+	
+	if (!pt) {
+		up(&dev->struct_sem);
+		return -EINVAL;
+	}
+	client.auth  = pt->authenticated;
+	client.pid   = pt->pid;
+	client.uid   = pt->uid;
+	client.magic = pt->magic;
+	client.iocs  = pt->ioctl_count;
+	up(&dev->struct_sem);
+
+	if (copy_to_user((drm_client_t *)arg, &client, sizeof(client)))
+		return -EFAULT;
+	return 0;
+}

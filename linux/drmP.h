@@ -728,7 +728,10 @@ extern int	     DRM(getunique)(struct inode *inode, struct file *filp,
 				    unsigned int cmd, unsigned long arg);
 extern int	     DRM(setunique)(struct inode *inode, struct file *filp,
 				    unsigned int cmd, unsigned long arg);
-
+extern int	     DRM(getmap)(struct inode *inode, struct file *filp,
+				 unsigned int cmd, unsigned long arg);
+extern int	     DRM(getclient)(struct inode *inode, struct file *filp,
+				    unsigned int cmd, unsigned long arg);
 
 				/* Context IOCTL support (context.c) */
 extern int	     DRM(resctx)( struct inode *inode, struct file *filp,

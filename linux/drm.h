@@ -35,6 +35,7 @@
 #ifndef _DRM_H_
 #define _DRM_H_
 
+#include <linux/config.h>
 #if defined(__linux__)
 #include <asm/ioctl.h>		/* For _IO* macros */
 #define DRM_IOCTL_NR(n)	     _IOC_NR(n)
@@ -43,14 +44,9 @@
 #define DRM_IOCTL_NR(n)	     ((n) & 0xff)
 #endif
 
-#define DRM_PROC_DEVICES "/proc/devices"
-#define DRM_PROC_MISC	 "/proc/misc"
-#define DRM_PROC_DRM	 "/proc/drm"
-#define DRM_DEV_DRM	 "/dev/drm"
 #define DRM_DEV_MODE	 (S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP)
 #define DRM_DEV_UID	 0
 #define DRM_DEV_GID	 0
-
 
 #define DRM_MAJOR       226
 #define DRM_NAME	"drm"	  /* Name in kernel, /dev, and /proc	    */
@@ -158,6 +154,15 @@ typedef struct drm_map {
 	int		mtrr;	 /* MTRR slot used			    */
 				 /* Private data			    */
 } drm_map_t;
+
+typedef struct drm_client {
+	int		idx;	/* Which client desired?                    */
+	int		auth;	/* Is client authenticated?                 */
+	unsigned long	pid;	/* Process id                               */
+	unsigned long	uid;	/* User id                                  */
+	unsigned long	magic;	/* Magic                                    */
+	unsigned long	iocs;	/* Ioctl count                              */
+} drm_client_t;
 
 typedef enum drm_lock_flags {
 	_DRM_LOCK_READY	     = 0x01, /* Wait until hardware is ready for DMA */
@@ -318,6 +323,8 @@ typedef struct drm_agp_info {
 #define DRM_IOCTL_GET_UNIQUE		DRM_IOWR(0x01, drm_unique_t)
 #define DRM_IOCTL_GET_MAGIC		DRM_IOR( 0x02, drm_auth_t)
 #define DRM_IOCTL_IRQ_BUSID		DRM_IOWR(0x03, drm_irq_busid_t)
+#define DRM_IOCTL_GET_MAP               DRM_IOWR(0x04, drm_map_t)
+#define DRM_IOCTL_GET_CLIENT            DRM_IOWR(0x05, drm_client_t)
 
 #define DRM_IOCTL_SET_UNIQUE		DRM_IOW( 0x10, drm_unique_t)
 #define DRM_IOCTL_AUTH_MAGIC		DRM_IOW( 0x11, drm_auth_t)
