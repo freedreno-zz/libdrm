@@ -33,7 +33,6 @@
 #include <sys/types.h>
 #include <sys/bus.h>
 #include <pci/pcivar.h>
-#include <opt_drm_linux.h>
 
 #include "r128.h"
 #include "drmP.h"

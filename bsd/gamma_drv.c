@@ -32,7 +32,6 @@
 #include <sys/types.h>
 #include <sys/bus.h>
 #include <pci/pcivar.h>
-#include <opt_drm_linux.h>
 #include "gamma.h"
 #include "drmP.h"
 #include "drm.h"

@@ -38,6 +38,13 @@
 #include <pci/agpvar.h>
 #endif
 
+#include <opt_drm.h>
+#if DRM_DEBUG
+#undef  DRM_DEBUG_CODE
+#define DRM_DEBUG_CODE 2
+#endif
+#undef DRM_DEBUG
+
 #define DRM_TIME_SLICE	      (hz/20)  /* Time slice for GLXContexts	  */
 
 #define DRM_DEV_MODE	(S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP)
