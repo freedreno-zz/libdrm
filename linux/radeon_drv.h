@@ -481,6 +481,7 @@ extern int radeon_cp_flip( struct inode *inode, struct file *filp,
 #	define RADEON_CNTL_HOSTDATA_BLT		0x00009400
 #	define RADEON_CNTL_PAINT_MULTI		0x00009A00
 #	define RADEON_CNTL_BITBLT_MULTI		0x00009B00
+#       define RADEON_CCE_SET_SCISSORS          0xC0001E00
 
 #define RADEON_CP_PACKET_MASK		0xC0000000
 #define RADEON_CP_PACKET_COUNT_MASK	0x3fff0000
@@ -560,6 +561,8 @@ extern int radeon_cp_flip( struct inode *inode, struct file *filp,
 #define R200_RE_AUX_SCISSOR_CNTL          0x26f0
 #define R200_SE_VTE_CNTL                  0x20b0
 #define R200_SE_TCL_OUTPUT_VTX_COMP_SEL   0x2250
+#define R200_PP_TAM_DEBUG3                0x2d9c
+
 
 #define SE_VAP_CNTL__TCL_ENA_MASK                          0x00000001
 #define SE_VAP_CNTL__FORCE_W_TO_ONE_MASK                   0x00010000

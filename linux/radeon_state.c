@@ -48,13 +48,21 @@ static inline void radeon_emit_clip_rect( drm_radeon_private_t *dev_priv,
 	DRM_DEBUG( "   box:  x1=%d y1=%d  x2=%d y2=%d\n",
 		   box->x1, box->y1, box->x2, box->y2 );
 
-	BEGIN_RING( 4 );
-	OUT_RING( CP_PACKET0( RADEON_RE_TOP_LEFT, 0 ) );
-	OUT_RING( (box->y1 << 16) | box->x1 );
-	OUT_RING( CP_PACKET0( RADEON_RE_WIDTH_HEIGHT, 0 ) );
-/*	OUT_RING( ((box->y2 - 1) << 16) | (box->x2 - 1) );*/
-	OUT_RING( (box->y2 << 16) | box->x2 );
-	ADVANCE_RING();
+#if 1
+       BEGIN_RING( 4 );
+       OUT_RING( CP_PACKET0( RADEON_RE_TOP_LEFT, 0 ) );
+       OUT_RING( (box->y1 << 16) | box->x1 );
+       OUT_RING( CP_PACKET0( RADEON_RE_WIDTH_HEIGHT, 0 ) );
+/*     OUT_RING( ((box->y2 - 1) << 16) | (box->x2 - 1) );*/
+       OUT_RING( (box->y2 << 16) | box->x2 );
+       ADVANCE_RING();
+#else
+        BEGIN_RING( 3 );
+        OUT_RING( CP_PACKET3( RADEON_CCE_SET_SCISSORS, 1 ));
+        OUT_RING( (box->y1 << 16) | box->x1 );
+        OUT_RING( (box->y2 << 16) | box->x2 );
+        ADVANCE_RING();
+#endif
 }
 
 /* Emit 1.1 state
@@ -271,6 +279,7 @@ static struct {
 	{ R200_PP_TXOFFSET_5, 1, "R200_PP_TXOFFSET_5" },
 	{ R200_SE_VTE_CNTL, 1, "R200_SE_VTE_CNTL" },
 	{ R200_SE_TCL_OUTPUT_VTX_COMP_SEL, 1, "R200_SE_TCL_OUTPUT_VTX_COMP_SEL" },
+	{ R200_PP_TAM_DEBUG3, 1, "R200_PP_TAM_DEBUG3" },
 };
 
 

@@ -118,7 +118,8 @@
 #define R200_EMIT_PP_TXOFFSET_5                     47 /* tex5/1 */
 #define R200_EMIT_VTE_CNTL                          48 /* vte/1 */
 #define R200_EMIT_OUTPUT_VTX_COMP_SEL               49 /* vtx/1 */
-#define RADEON_MAX_STATE_PACKETS                    50
+#define R200_EMIT_PP_TAM_DEBUG3                     50 /* tam/1 */
+#define RADEON_MAX_STATE_PACKETS                    51
 
 
 /* Commands understood by cmd_buffer ioctl.  More can be added but
