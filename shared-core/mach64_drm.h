@@ -3,6 +3,7 @@
  *
  * Copyright 2000 Gareth Hughes
  * Copyright 2002 Frank C. Earl
+ * Copyright 2002-2003 Leif Delgass
  * All Rights Reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -19,7 +20,7 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- * GARETH HUGHES BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+ * THE COPYRIGHT OWNER(S) BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
  * IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  *
@@ -169,7 +170,6 @@ typedef struct drm_mach64_sarea {
 #define DRM_IOCTL_MACH64_FLUSH          DRM_IO(  0x47)
 #define DRM_IOCTL_MACH64_GETPARAM       DRM_IOWR(0x48, drm_mach64_getparam_t)
 
-
 /* Buffer flags for clears
  */
 #define MACH64_FRONT			0x1
@@ -244,7 +244,8 @@ typedef struct drm_mach64_blit {
 
 typedef struct drm_mach64_getparam {
 	enum {
-		MACH64_PARAM_FRAMES_QUEUED = 0x01
+		MACH64_PARAM_FRAMES_QUEUED = 0x01,
+		MACH64_PARAM_IRQ_NR = 0x02
 	} param;
 	int *value;
 } drm_mach64_getparam_t;

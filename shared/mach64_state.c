@@ -2,6 +2,7 @@
  * Created: Sun Dec 03 19:20:26 2000 by gareth@valinux.com
  *
  * Copyright 2000 Gareth Hughes
+ * Copyright 2002-2003 Leif Delgass
  * All Rights Reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -18,7 +19,7 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- * GARETH HUGHES BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+ * THE COPYRIGHT OWNER(S) BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
  * IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  *
@@ -870,14 +871,22 @@ int mach64_get_param( DRM_IOCTL_ARGS )
 
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
-	LOCK_TEST_WITH_RETURN( dev );
+	if ( !dev_priv ) {
+		DRM_ERROR( "%s called with no initialization\n", __FUNCTION__ );
+		return DRM_ERR(EINVAL);
+	}
 
 	DRM_COPY_FROM_USER_IOCTL( param, (drm_mach64_getparam_t *)data,
 	    sizeof(param) );
 
 	switch ( param.param ) {
 	case MACH64_PARAM_FRAMES_QUEUED:
+		/* Needs lock since it calls mach64_ring_tick() */
+		LOCK_TEST_WITH_RETURN( dev );
 		value = mach64_do_get_frames_queued( dev_priv );
+		break;
+	case MACH64_PARAM_IRQ_NR:
+		value = dev->irq;
 		break;
 	default:
 		return DRM_ERR(EINVAL);

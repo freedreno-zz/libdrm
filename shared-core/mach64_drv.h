@@ -3,6 +3,7 @@
  *
  * Copyright 2000 Gareth Hughes
  * Copyright 2002 Frank C. Earl
+ * Copyright 2002-2003 Leif Delgass
  * All Rights Reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -19,7 +20,7 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- * GARETH HUGHES BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+ * THE COPYRIGHT OWNER(S) BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
  * IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  *
@@ -47,7 +48,7 @@ typedef struct drm_mach64_freelist {
 } drm_mach64_freelist_t;
 
 typedef struct drm_mach64_descriptor_ring {
-	dma_addr_t handle;
+	dma_addr_t handle;  /* handle (bus address) of ring returned by pci_alloc_consistent() */
 	void *start;        /* write pointer (cpu address) to start of descriptor ring */
 	u32 start_addr;     /* bus address of beginning of descriptor ring */
        	int size;           /* size of ring in bytes */
@@ -68,11 +69,6 @@ typedef struct drm_mach64_private {
 	drm_mach64_dma_mode_t driver_mode;
 
 	int usec_timeout;      /* Number of microseconds to wait in the idle functions */
-
-#if MACH64_INTERRUPTS
-	atomic_t intr_vblank;       /* Flag for the bottom half to know what to do */
-	atomic_t intr_bm_complete;  /* Flag for the bottom half to know what to do */
-#endif
 
 	/* DMA descriptor table (ring buffer) */
 	drm_mach64_descriptor_ring_t ring;
@@ -373,25 +369,73 @@ extern int mach64_get_param( DRM_IOCTL_ARGS );
 #	define MACH64_CRTC_CRNT_VLINE_MASK		0x07ff0000
 #define MACH64_CRTC_OFF_PITCH			0x0414
 #define MACH64_CRTC_INT_CNTL			0x0418
+#	define MACH64_CRTC_VBLANK			(1 << 0)
 #	define MACH64_CRTC_VBLANK_INT_EN		(1 << 1)
 #	define MACH64_CRTC_VBLANK_INT			(1 << 2)
-#	define MACH64_CRTC_VBLANK_INT_AK		(1 << 2)
 #	define MACH64_CRTC_VLINE_INT_EN			(1 << 3)
 #	define MACH64_CRTC_VLINE_INT			(1 << 4)
-#	define MACH64_CRTC_VLINE_INT_AK			(1 << 4)
-#	define MACH64_CRTC_VLINE_SYNC			(1 << 5)
-#	define MACH64_CRTC_FRAME			(1 << 6)
+#	define MACH64_CRTC_VLINE_SYNC			(1 << 5) /* 0=even, 1=odd */
+#	define MACH64_CRTC_FRAME			(1 << 6) /* 0=even, 1=odd */
 #	define MACH64_CRTC_SNAPSHOT_INT_EN		(1 << 7)
 #	define MACH64_CRTC_SNAPSHOT_INT			(1 << 8)
-#	define MACH64_CRTC_SNAPSHOT_INT_AK		(1 << 8)
+#	define MACH64_CRTC_I2C_INT_EN			(1 << 9)
+#	define MACH64_CRTC_I2C_INT			(1 << 10)
+#	define MACH64_CRTC2_VBLANK			(1 << 11) /* LT Pro */
+#	define MACH64_CRTC2_VBLANK_INT_EN		(1 << 12) /* LT Pro */
+#	define MACH64_CRTC2_VBLANK_INT			(1 << 13) /* LT Pro */
+#	define MACH64_CRTC2_VLINE_INT_EN		(1 << 14) /* LT Pro */
+#	define MACH64_CRTC2_VLINE_INT			(1 << 15) /* LT Pro */
+#	define MACH64_CRTC_CAPBUF0_INT_EN		(1 << 16)
+#	define MACH64_CRTC_CAPBUF0_INT			(1 << 17)
+#	define MACH64_CRTC_CAPBUF1_INT_EN		(1 << 18)
+#	define MACH64_CRTC_CAPBUF1_INT			(1 << 19)
+#	define MACH64_CRTC_OVERLAY_EOF_INT_EN		(1 << 20)
+#	define MACH64_CRTC_OVERLAY_EOF_INT		(1 << 21)
+#	define MACH64_CRTC_ONESHOT_CAP_INT_EN		(1 << 22)
+#	define MACH64_CRTC_ONESHOT_CAP_INT		(1 << 23)
 #	define MACH64_CRTC_BUSMASTER_EOL_INT_EN		(1 << 24)
 #	define MACH64_CRTC_BUSMASTER_EOL_INT		(1 << 25)
-#	define MACH64_CRTC_BUSMASTER_EOL_INT_AK		(1 << 25)
 #	define MACH64_CRTC_GP_INT_EN			(1 << 26)
 #	define MACH64_CRTC_GP_INT			(1 << 27)
-#	define MACH64_CRTC_GP_INT_AK			(1 << 27)
+#	define MACH64_CRTC2_VLINE_SYNC			(1 << 28) /* LT Pro */  /* 0=even, 1=odd */
+#	define MACH64_CRTC_SNAPSHOT2_INT_EN		(1 << 29) /* LT Pro */
+#	define MACH64_CRTC_SNAPSHOT2_INT		(1 << 30) /* LT Pro */
 #	define MACH64_CRTC_VBLANK2_INT			(1 << 31)
-#	define MACH64_CRTC_VBLANK2_INT_AK		(1 << 31)
+#	define MACH64_CRTC_INT_ENS				\
+		(						\
+			MACH64_CRTC_VBLANK_INT_EN |		\
+			MACH64_CRTC_VLINE_INT_EN |		\
+			MACH64_CRTC_SNAPSHOT_INT_EN |		\
+			MACH64_CRTC_I2C_INT_EN |		\
+			MACH64_CRTC2_VBLANK_INT_EN |		\
+			MACH64_CRTC2_VLINE_INT_EN |		\
+			MACH64_CRTC_CAPBUF0_INT_EN |		\
+			MACH64_CRTC_CAPBUF1_INT_EN |		\
+			MACH64_CRTC_OVERLAY_EOF_INT_EN |	\
+			MACH64_CRTC_ONESHOT_CAP_INT_EN |	\
+			MACH64_CRTC_BUSMASTER_EOL_INT_EN |	\
+			MACH64_CRTC_GP_INT_EN |			\
+			MACH64_CRTC_SNAPSHOT2_INT_EN |		\
+			0					\
+		)
+#	define MACH64_CRTC_INT_ACKS			\
+		(					\
+			MACH64_CRTC_VBLANK_INT |	\
+			MACH64_CRTC_VLINE_INT |		\
+			MACH64_CRTC_SNAPSHOT_INT |	\
+			MACH64_CRTC_I2C_INT |		\
+			MACH64_CRTC2_VBLANK_INT |	\
+			MACH64_CRTC2_VLINE_INT |	\
+			MACH64_CRTC_CAPBUF0_INT |	\
+			MACH64_CRTC_CAPBUF1_INT |	\
+			MACH64_CRTC_OVERLAY_EOF_INT |	\
+			MACH64_CRTC_ONESHOT_CAP_INT |	\
+			MACH64_CRTC_BUSMASTER_EOL_INT |	\
+			MACH64_CRTC_GP_INT |		\
+			MACH64_CRTC_SNAPSHOT2_INT |	\
+			MACH64_CRTC_VBLANK2_INT |	\
+			0				\
+		)
 
 #define MACH64_DATATYPE_CI8				2
 #define MACH64_DATATYPE_ARGB1555			3
@@ -428,185 +472,6 @@ extern int mach64_get_param( DRM_IOCTL_ARGS );
 #define MMSELECT(r)	(ISMMREG0(r) ? MMSELECT0(r) : MMSELECT1(r))
 
 /* ================================================================
- * Misc helper macros
- */
-
-static inline void mach64_ring_start( drm_mach64_private_t *dev_priv )
-{
-	drm_mach64_descriptor_ring_t *ring = &dev_priv->ring;
-	
-	DRM_DEBUG( "%s: head_addr: 0x%08x head: %d tail: %d space: %d\n",
-		   __FUNCTION__, 
-		   ring->head_addr, ring->head, ring->tail, ring->space );
-
-	if ( mach64_do_wait_for_idle( dev_priv ) < 0 ) {
-		mach64_do_engine_reset( dev_priv );
-	}
-
-	if (dev_priv->driver_mode != MACH64_MODE_MMIO ) {
-		/* enable bus mastering and block 1 registers */
-		MACH64_WRITE( MACH64_BUS_CNTL, 
-			      ( MACH64_READ(MACH64_BUS_CNTL) & 	~MACH64_BUS_MASTER_DIS ) 
-			      | MACH64_BUS_EXT_REG_EN );
-	}
-
-	mach64_do_wait_for_idle( dev_priv );
-	
-	/* reset descriptor table ring head */
-	MACH64_WRITE( MACH64_BM_GUI_TABLE_CMD, 
-		      ring->head_addr | MACH64_CIRCULAR_BUF_SIZE_16KB );
-	
-	dev_priv->ring_running = 1;
-}
-
-static inline void mach64_ring_resume( drm_mach64_private_t *dev_priv, 
-				       drm_mach64_descriptor_ring_t *ring )
-{
-	DRM_DEBUG( "%s: head_addr: 0x%08x head: %d tail: %d space: %d\n",
-		   __FUNCTION__, 
-		   ring->head_addr, ring->head, ring->tail, ring->space );
-
-	/* reset descriptor table ring head */
-	MACH64_WRITE( MACH64_BM_GUI_TABLE_CMD, 
-		      ring->head_addr | MACH64_CIRCULAR_BUF_SIZE_16KB );
-
-	if ( dev_priv->driver_mode == MACH64_MODE_MMIO ) {
-		mach64_do_dispatch_pseudo_dma( dev_priv );
-	} else {
-		/* enable GUI bus mastering, and sync the bus master to the GUI */
-		MACH64_WRITE( MACH64_SRC_CNTL, 
-			      MACH64_SRC_BM_ENABLE | MACH64_SRC_BM_SYNC |
-			      MACH64_SRC_BM_OP_SYSTEM_TO_REG );
-
-		/* kick off the transfer */
-		MACH64_WRITE( MACH64_DST_HEIGHT_WIDTH, 0 );
-		if ( dev_priv->driver_mode == MACH64_MODE_DMA_SYNC ) {
-			if ( (mach64_do_wait_for_idle( dev_priv )) < 0 ) {
-				DRM_ERROR( "%s: idle failed, resetting engine\n", 
-					   __FUNCTION__);
-				mach64_dump_engine_info( dev_priv );
-				mach64_do_engine_reset( dev_priv );
-				return;
-			}
-			mach64_do_release_used_buffers( dev_priv );
-		}
-	}
-}
-
-static inline void mach64_ring_tick( drm_mach64_private_t *dev_priv, 
-				     drm_mach64_descriptor_ring_t *ring )
-{
-	DRM_DEBUG( "%s: head_addr: 0x%08x head: %d tail: %d space: %d\n",
-		   __FUNCTION__, 
-		   ring->head_addr, ring->head, ring->tail, ring->space );
-
-	if ( !dev_priv->ring_running ) {
-		mach64_ring_start( dev_priv );
-		
-		if ( ring->head != ring->tail ) {
-			mach64_ring_resume( dev_priv, ring );
-		}
-	} else {
-		/* GUI_ACTIVE must be read before BM_GUI_TABLE to 
-		 * correctly determine the ring head 
-		 */
-		int gui_active = MACH64_READ(MACH64_GUI_STAT) & MACH64_GUI_ACTIVE;
-		
-		ring->head_addr = MACH64_READ(MACH64_BM_GUI_TABLE) & 0xfffffff0;
-		
-		if ( gui_active ) {
-			/* If not idle, BM_GUI_TABLE points one descriptor 
-			 * past the current head 
-			 */
-			if ( ring->head_addr == ring->start_addr ) {
-				ring->head_addr += ring->size;
-			}
-			ring->head_addr -= 4 * sizeof(u32);
-		}
-
-		if( ring->head_addr < ring->start_addr || 
-		    ring->head_addr >= ring->start_addr + ring->size ) {
-			DRM_ERROR( "bad ring head address: 0x%08x\n", ring->head_addr );
-			mach64_dump_ring_info( dev_priv );
-			mach64_do_engine_reset( dev_priv );
-			return;
-		}
-	
-		ring->head = (ring->head_addr - ring->start_addr) / sizeof(u32);
-		
-		if ( !gui_active && ring->head != ring->tail ) {
-			mach64_ring_resume( dev_priv, ring );
-		}
-	}
-}
-
-static inline void mach64_ring_stop( drm_mach64_private_t *dev_priv )
-{
-	DRM_DEBUG( "%s: head_addr: 0x%08x head: %d tail: %d space: %d\n",
-		   __FUNCTION__, 
-		   dev_priv->ring.head_addr, dev_priv->ring.head, 
-		   dev_priv->ring.tail, dev_priv->ring.space );
-
-	/* restore previous SRC_CNTL to disable busmastering */
-	mach64_do_wait_for_fifo( dev_priv, 1 );
-	MACH64_WRITE( MACH64_SRC_CNTL, 0 );
-
-	/* disable busmastering but keep the block 1 registers enabled */ 
-	mach64_do_wait_for_idle( dev_priv );
-	MACH64_WRITE( MACH64_BUS_CNTL, MACH64_READ( MACH64_BUS_CNTL ) 
-		      | MACH64_BUS_MASTER_DIS | MACH64_BUS_EXT_REG_EN );
-		
-	dev_priv->ring_running = 0;
-}
-
-static inline void
-mach64_update_ring_snapshot( drm_mach64_private_t *dev_priv )
-{
-	drm_mach64_descriptor_ring_t *ring = &dev_priv->ring;
-
-	DRM_DEBUG( "%s\n", __FUNCTION__ );
-	
-	mach64_ring_tick( dev_priv, ring );
-
-	ring->space = (ring->head - ring->tail) * sizeof(u32);
-	if ( ring->space <= 0 ) {
-		ring->space += ring->size;
-	}
-}
-
-#define LOCK_TEST_WITH_RETURN( dev )					\
-do {									\
-	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||		\
-	     dev->lock.pid != DRM_CURRENTPID ) {			\
-		DRM_ERROR( "%s called without lock held\n",		\
-			   __FUNCTION__ );				\
-		return DRM_ERR(EINVAL);					\
-	}								\
-} while (0)
-
-/* FIXME: right now this is needed to ensure free buffers for state emits */
-/* CHECKME: I've disabled this as it isn't necessary - we already wait for free buffers */
-#define RING_SPACE_TEST_WITH_RETURN( dev_priv )
-
-#define RING_SPACE_TEST_WITH_RETURN_( dev_priv )					\
-do {											\
-	drm_mach64_descriptor_ring_t *ring = &dev_priv->ring; int i;			\
-	if ( ring->space < ring->high_mark ) {						\
-		for ( i = 0 ; i < dev_priv->usec_timeout ; i++ ) {			\
-			mach64_update_ring_snapshot( dev_priv );			\
-			if ( ring->space >= ring->high_mark )				\
-				goto __ring_space_done;					\
-			DRM_UDELAY( 1 );							\
-		}									\
-		DRM_ERROR( "ring space check failed!\n" );				\
-		DRM_INFO( "ring: head addr: 0x%08x head: %d tail: %d space: %d\n", 	\
-			ring->head_addr, ring->head, ring->tail, ring->space );		\
-		return DRM_ERR(EBUSY);							\
-	}										\
- __ring_space_done:									\
-} while (0)
-
-/* ================================================================
  * DMA constants
  */
 
@@ -626,46 +491,55 @@ do {											\
 #define MACH64_DMA_CHUNKSIZE	        0x1000   /* 4kB per DMA descriptor */
 #define MACH64_APERTURE_OFFSET	        0x7ff800 /* frame-buffer offset for gui-masters */
 
+
 /* ================================================================
- * DMA descriptor ring macros
+ * Misc helper macros
  */
 
-#define RING_LOCALS									\
-	int _ring_tail, _ring_write; unsigned int _ring_mask; volatile u32 *_ring
+static __inline__ void mach64_set_dma_eol( volatile u32 * addr )
+{
+#if defined(__i386__)
+	int nr = 31;
+	
+	/* Taken from include/asm-i386/bitops.h linux header */
+        __asm__ __volatile__( "lock;"
+                "btsl %1,%0"
+                :"=m" (*addr)
+                :"Ir" (nr));
+#elif defined(__powerpc__)
+	u32 old;
+	u32 mask = cpu_to_le32( MACH64_DMA_EOL );
 
-#define RING_WRITE_OFS  _ring_write
+	/* Taken from the include/asm-ppc/bitops.h linux header */
+	__asm__ __volatile__("\n\
+1:	lwarx	%0,0,%3 \n\
+	or	%0,%0,%2 \n\
+	stwcx.	%0,0,%3 \n\
+	bne-	1b"
+	: "=&r" (old), "=m" (*addr)
+	: "r" (mask), "r" (addr), "m" (*addr)
+	: "cc");
+#elif defined(__alpha__)
+	u32 temp;
+	u32 mask = MACH64_DMA_EOL;
 
-#define BEGIN_RING( n ) 								\
-do {											\
-	if ( MACH64_VERBOSE ) {								\
-		DRM_INFO( "BEGIN_RING( %d ) in %s\n",					\
-			   (n), __FUNCTION__ );						\
-	}										\
-	if ( dev_priv->ring.space <= (n) * sizeof(u32) ) {				\
-		int ret;								\
-		if ((ret=mach64_wait_ring( dev_priv, (n) * sizeof(u32))) < 0 ) {	\
-			DRM_ERROR( "wait_ring failed, resetting engine\n");		\
-			mach64_dump_engine_info( dev_priv );				\
-			mach64_do_engine_reset( dev_priv );				\
-			return ret;							\
-		}									\
-	}										\
-	dev_priv->ring.space -= (n) * sizeof(u32);					\
-	_ring = (u32 *) dev_priv->ring.start;						\
-	_ring_tail = _ring_write = dev_priv->ring.tail;					\
-	_ring_mask = dev_priv->ring.tail_mask;						\
-} while (0)
+	/* Taken from the include/asm-alpha/bitops.h linux header */
+	__asm__ __volatile__(
+	"1:	ldl_l %0,%3\n"
+	"	bis %0,%2,%0\n"
+	"	stl_c %0,%1\n"
+	"	beq %0,2f\n"
+	".subsection 2\n"
+	"2:	br 1b\n"
+	".previous"
+	:"=&r" (temp), "=m" (*addr)
+	:"Ir" (mask), "m" (*addr));
+#else
+	u32 mask = cpu_to_le32( MACH64_DMA_EOL );
 
-#define OUT_RING( x )						\
-do {								\
-	if ( MACH64_VERBOSE ) {					\
-		DRM_INFO( "   OUT_RING( 0x%08x ) at 0x%x\n",	\
-			   (unsigned int)(x), _ring_write );	\
-	}							\
-	_ring[_ring_write++] = cpu_to_le32( x );		\
-	_ring_write &= _ring_mask;				\
-} while (0)
-
+	*addr |= mask;
+#endif
+}
 
 static __inline__ void mach64_clear_dma_eol( volatile u32 * addr )
 {
@@ -712,6 +586,221 @@ static __inline__ void mach64_clear_dma_eol( volatile u32 * addr )
 #endif
 }
 
+static __inline__ void mach64_ring_start( drm_mach64_private_t *dev_priv )
+{
+	drm_mach64_descriptor_ring_t *ring = &dev_priv->ring;
+	
+	DRM_DEBUG( "%s: head_addr: 0x%08x head: %d tail: %d space: %d\n",
+		   __FUNCTION__, 
+		   ring->head_addr, ring->head, ring->tail, ring->space );
+
+	if ( mach64_do_wait_for_idle( dev_priv ) < 0 ) {
+		mach64_do_engine_reset( dev_priv );
+	}
+
+	if (dev_priv->driver_mode != MACH64_MODE_MMIO ) {
+		/* enable bus mastering and block 1 registers */
+		MACH64_WRITE( MACH64_BUS_CNTL, 
+			      ( MACH64_READ(MACH64_BUS_CNTL) & 	~MACH64_BUS_MASTER_DIS ) 
+			      | MACH64_BUS_EXT_REG_EN );
+		mach64_do_wait_for_idle( dev_priv );
+	}
+	
+	/* reset descriptor table ring head */
+	MACH64_WRITE( MACH64_BM_GUI_TABLE_CMD, 
+		      ring->head_addr | MACH64_CIRCULAR_BUF_SIZE_16KB );
+	
+	dev_priv->ring_running = 1;
+}
+
+static __inline__ void mach64_ring_resume( drm_mach64_private_t *dev_priv, 
+				       drm_mach64_descriptor_ring_t *ring )
+{
+	DRM_DEBUG( "%s: head_addr: 0x%08x head: %d tail: %d space: %d\n",
+		   __FUNCTION__, 
+		   ring->head_addr, ring->head, ring->tail, ring->space );
+
+	/* reset descriptor table ring head */
+	MACH64_WRITE( MACH64_BM_GUI_TABLE_CMD, 
+		      ring->head_addr | MACH64_CIRCULAR_BUF_SIZE_16KB );
+
+	if ( dev_priv->driver_mode == MACH64_MODE_MMIO ) {
+		mach64_do_dispatch_pseudo_dma( dev_priv );
+	} else {
+		/* enable GUI bus mastering, and sync the bus master to the GUI */
+		MACH64_WRITE( MACH64_SRC_CNTL, 
+			      MACH64_SRC_BM_ENABLE | MACH64_SRC_BM_SYNC |
+			      MACH64_SRC_BM_OP_SYSTEM_TO_REG );
+
+		/* kick off the transfer */
+		MACH64_WRITE( MACH64_DST_HEIGHT_WIDTH, 0 );
+		if ( dev_priv->driver_mode == MACH64_MODE_DMA_SYNC ) {
+			if ( (mach64_do_wait_for_idle( dev_priv )) < 0 ) {
+				DRM_ERROR( "%s: idle failed, resetting engine\n", 
+					   __FUNCTION__);
+				mach64_dump_engine_info( dev_priv );
+				mach64_do_engine_reset( dev_priv );
+				return;
+			}
+			mach64_do_release_used_buffers( dev_priv );
+		}
+	}
+}
+
+static __inline__ void mach64_ring_tick( drm_mach64_private_t *dev_priv, 
+				     drm_mach64_descriptor_ring_t *ring )
+{
+	DRM_DEBUG( "%s: head_addr: 0x%08x head: %d tail: %d space: %d\n",
+		   __FUNCTION__, 
+		   ring->head_addr, ring->head, ring->tail, ring->space );
+
+	if ( !dev_priv->ring_running ) {
+		mach64_ring_start( dev_priv );
+		
+		if ( ring->head != ring->tail ) {
+			mach64_ring_resume( dev_priv, ring );
+		}
+	} else {
+		/* GUI_ACTIVE must be read before BM_GUI_TABLE to 
+		 * correctly determine the ring head 
+		 */
+		int gui_active = MACH64_READ(MACH64_GUI_STAT) & MACH64_GUI_ACTIVE;
+		
+		ring->head_addr = MACH64_READ(MACH64_BM_GUI_TABLE) & 0xfffffff0;
+		
+		if ( gui_active ) {
+			/* If not idle, BM_GUI_TABLE points one descriptor 
+			 * past the current head 
+			 */
+			if ( ring->head_addr == ring->start_addr ) {
+				ring->head_addr += ring->size;
+			}
+			ring->head_addr -= 4 * sizeof(u32);
+		}
+
+		if( ring->head_addr < ring->start_addr || 
+		    ring->head_addr >= ring->start_addr + ring->size ) {
+			DRM_ERROR( "bad ring head address: 0x%08x\n", ring->head_addr );
+			mach64_dump_ring_info( dev_priv );
+			mach64_do_engine_reset( dev_priv );
+			return;
+		}
+	
+		ring->head = (ring->head_addr - ring->start_addr) / sizeof(u32);
+		
+		if ( !gui_active && ring->head != ring->tail ) {
+			mach64_ring_resume( dev_priv, ring );
+		}
+	}
+}
+
+static __inline__ void mach64_ring_stop( drm_mach64_private_t *dev_priv )
+{
+	DRM_DEBUG( "%s: head_addr: 0x%08x head: %d tail: %d space: %d\n",
+		   __FUNCTION__, 
+		   dev_priv->ring.head_addr, dev_priv->ring.head, 
+		   dev_priv->ring.tail, dev_priv->ring.space );
+
+	/* restore previous SRC_CNTL to disable busmastering */
+	mach64_do_wait_for_fifo( dev_priv, 1 );
+	MACH64_WRITE( MACH64_SRC_CNTL, 0 );
+
+	/* disable busmastering but keep the block 1 registers enabled */ 
+	mach64_do_wait_for_idle( dev_priv );
+	MACH64_WRITE( MACH64_BUS_CNTL, MACH64_READ( MACH64_BUS_CNTL ) 
+		      | MACH64_BUS_MASTER_DIS | MACH64_BUS_EXT_REG_EN );
+		
+	dev_priv->ring_running = 0;
+}
+
+static __inline__ void
+mach64_update_ring_snapshot( drm_mach64_private_t *dev_priv )
+{
+	drm_mach64_descriptor_ring_t *ring = &dev_priv->ring;
+
+	DRM_DEBUG( "%s\n", __FUNCTION__ );
+	
+	mach64_ring_tick( dev_priv, ring );
+
+	ring->space = (ring->head - ring->tail) * sizeof(u32);
+	if ( ring->space <= 0 ) {
+		ring->space += ring->size;
+	}
+}
+
+#define LOCK_TEST_WITH_RETURN( dev )					\
+do {									\
+	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||		\
+	     dev->lock.pid != DRM_CURRENTPID ) {			\
+		DRM_ERROR( "%s called without lock held\n",		\
+			   __FUNCTION__ );				\
+		return DRM_ERR(EINVAL);					\
+	}								\
+} while (0)
+
+/* FIXME: right now this is needed to ensure free buffers for state emits */
+/* CHECKME: I've disabled this as it isn't necessary - we already wait for free buffers */
+#define RING_SPACE_TEST_WITH_RETURN( dev_priv )
+
+#define RING_SPACE_TEST_WITH_RETURN_( dev_priv )					\
+do {											\
+	drm_mach64_descriptor_ring_t *ring = &dev_priv->ring; int i;			\
+	if ( ring->space < ring->high_mark ) {						\
+		for ( i = 0 ; i < dev_priv->usec_timeout ; i++ ) {			\
+			mach64_update_ring_snapshot( dev_priv );			\
+			if ( ring->space >= ring->high_mark )				\
+				goto __ring_space_done;					\
+			DRM_UDELAY( 1 );							\
+		}									\
+		DRM_ERROR( "ring space check failed!\n" );				\
+		DRM_INFO( "ring: head addr: 0x%08x head: %d tail: %d space: %d\n", 	\
+			ring->head_addr, ring->head, ring->tail, ring->space );		\
+		return DRM_ERR(EBUSY);							\
+	}										\
+ __ring_space_done:									\
+} while (0)
+
+
+/* ================================================================
+ * DMA descriptor ring macros
+ */
+
+#define RING_LOCALS									\
+	int _ring_tail, _ring_write; unsigned int _ring_mask; volatile u32 *_ring
+
+#define RING_WRITE_OFS  _ring_write
+
+#define BEGIN_RING( n ) 								\
+do {											\
+	if ( MACH64_VERBOSE ) {								\
+		DRM_INFO( "BEGIN_RING( %d ) in %s\n",					\
+			   (n), __FUNCTION__ );						\
+	}										\
+	if ( dev_priv->ring.space <= (n) * sizeof(u32) ) {				\
+		int ret;								\
+		if ((ret=mach64_wait_ring( dev_priv, (n) * sizeof(u32))) < 0 ) {	\
+			DRM_ERROR( "wait_ring failed, resetting engine\n");		\
+			mach64_dump_engine_info( dev_priv );				\
+			mach64_do_engine_reset( dev_priv );				\
+			return ret;							\
+		}									\
+	}										\
+	dev_priv->ring.space -= (n) * sizeof(u32);					\
+	_ring = (u32 *) dev_priv->ring.start;						\
+	_ring_tail = _ring_write = dev_priv->ring.tail;					\
+	_ring_mask = dev_priv->ring.tail_mask;						\
+} while (0)
+
+#define OUT_RING( x )						\
+do {								\
+	if ( MACH64_VERBOSE ) {					\
+		DRM_INFO( "   OUT_RING( 0x%08x ) at 0x%x\n",	\
+			   (unsigned int)(x), _ring_write );	\
+	}							\
+	_ring[_ring_write++] = cpu_to_le32( x );		\
+	_ring_write &= _ring_mask;				\
+} while (0)
+
 #define ADVANCE_RING() 							\
 do {									\
 	if ( MACH64_VERBOSE ) {						\
@@ -747,7 +836,7 @@ do {									\
 
 #define GETRINGOFFSET() (_entry->ring_ofs)
 
-static inline int mach64_find_pending_buf_entry ( drm_mach64_private_t *dev_priv, 
+static __inline__ int mach64_find_pending_buf_entry ( drm_mach64_private_t *dev_priv, 
 						  drm_mach64_freelist_t **entry, 
 						  drm_buf_t *buf )
 {

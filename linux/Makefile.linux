@@ -58,7 +58,7 @@ R128HEADERS =	r128.h r128_drv.h r128_drm.h $(DRMHEADERS) $(DRMTEMPLATES)
 RADEONOBJS =	radeon_drv.o radeon_cp.o radeon_state.o radeon_mem.o radeon_irq.o
 RADEONHEADERS =	radeon.h radeon_drv.h radeon_drm.h $(DRMHEADERS) \
 		$(DRMTEMPLATES)
-MACH64OBJS=	mach64_drv.o mach64_dma.o mach64_state.o
+MACH64OBJS=	mach64_drv.o mach64_dma.o mach64_irq.o mach64_state.o
 MACH64HEADERS=  mach64.h mach64_drv.h mach64_drm.h $(DRMHEADERS) $(DRMTEMPLATES)
 
 INC =		/usr/include

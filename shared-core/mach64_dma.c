@@ -3,6 +3,7 @@
  *
  * Copyright 2000 Gareth Hughes
  * Copyright 2002 Frank C. Earl
+ * Copyright 2002-2003 Leif Delgass
  * All Rights Reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -19,7 +20,7 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- * GARETH HUGHES BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+ * THE COPYRIGHT OWNER(S) BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
  * IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  *
@@ -36,94 +37,6 @@
 #include "mach64_drm.h"
 #include "mach64_drv.h"
 
-
-#if MACH64_INTERRUPTS
-
-static DECLARE_WAIT_QUEUE_HEAD(read_wait);
-
-
-/* ================================================================
- * Interrupt service routine and bottom half - currently unused
- */
-
-void mach64_dma_service(int irq, void *device, struct pt_regs *regs)
-{
-        drm_device_t *dev = (drm_device_t *) device;
-	drm_mach64_private_t *dev_priv = (drm_mach64_private_t *)dev->dev_private;
-        
-        unsigned int flags;
-
-        /* Check to see if we've been interrupted for VBLANK or the BLIT completion
-           and ack the interrupt accordingly...  Set flags for the handler to 
-           know that it needs to process accordingly... */
-
-        flags = MACH64_READ(MACH64_CRTC_INT_CNTL);
-	if (flags & MACH64_CRTC_VBLANK_INT)
-        {                
-                /* VBLANK -- GUI-master dispatch and polling... */
-                MACH64_WRITE(MACH64_CRTC_INT_CNTL, flags | MACH64_CRTC_VBLANK_INT_AK);
-                atomic_inc(&dev_priv->intr_vblank);
-	}
-	if (flags & MACH64_CRTC_BUSMASTER_EOL_INT)
-        {                
-                /* Completion of BM_SYSTEM_TABLE system bus master */
-                MACH64_WRITE(MACH64_CRTC_INT_CNTL, flags | MACH64_CRTC_BUSMASTER_EOL_INT_AK);
-                atomic_inc(&dev_priv->intr_bm_complete);
-        }
-        /* Check for an error condition in the engine...  */
-        if (MACH64_READ(MACH64_FIFO_STAT) & 0x80000000) 
-        {
-                /* This would be a failure to maintain FIFO discipline
-                   per the SDK sources.   Need to reset... */
-                mach64_do_engine_reset(dev_priv);
-        }
-#if 0
-	/* According to reg. ref this bit is BUS_MSTR_RD_LINE and on my
-	 * card (LT Pro), it's set by default (LLD)
-	 */
-        if (MACH64_READ(MACH64_BUS_CNTL) & 0x00200000)
-        {
-                /* This would be a host data error, per information from
-                   Vernon Chiang @ ATI (Thanks, Vernon!).  Need to reset... */
-                mach64_do_engine_reset(dev_priv);
-        }
-#endif
-        /* Ok, now that we've gotten that out of the way, schedule the bottom half accordingly... */
-	queue_task(&dev->tq, &tq_immediate);
-	mark_bh(IMMEDIATE_BH);
-        
-        return;
-}
-
-/* Bottom half - handle the interrupts acknowleded by the service routine */
-void mach64_dma_immediate_bh(void *device)
-{
-        drm_device_t *dev = (drm_device_t *) device;
-        drm_mach64_private_t *dev_priv = (drm_mach64_private_t *)dev->dev_private;
-
-        /* Received system bus master completion interrupt */
-        if (atomic_read(&dev_priv->intr_bm_complete) > 0)
-        {
-                atomic_set(&dev_priv->intr_bm_complete, 0);
-
-		/* TODO: handler code */
-
-        }
-
-        /* Received VBLANK interrupt */
-        if (atomic_read(&dev_priv->intr_vblank) > 0)
-        {
-		atomic_set(&dev_priv->intr_vblank, 0);
-
-		/* TODO: handler code */
-
-        }
-
-        wake_up_interruptible(&read_wait);
-        return;
-}
-
-#endif /* MACH64_INTERRUPTS */
 
 /* ================================================================
  * Engine, FIFO control
@@ -173,7 +86,7 @@ int mach64_wait_ring( drm_mach64_private_t *dev_priv, int n )
 		mach64_update_ring_snapshot( dev_priv );
 		if ( ring->space >= n ) {
 			if (i > 0) {
-				DRM_DEBUG( "wait_ring: %d usecs\n", i );
+				DRM_DEBUG( "%s: %d usecs\n", __FUNCTION__, i );
 			}
 			return 0;
 		}
@@ -200,7 +113,7 @@ static int mach64_ring_idle( drm_mach64_private_t *dev_priv )
 		if ( ring->head == ring->tail && 
 		     !(MACH64_READ(MACH64_GUI_STAT) & MACH64_GUI_ACTIVE) ) {
 			if (i > 0) {
-				DRM_DEBUG( "mach64_ring_idle: %d usecs\n", i );
+				DRM_DEBUG( "%s: %d usecs\n", __FUNCTION__, i );
 			}
 			return 0;
 		} 
@@ -248,7 +161,7 @@ int mach64_do_dma_idle( drm_mach64_private_t *dev_priv ) {
 
 	/* wait for completion */
 	if ( (ret = mach64_ring_idle( dev_priv )) < 0 ) {
-		DRM_ERROR( "%s failed BM_GUI_TABLE=0x%08x tail: %d\n", __FUNCTION__, 
+		DRM_ERROR( "%s failed BM_GUI_TABLE=0x%08x tail: %u\n", __FUNCTION__, 
 			   MACH64_READ(MACH64_BM_GUI_TABLE), dev_priv->ring.tail );
 		return ret;
 	}
@@ -449,7 +362,7 @@ void mach64_dump_ring_info( drm_mach64_private_t *dev_priv )
 	DRM_INFO( "\n" );
 	
 	DRM_INFO("ring contents:\n");
-	DRM_INFO("  head_addr: 0x%08x head: %d tail: %d\n\n", 
+	DRM_INFO("  head_addr: 0x%08x head: %u tail: %u\n\n", 
 		 ring->head_addr, ring->head, ring->tail );
 	
 	skipped = 0;
@@ -729,18 +642,10 @@ static int mach64_do_dma_init( drm_device_t *dev, drm_mach64_init_t *init )
 
 	dev_priv->usec_timeout		= 1000000;
 
-	/* Set up the freelist, placeholder list, pending list, and DMA request queue... */
+	/* Set up the freelist, placeholder list and pending list */
 	INIT_LIST_HEAD(&dev_priv->free_list);
 	INIT_LIST_HEAD(&dev_priv->placeholders);
 	INIT_LIST_HEAD(&dev_priv->pending);
-
-#if MACH64_INTERRUPTS
-        /* Set up for interrupt handling proper- clear state on the handler
-	 * The handler is enabled by the DDX via the DRM(control) ioctl once we return 
-	 */
-        atomic_set(&dev_priv->intr_vblank, 0);                
-        atomic_set(&dev_priv->intr_bm_complete, 0);                
-#endif
 
 	DRM_GETSAREA();
 
@@ -898,8 +803,12 @@ static int mach64_do_dma_init( drm_device_t *dev, drm_mach64_init_t *init )
 		dev_priv->frame_ofs[i] = ~0; /* All ones indicates placeholder */
 	}
 
-	/* Set up the freelist, placeholder list, pending, and DMA request queues... */
-	mach64_init_freelist( dev );
+	/* Allocate the DMA buffer freelist */
+	if ( (ret=mach64_init_freelist( dev )) ) {
+		DRM_ERROR("Freelist allocation failed\n");
+		mach64_do_cleanup_dma( dev );
+		return ret;
+	}
 
 	return 0;
 }
@@ -934,7 +843,7 @@ int mach64_do_dispatch_pseudo_dma( drm_mach64_private_t *dev_priv )
 
 	while ( ring->tail != ring->head ) {
 		u32 buf_addr, new_target, offset; 
-		int bytes, remaining, head, eol;
+		u32 bytes, remaining, head, eol;
 
 		head = ring->head;
 
@@ -968,7 +877,7 @@ int mach64_do_dispatch_pseudo_dma( drm_mach64_private_t *dev_priv )
 		}
 
 		if (!found || buf == NULL) {
-			DRM_ERROR("Couldn't find pending buffer: head: %d tail: %d buf_addr: 0x%08x %s\n",
+			DRM_ERROR("Couldn't find pending buffer: head: %u tail: %u buf_addr: 0x%08x %s\n",
 				  head, ring->tail, buf_addr, (eol ? "eol" : ""));
 			mach64_dump_ring_info( dev_priv );
 			mach64_do_engine_reset( dev_priv );
@@ -980,7 +889,7 @@ int mach64_do_dispatch_pseudo_dma( drm_mach64_private_t *dev_priv )
 		 */
 		DRM_DEBUG("target: (0x%08x) %s\n", target, 
 				 (target == MACH64_BM_HOSTDATA ? "BM_HOSTDATA" : "BM_ADDR"));
-		DRM_DEBUG("offset: %d bytes: %d used: %d\n", offset, bytes, buf->used);
+		DRM_DEBUG("offset: %u bytes: %u used: %u\n", offset, bytes, buf->used);
 
 		remaining = (buf->used - offset) >> 2; /* dwords remaining in buffer */
 		used = bytes >> 2; /* dwords in buffer for this descriptor */
