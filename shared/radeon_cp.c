@@ -1323,7 +1323,7 @@ int radeon_cp_start( DRM_IOCTL_ARGS )
 	drm_radeon_private_t *dev_priv = dev->dev_private;
 	DRM_DEBUG( "\n" );
 
-	LOCK_TEST_WITH_RETURN( dev );
+	LOCK_TEST_WITH_RETURN( dev, filp );
 
 	if ( dev_priv->cp_running ) {
 		DRM_DEBUG( "%s while CP running\n", __FUNCTION__ );
@@ -1351,7 +1351,7 @@ int radeon_cp_stop( DRM_IOCTL_ARGS )
 	int ret;
 	DRM_DEBUG( "\n" );
 
-	LOCK_TEST_WITH_RETURN( dev );
+	LOCK_TEST_WITH_RETURN( dev, filp );
 
 	DRM_COPY_FROM_USER_IOCTL( stop, (drm_radeon_cp_stop_t *)data, sizeof(stop) );
 
@@ -1426,7 +1426,7 @@ int radeon_cp_reset( DRM_IOCTL_ARGS )
 	drm_radeon_private_t *dev_priv = dev->dev_private;
 	DRM_DEBUG( "\n" );
 
-	LOCK_TEST_WITH_RETURN( dev );
+	LOCK_TEST_WITH_RETURN( dev, filp );
 
 	if ( !dev_priv ) {
 		DRM_DEBUG( "%s called before init done\n", __FUNCTION__ );
@@ -1447,7 +1447,7 @@ int radeon_cp_idle( DRM_IOCTL_ARGS )
 	drm_radeon_private_t *dev_priv = dev->dev_private;
 	DRM_DEBUG( "\n" );
 
-	LOCK_TEST_WITH_RETURN( dev );
+	LOCK_TEST_WITH_RETURN( dev, filp );
 
 	return radeon_do_cp_idle( dev_priv );
 }
@@ -1457,7 +1457,7 @@ int radeon_engine_reset( DRM_IOCTL_ARGS )
 	DRM_DEVICE;
 	DRM_DEBUG( "\n" );
 
-	LOCK_TEST_WITH_RETURN( dev );
+	LOCK_TEST_WITH_RETURN( dev, filp );
 
 	return radeon_do_engine_reset( dev );
 }
@@ -1516,7 +1516,7 @@ drm_buf_t *radeon_freelist_get( drm_device_t *dev )
 		for ( i = start ; i < dma->buf_count ; i++ ) {
 			buf = dma->buflist[i];
 			buf_priv = buf->dev_private;
-			if ( buf->pid == 0 || (buf->pending && 
+			if ( buf->filp == 0 || (buf->pending && 
 					       buf_priv->age <= done_age) ) {
 				dev_priv->stats.requested_bufs++;
 				buf->pending = 0;
@@ -1555,7 +1555,7 @@ drm_buf_t *radeon_freelist_get( drm_device_t *dev )
 		for ( i = start ; i < dma->buf_count ; i++ ) {
 			buf = dma->buflist[i];
 			buf_priv = buf->dev_private;
-			if ( buf->pid == 0 || (buf->pending && 
+			if ( buf->filp == 0 || (buf->pending && 
 					       buf_priv->age <= done_age) ) {
 				dev_priv->stats.requested_bufs++;
 				buf->pending = 0;
@@ -1620,7 +1620,7 @@ int radeon_wait_ring( drm_radeon_private_t *dev_priv, int n )
 	return DRM_ERR(EBUSY);
 }
 
-static int radeon_cp_get_buffers( drm_device_t *dev, drm_dma_t *d )
+static int radeon_cp_get_buffers( DRMFILE filp, drm_device_t *dev, drm_dma_t *d )
 {
 	int i;
 	drm_buf_t *buf;
@@ -1629,7 +1629,7 @@ static int radeon_cp_get_buffers( drm_device_t *dev, drm_dma_t *d )
 		buf = radeon_freelist_get( dev );
 		if ( !buf ) return DRM_ERR(EBUSY); /* NOTE: broken client */
 
-		buf->pid = DRM_CURRENTPID;
+		buf->filp = filp;
 
 		if ( DRM_COPY_TO_USER( &d->request_indices[i], &buf->idx,
 				   sizeof(buf->idx) ) )
@@ -1650,7 +1650,7 @@ int radeon_cp_buffers( DRM_IOCTL_ARGS )
 	int ret = 0;
 	drm_dma_t d;
 
-	LOCK_TEST_WITH_RETURN( dev );
+	LOCK_TEST_WITH_RETURN( dev, filp );
 
 	DRM_COPY_FROM_USER_IOCTL( d, (drm_dma_t *)data, sizeof(d) );
 
@@ -1673,7 +1673,7 @@ int radeon_cp_buffers( DRM_IOCTL_ARGS )
 	d.granted_count = 0;
 
 	if ( d.request_count ) {
-		ret = radeon_cp_get_buffers( dev, &d );
+		ret = radeon_cp_get_buffers( filp, dev, &d );
 	}
 
 	DRM_COPY_TO_USER_IOCTL( (drm_dma_t *)data, d, sizeof(d) );

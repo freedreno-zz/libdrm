@@ -262,7 +262,7 @@ static int i830_dma_get_buffer(drm_device_t *dev, drm_i830_dma_t *d,
 	   	DRM_ERROR("mapbuf failed, retcode %d\n", retcode);
 		return retcode;
 	}
-	buf->pid     = priv->pid;
+	buf->filp = filp;
 	buf_priv = buf->dev_private;	
 	d->granted = 1;
    	d->request_idx = buf->idx;
@@ -1086,8 +1086,10 @@ static int i830_flush_queue(drm_device_t *dev)
 }
 
 /* Must be called with the lock held */
-void i830_reclaim_buffers(drm_device_t *dev, pid_t pid)
+void i830_reclaim_buffers( struct file *filp )
 {
+	drm_file_t    *priv   = filp->private_data;
+	drm_device_t  *dev    = priv->dev;
 	drm_device_dma_t *dma = dev->dma;
 	int		 i;
 

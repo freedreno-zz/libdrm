@@ -92,11 +92,6 @@ int DRM(open_helper)(struct inode *inode, struct file *filp, drm_device_t *dev)
 
 int DRM(flush)(struct file *filp)
 {
-	drm_file_t    *priv   = filp->private_data;
-	drm_device_t  *dev    = priv->dev;
-
-	DRM_DEBUG("pid = %d, device = 0x%x, open_count = %d\n",
-		  current->pid, dev->device, dev->open_count);
 	return 0;
 }
 

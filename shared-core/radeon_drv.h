@@ -68,7 +68,7 @@ struct mem_block {
 	struct mem_block *prev;
 	int start;
 	int size;
-	int pid;		/* 0: free, -1: heap, other: real pids */
+	DRMFILE filp;		/* 0: free, -1: heap, other: real files */
 };
 
 typedef struct drm_radeon_private {
@@ -184,7 +184,7 @@ extern int radeon_mem_alloc( DRM_IOCTL_ARGS );
 extern int radeon_mem_free( DRM_IOCTL_ARGS );
 extern int radeon_mem_init_heap( DRM_IOCTL_ARGS );
 extern void radeon_mem_takedown( struct mem_block **heap );
-extern void radeon_mem_release( struct mem_block *heap );
+extern void radeon_mem_release( DRMFILE filp, struct mem_block *heap );
 
 				/* radeon_irq.c */
 extern int radeon_irq_emit( DRM_IOCTL_ARGS );
@@ -769,16 +769,6 @@ extern int RADEON_READ_PLL( drm_device_t *dev, int addr );
 /* ================================================================
  * Misc helper macros
  */
-
-#define LOCK_TEST_WITH_RETURN( dev )					\
-do {									\
-	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||		\
-	     dev->lock.pid != DRM_CURRENTPID ) {			\
-		DRM_ERROR( "%s called without lock held\n", __FUNCTION__ );	\
-		return DRM_ERR(EINVAL);				\
-	}								\
-} while (0)
-
 
 /* Perfbox functionality only.  
  */

@@ -270,6 +270,17 @@ do {									\
 	(_map) = (_dev)->context_sareas[_ctx];		\
 } while(0)
 
+#define LOCK_TEST_WITH_RETURN( dev, filp )				\
+do {									\
+	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||		\
+	     dev->lock.filp != filp ) {				\
+		DRM_ERROR( "%s called without lock held\n",		\
+			   __FUNCTION__ );				\
+		return -EINVAL;						\
+	}								\
+} while (0)
+
+
 typedef int drm_ioctl_t( struct inode *inode, struct file *filp,
 			 unsigned int cmd, unsigned long arg );
 
@@ -318,7 +329,7 @@ typedef struct drm_buf {
 	__volatile__ int  waiting;     /* On kernel DMA queue		     */
 	__volatile__ int  pending;     /* On hardware DMA queue		     */
 	wait_queue_head_t dma_wait;    /* Processes waiting		     */
-	pid_t		  pid;	       /* PID of holding process	     */
+	struct file       *filp;       /* Pointer to holding file descr	     */
 	int		  context;     /* Kernel queue for this buffer	     */
 	int		  while_locked;/* Dispatch this buffer while locked  */
 	enum {
@@ -436,7 +447,7 @@ typedef struct drm_queue {
 
 typedef struct drm_lock_data {
 	drm_hw_lock_t	  *hw_lock;	/* Hardware lock		   */
-	pid_t		  pid;		/* PID of lock holder (0=kernel)   */
+	struct file       *filp;	/* File descr of lock holder (0=kernel)   */
 	wait_queue_head_t lock_queue;	/* Queue of blocked processes	   */
 	unsigned long	  lock_time;	/* Time of last lock in jiffies	   */
 } drm_lock_data_t;
@@ -812,7 +823,7 @@ extern int	     DRM(mapbufs)( struct inode *inode, struct file *filp,
 extern int	     DRM(dma_setup)(drm_device_t *dev);
 extern void	     DRM(dma_takedown)(drm_device_t *dev);
 extern void	     DRM(free_buffer)(drm_device_t *dev, drm_buf_t *buf);
-extern void	     DRM(reclaim_buffers)(drm_device_t *dev, pid_t pid);
+extern void	     DRM(reclaim_buffers)( struct file *filp );
 #if __HAVE_OLD_DMA
 /* GH: This is a dirty hack for now...
  */
