@@ -408,7 +408,6 @@ struct drm_device {
 	int		  blocked;	/* Blocked due to VC switch?	   */
 	int		  flags;	/* Flags to open(2)		   */
 	int		  writable;	/* Opened with FWRITE		   */
-	struct proc_dir_entry *root;	/* Root for this device's entries  */
 
 				/* Locks */
 	DRM_OS_SPINTYPE	  count_lock;	/* For inuse, open_count, buf_use  */
@@ -450,7 +449,10 @@ struct drm_device {
 #ifdef __FreeBSD__
 	int		  irq;		/* Interrupt used by board	   */
 	struct resource   *irqr;	/* Resource for interrupt used by board	   */
-#endif /* __FreeBSD__ */
+#elif defined(__NetBSD__)
+	struct pci_attach_args  pa;
+	pci_intr_handle_t	ih;
+#endif
 	void		  *irqh;	/* Handle from bus_setup_intr      */
 	atomic_t	  context_flag;	/* Context swapping flag	   */
 	atomic_t	  interrupt_flag; /* Interruption handler flag	   */
@@ -475,7 +477,11 @@ struct drm_device {
 	char		  *buf_rp;	/* Read pointer			   */
 	char		  *buf_wp;	/* Write pointer		   */
 	char		  *buf_end;	/* End pointer			   */
+#ifdef __FreeBSD__
 	struct sigio      *buf_sigio;	/* Processes waiting for SIGIO     */
+#elif defined(__NetBSD__)
+	pid_t		  buf_pgid;
+#endif
 	struct selinfo    buf_sel;	/* Workspace for select/poll       */
 	int               buf_selecting;/* True if poll sleeper            */
 	wait_queue_head_t buf_readers;	/* Processes waiting to read	   */
@@ -488,13 +494,6 @@ struct drm_device {
 	drm_agp_head_t    *agp;
 #endif
 	struct pci_dev *pdev;
-#ifdef __alpha__
-#if LINUX_VERSION_CODE < 0x020403
-	struct pci_controler *hose;
-#else
-	struct pci_controller *hose;
-#endif
-#endif
 	drm_sg_mem_t      *sg;  /* Scatter gather memory */
 	atomic_t          *ctx_bitmap;
 	void		  *dev_private;
@@ -617,15 +616,6 @@ extern int            DRM(agp_bind_memory)(agp_memory *handle, off_t start);
 extern int            DRM(agp_unbind_memory)(agp_memory *handle);
 #endif
 
-				/* Proc support (drm_proc.h) */
-extern struct proc_dir_entry *DRM(proc_init)(drm_device_t *dev,
-					     int minor,
-					     struct proc_dir_entry *root,
-					     struct proc_dir_entry **dev_root);
-extern int            DRM(proc_cleanup)(int minor,
-					struct proc_dir_entry *root,
-					struct proc_dir_entry *dev_root);
-
 #if __HAVE_SG
 				/* Scatter Gather Support (drm_scatter.h) */
 extern void           DRM(sg_cleanup)(drm_sg_mem_t *entry);
@@ -642,4 +632,4 @@ extern int            DRM(ati_pcigart_cleanup)(drm_device_t *dev,
 #endif
 
 #endif /* __KERNEL__ */
-#endif
+#endif /* _DRM_P_H_ */

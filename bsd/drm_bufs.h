@@ -75,9 +75,9 @@ int DRM(addmap)( DRM_OS_IOCTL )
 #ifdef __NetBSD__
 	struct mtrr mtrrmap;
 	int one = 1;
-#endif
-#endif
-
+#endif /* __NetBSD__ */
+#endif /* __REALLY_HAVE_MTRR */
+	
 	if (!(dev->flags & (FREAD|FWRITE)))
 		DRM_OS_RETURN(EACCES); /* Require read/write */
 
@@ -104,19 +104,6 @@ int DRM(addmap)( DRM_OS_IOCTL )
 	map->mtrr   = -1;
 	map->handle = 0;
 
-	TAILQ_FOREACH(list, dev->maplist, link) {
-		drm_map_t *entry = list->map;
-		if (        (entry->offset >= map->offset
-			    && (entry->offset) < (map->offset + map->size) )
-			|| ((entry->offset + entry->size) >= map->offset
-			    && (entry->offset + entry->size) < (map->offset + map->size) ) 
-			|| ((entry->offset < map->offset)
-			    && (entry->offset + entry->size) >= (map->offset + map->size) ) )
-			DRM_DEBUG("map collission: add(0x%lx-0x%lx), current(0x%lx-0x%lx)\n", 
-				entry->offset, entry->offset + entry->size - 1,
-				map->offset, map->offset + map->size - 1);
-	}
-
 	switch ( map->type ) {
 	case _DRM_REGISTERS:
 	case _DRM_FRAME_BUFFER:
@@ -137,13 +124,13 @@ int DRM(addmap)( DRM_OS_IOCTL )
 			mtrrmap.base = map->offset;
 			mtrrmap.len = map->size;
 			mtrrmap.type = MTRR_TYPE_WC;
-			mtrrmap.flags = MTRR_PRIVATE | MTRR_FIXED | MTRR_VALID;
+			mtrrmap.flags = MTRR_PRIVATE | MTRR_VALID;
 			mtrrmap.owner = p->p_pid;
 			/* USER? KERNEL? XXX */
-			map->mtrr = mtrr_get( &mtrrmap, &one, p, MTRR_GETSET_USER);
+			map->mtrr = mtrr_get( &mtrrmap, &one, p, MTRR_GETSET_KERNEL );
 #endif
 		}
-#endif
+#endif /* __REALLY_HAVE_MTRR */
 		map->handle = DRM(ioremap)( map->offset, map->size );
 		break;
 
@@ -256,7 +243,7 @@ int DRM(rmmap)( DRM_OS_IOCTL )
 				mtrrmap.type = 0;
 				mtrrmap.flags = 0;
 				mtrrmap.owner = p->p_pid;
-				/* USER? KERNEL? XXX */				
+				retcode = mtrr_set( &mtrrmap, &one, p, MTRR_GETSET_KERNEL);
 				DRM_DEBUG("mtrr_del = %d\n", retcode);
 #endif
 			}
@@ -1021,11 +1008,8 @@ int DRM(mapbufs)( DRM_OS_IOCTL )
 #endif
 #endif /* __FreeBSD__ */
 #ifdef __NetBSD__
-	vaddr_t virtual, address;
-	struct vmspace *vms = p->p_vmspace;
-	struct vnode vn;
-	struct specinfo si;
-#endif
+	struct vnode *vn;
+#endif /* __NetBSD__ */
 
 	drm_buf_map_t request;
 	int i;
@@ -1041,6 +1025,11 @@ int DRM(mapbufs)( DRM_OS_IOCTL )
 	DRM_OS_SPINUNLOCK( &dev->count_lock );
 
 	DRM_OS_KRNFROMUSR( request, (drm_buf_map_t *)data, sizeof(request) );
+
+#ifdef __NetBSD__
+	if(!vfinddev(kdev, VCHR, &vn))
+		return 0;	/* FIXME: Shouldn't this be EINVAL or something? */
+#endif /* __NetBSD__ */
 
 	if ( request.count >= dma->buf_count ) {
 		if ( (__HAVE_AGP && (dma->flags & _DRM_DMA_USE_AGP)) ||
@@ -1061,21 +1050,15 @@ int DRM(mapbufs)( DRM_OS_IOCTL )
 					  MAP_SHARED,
 					  SLIST_FIRST(&kdev->si_hlist),
 					  (unsigned long)map->offset );
-#endif /* __FreeBSD__ */
-#ifdef __NetBSD__
-			vn.v_type = VCHR;       /* XXX Taken from x68k/dev/grf.c. No idea if it's correct. */
-			vn.v_specinfo = &si;    /* XXX */
-			vn.v_rdev = kdev;       /* XXX */
-			/* XXX Lame. */
+#elif defined(__NetBSD__)
 			virtual = round_page((vaddr_t)vms->vm_daddr + MAXDSIZ);
 			retcode = uvm_mmap(&vms->vm_map,
-					  &virtual,
-					  round_page(map->size),
-					  VM_PROT_READ|VM_PROT_WRITE, VM_PROT_ALL,
-					  AMAP_SHARED,
-					  (caddr_t)&vn,
-					  (unsigned long)map->offset,
-					  p->p_rlimit[RLIMIT_MEMLOCK].rlim_cur);
+					   (vaddr_t *)&virtual,
+					   round_page(map->size),
+					   UVM_PROT_READ | UVM_PROT_WRITE,
+					   UVM_PROT_ALL, MAP_SHARED,
+					   &vn->v_uobj, map->offset,
+					   p->p_rlimit[RLIMIT_MEMLOCK].rlim_cur);
 #endif /* __NetBSD__ */
 		} else {
 #ifdef __FreeBSD__
@@ -1087,16 +1070,15 @@ int DRM(mapbufs)( DRM_OS_IOCTL )
 					  MAP_SHARED,
 					  SLIST_FIRST(&kdev->si_hlist),
 					  0);
-#endif /* __FreeBSD__ */
-#ifdef __NetBSD__
+#elif defined(__NetBSD__)
 			virtual = round_page((vaddr_t)vms->vm_daddr + MAXDSIZ);
 			retcode = uvm_mmap(&vms->vm_map,
-					  &virtual,
-					  round_page(dma->byte_count),
-					  VM_PROT_READ|VM_PROT_WRITE, VM_PROT_ALL,
-					  AMAP_SHARED,
-					  (caddr_t)&vn, 0,
-					  p->p_rlimit[RLIMIT_MEMLOCK].rlim_cur);
+					   (vaddr_t *)&virtual,
+					   round_page(dma->byte_count),
+					   UVM_PROT_READ | UVM_PROT_WRITE,
+					   UVM_PROT_ALL, MAP_SHARED,
+					   &vn->v_uobj, 0,
+					   p->p_rlimit[RLIMIT_MEMLOCK].rlim_cur);
 #endif /* __NetBSD__ */
 		}
 		if (retcode)

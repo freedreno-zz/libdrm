@@ -13,8 +13,8 @@
 #define DRM_OS_READ32(addr)		readl(addr)
 #define DRM_OS_WRITE8(addr, val)	writeb(val, addr)
 #define DRM_OS_WRITE32(addr, val)	writel(val, addr)
-#define DRM_OS_READMEMORYBARRIER	mb()
-#define DRM_OS_WRITEMEMORYBARRIER	wmb()
+#define DRM_OS_READMEMORYBARRIER()	mb()
+#define DRM_OS_WRITEMEMORYBARRIER()	wmb()
 #define DRM_OS_DEVICE	drm_file_t	*priv	= filp->private_data; \
 			drm_device_t	*dev	= priv->dev
 

@@ -349,7 +349,7 @@ int DRM(free_agp)(agp_memory *handle, int pages)
 int DRM(bind_agp)(agp_memory *handle, unsigned int start)
 {
 	int retcode;
-	device_t dev = agp_find_device();
+	device_t dev = DRM_OS_AGP_FIND_DEVICE();
 	struct agp_memory_info info;
 
 	if (!dev)
@@ -381,7 +381,7 @@ int DRM(unbind_agp)(agp_memory *handle)
 	int alloc_count;
 	int free_count;
 	int retcode = EINVAL;
-	device_t dev = agp_find_device();
+	device_t dev = DRM_OS_AGP_FIND_DEVICE();
 	struct agp_memory_info info;
 
 	if (!dev)

@@ -13,16 +13,25 @@
 #include <sys/sysctl.h>
 #include <sys/select.h>
 #include <sys/device.h>
-#include <machine/pmap.h>
-#include <machine/bus.h>
-#include <dev/pci/pcireg.h>
-#include <dev/pci/pcivar.h>
+#include <sys/mman.h>
 #include <uvm/uvm.h>
 #include <sys/vnode.h>
-#include <miscfs/specfs/specdev.h>
+#include <sys/poll.h>
+/* For TIOCSPGRP/TIOCGPGRP */
+#include <sys/ttycom.h>
+
+#include <uvm/uvm.h>
+
+#include <machine/pmap.h>
+#include <machine/bus.h>
 #include <sys/resourcevar.h>
 #include <machine/sysarch.h>
 #include <machine/mtrr.h>
+
+#include <dev/pci/pcireg.h>
+#include <dev/pci/pcivar.h>
+ 
+#include "drmvar.h"
 
 #define __REALLY_HAVE_AGP	__HAVE_AGP
 
@@ -30,8 +39,12 @@
 #define __REALLY_HAVE_SG	0
 
 #if __REALLY_HAVE_AGP
-#include <pci/agpvar.h>
+#include <dev/pci/agpvar.h>
+#include <sys/agpio.h>
 #endif
+
+#define device_t struct device *
+extern struct cfdriver DRM(_cd);
 
 #if DRM_DEBUG
 #undef  DRM_DEBUG_CODE
@@ -60,7 +73,7 @@
 #define DRM_OS_SUSER(p)		suser(p->p_ucred, &p->p_acflag)
 #define DRM_OS_TASKQUEUE_ARGS	void *dev, int pending
 #define DRM_OS_IRQ_ARGS		void *device
-#define DRM_OS_DEVICE		drm_device_t *dev = &DRM(softcs)[0] /* FIXME: multiple driver instances */
+#define DRM_OS_DEVICE		drm_device_t *dev = device_lookup(&DRM(_cd), minor(kdev))
 #define DRM_OS_MALLOC(size)	malloc( size, DRM(M_DRM), M_NOWAIT )
 #define DRM_OS_FREE(pt)		free( pt, DRM(M_DRM) )
 #define DRM_OS_VTOPHYS(addr)	vtophys(addr)
@@ -68,6 +81,7 @@
 #define DRM_OS_READ32(addr)	*((volatile long *)(addr))
 #define DRM_OS_WRITE8(addr, val)	*((volatile char *)(addr)) = (val)
 #define DRM_OS_WRITE32(addr, val)	*((volatile long *)(addr)) = (val)
+#define DRM_OS_AGP_FIND_DEVICE()
 
 #define DRM_OS_PRIV					\
 	drm_file_t	*priv	= (drm_file_t *) DRM(find_file_by_proc)(dev, p); \
@@ -136,17 +150,15 @@ typedef struct drm_chipinfo
 	char *name;
 } drm_chipinfo_t;
 
-#define cpu_to_le32(x) (x)
-
 typedef u_int32_t dma_addr_t;
-typedef u_int32_t atomic_t;
+typedef volatile u_int32_t atomic_t;
 typedef u_int32_t cycles_t;
 typedef u_int32_t spinlock_t;
 typedef u_int32_t u32;
 typedef u_int16_t u16;
 typedef u_int8_t u8;
 typedef dev_type_ioctl(d_ioctl_t);
-typedef off_t vm_offset_t;
+typedef vaddr_t vm_offset_t;
 
 #define atomic_set(p, v)	(*(p) = (v))
 #define atomic_read(p)		(*(p))
@@ -209,6 +221,7 @@ find_first_zero_bit(atomic_t *p, int max)
 }
 
 #define spldrm()		spltty()
+#define jiffies			hardclock_ticks
 
 #define __drm_dummy_lock(lock) (*(__volatile__ unsigned int *)lock)
 #define _DRM_CAS(lock,old,new,__ret)				       \
@@ -232,19 +245,19 @@ find_first_zero_bit(atomic_t *p, int max)
 #define DRM_ERROR(fmt, arg...) \
 do { \
 	printf("error: [" DRM_NAME ":%s] *ERROR* ", __func__ ); \
-	printf( fmt, ##arg ); \
+	printf( fmt,## arg ); \
 } while (0)
 
 #define DRM_MEM_ERROR(area, fmt, arg...) \
 	printf("error: [" DRM_NAME ":%s:%s] *ERROR* " fmt , \
-		__func__, DRM(mem_stats)[area].name , ##arg)
-#define DRM_INFO(fmt, arg...)  printf("info: " "[" DRM_NAME "] " fmt , ##arg)
+		__func__, DRM(mem_stats)[area].name ,## arg)
+#define DRM_INFO(fmt, arg...)  printf("info: " "[" DRM_NAME "] " fmt ,## arg)
 
 #if DRM_DEBUG_CODE
 #define DRM_DEBUG(fmt, arg...)						  \
 	do {								  \
 		if (DRM(flags) & DRM_FLAG_DEBUG)			  \
-			printf("[" DRM_NAME ":%s] " fmt , __FUNCTION__, ##arg); \
+			printf("[" DRM_NAME ":%s] " fmt , __FUNCTION__,## arg); \
 	} while (0)
 #else
 #define DRM_DEBUG(fmt, arg...)		 do { } while (0)
@@ -273,8 +286,6 @@ do { \
 			}						\
 		}							\
 	} while (0)
-
-extern drm_device_t DRM(softcs)[];
 
 /* Internal functions */
 

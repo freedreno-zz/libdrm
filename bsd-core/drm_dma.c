@@ -193,7 +193,7 @@ void DRM(free_buffer)(drm_device_t *dev, drm_buf_t *buf)
 #endif
 
 	if ( buf->dma_wait ) {
-		wakeup( &buf->dma_wait );
+		wakeup( (void *)&buf->dma_wait );
 		buf->dma_wait = 0;
 	}
 #if __HAVE_DMA_FREELIST

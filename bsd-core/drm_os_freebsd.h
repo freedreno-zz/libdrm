@@ -104,6 +104,7 @@
 #define DRM_OS_READ32(addr)	*((volatile long *)(addr))
 #define DRM_OS_WRITE8(addr, val)	*((volatile char *)(addr)) = (val)
 #define DRM_OS_WRITE32(addr, val)	*((volatile long *)(addr)) = (val)
+#define DRM_OS_AGP_FIND_DEVICE() agp_find_device()
 
 #define DRM_OS_PRIV					\
 	drm_file_t	*priv	= (drm_file_t *) DRM(find_file_by_proc)(dev, p); \
@@ -151,28 +152,28 @@ do {								\
  * We should be able to make the code as secure as linux if a little bit
  * slower, though I don't believe it is as secure yet.
  */
-#define DRM_OS_VERIFYAREA_READ( uaddr, size ) (0)
+#define DRM_OS_VERIFYAREA_READ( uaddr, size )		\
+	(0) /*(!useracc(uaddr, size, VM_PROT_READ))*/
 #define DRM_OS_COPYFROMUSR_NC(arg1, arg2, arg3) 	\
 	copyin(arg2, arg1, arg3)
 #define DRM_OS_FETCHU_32_NC(val, uaddr)			\
 	((val) = fuword(uaddr), 0)
-	
-#define DRM_OS_READMEMORYBARRIER \
-{												\
-   	int xchangeDummy;									\
-	DRM_DEBUG("%s\n", __FUNCTION__);							\
-   	__asm__ volatile(" push %%eax ; xchg %%eax, %0 ; pop %%eax" : : "m" (xchangeDummy));	\
-   	__asm__ volatile(" push %%eax ; push %%ebx ; push %%ecx ; push %%edx ;"			\
-			 " movl $0,%%eax ; cpuid ; pop %%edx ; pop %%ecx ; pop %%ebx ;"		\
-			 " pop %%eax" : /* no outputs */ :  /* no inputs */ );			\
-} while (0);
 
-#define DRM_OS_WRITEMEMORYBARRIER DRM_OS_READMEMORYBARRIER
+/* From machine/bus_at386.h on i386 */
+#define DRM_OS_READMEMORYBARRIER()					\
+do {									\
+   	__asm __volatile("lock; addl $0,0(%%esp)" : : : "memory");	\
+} while (0)
+
+#define DRM_OS_WRITEMEMORYBARRIER()					\
+do {									\
+   	__asm __volatile("" : : : "memory");				\
+} while (0)
 
 #define DRM_OS_WAKEUP(w) wakeup(w)
 #define DRM_OS_WAKEUP_INT(w) wakeup(w)
 
-#define PAGE_ALIGN(addr) (((addr)+PAGE_SIZE-1)&PAGE_MASK)
+#define PAGE_ALIGN(addr) round_page(addr)
 
 #define malloctype DRM(M_DRM)
 /* The macros confliced in the MALLOC_DEFINE */

@@ -130,7 +130,7 @@ extern int  mga_dma_blit( DRM_OS_IOCTL );
 extern int mga_warp_install_microcode( drm_mga_private_t *dev_priv );
 extern int mga_warp_init( drm_mga_private_t *dev_priv );
 
-#define mga_flush_write_combine()	DRM_OS_READMEMORYBARRIER
+#define mga_flush_write_combine()	DRM_OS_WRITEMEMORYBARRIER()
 
 
 #define MGA_BASE( reg )		((unsigned long)(dev_priv->mmio->handle))
@@ -141,12 +141,12 @@ extern int mga_warp_init( drm_mga_private_t *dev_priv );
 
 #ifdef __alpha__
 #define MGA_READ( reg )		(_MGA_READ((u32 *)MGA_ADDR(reg)))
-#define MGA_WRITE( reg, val )	do { wmb(); MGA_DEREF( reg ) = val; } while (0)
-#define MGA_WRITE8( reg, val )  do { wmb(); MGA_DEREF8( reg ) = val; } while (0)
+#define MGA_WRITE( reg, val )	do { DRM_OS_WRITEMEMORYBARRIER(); MGA_DEREF( reg ) = val; } while (0)
+#define MGA_WRITE8( reg, val )  do { DRM_OS_WRITEMEMORYBARRIER(); MGA_DEREF8( reg ) = val; } while (0)
 
 static inline u32 _MGA_READ(u32 *addr)
 {
-	mb();
+	DRM_OS_READMEMORYBARRIER();
 	return *(volatile u32 *)addr;
 }
 

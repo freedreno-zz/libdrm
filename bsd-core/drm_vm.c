@@ -23,7 +23,7 @@ static paddr_t DRM(dma_mmap)(dev_t kdev, vm_offset_t offset, int prot)
 #ifdef __FreeBSD__
 int DRM(mmap)(dev_t kdev, vm_offset_t offset, int prot)
 #elif defined(__NetBSD__)
-paddr_t DRM(mmap)(dev_t kdev, vm_offset_t offset, int prot)
+paddr_t DRM(mmap)(dev_t kdev, off_t offset, int prot)
 #endif
 {
 	DRM_OS_DEVICE;

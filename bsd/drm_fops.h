@@ -150,6 +150,9 @@ int DRM(write_string)(drm_device_t *dev, const char *s)
 	int left   = (dev->buf_rp + DRM_BSZ - dev->buf_wp) % DRM_BSZ;
 	int send   = strlen(s);
 	int count;
+#ifdef __NetBSD__
+	struct proc *p;
+#endif /* __NetBSD__ */
 
 	DRM_DEBUG("%d left, %d to send (%p, %p)\n",
 		  left, send, dev->buf_rp, dev->buf_wp);
@@ -180,6 +183,7 @@ int DRM(write_string)(drm_device_t *dev, const char *s)
 	}
 		
 	DRM_DEBUG("dev->buf_sigio=%p\n", dev->buf_sigio);
+#ifdef __FreeBSD__
 	if (dev->buf_sigio) {
 		DRM_DEBUG("dev->buf_sigio->sio_pgid=%d\n", dev->buf_sigio->sio_pgid);
 #if __FreeBSD_version >= 500000
@@ -188,6 +192,15 @@ int DRM(write_string)(drm_device_t *dev, const char *s)
 		pgsigio(dev->buf_sigio, SIGIO, 0);
 #endif /* __FreeBSD_version */
 	}
+#endif /* __FreeBSD__ */
+#ifdef __NetBSD__
+	if (dev->buf_pgid) {
+		DRM_DEBUG("dev->buf_pgid=%d\n", dev->buf_pgid);
+		if(dev->buf_pgid > 0)
+			gsignal(dev->buf_pgid, SIGIO);
+		else if(dev->buf_pgid && (p = pfind(-dev->buf_pgid)) != NULL)
+			psignal(p, SIGIO);
+#endif /* __NetBSD__ */
 	DRM_DEBUG("waking\n");
 	wakeup(&dev->buf_rp);
 
@@ -218,7 +231,12 @@ int DRM(write)(dev_t kdev, struct uio *uio, int ioflag)
 #if DRM_DEBUG_CODE
 	DRM_OS_DEVICE;
 #endif
+#ifdef __FreeBSD__
 	DRM_DEBUG("pid = %d, device = %p, open_count = %d\n",
-                  curproc->p_pid, dev->device, dev->open_count);
-        return 0;
+		  curproc->p_pid, dev->device, dev->open_count);
+#elif defined(__NetBSD__)
+	DRM_DEBUG("pid = %d, device = %p, open_count = %d\n",
+		  curproc->p_pid, &dev->device, dev->open_count);
+#endif
+	return 0;
 }

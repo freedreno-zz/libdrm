@@ -255,7 +255,7 @@ int DRM(context_switch_complete)( drm_device_t *dev, int new )
 
 #endif
         clear_bit( 0, &dev->context_flag );
-        DRM_OS_WAKEUP( &dev->context_wait );
+        DRM_OS_WAKEUP( (void *)&dev->context_wait );
 
         return 0;
 }

@@ -83,7 +83,7 @@ void DRM(agp_do_release)(void)
 {
 	device_t agpdev;
 
-	agpdev = agp_find_device();
+	agpdev = DRM_OS_AGP_FIND_DEVICE();
 	if (agpdev)
 		agp_release(agpdev);
 }
@@ -229,7 +229,7 @@ drm_agp_head_t *DRM(agp_init)(void)
 	drm_agp_head_t *head   = NULL;
 	int      agp_available = 1;
    
-	agpdev = agp_find_device();
+	agpdev = DRM_OS_AGP_FIND_DEVICE();
 	if (!agpdev)
 		agp_available = 0;
 
@@ -261,9 +261,9 @@ drm_agp_head_t *DRM(agp_init)(void)
 		default:
 		}
 #endif
-		DRM_INFO("AGP at 0x%08x %dMB\n",
+		DRM_INFO("AGP at 0x%08lx %dMB\n",
 			 head->info.ai_aperture_base,
-			 head->info.ai_aperture_size >> 20);
+			 (int)(head->info.ai_aperture_size >> 20));
 	}
 	return head;
 }
@@ -278,7 +278,7 @@ agp_memory *DRM(agp_allocate_memory)(size_t pages, u32 type)
 {
 	device_t agpdev;
 
-	agpdev = agp_find_device();
+	agpdev = DRM_OS_AGP_FIND_DEVICE();
 	if (!agpdev)
 		return NULL;
 
@@ -289,7 +289,7 @@ int DRM(agp_free_memory)(agp_memory *handle)
 {
 	device_t agpdev;
 
-	agpdev = agp_find_device();
+	agpdev = DRM_OS_AGP_FIND_DEVICE();
 	if (!agpdev || !handle)
 		return 0;
 
@@ -301,7 +301,7 @@ int DRM(agp_bind_memory)(agp_memory *handle, off_t start)
 {
 	device_t agpdev;
 
-	agpdev = agp_find_device();
+	agpdev = DRM_OS_AGP_FIND_DEVICE();
 	if (!agpdev || !handle)
 		return EINVAL;
 
@@ -312,7 +312,7 @@ int DRM(agp_unbind_memory)(agp_memory *handle)
 {
 	device_t agpdev;
 
-	agpdev = agp_find_device();
+	agpdev = DRM_OS_AGP_FIND_DEVICE();
 	if (!agpdev || !handle)
 		return EINVAL;
 
