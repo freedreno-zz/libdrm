@@ -1,6 +1,5 @@
-/* tdfx.c -- tdfx driver -*- linux-c -*-
+/* tdfx_drv.c -- tdfx driver -*- linux-c -*-
  * Created: Thu Oct  7 10:38:32 1999 by faith@precisioninsight.com
- * Revised: Tue Oct 12 08:51:35 1999 by faith@precisioninsight.com
  *
  * Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
  * All Rights Reserved.
@@ -24,7 +23,9 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
  * 
- * $PI$
+ * Authors: Rickard E. (Rik) Faith <faith@precisioninsight.com>
+ *          Daryll Strauss <daryll@precisioninsight.com>
+ * 
  * $XFree86$
  *
  */
@@ -261,6 +262,10 @@ static int tdfx_takedown(drm_device_t *dev)
 					       drm_order(map->size)
 					       - PAGE_SHIFT,
 					       DRM_MEM_SAREA);
+				break;
+			case _DRM_AGP:
+				/* Do nothing here, because this is all
+                                   handled in the AGP/GART driver. */
 				break;
 			}
 			drm_free(map, sizeof(*map), DRM_MEM_MAPS);

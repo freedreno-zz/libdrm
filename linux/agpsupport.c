@@ -1,6 +1,5 @@
 /* agpsupport.c -- DRM support for AGP/GART backend -*- linux-c -*-
  * Created: Mon Dec 13 09:56:45 1999 by faith@precisioninsight.com
- * Revised: Fri Dec 17 06:22:05 1999 by faith@precisioninsight.com
  *
  * Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
  * All Rights Reserved.
@@ -24,7 +23,8 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
  * 
- * $PI$
+ * Author: Rickard E. (Rik) Faith <faith@precisioninsight.com>
+ *
  * $XFree86$
  *
  */

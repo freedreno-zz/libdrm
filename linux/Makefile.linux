@@ -1,6 +1,5 @@
 # Makefile -- For the Direct Rendering Manager module (drm)
 # Created: Mon Jan  4 09:26:53 1999 by faith@precisioninsight.com
-# Revised: Thu Oct  7 10:56:13 1999 by faith@precisioninsight.com
 #
 # Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
 # All rights reserved.
@@ -24,7 +23,8 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 # 
-# $PI: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/generic/Makefile.linux,v 1.23 1999/07/02 17:46:30 faith Exp $
+# Author: Rickard E. (Rik) Faith <faith@precisioninsight.com>
+#
 # $XFree86: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/generic/Makefile.linux,v 1.3 1999/06/27 14:08:21 dawes Exp $
 # 
 
@@ -56,7 +56,7 @@ MODVERSIONS := $(shell \
 
 # **** End of SMP/MODVERSIONS detection
 
-MODS=           gamma.o tdfx.o
+MODS=           gamma.o tdfx.o r128.o
 LIBS=           libdrm.a
 PROGS=		drmstat
 
@@ -70,6 +70,9 @@ GAMMAHEADERS=   gamma_drv.h $(DRMHEADERS)
 TDFXOBJS=       tdfx_drv.o tdfx_context.o
 TDFXHEADERS=    tdfx_drv.h $(DRMHEADERS)
 
+R128OBJS=       r128_drv.o r128_context.o
+R128HEADERS=    r128_drv.h $(DRMHEADERS)
+
 PROGOBJS=       drmstat.po xf86drm.po xf86drmHash.po xf86drmRandom.po sigio.po
 PROGHEADERS=    xf86drm.h $(DRMHEADERS)
 
@@ -79,7 +82,7 @@ CFLAGS=		-O2 $(WARNINGS)
 WARNINGS=	-Wall -Wwrite-strings -Wpointer-arith -Wcast-align \
 		-Wstrict-prototypes -Wshadow -Wnested-externs \
 		-Winline -Wpointer-arith
-MODCFLAGS=      $(CFLAGS) -D__KERNEL__ -DMODULE -fomit-frame-pointer
+MODCFLAGS=      $(CFLAGS) -DDRM_AGP -D__KERNEL__ -DMODULE -fomit-frame-pointer
 PRGCFLAGS=      $(CFLAGS) -g -ansi -pedantic -DPOSIX_C_SOURCE=199309L \
 		-D_POSIX_SOURCE -D_XOPEN_SOURCE -D_BSD_SOURCE -D_SVID_SOURCE \
 		-I../../../../../../include -I../../../../../../../../include \
@@ -108,6 +111,9 @@ gamma.o: $(GAMMAOBJS) $(LIBS)
 tdfx.o: $(TDFXOBJS) $(LIBS)
 	$(LD) -r $^ -o $@
 
+r128.o: $(R128OBJS) $(LIBS)
+	$(LD) -r $^ -o $@
+
 drmstat: $(PROGOBJS)
 	$(CC) $(PRGCFLAGS) $^ $(PRGLIBS) -o $@
 
@@ -129,6 +135,7 @@ ChangeLog:
 $(DRMOBJS): $(DRMHEADERS)
 $(GAMMAOBJS): $(GAMMAHEADERS)
 $(TDFXOBJS): $(TDFXHEADERS)
+$(R128OBJS): $(R128HEADERS)
 $(PROGOBJS): $(PROGHEADERS)
 
 clean:

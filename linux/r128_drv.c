@@ -1,6 +1,5 @@
 /* r128_drv.c -- ATI Rage 128 driver -*- linux-c -*-
  * Created: Mon Dec 13 09:47:27 1999 by faith@precisioninsight.com
- * Revised: Fri Dec 17 06:23:07 1999 by faith@precisioninsight.com
  *
  * Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
  * All Rights Reserved.
@@ -24,7 +23,8 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
  * 
- * $PI$
+ * Author: Rickard E. (Rik) Faith <faith@precisioninsight.com>
+ * 
  * $XFree86$
  *
  */
@@ -268,6 +268,10 @@ static int r128_takedown(drm_device_t *dev)
 					       drm_order(map->size)
 					       - PAGE_SHIFT,
 					       DRM_MEM_SAREA);
+				break;
+			case _DRM_AGP:
+				/* Do nothing here, because this is all
+                                   handled in the AGP/GART driver. */
 				break;
 			}
 			drm_free(map, sizeof(*map), DRM_MEM_MAPS);

@@ -1,6 +1,5 @@
 /* r128_context.c -- IOCTLs for r128 contexts -*- linux-c -*-
  * Created: Mon Dec 13 09:51:35 1999 by faith@precisioninsight.com
- * Revised: Mon Dec 13 09:51:38 1999 by faith@precisioninsight.com
  *
  * Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
  * All Rights Reserved.
@@ -24,7 +23,8 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
  * 
- * $PI$
+ * Author: Rickard E. (Rik) Faith <faith@precisioninsight.com>
+ *
  * $XFree86$
  *
  */
