@@ -1220,30 +1220,28 @@ drm_buf_t *radeon_freelist_get( drm_device_t *dev )
 	drm_radeon_private_t *dev_priv = dev->dev_private;
 	drm_radeon_buf_priv_t *buf_priv;
 	drm_buf_t *buf;
-	int i, t;
+	int i;
 	int start;
+	u32 done_age = RADEON_READ( RADEON_LAST_DISPATCH_REG );
 
 	if ( ++dev_priv->last_buf >= dma->buf_count )
 		dev_priv->last_buf = 0;
 
 	start = dev_priv->last_buf;
 
-	for ( t = 0 ; t < dev_priv->usec_timeout ; t++ ) {
-		u32 done_age = RADEON_READ( RADEON_LAST_DISPATCH_REG );
-		for ( i = start ; i < dma->buf_count ; i++ ) {
-			buf = dma->buflist[i];
-			buf_priv = buf->dev_private;
-			if ( buf->pid == 0 || (buf->pending && 
-					       buf_priv->age <= done_age) ) {
-				buf->pending = 0;
-				return buf;
-			}
-			start = 0;
+	for ( i = start ; i < dma->buf_count ; i++ ) {
+		buf = dma->buflist[i];
+		buf_priv = buf->dev_private;
+		if ( buf->pid == 0 || (buf->pending && 
+				       buf_priv->age <= done_age) ) {
+			buf->pending = 0;
+			return buf;
 		}
-		udelay( 1 );
+		start = 0;
 	}
 
-	DRM_ERROR( "returning NULL!\n" );
+	/* It's not really an error for this to fail.
+	 */
 	return NULL;
 }
 
