@@ -400,6 +400,7 @@ static int _drm_vma_info(char *buf, char **start, off_t offset, int len,
 			       pgprot & _PAGE_GLOBAL   ? 'g' : 'l' );
 #endif		
 		DRM_PROC_PRINT("\n");
+#if 0
 		for (i = vma->vm_start; i < vma->vm_end; i += PAGE_SIZE) {
 			pgd = pgd_offset(vma->vm_mm, i);
 			pmd = pmd_offset(pgd, i);
@@ -420,6 +421,7 @@ static int _drm_vma_info(char *buf, char **start, off_t offset, int len,
 				DRM_PROC_PRINT("      0x%08lx\n", i);
 			}
 		}
+#endif
 	}
 	
 	return len;

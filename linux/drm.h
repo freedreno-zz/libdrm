@@ -72,9 +72,10 @@ typedef struct drm_clip_rect {
            unsigned short y2;
 } drm_clip_rect_t;
 
-/* Seperate include files for the i810/mga specific structures */
+/* Seperate include files for the i810/mga/r128 specific structures */
 #include "mga_drm.h"
 #include "i810_drm.h"
+#include "r128_drm.h"
 
 typedef struct drm_version {
 	int    version_major;	  /* Major version			    */
@@ -297,7 +298,7 @@ typedef struct drm_agp_info {
 
 #define DRM_IOCTL_VERSION    DRM_IOWR(0x00, drm_version_t)
 #define DRM_IOCTL_GET_UNIQUE DRM_IOWR(0x01, drm_unique_t)
-#define DRM_IOCTL_GET_MAGIC  DRM_IOW( 0x02, drm_auth_t)
+#define DRM_IOCTL_GET_MAGIC  DRM_IOR( 0x02, drm_auth_t)
 #define DRM_IOCTL_IRQ_BUSID  DRM_IOWR(0x03, drm_irq_busid_t)
 
 #define DRM_IOCTL_SET_UNIQUE DRM_IOW( 0x10, drm_unique_t)
@@ -328,11 +329,11 @@ typedef struct drm_agp_info {
 
 #define DRM_IOCTL_AGP_ACQUIRE DRM_IO(  0x30)
 #define DRM_IOCTL_AGP_RELEASE DRM_IO(  0x31)
-#define DRM_IOCTL_AGP_ENABLE  DRM_IOR( 0x32, drm_agp_mode_t)
-#define DRM_IOCTL_AGP_INFO    DRM_IOW( 0x33, drm_agp_info_t)
+#define DRM_IOCTL_AGP_ENABLE  DRM_IOW( 0x32, drm_agp_mode_t)
+#define DRM_IOCTL_AGP_INFO    DRM_IOR( 0x33, drm_agp_info_t)
 #define DRM_IOCTL_AGP_ALLOC   DRM_IOWR(0x34, drm_agp_buffer_t)
 #define DRM_IOCTL_AGP_FREE    DRM_IOW( 0x35, drm_agp_buffer_t)
-#define DRM_IOCTL_AGP_BIND    DRM_IOWR(0x36, drm_agp_binding_t)
+#define DRM_IOCTL_AGP_BIND    DRM_IOW( 0x36, drm_agp_binding_t)
 #define DRM_IOCTL_AGP_UNBIND  DRM_IOW( 0x37, drm_agp_binding_t)
 
 /* Mga specific ioctls */
@@ -342,12 +343,23 @@ typedef struct drm_agp_info {
 #define DRM_IOCTL_MGA_ILOAD   DRM_IOW( 0x43, drm_mga_iload_t)
 #define DRM_IOCTL_MGA_VERTEX  DRM_IOW( 0x44, drm_mga_vertex_t)
 #define DRM_IOCTL_MGA_FLUSH   DRM_IOW( 0x45, drm_lock_t )
+#define DRM_IOCTL_MGA_INDICES DRM_IOW( 0x46, drm_mga_indices_t)
 
 /* I810 specific ioctls */
 #define DRM_IOCTL_I810_INIT    DRM_IOW( 0x40, drm_i810_init_t)
 #define DRM_IOCTL_I810_VERTEX  DRM_IOW( 0x41, drm_i810_vertex_t)
-#define DRM_IOCTL_I810_DMA     DRM_IOW( 0x42, drm_i810_general_t)
+#define DRM_IOCTL_I810_CLEAR   DRM_IOW( 0x42, drm_i810_clear_t)
 #define DRM_IOCTL_I810_FLUSH   DRM_IO ( 0x43)
 #define DRM_IOCTL_I810_GETAGE  DRM_IO ( 0x44)
+#define DRM_IOCTL_I810_GETBUF  DRM_IOW( 0x45, drm_i810_dma_t)
+#define DRM_IOCTL_I810_SWAP    DRM_IO ( 0x46)
+
+/* Rage 128 specific ioctls */
+#define DRM_IOCTL_R128_INIT	DRM_IOW( 0x40, drm_r128_init_t)
+#define DRM_IOCTL_R128_RESET	DRM_IO(  0x41)
+#define DRM_IOCTL_R128_FLUSH	DRM_IO(  0x42)
+#define DRM_IOCTL_R128_CCEIDL	DRM_IO(  0x43)
+#define DRM_IOCTL_R128_PACKET	DRM_IOW( 0x44, drm_r128_packet_t)
+#define DRM_IOCTL_R128_VERTEX	DRM_IOW( 0x45, drm_r128_vertex_t)
 
 #endif

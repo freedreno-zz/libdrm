@@ -32,18 +32,21 @@
 #ifndef _MGA_DRV_H_
 #define _MGA_DRV_H_
 
+#define MGA_BUF_IN_USE         0
+#define MGA_BUF_SWAP_PENDING   1
+#define MGA_BUF_FORCE_FIRE     2
+#define MGA_BUF_NEEDS_OVERFLOW 3
+
 typedef struct {
+	u32 buffer_status;
    	unsigned int num_dwords;
    	unsigned int max_dwords;
    	u32 *current_dma_ptr;
    	u32 *head;
    	u32 phys_head;
+	unsigned int prim_age;
    	int sec_used;
    	int idx;
-   	int swap_pending;
-   	u32 in_use;
-   	atomic_t force_fire;
-   	atomic_t needs_overflow;
 } drm_mga_prim_buf_t;
 
 typedef struct _drm_mga_freelist {
@@ -53,31 +56,33 @@ typedef struct _drm_mga_freelist {
    	struct _drm_mga_freelist *prev;
 } drm_mga_freelist_t;
 
+#define MGA_IN_DISPATCH   0
+#define MGA_IN_FLUSH      1
+#define MGA_IN_WAIT       2
+#define MGA_IN_GETBUF	  3
+
 typedef struct _drm_mga_private {
+   	u32 dispatch_status;
+	unsigned int next_prim_age;
+	__volatile__ unsigned int last_prim_age;
    	int reserved_map_idx;
    	int buffer_map_idx;
    	drm_mga_sarea_t *sarea_priv;
    	int primary_size;
    	int warp_ucode_size;
    	int chipset;
-   	int frontOffset;
-   	int backOffset;
-   	int depthOffset;
-   	int textureOffset;
-   	int textureSize;
+   	unsigned int frontOffset;
+   	unsigned int backOffset;
+   	unsigned int depthOffset;
+   	unsigned int textureOffset;
+   	unsigned int textureSize;
    	int cpp;
-   	int stride;
+   	unsigned int stride;
    	int sgram;
 	int use_agp;
    	drm_mga_warp_index_t WarpIndex[MGA_MAX_G400_PIPES];
 	unsigned int WarpPipe;
-   	__volatile__ unsigned long softrap_age;
-   	u32 dispatch_lock;
-   	atomic_t in_flush;
-   	atomic_t in_wait;
    	atomic_t pending_bufs;
-   	unsigned int last_sync_tag;
-   	unsigned int sync_tag;
    	void *status_page;
    	unsigned long real_status_page;
    	u8 *ioremap;
@@ -86,12 +91,11 @@ typedef struct _drm_mga_private {
    	drm_mga_prim_buf_t *last_prim;
    	drm_mga_prim_buf_t *current_prim;
    	int current_prim_idx;
-   	struct pci_dev *device;
    	drm_mga_freelist_t *head;
    	drm_mga_freelist_t *tail;
    	wait_queue_head_t flush_queue;	/* Processes waiting until flush    */
       	wait_queue_head_t wait_queue;	/* Processes waiting until interrupt */
-
+	wait_queue_head_t buf_queue;    /* Processes waiting for a free buf */
 	/* Some validated register values:
 	 */	
 	u32 mAccess;
@@ -126,7 +130,7 @@ extern int mga_dma_init(struct inode *inode, struct file *filp,
 extern int mga_dma_cleanup(drm_device_t *dev);
 extern int mga_flush_ioctl(struct inode *inode, struct file *filp,
 			   unsigned int cmd, unsigned long arg);
-
+extern void mga_flush_write_combine(void);
 extern unsigned int mga_create_sync_tag(drm_device_t *dev);
 extern drm_buf_t *mga_freelist_get(drm_device_t *dev);
 extern int mga_freelist_put(drm_device_t *dev, drm_buf_t *buf);
@@ -156,6 +160,8 @@ extern int  mga_iload(struct inode *inode, struct file *filp,
 		      unsigned int cmd, unsigned long arg);
 extern int  mga_vertex(struct inode *inode, struct file *filp,
 		      unsigned int cmd, unsigned long arg);
+extern int  mga_indices(struct inode *inode, struct file *filp,
+			unsigned int cmd, unsigned long arg);
 				/* mga_context.c */
 extern int  mga_resctx(struct inode *inode, struct file *filp,
 		       unsigned int cmd, unsigned long arg);
@@ -186,6 +192,7 @@ typedef enum {
 typedef struct {
    	drm_mga_freelist_t *my_freelist;
 	int discard;
+	int dispatched;
 } drm_mga_buf_priv_t;
 
 #define DWGREG0 	0x1c00
@@ -206,15 +213,16 @@ typedef struct {
 
 #define PRIM_OVERFLOW(dev, dev_priv, length) do {			\
 	drm_mga_prim_buf_t *tmp_buf =					\
-		dev_priv->prim_bufs[dev_priv->current_prim_idx];	\
-	if( tmp_buf->max_dwords - tmp_buf->num_dwords < length ||	\
-	    tmp_buf->sec_used > MGA_DMA_BUF_NR/2) {			\
-		atomic_set(&tmp_buf->force_fire, 1);			\
-		mga_advance_primary(dev);				\
-		mga_dma_schedule(dev, 1);				\
-	} else if( atomic_read(&tmp_buf->needs_overflow)) {		\
-		mga_advance_primary(dev);				\
-		mga_dma_schedule(dev, 1);				\
+ 		dev_priv->prim_bufs[dev_priv->current_prim_idx];	\
+	if( test_bit(MGA_BUF_NEEDS_OVERFLOW,				\
+		  &tmp_buf->buffer_status)) {				\
+ 		mga_advance_primary(dev);				\
+ 		mga_dma_schedule(dev, 1);				\
+ 	} else if( tmp_buf->max_dwords - tmp_buf->num_dwords < length ||\
+ 	    tmp_buf->sec_used > MGA_DMA_BUF_NR/2) {			\
+		set_bit(MGA_BUF_FORCE_FIRE, &tmp_buf->buffer_status);	\
+ 		mga_advance_primary(dev);				\
+ 		mga_dma_schedule(dev, 1);				\
 	}								\
 } while(0)
 
@@ -265,6 +273,13 @@ drm_mga_prim_buf_t *tmp_buf = 					\
 		dev_priv->prim_bufs[dev_priv->current_prim_idx];	\
 	tmp_buf->sec_used++;						\
 } while (0)
+
+#define AGEBUF(dev_priv, buf_priv)	do {				\
+	drm_mga_prim_buf_t *tmp_buf =					\
+		dev_priv->prim_bufs[dev_priv->current_prim_idx];	\
+	buf_priv->my_freelist->age = tmp_buf->prim_age;			\
+} while (0)
+
 
 #define PRIMOUTREG(reg, val) do {					\
 	tempIndex[outcount]=ADRINDEX(reg);				\
@@ -356,28 +371,61 @@ drm_mga_prim_buf_t *tmp_buf = 					\
 #define MGAREG_YTOP 				0x1c98
 #define MGAREG_ZORG 				0x1c0c
 
-#define DC_atype_rstr				0x10
-#define DC_atype_blk				0x40
 #define PDEA_pagpxfer_enable			0x2
+
 #define WIA_wmode_suspend			0x0
 #define WIA_wmode_start 			0x3
 #define WIA_wagp_agp				0x4
-#define DC_opcod_trap				0x4
-#define DC_arzero_enable			0x1000
-#define DC_sgnzero_enable			0x2000
-#define DC_shftzero_enable			0x4000
-#define DC_bop_SHIFT				16
-#define DC_clipdis_enable			0x80000000
-#define DC_solid_enable				0x800
-#define DC_transc_enable			0x40000000
+
+#define DC_opcod_line_open 			0x0
+#define DC_opcod_autoline_open 			0x1
+#define DC_opcod_line_close 			0x2
+#define DC_opcod_autoline_close 		0x3
+#define DC_opcod_trap 				0x4
+#define DC_opcod_texture_trap 			0x6
 #define DC_opcod_bitblt 			0x8
-#define DC_atype_rpl				0x0
-#define DC_linear_xy				0x0
-#define DC_solid_disable			0x0
-#define DC_arzero_disable			0x0
-#define DC_bltmod_bfcol				0x4000000
-#define DC_pattern_disable			0x0
-#define DC_transc_disable			0x0
+#define DC_opcod_iload 				0x9
+#define DC_atype_rpl 				0x0
+#define DC_atype_rstr 				0x10
+#define DC_atype_zi 				0x30
+#define DC_atype_blk 				0x40
+#define DC_atype_i 				0x70
+#define DC_linear_xy 				0x0 		
+#define DC_linear_linear 			0x80 		
+#define DC_zmode_nozcmp 			0x0
+#define DC_zmode_ze 				0x200
+#define DC_zmode_zne 				0x300
+#define DC_zmode_zlt 				0x400
+#define DC_zmode_zlte 				0x500
+#define DC_zmode_zgt 				0x600
+#define DC_zmode_zgte 				0x700
+#define DC_solid_disable 			0x0 		
+#define DC_solid_enable 			0x800 		
+#define DC_arzero_disable 			0x0 		
+#define DC_arzero_enable 			0x1000 		
+#define DC_sgnzero_disable 			0x0 		
+#define DC_sgnzero_enable 			0x2000 		
+#define DC_shftzero_disable 			0x0 		
+#define DC_shftzero_enable 			0x4000 		
+#define DC_bop_SHIFT 				16 		
+#define DC_trans_SHIFT 				20 		
+#define DC_bltmod_bmonolef 			0x0
+#define DC_bltmod_bmonowf 			0x8000000
+#define DC_bltmod_bplan 			0x2000000
+#define DC_bltmod_bfcol 			0x4000000
+#define DC_bltmod_bu32bgr 			0x6000000
+#define DC_bltmod_bu32rgb 			0xe000000
+#define DC_bltmod_bu24bgr 			0x16000000
+#define DC_bltmod_bu24rgb 			0x1e000000
+#define DC_pattern_disable 			0x0 		
+#define DC_pattern_enable 			0x20000000 	
+#define DC_transc_disable 			0x0 		
+#define DC_transc_enable 			0x40000000 	
+#define DC_clipdis_disable 			0x0 		
+#define DC_clipdis_enable 			0x80000000 	
+
+#define SETADD_mode_vertlist                   	0x0 	
+
 
 #define MGA_CLEAR_CMD (DC_opcod_trap | DC_arzero_enable | 		\
 		       DC_sgnzero_enable | DC_shftzero_enable | 	\
@@ -391,5 +439,9 @@ drm_mga_prim_buf_t *tmp_buf = 					\
 		      (0xC << DC_bop_SHIFT) | DC_bltmod_bfcol | 	\
 		      DC_pattern_disable | DC_transc_disable | 		\
 		      DC_clipdis_enable)				\
+
+#define MGA_FLUSH_CMD (DC_opcod_texture_trap | (0xF << DC_trans_SHIFT) |\
+		       DC_arzero_enable | DC_sgnzero_enable |		\
+		       DC_atype_i)
 
 #endif
