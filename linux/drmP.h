@@ -830,8 +830,8 @@ extern void	     DRM(reclaim_buffers)( struct file *filp );
 extern void	     DRM(clear_next_buffer)(drm_device_t *dev);
 extern int	     DRM(select_queue)(drm_device_t *dev,
 				       void (*wrapper)(unsigned long));
-extern int	     DRM(dma_enqueue)(drm_device_t *dev, drm_dma_t *dma);
-extern int	     DRM(dma_get_buffers)(drm_device_t *dev, drm_dma_t *dma);
+extern int	     DRM(dma_enqueue)(struct file *filp, drm_dma_t *dma);
+extern int	     DRM(dma_get_buffers)(struct file *filp, drm_dma_t *dma);
 #endif
 #if __HAVE_DMA_IRQ
 extern int           DRM(control)( struct inode *inode, struct file *filp,

@@ -468,7 +468,7 @@ static int DRM(dma_get_buffers_of_order)(struct file *filp, drm_dma_t *d,
 }
 
 
-int DRM(dma_get_buffers)(drm_device_t *dev, drm_dma_t *dma)
+int DRM(dma_get_buffers)(struct file *filp, drm_dma_t *dma)
 {
 	int		  order;
 	int		  retcode = 0;
@@ -477,7 +477,7 @@ int DRM(dma_get_buffers)(drm_device_t *dev, drm_dma_t *dma)
 	order = DRM(order)(dma->request_size);
 
 	dma->granted_count = 0;
-	retcode		   = DRM(dma_get_buffers_of_order)(dev, dma, order);
+	retcode		   = DRM(dma_get_buffers_of_order)(filp, dma, order);
 
 	if (dma->granted_count < dma->request_count
 	    && (dma->flags & _DRM_DMA_SMALLER_OK)) {
@@ -487,7 +487,7 @@ int DRM(dma_get_buffers)(drm_device_t *dev, drm_dma_t *dma)
 			     && tmp_order >= DRM_MIN_ORDER;
 		     --tmp_order) {
 
-			retcode = DRM(dma_get_buffers_of_order)(dev, dma,
+			retcode = DRM(dma_get_buffers_of_order)(filp, dma,
 								tmp_order);
 		}
 	}
@@ -500,7 +500,7 @@ int DRM(dma_get_buffers)(drm_device_t *dev, drm_dma_t *dma)
 			     && tmp_order <= DRM_MAX_ORDER;
 		     ++tmp_order) {
 
-			retcode = DRM(dma_get_buffers_of_order)(dev, dma,
+			retcode = DRM(dma_get_buffers_of_order)(filp, dma,
 								tmp_order);
 		}
 	}
