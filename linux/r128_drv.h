@@ -134,6 +134,7 @@ extern int r128_wait_ring( drm_r128_private_t *dev_priv, int n );
 extern void r128_update_ring_snapshot( drm_r128_private_t *dev_priv );
 
 extern int r128_do_cce_idle( drm_r128_private_t *dev_priv );
+extern int r128_do_cleanup_cce( drm_device_t *dev );
 extern int r128_do_cleanup_pageflip( drm_device_t *dev );
 
 				/* r128_state.c */
