@@ -242,6 +242,19 @@ static struct {
 	{ RADEON_SE_ZBIAS_FACTOR,2,"RADEON_SE_ZBIAS_FACTOR" },
 	{ RADEON_SE_TCL_OUTPUT_VTX_FMT,11,"RADEON_SE_TCL_OUTPUT_VTX_FMT" },
 	{ RADEON_SE_TCL_MATERIAL_EMMISSIVE_RED,17,"RADEON_SE_TCL_MATERIAL_EMMISSIVE_RED" },
+	{ R200_PP_TXCBLEND_0, 4, "R200_EMIT_PP_TXCBLEND_0" },
+	{ R200_PP_TXCBLEND_1, 4, "R200_PP_TXCBLEND_1" },
+	{ R200_PP_TXCBLEND_2, 4, "R200_PP_TXCBLEND_2" },
+	{ R200_PP_TXCBLEND_3, 4, "R200_PP_TXCBLEND_3" },
+	{ R200_PP_TXCBLEND_4, 4, "R200_PP_TXCBLEND_4" },
+	{ R200_PP_TXCBLEND_5, 4, "R200_PP_TXCBLEND_5" },
+	{ R200_PP_TXCBLEND_6, 4, "R200_PP_TXCBLEND_6" },
+	{ R200_PP_TXCBLEND_7, 4, "R200_PP_TXCBLEND_7" },
+	{ R200_SE_TCL_LIGHT_MODEL_CTL_0, 7, "R200_SE_TCL_LIGHT_MODEL_CTL_0" },
+	{ R200_PP_TFACTOR_0, 7, "R200_PP_TFACTOR_0" },
+	{ R200_SE_VTX_FMT_0, 5, "R200_SE_VTX_FMT_0" },
+	{ R200_SE_VAP_CNTL, 1, "R200_SE_VAP_CNTL" },
+	{ R200_SE_TCL_MATRIX_SEL_0, 5, "R200_SE_TCL_MATRIX_SEL_0" },
 };
 
 
@@ -333,17 +346,88 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 
 	if ( dev_priv->page_flipping && dev_priv->current_page == 1 ) {
 		unsigned int tmp = flags;
-
 		flags &= ~(RADEON_FRONT | RADEON_BACK);
 		if ( tmp & RADEON_FRONT ) flags |= RADEON_BACK;
 		if ( tmp & RADEON_BACK )  flags |= RADEON_FRONT;
+	}
+
+	if ( flags & (RADEON_FRONT | RADEON_BACK) ) {
+
+		BEGIN_RING( 4 );
+
+		/* Ensure the 3D stream is idle before doing a
+		 * 2D fill to clear the front or back buffer.
+		 */
+		RADEON_WAIT_UNTIL_3D_IDLE();
+		
+		OUT_RING( CP_PACKET0( RADEON_DP_WRITE_MASK, 0 ) );
+		OUT_RING( clear->color_mask );
+
+		ADVANCE_RING();
+
+		/* Make sure we restore the 3D state next time.
+		 */
+		dev_priv->sarea_priv->ctx_owner = 0;
+
+		for ( i = 0 ; i < nbox ; i++ ) {
+			int x = pbox[i].x1;
+			int y = pbox[i].y1;
+			int w = pbox[i].x2 - x;
+			int h = pbox[i].y2 - y;
+
+			DRM_DEBUG( "dispatch clear %d,%d-%d,%d flags 0x%x\n",
+			   x, y, w, h, flags );
+
+			if ( flags & RADEON_FRONT ) {
+				BEGIN_RING( 6 );
+				
+				OUT_RING( CP_PACKET3( RADEON_CNTL_PAINT_MULTI, 4 ) );
+				OUT_RING( RADEON_GMC_DST_PITCH_OFFSET_CNTL |
+					  RADEON_GMC_BRUSH_SOLID_COLOR |
+					  (dev_priv->color_fmt << 8) |
+					  RADEON_GMC_SRC_DATATYPE_COLOR |
+					  RADEON_ROP3_P |
+					  RADEON_GMC_CLR_CMP_CNTL_DIS );
+
+				OUT_RING( dev_priv->front_pitch_offset );
+				OUT_RING( clear->clear_color );
+				
+				OUT_RING( (x << 16) | y );
+				OUT_RING( (w << 16) | h );
+				
+				ADVANCE_RING();
+			}
+			
+			if ( flags & RADEON_BACK ) {
+				BEGIN_RING( 6 );
+				
+				OUT_RING( CP_PACKET3( RADEON_CNTL_PAINT_MULTI, 4 ) );
+				OUT_RING( RADEON_GMC_DST_PITCH_OFFSET_CNTL |
+					  RADEON_GMC_BRUSH_SOLID_COLOR |
+					  (dev_priv->color_fmt << 8) |
+					  RADEON_GMC_SRC_DATATYPE_COLOR |
+					  RADEON_ROP3_P |
+					  RADEON_GMC_CLR_CMP_CNTL_DIS );
+				
+				OUT_RING( dev_priv->back_pitch_offset );
+				OUT_RING( clear->clear_color );
+
+				OUT_RING( (x << 16) | y );
+				OUT_RING( (w << 16) | h );
+
+				ADVANCE_RING();
+			}
+		}
 	}
 
 	/* We have to clear the depth and/or stencil buffers by
 	 * rendering a quad into just those buffers.  Thus, we have to
 	 * make sure the 3D engine is configured correctly.
 	 */
-	if ( flags & (RADEON_DEPTH | RADEON_STENCIL) ) {
+	if ( 0 && dev_priv->is_r200 &&
+	     (flags & (RADEON_DEPTH | RADEON_STENCIL)) ) {
+
+#if 0
 		rb3d_cntl = depth_clear->rb3d_cntl;
 
 		if ( flags & RADEON_DEPTH ) {
@@ -359,100 +443,119 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 			rb3d_cntl &= ~RADEON_STENCIL_ENABLE;
 			rb3d_stencilrefmask = 0x00000000;
 		}
-	}
 
-	for ( i = 0 ; i < nbox ; i++ ) {
-		int x = pbox[i].x1;
-		int y = pbox[i].y1;
-		int w = pbox[i].x2 - x;
-		int h = pbox[i].y2 - y;
+		/* Don't multiply by 1/W */
+		tempSE_VTE_CNTL =
+			SE_VTE_CNTL__VTX_XY_FMT_MASK |
+			SE_VTE_CNTL__VTX_Z_FMT_MASK;
+		/* Vertex format (X, Y, Z, W)*/
+		tempSE_VTX_FMT_0 = 
+			SE_VTX_FMT_0__VTX_Z0_PRESENT_MASK |
+			SE_VTX_FMT_0__VTX_W0_PRESENT_MASK;
+		tempSE_VTX_FMT_1 = 0x0;
+		/* Disable TCL */
+		tempSE_VAP_CNTL &= ~SE_VAP_CNTL__TCL_ENA_MASK;
+		tempSE_VAP_CNTL |= SE_VAP_CNTL__FORCE_W_TO_ONE_MASK;
 
-		DRM_DEBUG( "dispatch clear %d,%d-%d,%d flags 0x%x\n",
-			   x, y, w, h, flags );
+		RADEON_WAIT_UNTIL_2D_IDLE();
 
-		if ( flags & (RADEON_FRONT | RADEON_BACK) ) {
-			BEGIN_RING( 4 );
+		BEGIN_RING( 11 );
+		OUT_RING( CP_PACKET0( RADEON_PP_CNTL, 1 ) );
+		OUT_RING( 0x00000000 );
+		OUT_RING( rb3d_cntl );
+		
+		OUT_RING_REG( RADEON_RB3D_ZSTENCILCNTL,
+			      depth_clear->rb3d_zstencilcntl );
+		OUT_RING_REG( RADEON_RB3D_STENCILREFMASK,
+			      rb3d_stencilrefmask );
+		OUT_RING_REG( RADEON_RB3D_PLANEMASK,
+			      0x00000000 );
+		OUT_RING_REG( RADEON_SE_CNTL,
+			      depth_clear->se_cntl );
+		ADVANCE_RING();
 
-			/* Ensure the 3D stream is idle before doing a
-			 * 2D fill to clear the front or back buffer.
+		/* Make sure we restore the 3D state next time.
+		 */
+		dev_priv->sarea_priv->ctx_owner = 0;
+
+		for ( i = 0 ; i < nbox ; i++ ) {
+			
+			/* Funny that this should be required -- 
+			 *  sets top-left?
 			 */
-			RADEON_WAIT_UNTIL_3D_IDLE();
-
-			OUT_RING( CP_PACKET0( RADEON_DP_WRITE_MASK, 0 ) );
-			OUT_RING( clear->color_mask );
-
-			ADVANCE_RING();
-
-			/* Make sure we restore the 3D state next time.
-			 */
-			dev_priv->sarea_priv->ctx_owner = 0;
-		}
-
-		if ( flags & RADEON_FRONT ) {
-			BEGIN_RING( 6 );
-
-			OUT_RING( CP_PACKET3( RADEON_CNTL_PAINT_MULTI, 4 ) );
-			OUT_RING( RADEON_GMC_DST_PITCH_OFFSET_CNTL |
-				  RADEON_GMC_BRUSH_SOLID_COLOR |
-				  (dev_priv->color_fmt << 8) |
-				  RADEON_GMC_SRC_DATATYPE_COLOR |
-				  RADEON_ROP3_P |
-				  RADEON_GMC_CLR_CMP_CNTL_DIS );
-
-			OUT_RING( dev_priv->front_pitch_offset );
-			OUT_RING( clear->clear_color );
-
-			OUT_RING( (x << 16) | y );
-			OUT_RING( (w << 16) | h );
-
-			ADVANCE_RING();
-		}
-
-		if ( flags & RADEON_BACK ) {
-			BEGIN_RING( 6 );
-
-			OUT_RING( CP_PACKET3( RADEON_CNTL_PAINT_MULTI, 4 ) );
-			OUT_RING( RADEON_GMC_DST_PITCH_OFFSET_CNTL |
-				  RADEON_GMC_BRUSH_SOLID_COLOR |
-				  (dev_priv->color_fmt << 8) |
-				  RADEON_GMC_SRC_DATATYPE_COLOR |
-				  RADEON_ROP3_P |
-				  RADEON_GMC_CLR_CMP_CNTL_DIS );
-
-			OUT_RING( dev_priv->back_pitch_offset );
-			OUT_RING( clear->clear_color );
-
-			OUT_RING( (x << 16) | y );
-			OUT_RING( (w << 16) | h );
-
-			ADVANCE_RING();
-		}
-
-		if ( flags & (RADEON_DEPTH | RADEON_STENCIL) ) {
-
 			radeon_emit_clip_rect( dev_priv,
 					       &sarea_priv->boxes[i] );
 
-			BEGIN_RING( 28 );
+			BEGIN_RING( 15 );
+			OUT_RING( CP_PACKET3( R200_3D_DRAW_IMMD_2, 13 ) );
+			OUT_RING( (RADEON_PRIM_TYPE_RECT_LIST |
+				   RADEON_PRIM_WALK_RING |
+				   (3 << RADEON_NUM_VERTICES_SHIFT)) );
+			OUT_RING( depth_boxes[i].ui[CLEAR_X1] );
+			OUT_RING( depth_boxes[i].ui[CLEAR_Y1] );
+			OUT_RING( depth_boxes[i].ui[CLEAR_DEPTH] );
+			OUT_RING( 0x3f800000 );
+			OUT_RING( depth_boxes[i].ui[CLEAR_X1] );
+			OUT_RING( depth_boxes[i].ui[CLEAR_Y2] );
+			OUT_RING( depth_boxes[i].ui[CLEAR_DEPTH] );
+			OUT_RING( 0x3f800000 );
+			OUT_RING( depth_boxes[i].ui[CLEAR_X2] );
+			OUT_RING( depth_boxes[i].ui[CLEAR_Y2] );
+			OUT_RING( depth_boxes[i].ui[CLEAR_DEPTH] );
+			OUT_RING( 0x3f800000 );
+			ADVANCE_RING();
+		}
+#endif
+	} 
+	else if ( flags & (RADEON_DEPTH | RADEON_STENCIL) ) {
 
-			RADEON_WAIT_UNTIL_2D_IDLE();
+		rb3d_cntl = depth_clear->rb3d_cntl;
 
-			OUT_RING( CP_PACKET0( RADEON_PP_CNTL, 1 ) );
-			OUT_RING( 0x00000000 );
-			OUT_RING( rb3d_cntl );
+		if ( flags & RADEON_DEPTH ) {
+			rb3d_cntl |=  RADEON_Z_ENABLE;
+		} else {
+			rb3d_cntl &= ~RADEON_Z_ENABLE;
+		}
 
-			OUT_RING_REG( RADEON_RB3D_ZSTENCILCNTL,
-				      depth_clear->rb3d_zstencilcntl );
-			OUT_RING_REG( RADEON_RB3D_STENCILREFMASK,
-				      rb3d_stencilrefmask );
-			OUT_RING_REG( RADEON_RB3D_PLANEMASK,
-				      0x00000000 );
-			OUT_RING_REG( RADEON_SE_CNTL,
-				      depth_clear->se_cntl );
+		if ( flags & RADEON_STENCIL ) {
+			rb3d_cntl |=  RADEON_STENCIL_ENABLE;
+			rb3d_stencilrefmask = clear->depth_mask; /* misnamed field */
+		} else {
+			rb3d_cntl &= ~RADEON_STENCIL_ENABLE;
+			rb3d_stencilrefmask = 0x00000000;
+		}
 
-			/* Radeon 7500 doesn't like vertices without
-			 * color.
+		BEGIN_RING( 13 );
+		RADEON_WAIT_UNTIL_2D_IDLE();
+
+		OUT_RING( CP_PACKET0( RADEON_PP_CNTL, 1 ) );
+		OUT_RING( 0x00000000 );
+		OUT_RING( rb3d_cntl );
+		
+		OUT_RING_REG( RADEON_RB3D_ZSTENCILCNTL,
+			      depth_clear->rb3d_zstencilcntl );
+		OUT_RING_REG( RADEON_RB3D_STENCILREFMASK,
+			      rb3d_stencilrefmask );
+		OUT_RING_REG( RADEON_RB3D_PLANEMASK,
+			      0x00000000 );
+		OUT_RING_REG( RADEON_SE_CNTL,
+			      depth_clear->se_cntl );
+		ADVANCE_RING();
+
+		/* Make sure we restore the 3D state next time.
+		 */
+		dev_priv->sarea_priv->ctx_owner = 0;
+
+		for ( i = 0 ; i < nbox ; i++ ) {
+			
+			/* Funny that this should be required -- 
+			 *  sets top-left?
 			 */
+			radeon_emit_clip_rect( dev_priv,
+					       &sarea_priv->boxes[i] );
+
+			BEGIN_RING( 15 );
+
 			OUT_RING( CP_PACKET3( RADEON_3D_DRAW_IMMD, 13 ) );
 			OUT_RING( RADEON_VTX_Z_PRESENT |
 				  RADEON_VTX_PKCOLOR_PRESENT);
@@ -461,6 +564,7 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 				   RADEON_MAOS_ENABLE |
 				   RADEON_VTX_FMT_RADEON_MODE |
 				   (3 << RADEON_NUM_VERTICES_SHIFT)) );
+
 
 			OUT_RING( depth_boxes[i].ui[CLEAR_X1] );
 			OUT_RING( depth_boxes[i].ui[CLEAR_Y1] );
@@ -478,10 +582,6 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 			OUT_RING( 0x0 );
 
 			ADVANCE_RING();
-
-			/* Make sure we restore the 3D state next time.
-			 */
-			dev_priv->sarea_priv->ctx_owner = 0;
 		}
 	}
 

@@ -78,6 +78,9 @@ typedef struct drm_radeon_private {
 	volatile u32 *scratch;
 
 	int usec_timeout;
+
+	int is_r200;
+
 	int is_pci;
 	unsigned long phys_pci_gart;
 	dma_addr_t bus_pci_gart;
@@ -526,6 +529,20 @@ extern int radeon_cp_flip( struct inode *inode, struct file *filp,
 #define RADEON_TXFORMAT_ARGB8888	6
 #define RADEON_TXFORMAT_RGBA8888	7
 
+#define R200_PP_TXCBLEND_0                0x2f00
+#define R200_PP_TXCBLEND_1                0x2f10
+#define R200_PP_TXCBLEND_2                0x2f20
+#define R200_PP_TXCBLEND_3                0x2f30
+#define R200_PP_TXCBLEND_4                0x2f40
+#define R200_PP_TXCBLEND_5                0x2f50
+#define R200_PP_TXCBLEND_6                0x2f60
+#define R200_PP_TXCBLEND_7                0x2f70
+#define R200_SE_TCL_LIGHT_MODEL_CTL_0     0x2268 
+#define R200_PP_TFACTOR_0                 0x2ee0
+#define R200_SE_VTX_FMT_0                 0x2088
+#define R200_SE_VAP_CNTL                  0x2080
+#define R200_SE_TCL_MATRIX_SEL_0          0x2230
+
 /* Constants */
 #define RADEON_MAX_USEC_TIMEOUT		100000	/* 100 ms */
 
@@ -538,6 +555,7 @@ extern int radeon_cp_flip( struct inode *inode, struct file *filp,
 #define RADEON_MAX_VB_VERTS		(0xffff)
 
 #define RADEON_RING_HIGH_MARK		128
+
 
 
 #define RADEON_BASE(reg)	((unsigned long)(dev_priv->mmio->handle))

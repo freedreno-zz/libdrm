@@ -89,7 +89,20 @@
 #define RADEON_EMIT_SE_ZBIAS_FACTOR                 18 /* zbias/2 */
 #define RADEON_EMIT_SE_TCL_OUTPUT_VTX_FMT           19 /* tcl/11 */
 #define RADEON_EMIT_SE_TCL_MATERIAL_EMMISSIVE_RED   20 /* material/17 */
-#define RADEON_MAX_STATE_PACKETS                    21
+#define R200_EMIT_PP_TXCBLEND_0                     21 /* tex0/4 */
+#define R200_EMIT_PP_TXCBLEND_1                     22 /* tex1/4 */
+#define R200_EMIT_PP_TXCBLEND_2                     23 /* tex2/4 */
+#define R200_EMIT_PP_TXCBLEND_3                     24 /* tex3/4 */
+#define R200_EMIT_PP_TXCBLEND_4                     25 /* tex4/4 */
+#define R200_EMIT_PP_TXCBLEND_5                     26 /* tex5/4 */
+#define R200_EMIT_PP_TXCBLEND_6                     27 /* ???/4 */
+#define R200_EMIT_PP_TXCBLEND_7                     28 /* ???/4 */
+#define R200_EMIT_TCL_LIGHT_MODEL_CTL_0             29 /* tcl/7 */
+#define R200_EMIT_TFACTOR_0                         30 /* tf/7 */
+#define R200_EMIT_VTX_FMT_0                         31 /* vtx/5 */
+#define R200_EMIT_VAP_CTL                           32 /* vap/1 */
+#define R200_EMIT_MATRIX_SELECT_0                   33 /* msl/5 */
+#define RADEON_MAX_STATE_PACKETS                    34
 
 
 /* Commands understood by cmd_buffer ioctl.  More can be added but
@@ -327,7 +340,8 @@ typedef struct {
 typedef struct drm_radeon_init {
 	enum {
 		RADEON_INIT_CP    = 0x01,
-		RADEON_CLEANUP_CP = 0x02
+		RADEON_CLEANUP_CP = 0x02,
+		RADEON_INIT_R200_CP = 0x03,	
 	} func;
 	unsigned long sarea_priv_offset;
 	int is_pci;
@@ -349,6 +363,7 @@ typedef struct drm_radeon_init {
 	unsigned long buffers_offset;
 	unsigned long agp_textures_offset;
 } drm_radeon_init_t;
+
 
 typedef struct drm_radeon_cp_stop {
 	int flush;
