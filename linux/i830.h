@@ -83,17 +83,6 @@
 #define __HAVE_COUNTER8         _DRM_STAT_SECONDARY
 #define __HAVE_COUNTER9         _DRM_STAT_DMA
 
-/* Driver customization:
- */
-#define __HAVE_RELEASE		1
-#define DRIVER_RELEASE() do {						\
-	i830_reclaim_buffers( filp );					\
-} while (0)
-
-#define DRIVER_PRETAKEDOWN( dev ) do {					\
-	i830_dma_cleanup( dev );					\
-} while (0)
-
 /* DMA customization:
  */
 #define __HAVE_DMA		1

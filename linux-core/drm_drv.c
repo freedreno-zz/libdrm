@@ -70,18 +70,6 @@
 #ifndef __HAVE_DMA_SCHEDULE
 #define __HAVE_DMA_SCHEDULE		0
 #endif
-#ifndef __HAVE_DMA_FLUSH
-#define __HAVE_DMA_FLUSH		0
-#endif
-#ifndef __HAVE_DMA_READY
-#define __HAVE_DMA_READY		0
-#endif
-#ifndef __HAVE_DMA_QUIESCENT
-#define __HAVE_DMA_QUIESCENT		0
-#endif
-#ifndef __HAVE_RELEASE
-#define __HAVE_RELEASE			0
-#endif
 #ifndef __HAVE_COUNTERS
 #define __HAVE_COUNTERS			0
 #endif
@@ -102,32 +90,8 @@
 #define __HAVE_DRIVER_FOPS_POLL		0
 #endif
 
-#ifndef DRIVER_PREINIT
-#define DRIVER_PREINIT(dev) 0
-#endif
-#ifndef DRIVER_POSTINIT
-#define DRIVER_POSTINIT(dev) 0
-#endif
-#ifndef DRIVER_PRERELEASE
-#define DRIVER_PRERELEASE()
-#endif
-#ifndef DRIVER_PRETAKEDOWN
-#define DRIVER_PRETAKEDOWN(dev)
-#endif
-#ifndef DRIVER_POSTCLEANUP
-#define DRIVER_POSTCLEANUP()
-#endif
-#ifndef DRIVER_PRESETUP
-#define DRIVER_PRESETUP()
-#endif
-#ifndef DRIVER_POSTSETUP
-#define DRIVER_POSTSETUP()
-#endif
 #ifndef DRIVER_IOCTLS
 #define DRIVER_IOCTLS
-#endif
-#ifndef DRIVER_OPEN_HELPER
-#define DRIVER_OPEN_HELPER( priv, dev )
 #endif
 #ifndef DRIVER_FOPS
 #define DRIVER_FOPS				\
@@ -183,7 +147,7 @@ int DRM(fb_loaded) = 0;
 DRIVER_FOPS;
 
 /** Ioctl table */
-static drm_ioctl_desc_t		  DRM(ioctls)[] = {
+drm_ioctl_desc_t		  DRM(ioctls)[] = {
 	[DRM_IOCTL_NR(DRM_IOCTL_VERSION)]       = { DRM(version),     0, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_GET_UNIQUE)]    = { DRM(getunique),   0, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_GET_MAGIC)]     = { DRM(getmagic),    0, 0 },
@@ -222,12 +186,7 @@ static drm_ioctl_desc_t		  DRM(ioctls)[] = {
 	[DRM_IOCTL_NR(DRM_IOCTL_LOCK)]	        = { DRM(lock),        1, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_UNLOCK)]        = { DRM(unlock),      1, 0 },
 
-#if __HAVE_DMA_FLUSH
-	/* Gamma only, really */
-	[DRM_IOCTL_NR(DRM_IOCTL_FINISH)]        = { DRM(finish),      1, 0 },
-#else
 	[DRM_IOCTL_NR(DRM_IOCTL_FINISH)]        = { DRM(noop),      1, 0 },
-#endif
 
 #if __HAVE_DMA
 	[DRM_IOCTL_NR(DRM_IOCTL_ADD_BUFS)]      = { DRM(addbufs),     1, 1 },
@@ -279,7 +238,9 @@ static int DRM(setup)( drm_device_t *dev )
 {
 	int i;
 
-	DRIVER_PRESETUP();
+	if (dev->fn_tbl->presetup)
+		dev->fn_tbl->presetup(dev);
+
 	atomic_set( &dev->ioctl_count, 0 );
 	atomic_set( &dev->vma_count, 0 );
 	dev->buf_use = 0;
@@ -385,7 +346,9 @@ static int DRM(setup)( drm_device_t *dev )
 	 * drm_select_queue fails between the time the interrupt is
 	 * initialized and the time the queues are initialized.
 	 */
-	DRIVER_POSTSETUP();
+	if (dev->fn_tbl->postsetup)
+		dev->fn_tbl->postsetup(dev);
+
 	return 0;
 }
 
@@ -410,7 +373,8 @@ static int DRM(takedown)( drm_device_t *dev )
 
 	DRM_DEBUG( "\n" );
 
-	DRIVER_PRETAKEDOWN(dev);
+	if (dev->fn_tbl->pretakedown)
+	  dev->fn_tbl->pretakedown(dev);
 #if __HAVE_IRQ
 	if ( dev->irq_enabled ) DRM(irq_uninstall)( dev );
 #endif
@@ -602,9 +566,12 @@ static int drm_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	dev->pci_slot = PCI_SLOT(pdev->devfn);
 	dev->pci_func = PCI_FUNC(pdev->devfn);
 	dev->irq = pdev->irq;
+	
+	dev->fn_tbl = &DRM(fn_tbl);
 
-	if ((retcode = DRIVER_PREINIT(dev)))
-	  goto error_out_unreg;
+	if (dev->fn_tbl->preinit)
+	  if ((retcode = dev->fn_tbl->preinit(dev)))
+	      goto error_out_unreg;
 
 #if __REALLY_HAVE_AGP
 	dev->agp = DRM(agp_init)();
@@ -643,7 +610,8 @@ static int drm_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 		pci_pretty_name(pdev)
 		);
 
-	if ((retcode = DRIVER_POSTINIT(dev)))
+	if (dev->fn_tbl->postinit)
+	  if ((retcode = dev->fn_tbl->postinit(dev)))
 		goto error_out_unreg;
 
 
@@ -912,7 +880,8 @@ int DRM(release)( struct inode *inode, struct file *filp )
 
 	DRM_DEBUG( "open_count = %d\n", dev->open_count );
 
-	DRIVER_PRERELEASE();
+	if (dev->fn_tbl->prerelease)
+	  dev->fn_tbl->prerelease(filp, dev);
 
 	/* ========================================================
 	 * Begin inline drm_release
@@ -927,9 +896,10 @@ int DRM(release)( struct inode *inode, struct file *filp )
 		DRM_DEBUG( "File %p released, freeing lock for context %d\n",
 			filp,
 			_DRM_LOCKING_CONTEXT(dev->lock.hw_lock->lock) );
-#if __HAVE_RELEASE
-		DRIVER_RELEASE();
-#endif
+		
+		if (dev->fn_tbl->release)
+		  dev->fn_tbl->release(filp, dev);
+
 		DRM(lock_free)( dev, &dev->lock.hw_lock->lock,
 				_DRM_LOCKING_CONTEXT(dev->lock.hw_lock->lock) );
 
@@ -938,8 +908,7 @@ int DRM(release)( struct inode *inode, struct file *filp )
                                    processed via a callback to the X
                                    server. */
 	}
-#if __HAVE_RELEASE
-	else if ( priv->lock_count && dev->lock.hw_lock ) {
+	else if ( dev->fn_tbl->release && priv->lock_count && dev->lock.hw_lock ) {
 		/* The lock is required to reclaim buffers */
 		DECLARE_WAITQUEUE( entry, current );
 
@@ -968,12 +937,14 @@ int DRM(release)( struct inode *inode, struct file *filp )
 		current->state = TASK_RUNNING;
 		remove_wait_queue( &dev->lock.lock_queue, &entry );
 		if( !retcode ) {
-			DRIVER_RELEASE();
+			if (dev->fn_tbl->release)
+				dev->fn_tbl->release(filp, dev);
 			DRM(lock_free)( dev, &dev->lock.hw_lock->lock,
 					DRM_KERNEL_CONTEXT );
 		}
 	}
-#elif __HAVE_DMA
+	
+#if __HAVE_DMA
 	DRM(reclaim_buffers)( filp );
 #endif
 
@@ -1145,9 +1116,8 @@ int DRM(lock)( struct inode *inode, struct file *filp,
 	q = dev->queuelist[lock.context];
 #endif
 
-#if __HAVE_DMA_FLUSH
-	ret = DRM(flush_block_and_flush)( dev, lock.context, lock.flags );
-#endif
+	if (dev->fn_tbl->dma_flush_block_and_flush)
+		ret = dev->fn_tbl->dma_flush_block_and_flush(dev, lock.context, lock.flags);
         if ( !ret ) {
                 add_wait_queue( &dev->lock.lock_queue, &entry );
                 for (;;) {
@@ -1176,9 +1146,8 @@ int DRM(lock)( struct inode *inode, struct file *filp,
                 remove_wait_queue( &dev->lock.lock_queue, &entry );
         }
 
-#if __HAVE_DMA_FLUSH
-	DRM(flush_unblock)( dev, lock.context, lock.flags ); /* cleanup phase */
-#endif
+	if (dev->fn_tbl->dma_flush_unblock)
+		dev->fn_tbl->dma_flush_unblock(dev, lock.context, lock.flags);
 
         if ( !ret ) {
 		sigemptyset( &dev->sigmask );
@@ -1191,16 +1160,12 @@ int DRM(lock)( struct inode *inode, struct file *filp,
 		block_all_signals( DRM(notifier),
 				   &dev->sigdata, &dev->sigmask );
 
-#if __HAVE_DMA_READY
-                if ( lock.flags & _DRM_LOCK_READY ) {
-			DRIVER_DMA_READY();
-		}
-#endif
-#if __HAVE_DMA_QUIESCENT
-                if ( lock.flags & _DRM_LOCK_QUIESCENT ) {
-			DRIVER_DMA_QUIESCENT();
-		}
-#endif
+		if (dev->fn_tbl->dma_ready && (lock.flags & _DRM_LOCK_READY))
+			dev->fn_tbl->dma_ready(dev);
+			    
+		if ( dev->fn_tbl->dma_quiescent && (lock.flags & _DRM_LOCK_QUIESCENT ))
+			return dev->fn_tbl->dma_quiescent(dev);
+
 		/* __HAVE_KERNEL_CTX_SWITCH isn't used by any of the
 		 * drm modules in the DRI cvs tree, but it is required
 		 * by the Sparc driver.

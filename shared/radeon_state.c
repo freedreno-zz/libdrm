@@ -2547,3 +2547,46 @@ int radeon_cp_setparam( DRM_IOCTL_ARGS ) {
 
 	return 0;
 }
+
+static void radeon_driver_prerelease(struct file *filp, drm_device_t *dev)
+{
+	if ( dev->dev_private ) {				
+		drm_radeon_private_t *dev_priv = dev->dev_private; 
+		if ( dev_priv->page_flipping ) {		
+			radeon_do_cleanup_pageflip( dev );	
+		}						
+		radeon_mem_release( filp, dev_priv->gart_heap ); 
+		radeon_mem_release( filp, dev_priv->fb_heap );	
+	}				
+}
+
+static void radeon_driver_pretakedown(drm_device_t *dev)
+{
+	radeon_do_release(dev);
+}
+
+static void radeon_driver_open_helper(drm_file_t *filp_priv, drm_device_t *dev)
+{
+	drm_radeon_private_t *dev_priv = dev->dev_private;
+	if ( dev_priv )
+		filp_priv->radeon_fb_delta = dev_priv->fb_location;
+	else
+		filp_priv->radeon_fb_delta = 0;
+}
+	
+
+struct drm_driver_fn DRM(fn_tbl) = {
+	NULL,                          /* preinit*/
+	NULL,                          /* postinit */
+	radeon_driver_prerelease,      /* prerelease */
+	radeon_driver_pretakedown,     /* pretakedown */
+	NULL,                          /* postcleanup */
+	NULL,                          /* presetup */
+	NULL,                          /* postsetup */
+	radeon_driver_open_helper,     /* open_helper */
+	NULL,                          /* release */
+	NULL,
+	NULL,
+	NULL,
+	NULL
+};

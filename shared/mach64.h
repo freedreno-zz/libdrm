@@ -71,12 +71,6 @@
    	[DRM_IOCTL_NR(DRM_IOCTL_MACH64_FLUSH)]    = { mach64_dma_flush,      1, 0 },    \
    	[DRM_IOCTL_NR(DRM_IOCTL_MACH64_GETPARAM)] = { mach64_get_param,      1, 0 }
 
-/* Driver customization:
- */
-#define DRIVER_PRETAKEDOWN(dev) do {					\
-	mach64_do_cleanup_dma( dev );					\
-} while (0)
-
 /* DMA customization:
  */
 #define __HAVE_DMA		1

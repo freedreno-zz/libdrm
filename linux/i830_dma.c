@@ -1589,3 +1589,30 @@ int i830_setparam( struct inode *inode, struct file *filp, unsigned int cmd,
 
 	return 0;
 }
+
+
+static void i830_driver_pretakedown(drm_device_t *dev)
+{
+	i830_dma_cleanup( dev );
+}
+
+static void i830_driver_release(struct file *filp, drm_device_t *dev)
+{
+	i830_reclaim_buffers(filp);
+}
+
+struct drm_driver_fn DRM(fn_tbl) = {
+	NULL,                          /* preinit*/
+	NULL,                          /* postinit */
+	NULL,                          /* prerelease */
+	i830_driver_pretakedown,       /* pretakedown */
+	NULL,                          /* postcleanup */
+	NULL,                          /* presetup */
+	NULL,                          /* postsetup */
+	NULL,                          /* open_helper */
+	i830_driver_release,           /* release */
+	NULL,
+	NULL,
+	NULL,
+	NULL
+};
