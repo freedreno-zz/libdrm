@@ -70,8 +70,6 @@ static void mga_emit_clip_rect( drm_mga_private_t *dev_priv,
 	unsigned int pitch = dev_priv->front_pitch / dev_priv->fb_cpp;
 	DMA_LOCALS;
 
-	return;
-
 	BEGIN_DMA( 2 );
 
 	/* Force reset of DWGCTL on G400 (eliminates clip disable bit).
@@ -522,10 +520,7 @@ static void mga_dma_dispatch_clear( drm_device_t *dev,
 	int nbox = sarea_priv->nbox;
 	int i;
 	DMA_LOCALS;
-	DRM_INFO( "%s\n", __FUNCTION__ );
-
-	spin_lock_bh( &dev_priv->prim.lock );
-	DRM_INFO( "spin_lock_bh() in %s\n", __FUNCTION__ );
+	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
 	for ( i = 0 ; i < nbox ; i++ ) {
 		unsigned int height = pbox[i].y2 - pbox[i].y1;
@@ -583,8 +578,7 @@ static void mga_dma_dispatch_clear( drm_device_t *dev,
 
 	ADVANCE_DMA();
 
-	DRM_INFO( "spin_unlock_bh() in %s\n", __FUNCTION__ );
-	spin_unlock_bh( &dev_priv->prim.lock );
+	mga_do_dma_flush( dev_priv );
 }
 
 static void mga_dma_dispatch_swap( drm_device_t *dev )
@@ -597,10 +591,7 @@ static void mga_dma_dispatch_swap( drm_device_t *dev )
 	u32 pitch = dev_priv->front_pitch / dev_priv->fb_cpp;
 	int i;
 	DMA_LOCALS;
-	DRM_INFO( "%s\n", __FUNCTION__ );
-
-	spin_lock_bh( &dev_priv->prim.lock );
-	DRM_INFO( "spin_lock_bh() in %s\n", __FUNCTION__ );
+	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
 	BEGIN_DMA( 4 + nbox );
 
@@ -637,8 +628,7 @@ static void mga_dma_dispatch_swap( drm_device_t *dev )
 
 	ADVANCE_DMA();
 
-	DRM_INFO( "spin_unlock_bh() in %s\n", __FUNCTION__ );
-	spin_unlock_bh( &dev_priv->prim.lock );
+	mga_do_dma_flush( dev_priv );
 }
 
 
@@ -652,11 +642,8 @@ static void mga_dma_dispatch_vertex( drm_device_t *dev, drm_buf_t *buf )
 	int i = 0;
 	DMA_LOCALS;
 
-	DRM_INFO( "%s: buf=%d used=%d\n",
-		  __FUNCTION__, buf->idx, buf->used );
-
-	spin_lock_bh( &dev_priv->prim.lock );
-	DRM_INFO( "spin_lock_bh() in %s\n", __FUNCTION__ );
+	DRM_DEBUG( "%s: buf=%d used=%d\n",
+		   __FUNCTION__, buf->idx, buf->used );
 
 	if ( buf->used ) {
 		buf_priv->dispatched = 1;
@@ -707,8 +694,7 @@ static void mga_dma_dispatch_vertex( drm_device_t *dev, drm_buf_t *buf )
 		mga_freelist_put( dev, buf );
 	}
 
-	DRM_INFO( "spin_unlock_bh() in %s\n", __FUNCTION__ );
-	spin_unlock_bh( &dev_priv->prim.lock );
+	mga_do_dma_flush( dev_priv );
 }
 
 
@@ -857,16 +843,6 @@ int mga_dma_swap( struct inode *inode, struct file *filp,
 	/* Make sure we restore the 3D state next time.
 	 */
 	dev_priv->sarea_priv->dirty |= MGA_UPLOAD_CONTEXT;
-
-	/* If we're idle, flush the primary DMA stream...
-	 */
-	spin_lock_bh( &dev_priv->prim.lock );
-	DRM_INFO( "spin_lock_bh() in %s\n", __FUNCTION__ );
-
-	FLUSH_DMA();
-
-	DRM_INFO( "spin_unlock_bh() in %s\n", __FUNCTION__ );
-	spin_unlock_bh( &dev_priv->prim.lock );
 
 	return 0;
 }

@@ -60,7 +60,7 @@ typedef struct drm_mga_primary_buffer {
 	u8 *end;
 	int size;
 
-	u32 head;
+	volatile u32 *head;
 	u32 tail;
 	u32 wrap;
 	int space;
@@ -69,11 +69,8 @@ typedef struct drm_mga_primary_buffer {
 	volatile u32 *status;
 
 	u32 last_flush;
-	u32 low_mark;
-	u32 mid_mark;
 	u32 high_mark;
 
-	unsigned long state;
 	spinlock_t lock;
 } drm_mga_primary_buffer_t;
 
@@ -200,8 +197,9 @@ extern int mga_do_dma_reset( drm_mga_private_t *dev_priv );
 extern int mga_do_engine_reset( drm_mga_private_t *dev_priv );
 extern int mga_do_cleanup_dma( drm_device_t *dev );
 
-extern int mga_dma_schedule( drm_device_t *dev );
-extern void mga_dma_wrap_or_wait( drm_mga_private_t *dev_priv, int n );
+extern void mga_do_dma_flush( drm_mga_private_t *dev_priv );
+extern void mga_do_dma_wrap( drm_mga_private_t *dev_priv );
+
 extern int mga_irq_uninstall( drm_device_t *dev );
 
 				/* mga_state.c */
@@ -379,18 +377,6 @@ do {									\
 	}								\
 } while (0)
 
-#define PRINT_DMA_STATE( dev_priv )					\
-do {									\
-	DRM_INFO( "   state: %d %s%s%s\n",				\
-		  dev_priv->prim.state,					\
-		  test_bit( MGA_DMA_IDLE, &dev_priv->prim.state )	\
-		  ? "idle, " : "active, ",				\
-		  test_bit( MGA_DMA_FLUSH, &dev_priv->prim.state )	\
-		  ? "flush, " : "",					\
-		  test_bit( MGA_DMA_WRAP, &dev_priv->prim.state )	\
-		  ?  "wrap, " : "" );					\
-} while (0)
-
 
 /* ================================================================
  * Primary DMA command stream
@@ -398,7 +384,8 @@ do {									\
 
 #define MGA_VERBOSE	0
 
-#define DMA_LOCALS	unsigned int write; volatile u8 *prim;
+#define DMA_LOCALS	unsigned int write; volatile u8 *prim;		\
+			unsigned long flags;
 #define DMA_BLOCK_SIZE	(5 * sizeof(u32))
 
 #define BEGIN_DMA( n )							\
@@ -406,12 +393,21 @@ do {									\
 	if ( MGA_VERBOSE ) {						\
 		DRM_INFO( "BEGIN_DMA( %d ) in %s\n",			\
 			  (n), __FUNCTION__ );				\
-		DRM_DEBUG( "   space=0x%x req=0x%x\n",			\
+		DRM_INFO( "   space=0x%x req=0x%x\n",			\
 			  dev_priv->prim.space, (n) * DMA_BLOCK_SIZE );	\
 	}								\
 	if ( dev_priv->prim.space < (int)((n) * DMA_BLOCK_SIZE) ) {	\
-		mga_dma_wrap_or_wait( dev_priv,				\
-				      (n) * DMA_BLOCK_SIZE );		\
+		mga_do_dma_wrap( dev_priv );				\
+	}								\
+	prim = dev_priv->prim.start;					\
+	write = dev_priv->prim.tail;					\
+} while (0)
+
+#define BEGIN_DMA_WRAP()						\
+do {									\
+	if ( MGA_VERBOSE ) {						\
+		DRM_INFO( "BEGIN_DMA_WRAP() in %s\n", __FUNCTION__ );	\
+		DRM_INFO( "   space=0x%x\n", dev_priv->prim.space );	\
 	}								\
 	prim = dev_priv->prim.start;					\
 	write = dev_priv->prim.tail;					\
@@ -420,41 +416,17 @@ do {									\
 #define ADVANCE_DMA()							\
 do {									\
 	dev_priv->prim.space -= (write - dev_priv->prim.tail);		\
+	spin_lock_irqsave( &dev_priv->prim.lock, flags );		\
 	dev_priv->prim.tail = write;					\
+	spin_unlock_irqrestore( &dev_priv->prim.lock, flags );		\
 	if ( MGA_VERBOSE ) {						\
-		DRM_INFO( "ADVANCE_DMA() tail=0x%05x sp=0x%x s=%lx\n",	\
-			  write, dev_priv->prim.space,			\
-			  dev_priv->prim.state );			\
+		DRM_INFO( "ADVANCE_DMA() tail=0x%05x sp=0x%x\n",	\
+			  write, dev_priv->prim.space );		\
 	}								\
 } while (0)
 
-#define MAYBE_FLUSH_DMA()						\
-do {									\
-	if ( dev_priv->prim.wrap && MGA_DMA_IS_IDLE( dev_priv ) ) {	\
-		DRM_INFO( "MAYBE_FLUSH_DMA() wrap at 0x%x\n",		\
-			  dev_priv->prim.wrap );			\
-		mga_do_dma_wrap( dev_priv );				\
-	} else if ( dev_priv->prim.tail - dev_priv->prim.last_flush >=	\
-		    dev_priv->prim.mid_mark &&				\
-		    MGA_DMA_IS_IDLE( dev_priv ) ) {			\
-		DRM_INFO( "MAYBE_FLUSH_DMA() wm hit 0x%x >= 0x%x\n",	\
-			  dev_priv->prim.tail -				\
-			  dev_priv->prim.last_flush,			\
-			  dev_priv->prim.mid_mark );			\
-		mga_do_dma_flush( dev_priv );				\
-	}								\
-} while (0)
+#define FLUSH_DMA()	mga_do_dma_flush( dev_priv );
 
-#define FLUSH_DMA()							\
-do {									\
-	if ( MGA_DMA_IS_IDLE( dev_priv ) ) {				\
-		if ( dev_priv->prim.wrap ) {				\
-			mga_do_dma_wrap( dev_priv );			\
-		} else {						\
-			mga_do_dma_flush( dev_priv );			\
-		}							\
-	}								\
-} while (0)
 
 /* Never use this, always use DMA_BLOCK(...) for primary DMA output.
  */
