@@ -104,6 +104,7 @@ void mga_dma_init(drm_device_t *dev)
 	buffer.max_dwords = 16384;
 	buffer.num_dwords = 16384;
 	buffer.first_time = 1;
+	MGA_WRITE(MGAREG_DWGSYNC, MGA_SYNC_TAG);
 }
 
 void mga_dma_cleanup(drm_device_t *dev)
@@ -120,25 +121,26 @@ static inline void mga_prim_overflow(drm_device_t *dev)
 }
 
 static inline void mga_dma_dispatch(drm_device_t *dev, unsigned long address,
-				      unsigned long length)
+				    unsigned long length, 
+				    transferType_t transferType)
 {
-	transferType_t transferType = TT_GENERAL;
 	int use_agp = PDEA_pagpxfer_enable;
 	static int softrap = 1;
 
 	CHECK_OVERFLOW(10);
-	DMAOUTREG(MGAREG_DWGSYNC, 0); /* For debugging */
+	DMAOUTREG(MGAREG_DMAPAD, 0);
 	DMAOUTREG(MGAREG_DMAPAD, 0);
 	DMAOUTREG(MGAREG_SECADDRESS, address | transferType);
 	DMAOUTREG(MGAREG_SECEND, (address + length) | use_agp);
 	DMAOUTREG(MGAREG_DMAPAD, 0);
 	DMAOUTREG(MGAREG_DMAPAD, 0);
-#if 0
+#if 1
 	DMAOUTREG(MGAREG_DWGSYNC, MGA_SYNC_TAG); /* For debugging */
 #else
 	DMAOUTREG(MGAREG_DMAPAD, 0);
 #endif
 	DMAOUTREG(MGAREG_SOFTRAP, softrap);
+	MGA_WRITE(MGAREG_DWGSYNC, 0);
 	MGA_WRITE(MGAREG_PRIMEND, (buffer.phys_head + buffer.num_dwords) | 
 		  use_agp);
 	buffer.last_softrap = softrap;
@@ -146,21 +148,26 @@ static inline void mga_dma_dispatch(drm_device_t *dev, unsigned long address,
 
 static inline void mga_dma_quiescent(drm_device_t *dev)
 {
+#if 0
 	while(MGA_READ(MGAREG_SECADDRESS) != buffer.last_softrap)
 		;
-	MGA_WRITE(MGAREG_DWGSYNC, MGA_SYNC_TAG);
+#endif
 	while(MGA_READ(MGAREG_DWGSYNC) != MGA_SYNC_TAG)
 		;
 }
 
 static inline void mga_dma_ready(drm_device_t *dev)
 {
+#if 0
 	while(MGA_READ(MGAREG_SECADDRESS) != buffer.last_softrap)
 		;
+#endif
+	mga_dma_quiescent(dev);
 }
 
 static inline int mga_dma_is_ready(drm_device_t *dev)
 {
+#if 0
 				/* Need a better way of doing this */
    	if(buffer.first_time == 1) {
 	   buffer.first_time = 0;
@@ -171,6 +178,9 @@ static inline int mga_dma_is_ready(drm_device_t *dev)
 		return 1;
 	else
 		return 0;
+#endif
+	mga_dma_quiescent(dev);
+	return 1;
 }
 
 

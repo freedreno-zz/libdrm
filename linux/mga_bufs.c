@@ -34,10 +34,132 @@
 #include "drmP.h"
 #include "linux/un.h"
 
-int mga_addbufs(struct inode *inode, struct file *filp, unsigned int cmd,
-		unsigned long arg)
+int mga_addbufs_agp(struct inode *inode, struct file *filp, unsigned int cmd,
+		    unsigned long arg)
 {
-	drm_file_t	 *priv	 = filp->private_data;
+   drm_file_t *priv = filp->private_data;
+   drm_device_t *dev = priv->dev;
+   drm_device_dma_t *dma = dev->dma;
+   drm_buf_desc_t request;
+   drm_buf_entry_t *entry;
+   drm_buf_t *buf;
+   unsigned long offset;
+   unsigned long agp_offset;
+   int count;
+   int order;
+   int size;
+   int alignment;
+   int page_order;
+   int total;
+   int byte_count;
+
+   if (!dma) return -EINVAL;
+
+   copy_from_user_ret(&request,
+		      (drm_buf_desc_t *)arg,
+		      sizeof(request),
+		      -EFAULT);
+
+   count = request.count;
+   order = drm_order(request.size);
+   size	= 1 << order;
+   agp_offset = request.agp_start;
+   alignment  = (request.flags & _DRM_PAGE_ALIGN) ? PAGE_ALIGN(size) :size;
+   page_order = order - PAGE_SHIFT > 0 ? order - PAGE_SHIFT : 0;
+   total = PAGE_SIZE << page_order;
+   byte_count = 0;
+   
+   if (order < DRM_MIN_ORDER || order > DRM_MAX_ORDER) return -EINVAL;
+   if (dev->queue_count) return -EBUSY; /* Not while in use */
+   spin_lock(&dev->count_lock);
+   if (dev->buf_use) {
+      spin_unlock(&dev->count_lock);
+      return -EBUSY;
+   }
+   atomic_inc(&dev->buf_alloc);
+   spin_unlock(&dev->count_lock);
+   
+   down(&dev->struct_sem);
+   entry = &dma->bufs[order];
+   if (entry->buf_count) {
+      up(&dev->struct_sem);
+      atomic_dec(&dev->buf_alloc);
+      return -ENOMEM; /* May only call once for each order */
+   }
+   
+   entry->buflist = drm_alloc(count * sizeof(*entry->buflist),
+			      DRM_MEM_BUFS);
+   if (!entry->buflist) {
+      up(&dev->struct_sem);
+      atomic_dec(&dev->buf_alloc);
+      return -ENOMEM;
+   }
+   memset(entry->buflist, 0, count * sizeof(*entry->buflist));
+   
+   entry->buf_size   = size;
+   entry->page_order = page_order;
+   
+   while(entry->buf_count < count) {
+      for(offset = 0; offset + size <= total && entry->buf_count < count;
+	  offset += alignment, ++entry->buf_count) {
+	 buf = &entry->buflist[entry->buf_count];
+	 buf->idx = dma->buf_count + entry->buf_count;
+	 buf->total = alignment;
+	 buf->order = order;
+	 buf->used = 0;
+	 buf->offset = agp_offset - dev->agp->base + offset;/* ?? */
+	 buf->bus_address = agp_offset + offset;
+	 buf->next = NULL;
+	 buf->waiting = 0;
+	 buf->pending = 0;
+	 init_waitqueue_head(&buf->dma_wait);
+	 buf->pid = 0;
+#if DRM_DMA_HISTOGRAM
+	 buf->time_queued = 0;
+	 buf->time_dispatched = 0;
+	 buf->time_completed = 0;
+	 buf->time_freed = 0;
+#endif
+	 DRM_DEBUG("buffer %d @ %p\n",
+		   entry->buf_count, buf->address);
+      }
+      byte_count += PAGE_SIZE << page_order;
+   }
+   
+   dma->buflist = drm_realloc(dma->buflist,
+			      dma->buf_count * sizeof(*dma->buflist),
+			      (dma->buf_count + entry->buf_count)
+			      * sizeof(*dma->buflist),
+			      DRM_MEM_BUFS);
+   for (i = dma->buf_count; i < dma->buf_count + entry->buf_count; i++)
+     dma->buflist[i] = &entry->buflist[i - dma->buf_count];
+   
+   dma->buf_count  += entry->buf_count;
+   dma->byte_count += PAGE_SIZE * (entry->seg_count << page_order);
+   
+   drm_freelist_create(&entry->freelist, entry->buf_count);
+   for (i = 0; i < entry->buf_count; i++) {
+      drm_freelist_put(dev, &entry->freelist, &entry->buflist[i]);
+   }
+   
+   up(&dev->struct_sem);
+   
+   request.count = entry->buf_count;
+   request.size  = size;
+   
+   copy_to_user_ret((drm_buf_desc_t *)arg,
+		    &request,
+		    sizeof(request),
+		    -EFAULT);
+   
+   atomic_dec(&dev->buf_alloc);
+   return 0;
+}
+
+int mga_addbufs_pci(struct inode *inode, struct file *filp, unsigned int cmd,
+		    unsigned long arg)
+{
+   	drm_file_t	 *priv	 = filp->private_data;
 	drm_device_t	 *dev	 = priv->dev;
 	drm_device_dma_t *dma	 = dev->dma;
 	drm_buf_desc_t	 request;
@@ -72,7 +194,7 @@ int mga_addbufs(struct inode *inode, struct file *filp, unsigned int cmd,
 	if (order < DRM_MIN_ORDER || order > DRM_MAX_ORDER) return -EINVAL;
 	if (dev->queue_count) return -EBUSY; /* Not while in use */
 
-	alignment  = (request.flags & DRM_PAGE_ALIGN) ? PAGE_ALIGN(size) :size;
+	alignment  = (request.flags & _DRM_PAGE_ALIGN) ? PAGE_ALIGN(size) :size;
 	page_order = order - PAGE_SHIFT > 0 ? order - PAGE_SHIFT : 0;
 	total	   = PAGE_SIZE << page_order;
 
@@ -193,6 +315,22 @@ int mga_addbufs(struct inode *inode, struct file *filp, unsigned int cmd,
 	
 	atomic_dec(&dev->buf_alloc);
 	return 0;
+}
+
+int mga_addbufs(struct inode *inode, struct file *filp, unsigned int cmd,
+		unsigned long arg)
+{
+   drm_buf_desc_t	 request;
+
+   copy_from_user_ret(&request,
+		      (drm_buf_desc_t *)arg,
+		      sizeof(request),
+		      -EFAULT);
+
+   if(request.flags & _DRM_AGP_BUFFER)
+     return mga_addbufs_agp(inode, filp, cmd, arg);
+   else
+     return mga_addbufs_pci(inode, filp, cmd, arg);
 }
 
 int mga_infobufs(struct inode *inode, struct file *filp, unsigned int cmd,
@@ -377,8 +515,25 @@ int mga_mapbufs(struct inode *inode, struct file *filp, unsigned int cmd,
 			   -EFAULT);
 
 	if (request.count >= dma->buf_count) {
-		virtual = do_mmap(filp, 0, dma->byte_count,
-				  PROT_READ|PROT_WRITE, MAP_SHARED, 0);
+	   if(dma->flags & _DRM_DMA_USE_AGP) {
+	      /* This is an ugly vicious hack */
+	      drm_map_t *map = NULL;
+	      for(i = 0; i < dev->map_count; i++) {
+		 map = dev->maplist[i];
+		 if(map->type == _DRM_AGP) break;
+	      }
+	      if (i >= dev->map_count || !map) {
+		 retcode = -EINVAL;
+		 goto done;
+	      }
+	      
+	      virtual = do_mmap(filp, 0, map->size, PROT_READ|PROT_WRITE,
+				MAP_SHARED, map->handle);
+	   }
+	   else {
+	      virtual = do_mmap(filp, 0, dma->byte_count,
+				PROT_READ|PROT_WRITE, MAP_SHARED, 0);
+	   }
 		if (virtual > -1024UL) {
 				/* Real error */
 			retcode = (signed long)virtual;

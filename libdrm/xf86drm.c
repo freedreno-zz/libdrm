@@ -419,7 +419,7 @@ int drmAddMap(int fd,
     return 0;
 }
 
-int drmAddBufs(int fd, int count, int size, int flags)
+int drmAddBufs(int fd, int count, int size, drmBufDescFlags flags)
 {
     drm_buf_desc_t request;
     
@@ -747,13 +747,13 @@ int drmDestroyDrawable(int fd, drmDrawable handle)
 
 int drmAgpAcquire(int fd)
 {
-    if (ioctl(fd, DRM_IOCTL_AGP_ACQUIRE)) return -errno;
+    if (ioctl(fd, DRM_IOCTL_AGP_ACQUIRE, NULL)) return -errno;
     return 0;
 }
 
 int drmAgpRelease(int fd)
 {
-    if (ioctl(fd, DRM_IOCTL_AGP_RELEASE)) return -errno;
+    if (ioctl(fd, DRM_IOCTL_AGP_RELEASE, NULL)) return -errno;
     return 0;
 }
 

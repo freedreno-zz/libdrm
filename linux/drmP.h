@@ -386,6 +386,9 @@ typedef struct drm_device_dma {
 	int		  page_count;
 	unsigned long	  *pagelist;
 	unsigned long	  byte_count;
+	enum {
+	   _DRM_DMA_USE_AGP = 0x01
+	} flags;
 
 				/* DMA support */
 	drm_buf_t	  *this_buffer;	/* Buffer being sent		   */
@@ -511,6 +514,7 @@ typedef struct drm_device {
 	drm_agp_head_t    *agp;
 #endif
 	unsigned long     *ctx_bitmap;
+	void		  *SAREAprivate;
 } drm_device_t;
 
 

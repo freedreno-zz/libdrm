@@ -54,6 +54,8 @@ extern int  mga_control(struct inode *inode, struct file *filp,
 			  unsigned int cmd, unsigned long arg);
 extern int  mga_lock(struct inode *inode, struct file *filp,
 		       unsigned int cmd, unsigned long arg);
+extern void mga_dma_init(drm_device_t *dev);
+extern void mga_dma_cleanup(drm_device_t *dev);
 
 
 				/* mga_bufs.c */
@@ -67,6 +69,8 @@ extern int  mga_freebufs(struct inode *inode, struct file *filp,
 			 unsigned int cmd, unsigned long arg);
 extern int  mga_mapbufs(struct inode *inode, struct file *filp,
 			unsigned int cmd, unsigned long arg);
+extern int  mga_addmap(struct inode *inode, struct file *filp,
+		       unsigned int cmd, unsigned long arg);
 
 
 

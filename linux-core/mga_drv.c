@@ -381,6 +381,7 @@ int mga_init(void)
 		mga_takedown(dev);
 		return retcode;
 	}
+	mga_dma_init(dev);
 
 	DRM_INFO("Initialized %s %d.%d.%d %s on minor %d\n",
 		 MGA_NAME,
@@ -408,6 +409,7 @@ void mga_cleanup(void)
 		DRM_INFO("Module unloaded\n");
 	}
 	drm_ctxbitmap_cleanup(dev);
+	mga_dma_cleanup(dev);
 	mga_takedown(dev);
 	if (dev->agp) {
 		drm_free(dev->agp, sizeof(*dev->agp), DRM_MEM_AGPLISTS);

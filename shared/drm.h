@@ -159,7 +159,12 @@ typedef enum drm_dma_flags {	      /* These values *MUST* match xf86drm.h */
 				      /* Flags for DMA buffer request	     */
 	_DRM_DMA_WAIT	      = 0x10, /* Wait for free buffers		     */
 	_DRM_DMA_SMALLER_OK   = 0x20, /* Smaller-than-requested buffers ok   */
-	_DRM_DMA_LARGER_OK    = 0x40  /* Larger-than-requested buffers ok    */
+	_DRM_DMA_LARGER_OK    = 0x40, /* Larger-than-requested buffers ok    */
+			  /* Specially for MGA, but not limited to use by it */
+
+	_DRM_DMA_VERTEX	      = 0x01000000, 
+	_DRM_DMA_SETUP	      = 0x02000000,
+	_DRM_DMA_BLIT	      = 0x04000000
 } drm_dma_flags_t;
 
 typedef struct drm_buf_desc {
@@ -168,8 +173,11 @@ typedef struct drm_buf_desc {
 	int	      low_mark;	 /* Low water mark			     */
 	int	      high_mark; /* High water mark			     */
 	enum {
-		DRM_PAGE_ALIGN = 0x01  /* Align on page boundaries for DMA   */
+		_DRM_PAGE_ALIGN = 0x01, /* Align on page boundaries for DMA  */
+		_DRM_AGP_BUFFER = 0x02  /* Buffer is in agp space            */
 	}	      flags;
+	unsigned long agp_start; /* Start address of where the agp buffers
+				  * are in the agp aperture */
 } drm_buf_desc_t;
 
 typedef struct drm_buf_info {
