@@ -718,11 +718,9 @@ static int mach64_dma_dispatch_blit( drm_device_t *dev,
  * IOCTL functions
  */
 
-int mach64_dma_clear( struct inode *inode, struct file *filp,
-		    unsigned int cmd, unsigned long arg )
+int mach64_dma_clear( DRM_IOCTL_ARGS )
 {
-	drm_file_t *priv = filp->private_data;
-	drm_device_t *dev = priv->dev;
+	DRM_DEVICE;
 	drm_mach64_private_t *dev_priv = dev->dev_private;
 	drm_mach64_sarea_t *sarea_priv = dev_priv->sarea_priv;
 	drm_mach64_clear_t clear;
@@ -732,9 +730,8 @@ int mach64_dma_clear( struct inode *inode, struct file *filp,
 
 	LOCK_TEST_WITH_RETURN( dev );
 	
-	if ( copy_from_user( &clear, (drm_mach64_clear_t *) arg,
-			     sizeof(clear) ) )
-		return -EFAULT;
+	DRM_COPY_FROM_USER_IOCTL( clear, (drm_mach64_clear_t *)data,
+			     sizeof(clear) );
 
 	RING_SPACE_TEST_WITH_RETURN( dev_priv );
 	
@@ -752,11 +749,9 @@ int mach64_dma_clear( struct inode *inode, struct file *filp,
 	return ret;
 }
 
-int mach64_dma_swap( struct inode *inode, struct file *filp,
-		     unsigned int cmd, unsigned long arg )
+int mach64_dma_swap( DRM_IOCTL_ARGS )
 {
-	drm_file_t *priv = filp->private_data;
-	drm_device_t *dev = priv->dev;
+	DRM_DEVICE;
 	drm_mach64_private_t *dev_priv = dev->dev_private;
 	drm_mach64_sarea_t *sarea_priv = dev_priv->sarea_priv;
 	int ret;
@@ -779,11 +774,9 @@ int mach64_dma_swap( struct inode *inode, struct file *filp,
 	return ret;
 }
 
-int mach64_dma_vertex( struct inode *inode, struct file *filp,
-		       unsigned int cmd, unsigned long arg )
+int mach64_dma_vertex( DRM_IOCTL_ARGS )
 {
-	drm_file_t *priv = filp->private_data;
-	drm_device_t *dev = priv->dev;
+	DRM_DEVICE;
 	drm_mach64_private_t *dev_priv = dev->dev_private;
 	drm_mach64_sarea_t *sarea_priv = dev_priv->sarea_priv;
 	drm_mach64_vertex_t vertex;
@@ -795,9 +788,8 @@ int mach64_dma_vertex( struct inode *inode, struct file *filp,
 		return -EINVAL;
 	}
 
-	if ( copy_from_user( &vertex, (drm_mach64_vertex_t *)arg,
-			     sizeof(vertex) ) )
-		return -EFAULT;
+	DRM_COPY_FROM_USER_IOCTL( vertex, (drm_mach64_vertex_t *)data,
+			     sizeof(vertex) );
 
 	DRM_DEBUG( "%s: pid=%d buf=%p used=%lu discard=%d\n",
 		   __FUNCTION__, current->pid,
@@ -823,11 +815,9 @@ int mach64_dma_vertex( struct inode *inode, struct file *filp,
 					   vertex.used, vertex.discard );
 }
 
-int mach64_dma_blit( struct inode *inode, struct file *filp,
-		     unsigned int cmd, unsigned long arg )
+int mach64_dma_blit( DRM_IOCTL_ARGS )
 {
-	drm_file_t *priv = filp->private_data;
-	drm_device_t *dev = priv->dev;
+	DRM_DEVICE;
 	drm_device_dma_t *dma = dev->dma;
 	drm_mach64_private_t *dev_priv = dev->dev_private;
 	drm_mach64_sarea_t *sarea_priv = dev_priv->sarea_priv;
@@ -836,9 +826,8 @@ int mach64_dma_blit( struct inode *inode, struct file *filp,
 
 	LOCK_TEST_WITH_RETURN( dev );
 
-	if ( copy_from_user( &blit, (drm_mach64_blit_t *)arg,
-			     sizeof(blit) ) )
-		return -EFAULT;
+	DRM_COPY_FROM_USER_IOCTL( blit, (drm_mach64_blit_t *)data,
+			     sizeof(blit) );
 
 	DRM_DEBUG( "%s: pid=%d index=%d\n",
 		   __FUNCTION__, current->pid, blit.idx );
@@ -862,11 +851,9 @@ int mach64_dma_blit( struct inode *inode, struct file *filp,
 	return ret;
 }
 
-int mach64_get_param( struct inode *inode, struct file *filp,
-		      unsigned int cmd, unsigned long arg )
+int mach64_get_param( DRM_IOCTL_ARGS )
 {
-        drm_file_t *priv = filp->private_data;
-        drm_device_t *dev = priv->dev;
+	DRM_DEVICE;
 	drm_mach64_private_t *dev_priv = dev->dev_private;
 	drm_mach64_getparam_t param;
 	int value;
@@ -875,9 +862,8 @@ int mach64_get_param( struct inode *inode, struct file *filp,
 
 	LOCK_TEST_WITH_RETURN( dev );
 
-	if ( copy_from_user( &param, (drm_mach64_getparam_t *)arg,
-			     sizeof(param) ) )
-		return -EFAULT;
+	DRM_COPY_FROM_USER_IOCTL( param, (drm_mach64_getparam_t *)data,
+	    sizeof(param) );
 
 	switch ( param.param ) {
 	case MACH64_PARAM_FRAMES_QUEUED:

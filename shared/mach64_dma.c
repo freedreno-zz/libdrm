@@ -1089,17 +1089,15 @@ int mach64_do_cleanup_dma( drm_device_t *dev )
  * IOCTL handlers
  */
 
-int mach64_dma_init( struct inode *inode, struct file *filp,
-		     unsigned int cmd, unsigned long arg )
+int mach64_dma_init( DRM_IOCTL_ARGS )
 {
-	drm_file_t *priv = filp->private_data;
-	drm_device_t *dev = priv->dev;
+	DRM_DEVICE;
 	drm_mach64_init_t init;
 		
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
-	if ( copy_from_user( &init, (drm_mach64_init_t *)arg, sizeof(init) ) )
-		return -EFAULT;
+	DRM_COPY_FROM_USER_IOCTL( init, (drm_mach64_init_t *)data, 
+	    sizeof(init) );
 
 	switch ( init.func ) {
 	case DRM_MACH64_INIT_DMA:
@@ -1111,11 +1109,9 @@ int mach64_dma_init( struct inode *inode, struct file *filp,
 	return -EINVAL;
 }
 
-int mach64_dma_idle( struct inode *inode, struct file *filp,
-		     unsigned int cmd, unsigned long arg )
+int mach64_dma_idle( DRM_IOCTL_ARGS )
 {
-        drm_file_t *priv = filp->private_data;
-        drm_device_t *dev = priv->dev;
+	DRM_DEVICE;
 	drm_mach64_private_t *dev_priv = dev->dev_private;
 
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
@@ -1125,11 +1121,9 @@ int mach64_dma_idle( struct inode *inode, struct file *filp,
 	return mach64_do_dma_idle( dev_priv );
 }
 
-int mach64_dma_flush( struct inode *inode, struct file *filp,
-		     unsigned int cmd, unsigned long arg )
+int mach64_dma_flush( DRM_IOCTL_ARGS )
 {
-        drm_file_t *priv = filp->private_data;
-        drm_device_t *dev = priv->dev;
+	DRM_DEVICE;
 	drm_mach64_private_t *dev_priv = dev->dev_private;
 
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
@@ -1139,11 +1133,9 @@ int mach64_dma_flush( struct inode *inode, struct file *filp,
 	return mach64_do_dma_flush( dev_priv );
 }
 
-int mach64_engine_reset( struct inode *inode, struct file *filp,
-			 unsigned int cmd, unsigned long arg )
+int mach64_engine_reset( DRM_IOCTL_ARGS )
 {
-        drm_file_t *priv = filp->private_data;
-        drm_device_t *dev = priv->dev;
+	DRM_DEVICE;
 	drm_mach64_private_t *dev_priv = dev->dev_private;
 	
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
@@ -1367,21 +1359,16 @@ static int mach64_dma_get_buffers( drm_device_t *dev, drm_dma_t *d )
 	return 0;
 }
 
-int mach64_dma_buffers( struct inode *inode, struct file *filp,
-			unsigned int cmd, unsigned long arg )
+int mach64_dma_buffers( DRM_IOCTL_ARGS )
 {
-        drm_file_t *priv = filp->private_data;
-        drm_device_t *dev = priv->dev;
+	DRM_DEVICE;
 	drm_device_dma_t *dma = dev->dma;
 	drm_dma_t d;
         int ret = 0;
 
         LOCK_TEST_WITH_RETURN( dev );
 
-        if ( copy_from_user( &d, (drm_dma_t *)arg, sizeof(d) ) )
-        {
-                return -EFAULT;
-        }
+	DRM_COPY_FROM_USER_IOCTL( d, (drm_dma_t *)data, sizeof(d) );
 
         /* Please don't send us buffers.
 	 */
@@ -1408,10 +1395,7 @@ int mach64_dma_buffers( struct inode *inode, struct file *filp,
 		ret = mach64_dma_get_buffers( dev, &d );
 	}
 
-	if ( copy_to_user( (drm_dma_t *)arg, &d, sizeof(d) ) )
-	{
-		ret = -EFAULT;
-	}
+	DRM_COPY_TO_USER_IOCTL( (drm_dma_t *)data, d, sizeof(d) );
 
         return ret;
 }

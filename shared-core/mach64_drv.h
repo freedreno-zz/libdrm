@@ -113,16 +113,11 @@ typedef struct drm_mach64_private {
 } drm_mach64_private_t;
 
 				/* mach64_dma.c */
-extern int mach64_dma_init( struct inode *inode, struct file *filp,
-			    unsigned int cmd, unsigned long arg );
-extern int mach64_dma_idle( struct inode *inode, struct file *filp,
-			    unsigned int cmd, unsigned long arg );
-extern int mach64_dma_flush( struct inode *inode, struct file *filp,
-			    unsigned int cmd, unsigned long arg );
-extern int mach64_engine_reset( struct inode *inode, struct file *filp,
-				unsigned int cmd, unsigned long arg );
-extern int mach64_dma_buffers( struct inode *inode, struct file *filp,
-			       unsigned int cmd, unsigned long arg );
+extern int mach64_dma_init( DRM_IOCTL_ARGS );
+extern int mach64_dma_idle( DRM_IOCTL_ARGS );
+extern int mach64_dma_flush( DRM_IOCTL_ARGS );
+extern int mach64_engine_reset( DRM_IOCTL_ARGS );
+extern int mach64_dma_buffers( DRM_IOCTL_ARGS );
 
 extern int mach64_init_freelist( drm_device_t *dev );
 extern void mach64_destroy_freelist( drm_device_t *dev );
@@ -143,16 +138,11 @@ extern int mach64_do_dma_flush( drm_mach64_private_t *dev_priv );
 extern int mach64_do_cleanup_dma( drm_device_t *dev );
 
 				/* mach64_state.c */
-extern int mach64_dma_clear( struct inode *inode, struct file *filp,
-			     unsigned int cmd, unsigned long arg );
-extern int mach64_dma_swap( struct inode *inode, struct file *filp,
-			    unsigned int cmd, unsigned long arg );
-extern int mach64_dma_vertex( struct inode *inode, struct file *filp,
-			      unsigned int cmd, unsigned long arg );
-extern int mach64_dma_blit( struct inode *inode, struct file *filp,
-			    unsigned int cmd, unsigned long arg );
-extern int mach64_get_param( struct inode *inode, struct file *filp,
-			     unsigned int cmd, unsigned long arg );
+extern int mach64_dma_clear( DRM_IOCTL_ARGS );
+extern int mach64_dma_swap( DRM_IOCTL_ARGS );
+extern int mach64_dma_vertex( DRM_IOCTL_ARGS );
+extern int mach64_dma_blit( DRM_IOCTL_ARGS );
+extern int mach64_get_param( DRM_IOCTL_ARGS );
 
 /* ================================================================
  * Registers
