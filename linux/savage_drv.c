@@ -270,6 +270,7 @@ int savage_free_cont_mem(struct inode *inode, struct file *filp,
 #include "drm_proc.h"
 #include "drm_vm.h"
 #include "drm_stub.h"
+#include "drm_scatter.h"
 
 
 

@@ -65,9 +65,6 @@
 #ifndef __HAVE_COUNTERS
 #define __HAVE_COUNTERS			0
 #endif
-#ifndef __HAVE_SG
-#define __HAVE_SG			0
-#endif
 
 #ifndef DRIVER_IOCTLS
 #define DRIVER_IOCTLS
@@ -181,10 +178,8 @@ drm_ioctl_desc_t		  DRM(ioctls)[] = {
 	[DRM_IOCTL_NR(DRM_IOCTL_AGP_UNBIND)]    = { DRM(agp_unbind),  1, 1 },
 #endif
 
-#if __HAVE_SG
 	[DRM_IOCTL_NR(DRM_IOCTL_SG_ALLOC)]      = { DRM(sg_alloc),    1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_SG_FREE)]       = { DRM(sg_free),     1, 1 },
-#endif
 
 #if __HAVE_VBL_IRQ
 	[DRM_IOCTL_NR(DRM_IOCTL_WAIT_VBLANK)]   = { DRM(wait_vblank), 0, 0 },
@@ -433,15 +428,11 @@ static int DRM(takedown)( drm_device_t *dev )
 					 */
 					break;
 				case _DRM_SCATTER_GATHER:
-					/* Handle it, but do nothing, if HAVE_SG
-					 * isn't defined.
-					 */
-#if __HAVE_SG
-					if(dev->sg) {
+					/* Handle it */
+					if (dev->driver_features & DRIVER_SG && dev->sg) {
 						DRM(sg_cleanup)(dev->sg);
 						dev->sg = NULL;
 					}
-#endif
 					break;
 				}
 				DRM(free)(map, sizeof(*map), DRM_MEM_MAPS);

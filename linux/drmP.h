@@ -97,8 +97,8 @@
 #define DRIVER_CTX_BITMAP  0x8
 #define DRIVER_HAVE_DMA    0x10
 #define DRIVER_HAVE_IRQ    0x20
-#define DRIVER_HAVE_SG     0x40
-#define DRIVER_PCI_DMA 0x80
+#define DRIVER_SG          0x40
+#define DRIVER_PCI_DMA     0x80
 
 #ifndef __HAVE_DMA
 #define __HAVE_DMA		0
@@ -106,8 +106,6 @@
 #ifndef __HAVE_IRQ
 #define __HAVE_IRQ		0
 #endif
-
-#define __REALLY_HAVE_SG	(__HAVE_SG)
 
 #define __OS_HAS_AGP (defined(CONFIG_AGP) || defined(CONFIG_AGP_MODULE))
 #define __OS_HAS_MTRR (defined(CONFIG_MTRR))
@@ -915,14 +913,12 @@ extern int            DRM(proc_cleanup)(int minor,
 					struct proc_dir_entry *root,
 					struct proc_dir_entry *dev_root);
 
-#ifdef __HAVE_SG
 				/* Scatter Gather Support (drm_scatter.h) */
 extern void           DRM(sg_cleanup)(drm_sg_mem_t *entry);
 extern int            DRM(sg_alloc)(struct inode *inode, struct file *filp,
 				    unsigned int cmd, unsigned long arg);
 extern int            DRM(sg_free)(struct inode *inode, struct file *filp,
 				   unsigned int cmd, unsigned long arg);
-#endif
 
                                /* ATI PCIGART support (ati_pcigart.h) */
 extern int            DRM(ati_pcigart_init)(drm_device_t *dev,
