@@ -148,12 +148,11 @@ do {								\
 #define DRM_OS_COPYFROMUSR(arg1, arg2, arg3) \
 	copyin(arg2, arg1, arg3)
 /* Macros for userspace access with checking readability once */
-/* FIXME: can't find equivalent functionality in FreeBSD yet.
- * We should be able to make the code as secure as linux if a little bit
- * slower, though I don't believe it is as secure yet.
+/* FIXME: can't find equivalent functionality for nocheck yet.
+ * It's be slower than linux, but should be correct.
  */
 #define DRM_OS_VERIFYAREA_READ( uaddr, size )		\
-	(0) /*(!useracc(uaddr, size, VM_PROT_READ))*/
+	(!useracc((caddr_t)uaddr, size, VM_PROT_READ))
 #define DRM_OS_COPYFROMUSR_NC(arg1, arg2, arg3) 	\
 	copyin(arg2, arg1, arg3)
 #define DRM_OS_FETCHU_32_NC(val, uaddr)			\
