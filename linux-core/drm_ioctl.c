@@ -113,7 +113,7 @@ int DRM(setunique)(struct inode *inode, struct file *filp,
 
 	do {
 		struct pci_dev *pci_dev;
-                int b, d, f;
+                int domain, b, d, f;
                 char *p;
  
                 for(p = dev->unique; p && *p && *p != ':'; p++);
@@ -125,6 +125,27 @@ int DRM(setunique)(struct inode *inode, struct file *filp,
                 f = (int)simple_strtoul(p+1, &p, 10);
                 if (*p) break;
  
+		domain = b >> 8;
+		b &= 0xff;
+
+#ifdef __alpha__
+		/*
+		 * Find the hose the device is on (the domain number is the
+		 * hose index) and offset the bus by the root bus of that
+		 * hose.
+		 */
+                for(pci_dev = pci_find_device(PCI_ANY_ID,PCI_ANY_ID,NULL);
+                    pci_dev;
+                    pci_dev = pci_find_device(PCI_ANY_ID,PCI_ANY_ID,pci_dev)) {
+			struct pci_controller *hose = pci_dev->sysdata;
+			
+			if (hose->index == domain) {
+				b += hose->bus->number;
+				break;
+			}
+		}
+#endif
+
                 pci_dev = pci_find_slot(b, PCI_DEVFN(d,f));
                 if (pci_dev) {
 			dev->pdev = pci_dev;
