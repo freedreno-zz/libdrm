@@ -46,6 +46,7 @@ static int i810DmaGeneral(drm_device_t *dev, drm_i810_general_t *args)
 	drm_dma_t d;
    	
    	buf_priv->dma_type = I810_DMA_GENERAL;
+	buf_priv->age = args->age;
 	buf->used = args->used;
 
 	if (I810_VERBOSE)
@@ -92,6 +93,7 @@ static int i810DmaVertex(drm_device_t *dev, drm_i810_vertex_t *args)
 	buf_priv->vertex_real_idx = args->real_idx;
 	buf_priv->vertex_discard = args->discard;
 	buf_priv->nbox = sarea_priv->nbox;
+	buf_priv->age = args->age;
 
 	if (buf_priv->nbox >= I810_NR_SAREA_CLIPRECTS)
 		buf_priv->nbox = I810_NR_SAREA_CLIPRECTS;
@@ -133,8 +135,9 @@ int i810_dma_general(struct inode *inode, struct file *filp,
 	copy_from_user_ret(&general, (drm_i810_general_t *)arg, sizeof(general),
 			   -EFAULT);
 
-	printk("i810 dma general idx %d used %d\n",
-	       general.idx, general.used);
+	if (I810_VERBOSE) 
+		printk("i810 dma general idx %d used %d\n",
+		       general.idx, general.used);
    
 	retcode = i810DmaGeneral(dev, &general);
    
@@ -152,9 +155,11 @@ int i810_dma_vertex(struct inode *inode, struct file *filp,
 	copy_from_user_ret(&vertex, (drm_i810_vertex_t *)arg, sizeof(vertex),
 			   -EFAULT);
    
-	printk("i810 dma vertex, idx %d used %d real_idx %d discard %d\n",
-	       vertex.idx, vertex.real_used, vertex.real_idx,
-	       vertex.discard);
+	if (I810_VERBOSE) 
+		printk("i810 dma vertex, idx %d used %d"
+		       " real_idx %d discard %d\n",
+		       vertex.idx, vertex.real_used, vertex.real_idx,
+		       vertex.discard);
 
 	retcode = i810DmaVertex(dev, &vertex);
    
@@ -204,76 +209,9 @@ int i810_dma(struct inode *inode, struct file *filp, unsigned int cmd,
 		retcode = drm_dma_get_buffers(dev, &d);
 	}
 
-	printk("i810_dma: %d returning, granted = %d\n",
-	       current->pid, d.granted_count);
-
 	copy_to_user_ret((drm_dma_t *)arg, &d, sizeof(d), -EFAULT);
 
 	return retcode;
 }
 
 
-#if 0
-
-static int i810_dma_send_buffers(drm_device_t *dev, drm_dma_t *d)
-{
-	DECLARE_WAITQUEUE(entry, current);
-	drm_buf_t	  *last_buf = NULL;
-	int		  retcode   = 0;
-	drm_device_dma_t  *dma	    = dev->dma;
-      	drm_i810_private_t *dev_priv = dev->dev_private;
-
-   	d->context = DRM_KERNEL_CONTEXT;
-	
-	if ((retcode = drm_dma_enqueue(dev, d))) {
-		return retcode;
-	}
-   
-   	atomic_inc(&dev_priv->pending_bufs);
-	i810_dma_schedule(dev, 1);
-   	return retcode;
-}
-
-int i810_dma(struct inode *inode, struct file *filp, unsigned int cmd,
-	      unsigned long arg)
-{
-	drm_file_t	  *priv	    = filp->private_data;
-	drm_device_t	  *dev	    = priv->dev;
-	drm_device_dma_t  *dma	    = dev->dma;
-	int		  retcode   = 0;
-	drm_dma_t	  d;
-
-        DRM_DEBUG("i810_dma start\n");
-   	copy_from_user_ret(&d, (drm_dma_t *)arg, sizeof(d), -EFAULT);
-	DRM_DEBUG("%d %d: %d send, %d req\n",
-		  current->pid, d.context, d.send_count, d.request_count);
-
-	if (d.send_count < 0 || d.send_count > dma->buf_count) {
-		DRM_ERROR("Process %d trying to send %d buffers (of %d max)\n",
-			  current->pid, d.send_count, dma->buf_count);
-		return -EINVAL;
-	}
-	if (d.request_count < 0 || d.request_count > dma->buf_count) {
-		DRM_ERROR("Process %d trying to get %d buffers (of %d max)\n",
-			  current->pid, d.request_count, dma->buf_count);
-		return -EINVAL;
-	}
-
-	if (d.send_count) {
-	   	retcode = i810_dma_send_buffers(dev, &d);
-	}
-
-	d.granted_count = 0;
-
-	if (!retcode && d.request_count) {
-		retcode = drm_dma_get_buffers(dev, &d);
-	}
-
-	DRM_DEBUG("%d returning, granted = %d\n",
-		  current->pid, d.granted_count);
-	copy_to_user_ret((drm_dma_t *)arg, &d, sizeof(d), -EFAULT);
-
-   	DRM_DEBUG("i810_dma end (granted)\n");
-	return retcode;
-}
-#endif

@@ -41,6 +41,7 @@
 */
 typedef struct {
 	int dma_type;
+	int age;
 	int vertex_real_idx;
 	int vertex_discard;
    	unsigned int nbox;
@@ -52,7 +53,9 @@ typedef struct {
 #define I810_DMA_VERTEX  1
 #define I810_DMA_DISCARD 2	/* not used */
 
-#define I810_VERBOSE 1
+
+
+#define I810_VERBOSE 0
 
 
 int i810_dma_vertex(struct inode *inode, struct file *filp,

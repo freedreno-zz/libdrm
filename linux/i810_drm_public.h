@@ -54,17 +54,23 @@ typedef struct _xf86drmClipRectRec {
 } xf86drmClipRectRec;
 
 
-#define I810_DMA_BUF_ORDER     16
+/* Might one day want to support the client-side ringbuffer code again.
+ */
+#define I810_USE_BATCH 1
+
+/* 32 16k dma buffers -- 512k 
+ */
+#define I810_DMA_BUF_ORDER     14
 #define I810_DMA_BUF_SZ        (1<<I810_DMA_BUF_ORDER)
-#define I810_DMA_BUF_NR        63
+#define I810_DMA_BUF_NR        32
 
 #define I810_NR_SAREA_CLIPRECTS 2
 
 
-/* Each region is a minimum of 32k, and there are at most 128 of them.
+/* Each region is a minimum of 64k, and there are at most 128 of them.
  */
 #define I810_NR_TEX_REGIONS 128
-#define I810_LOG_MIN_TEX_REGION_SIZE 18
+#define I810_LOG_MIN_TEX_REGION_SIZE 16
 
  
 
@@ -93,12 +99,14 @@ typedef struct {
 	 * else's - simply eject them all in LRU order.
 	 */
 	i810TexRegion texList[I810_NR_TEX_REGIONS+1]; /* Last elt is sentinal */
-	int texAge;	                              /* Current age counter */
+        int texAge;		/* last time texture was uploaded */
 
+        int last_enqueue;	/* last time a buffer was enqueued */
+	int last_dispatch;	/* age of the most recently dispatched buffer */
+	int last_quiescent;     /*  */
 
-	int lastDispatch;
-	int lastGetBuffer;	/* dodgy - not needed if dma uploads used */   
-	int ctxOwner;		/* last context to upload state */
+        int ctxOwner;	        /* last 3d context to hold lock */
+
 
 } drm_i810_sarea_t;
 
@@ -106,6 +114,7 @@ typedef struct {
 typedef struct {
    	int idx;
 	int used;
+	int age;
 } drm_i810_general_t;
 
 
@@ -122,6 +131,7 @@ typedef struct {
    	int real_idx;		/* buffer to execute */
 	int real_used;		/* buf->used in for real buffer */
 	int discard;		/* don't execute the commands */
+	int age;
 } drm_i810_vertex_t;
 
 
@@ -129,5 +139,5 @@ typedef struct {
 #define DRM_IOCTL_I810_INIT    DRM_IOW( 0x40, drm_i810_init_t)
 #define DRM_IOCTL_I810_VERTEX  DRM_IOW( 0x41, drm_i810_vertex_t)
 #define DRM_IOCTL_I810_DMA     DRM_IOW( 0x42, drm_i810_general_t)
-#define DRM_IOCTL_I810_FLUSH   DRM_IO ( 0x43)
+#define DRM_IOCTL_I810_FLUSH   DRM_IO ( 0x43 )
 #endif /* _I810_DRM_H_ */
