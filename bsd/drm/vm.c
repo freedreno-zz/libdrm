@@ -91,6 +91,7 @@ int drm_mmap(dev_t kdev, vm_offset_t offset, int prot)
 	switch (map->type) {
 	case _DRM_FRAME_BUFFER:
 	case _DRM_REGISTERS:
+	case _DRM_AGP:
 		return atop(offset);
 	case _DRM_SHM:
 		return atop(vtophys(offset));
