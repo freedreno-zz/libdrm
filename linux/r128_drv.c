@@ -37,7 +37,7 @@
 
 #define R128_NAME		"r128"
 #define R128_DESC		"ATI Rage 128"
-#define R128_DATE		"20001115"
+#define R128_DATE		"20001121"
 #define R128_MAJOR		2
 #define R128_MINOR		0
 #define R128_PATCHLEVEL		0
@@ -261,8 +261,7 @@ static int r128_takedown(drm_device_t *dev)
 		}
 		dev->agp->memory = NULL;
 
-		if (dev->agp->acquired && drm_agp.release)
-			(*drm_agp.release)();
+		if (dev->agp->acquired)	_drm_agp_release();
 
 		dev->agp->acquired = 0;
 		dev->agp->enabled  = 0;
@@ -332,7 +331,7 @@ static int r128_takedown(drm_device_t *dev)
 /* r128_init is called via init_module at module load time, or via
  * linux/init/main.c (this is not currently supported). */
 
-static int r128_init(void)
+static int __init r128_init(void)
 {
 	int		      retcode;
 	drm_device_t	      *dev = &r128_device;
@@ -396,7 +395,7 @@ static int r128_init(void)
 
 /* r128_cleanup is called via cleanup_module at module unload time. */
 
-static void r128_cleanup(void)
+static void __exit r128_cleanup(void)
 {
 	drm_device_t	      *dev = &r128_device;
 
