@@ -11,6 +11,7 @@ typedef struct {
 	int dma_type;
 
    	unsigned int ContextState[MGA_CTX_SETUP_SIZE];
+   	unsigned int ServerState[MGA_2D_SETUP_SIZE];
    	unsigned int TexState[2][MGA_TEX_SETUP_SIZE];
    	unsigned int WarpPipe;
    	unsigned int dirty;

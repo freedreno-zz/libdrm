@@ -125,9 +125,9 @@ typedef struct {
 typedef struct {
 	unsigned int destOrg;
 	unsigned int mAccess;
+   	unsigned int pitch;
 	xf86drmClipRectRec texture;
    	int idx;
-   	int used;
 } drm_mga_iload_t;
 
 /* Each context has a state:
@@ -142,6 +142,11 @@ typedef struct {
 #define MGA_CTXREG_TDUAL0    7
 #define MGA_CTXREG_TDUAL1    8
 #define MGA_CTX_SETUP_SIZE   9
+
+/* 2d state
+ */
+#define MGA_2DREG_PITCH 	0
+#define MGA_2D_SETUP_SIZE 	1
 
 /* Each texture unit has a state:
  */
@@ -165,6 +170,7 @@ typedef struct {
 #define MGASAREA_NEW_TEX0       0x2
 #define MGASAREA_NEW_TEX1       0x4
 #define MGASAREA_NEW_PIPE       0x8
+#define MGASAREA_NEW_2D 	0x10
 
 
 /* Keep this small for testing
@@ -185,6 +191,7 @@ typedef struct {
 typedef struct 
 {
    	unsigned int ContextState[MGA_CTX_SETUP_SIZE];
+   	unsigned int ServerState[MGA_2D_SETUP_SIZE];
    	unsigned int TexState[2][MGA_TEX_SETUP_SIZE];
    	unsigned int WarpPipe;
    	unsigned int dirty;
@@ -197,10 +204,6 @@ typedef struct
 	mgaTexRegion texList[MGA_NR_TEX_REGIONS+1];
 	int texAge;	                            
 } drm_mga_sarea_t;	
-
-
-
- 
 
 #define DRM_IOCTL_MGA_INIT    DRM_IOW( 0x40, drm_mga_init_t)
 #define DRM_IOCTL_MGA_SWAP    DRM_IOW( 0x41, drm_mga_swap_t)

@@ -223,6 +223,7 @@ static int mgaIload(drm_device_t *dev, drm_mga_iload_t *args)
    	drm_mga_private_t *dev_priv = (drm_mga_private_t *)dev->dev_private;
 	drm_mga_sarea_t *sarea_priv = dev_priv->sarea_priv;
 	drm_dma_t d;
+   	int pixperdword;
    	
    	buf_priv->dma_type = MGA_DMA_ILOAD;
    	buf_priv->boxes[0].y1 = args->texture.y1;
@@ -231,9 +232,28 @@ static int mgaIload(drm_device_t *dev, drm_mga_iload_t *args)
    	buf_priv->boxes[0].x2 = args->texture.x2;
    	buf_priv->ContextState[MGA_CTXREG_DSTORG] = args->destOrg;
    	buf_priv->ContextState[MGA_CTXREG_MACCESS] = args->mAccess;
+   	buf_priv->ServerState[MGA_2DREG_PITCH] = args->pitch;
 	buf_priv->nbox = 1;   
-   	sarea_priv->dirty |= MGASAREA_NEW_CONTEXT;
-   	buf->used = args->used;
+   	sarea_priv->dirty |= (MGASAREA_NEW_CONTEXT | MGASAREA_NEW_2D);
+   	switch((args->mAccess & 0x00000003)) {
+	 	case 0:
+	   		pixperdword = 4;
+	   	break;
+	 	case 1:
+	   		pixperdword = 2;
+	   	break;
+	 	case 2:
+	   		pixperdword = 1;
+	  	break;
+		default:
+	   		DRM_ERROR("Invalid maccess value passed"
+				  " to mgaIload\n");
+	   	return -EINVAL;
+	}
+   	buf->used = ((args->texture.y2 - args->texture.y1) *
+		     (args->texture.x2 - args->texture.x1) /
+		     pixperdword);
+   	DRM_DEBUG("buf->used : %d\n", buf->used);
 	d.context = DRM_KERNEL_CONTEXT;
 	d.send_count = 1;
 	d.send_indices = &buf->idx;

@@ -125,7 +125,7 @@ MODULE_PARM(mga, "s");
 
 int init_module(void)
 {
-	printk("doing mga_init()\n");
+	DRM_DEBUG("doing mga_init()\n");
 	return mga_init();
 }
 
@@ -366,7 +366,7 @@ int mga_init(void)
 #ifdef MODULE
 	drm_parse_options(mga);
 #endif
-	printk("doing misc_register\n");
+	DRM_DEBUG("doing misc_register\n");
 	if ((retcode = misc_register(&mga_misc))) {
 		DRM_ERROR("Cannot register \"%s\"\n", MGA_NAME);
 		return retcode;
@@ -374,13 +374,13 @@ int mga_init(void)
 	dev->device = MKDEV(MISC_MAJOR, mga_misc.minor);
 	dev->name   = MGA_NAME;
 
-   	printk("doing mem init\n");
+   	DRM_DEBUG("doing mem init\n");
 	drm_mem_init();
-	printk("doing proc init\n");
+	DRM_DEBUG("doing proc init\n");
 	drm_proc_init(dev);
-	printk("doing agp init\n");
+	DRM_DEBUG("doing agp init\n");
 	dev->agp    = drm_agp_init();
-	printk("doing ctxbitmap init\n");
+	DRM_DEBUG("doing ctxbitmap init\n");
 	if((retcode = drm_ctxbitmap_init(dev))) {
 		DRM_ERROR("Cannot allocate memory for context bitmap.\n");
 		drm_proc_cleanup();
@@ -388,10 +388,6 @@ int mga_init(void)
 		mga_takedown(dev);
 		return retcode;
 	}
-#if 0
-	printk("doing mga_dma_init\n");
-	mga_dma_init(dev);
-#endif
 
 	DRM_INFO("Initialized %s %d.%d.%d %s on minor %d\n",
 		 MGA_NAME,

@@ -99,13 +99,13 @@ static int mga_dma_initialize(drm_device_t *dev, drm_mga_init_t *init) {
 	if(dev_priv == NULL) return -ENOMEM;
 	dev->dev_private = (void *) dev_priv;
 
-	printk("dev_private\n");
+	DRM_DEBUG("dev_private\n");
 
 	memset(dev_priv, 0, sizeof(drm_mga_private_t));
 	if((init->reserved_map_idx >= dev->map_count) ||
 	   (init->buffer_map_idx >= dev->map_count)) {
 		mga_dma_cleanup(dev);
-		printk("reserved_map or buffer_map are invalid\n");
+		DRM_DEBUG("reserved_map or buffer_map are invalid\n");
 		return -EINVAL;
 	}
 
@@ -115,7 +115,7 @@ static int mga_dma_initialize(drm_device_t *dev, drm_mga_init_t *init) {
 	dev_priv->sarea_priv = (drm_mga_sarea_t *) 
 		((u8 *)sarea_map->handle + 
 		 init->sarea_priv_offset);
-	printk("sarea_priv\n");
+	DRM_DEBUG("sarea_priv\n");
 
 	/* Scale primary size to the next page */
 	dev_priv->primary_size = ((init->primary_size + PAGE_SIZE - 1) / 
@@ -137,24 +137,24 @@ static int mga_dma_initialize(drm_device_t *dev, drm_mga_init_t *init) {
 	dev_priv->mAccess = init->mAccess;
 	
    
-	printk("memcpy\n");
+	DRM_DEBUG("memcpy\n");
 	memcpy(&dev_priv->WarpIndex, &init->WarpIndex, 
 	       sizeof(mgaWarpIndex) * MGA_MAX_WARP_PIPES);
-	printk("memcpy done\n");
+	DRM_DEBUG("memcpy done\n");
 	prim_map = dev->maplist[init->reserved_map_idx];
 	dev_priv->prim_phys_head = dev->agp->base + init->reserved_map_agpstart;
 	temp = init->warp_ucode_size + dev_priv->primary_size;
 	temp = ((temp + PAGE_SIZE - 1) / 
 		PAGE_SIZE) * PAGE_SIZE;
-	printk("temp : %x\n", temp);
-	printk("dev->agp->base: %lx\n", dev->agp->base);
-	printk("init->reserved_map_agpstart: %x\n", init->reserved_map_agpstart);
+	DRM_DEBUG("temp : %x\n", temp);
+	DRM_DEBUG("dev->agp->base: %lx\n", dev->agp->base);
+	DRM_DEBUG("init->reserved_map_agpstart: %x\n", init->reserved_map_agpstart);
 
 
 	dev_priv->ioremap = drm_ioremap(dev->agp->base + init->reserved_map_agpstart, 
 					temp);
 	if(dev_priv->ioremap == NULL) {
-		printk("Ioremap failed\n");
+		DRM_DEBUG("Ioremap failed\n");
 		mga_dma_cleanup(dev);
 		return -ENOMEM;
 	}
@@ -162,12 +162,12 @@ static int mga_dma_initialize(drm_device_t *dev, drm_mga_init_t *init) {
 
 
 	dev_priv->prim_head = (u32 *)dev_priv->ioremap;
-	printk("dev_priv->prim_head : %p\n", dev_priv->prim_head);
+	DRM_DEBUG("dev_priv->prim_head : %p\n", dev_priv->prim_head);
 	dev_priv->current_dma_ptr = dev_priv->prim_head;
 	dev_priv->prim_num_dwords = 0;
 	dev_priv->prim_max_dwords = dev_priv->primary_size / 4;
    
-	printk("dma initialization\n");
+	DRM_DEBUG("dma initialization\n");
 
 	/* Private is now filled in, initialize the hardware */
 	{
@@ -183,7 +183,7 @@ static int mga_dma_initialize(drm_device_t *dev, drm_mga_init_t *init) {
 		/* Poll for the first buffer to insure that
 		 * the status register will be correct
 		 */
-	   	printk(KERN_INFO "phys_head : %lx\n", phys_head);
+	   	DRM_DEBUG("phys_head : %lx\n", phys_head);
    
 		MGA_WRITE(MGAREG_DWGSYNC, MGA_SYNC_TAG);
 
@@ -204,7 +204,7 @@ static int mga_dma_initialize(drm_device_t *dev, drm_mga_init_t *init) {
 
 	}
    
-	printk("dma init was successful\n");
+	DRM_DEBUG("dma init was successful\n");
 	return 0;
 }
 
@@ -299,18 +299,43 @@ static void __mga_iload_xy(drm_device_t *dev,
 	int x2 = buf_priv->boxes[0].x2;
    	int dstorg = buf_priv->ContextState[MGA_CTXREG_DSTORG];
    	int maccess = buf_priv->ContextState[MGA_CTXREG_MACCESS];
+   	int pitch = buf_priv->ServerState[MGA_2DREG_PITCH];
+   	int width, height;
+   	int texperdword = 0;
    	PRIMLOCALS;
-
+   
+   	width = (x2 - x1);
+   	height = (y2 - y1);
+   	switch((maccess & 0x00000003)) {
+	 	case 0:
+	   	texperdword = 4;
+      		break;
+	 	case 1:
+      		texperdword = 2;
+	   	break;
+    		case 2:
+      		texperdword = 1;
+      		break;
+    		default:
+      		DRM_ERROR("Invalid maccess value passed to __mga_iload_xy\n");
+	   	return;  
+	}
+   
+   	x2 = x1 + width;
+   	x2 = (x2 + (texperdword - 1)) & ~(texperdword - 1);
+   	x1 = (x1 + (texperdword - 1)) & ~(texperdword - 1);
+   	width = x2 - x1;
+   
 	PRIMRESET(dev_priv);		
    	PRIMGETPTR(dev_priv);
    	PRIMOUTREG(MGAREG_DSTORG, dstorg | use_agp);
    	PRIMOUTREG(MGAREG_MACCESS, maccess);
-   	PRIMOUTREG(MGAREG_PITCH, (x2 - x1));
-   	PRIMOUTREG(MGAREG_YDSTLEN, (y1 << 16) | (y2 - y1));
-	   
-   	PRIMOUTREG(MGAREG_FXBNDRY, (x2 << 16) | x1);
-   	PRIMOUTREG(MGAREG_AR0, (x2 - x1) * (y2 - y1 - 1));
-   	PRIMOUTREG(MGAREG_AR3, 0 );
+   	PRIMOUTREG(MGAREG_PITCH, pitch);
+   	PRIMOUTREG(MGAREG_YDSTLEN, (y1 << 16) | height);
+   
+   	PRIMOUTREG(MGAREG_FXBNDRY, ((x1+width-1) << 16) | x1);
+   	PRIMOUTREG(MGAREG_AR0, width * height - 1);
+      	PRIMOUTREG(MGAREG_AR3, 0 );
    	PRIMOUTREG(MGAREG_DWGCTL+MGAREG_MGA_EXEC, MGA_ILOAD_CMD);
 	   	   
    	PRIMOUTREG(MGAREG_DMAPAD, 0);
@@ -343,8 +368,10 @@ static void mga_dma_dispatch_iload(drm_device_t *dev, drm_buf_t *buf)
 	int x2 = buf_priv->boxes[0].x2;
    
    	if((x2 - x1) < 32) {
+	   	DRM_DEBUG("using iload small\n");
 	   	__mga_iload_small(dev, buf, use_agp);
 	} else {
+	   	DRM_DEBUG("using iload xy\n");
 	   	__mga_iload_xy(dev, buf, use_agp); 
 	}   
 }
@@ -430,7 +457,6 @@ static void mga_dma_dispatch_general(drm_device_t *dev, drm_buf_t *buf)
 static inline void mga_dma_quiescent(drm_device_t *dev)
 {
    	drm_mga_private_t *dev_priv = (drm_mga_private_t *)dev->dev_private;
-
 
    	while(1) {
 	   atomic_inc(&dev_priv->dispatch_lock);
@@ -580,7 +606,7 @@ static int mga_do_dma(drm_device_t *dev, int locked)
 		mga_dma_dispatch_iload(dev, buf);
 		break;
 	default:
-		printk("bad buffer type %x in dispatch\n", buf_priv->dma_type);
+		DRM_DEBUG("bad buffer type %x in dispatch\n", buf_priv->dma_type);
 		break;
 	}
 
@@ -845,10 +871,10 @@ int mga_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 	
 	if (!ret) {
 		if (lock.flags & _DRM_LOCK_QUIESCENT) {
-		   	printk("_DRM_LOCK_QUIESCENT\n");
+		   	DRM_DEBUG("_DRM_LOCK_QUIESCENT\n");
 			mga_dma_quiescent(dev);
 		}
 	}
-	printk("%d %s\n", lock.context, ret ? "interrupted" : "has lock");
+	DRM_DEBUG("%d %s\n", lock.context, ret ? "interrupted" : "has lock");
 	return ret;
 }
