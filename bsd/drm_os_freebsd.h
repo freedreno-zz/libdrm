@@ -79,6 +79,7 @@
 #define DRM_STRUCTPROC		struct thread
 #define DRM_SPINTYPE		struct mtx
 #define DRM_SPININIT(l,name)	mtx_init(&l, name, NULL, MTX_DEF)
+#define DRM_SPINUNINIT(l)	mtx_destroy(&l)
 #define DRM_SPINLOCK(l)		mtx_lock(l)
 #define DRM_SPINUNLOCK(u)	mtx_unlock(u);
 #define DRM_CURRENTPID		curthread->td_proc->p_pid
@@ -87,6 +88,7 @@
 #define DRM_STRUCTPROC		struct proc
 #define DRM_SPINTYPE		struct simplelock
 #define DRM_SPININIT(l,name)	simple_lock_init(&l)
+#define DRM_SPINUNINIT(l,name)
 #define DRM_SPINLOCK(l)		simple_lock(l)
 #define DRM_SPINUNLOCK(u)	simple_unlock(u);
 #define DRM_CURRENTPID		curproc->p_pid
