@@ -38,7 +38,7 @@
 #define MGA_DESC	 "Matrox G200/G400"
 #define MGA_DATE	 "20000928"
 #define MGA_MAJOR	 2
-#define MGA_MINOR	 0
+#define MGA_MINOR	 1
 #define MGA_PATCHLEVEL	 1
 
 static drm_device_t	      mga_device;
@@ -114,6 +114,7 @@ static drm_ioctl_desc_t	      mga_ioctls[] = {
    	[DRM_IOCTL_NR(DRM_IOCTL_MGA_VERTEX)]  = { mga_vertex,      1, 0 },
    	[DRM_IOCTL_NR(DRM_IOCTL_MGA_FLUSH)]   = { mga_flush_ioctl, 1, 0 },
    	[DRM_IOCTL_NR(DRM_IOCTL_MGA_INDICES)] = { mga_indices,     1, 0 },
+     	[DRM_IOCTL_NR(DRM_IOCTL_MGA_BLIT)]    = { mga_blit,        1, 0 }, 
 };
 
 #define MGA_IOCTL_COUNT DRM_ARRAY_SIZE(mga_ioctls)
@@ -502,7 +503,7 @@ int mga_release(struct inode *inode, struct file *filp)
 	if (dev->lock.hw_lock && _DRM_LOCK_IS_HELD(dev->lock.hw_lock->lock)
 	    && dev->lock.pid == current->pid) {
 	      	mga_reclaim_buffers(dev, priv->pid);
-		DRM_INFO("Process %d dead (ctx %d, d_s = 0x%02x)\n",
+		DRM_INFO("Process %d dead (ctx %d, d_s = 0x%02lx)\n",
 			 current->pid,
 			 _DRM_LOCKING_CONTEXT(dev->lock.hw_lock->lock),
 			 dev->dev_private ?
