@@ -739,7 +739,10 @@ static void radeon_cp_dispatch_flip( drm_device_t *dev )
 {
 	drm_radeon_private_t *dev_priv = dev->dev_private;
 	RING_LOCALS;
-	DRM_DEBUG( "%s: page=%d\n", __FUNCTION__, dev_priv->current_page );
+	DRM_DEBUG( "%s: page=%d pfCurrentPage=%d\n", 
+		__FUNCTION__, 
+		dev_priv->current_page,
+		dev_priv->sarea_priv->pfCurrentPage);
 
 #if RADEON_PERFORMANCE_BOXES
 	/* Do some trivial performance monitoring...
@@ -1247,10 +1250,14 @@ static int radeon_do_init_pageflip( drm_device_t *dev )
 
 	dev_priv->page_flipping = 1;
 	dev_priv->current_page = 0;
+	dev_priv->sarea_priv->pfCurrentPage = dev_priv->current_page;
 
 	return 0;
 }
 
+/* This manages to bop things back to normal when the pageflipping client
+ * exits...  What does it do if there is more than one client?
+ */
 int radeon_do_cleanup_pageflip( drm_device_t *dev )
 {
 	drm_radeon_private_t *dev_priv = dev->dev_private;
@@ -1261,6 +1268,7 @@ int radeon_do_cleanup_pageflip( drm_device_t *dev )
 
 	dev_priv->page_flipping = 0;
 	dev_priv->current_page = 0;
+	dev_priv->sarea_priv->pfCurrentPage = dev_priv->current_page;
 
 	return 0;
 }
