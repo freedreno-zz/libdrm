@@ -11,11 +11,11 @@
  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
  * and/or sell copies of the Software, and to permit persons to whom the
  * Software is furnished to do so, subject to the following conditions:
- * 
+ *
  * The above copyright notice and this permission notice (including the next
  * paragraph) shall be included in all copies or substantial portions of the
  * Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
@@ -23,11 +23,11 @@
  * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
- * 
+ *
  * Authors: Kevin E. Martin <martin@valinux.com>
  *          Rickard E. (Rik) Faith <faith@valinux.com>
  *	    Jeff Hartmann <jhartmann@valinux.com>
- * 
+ *
  */
 
 #define __NO_VERSION__
@@ -60,9 +60,7 @@ int r128_addbufs_agp(struct inode *inode, struct file *filp, unsigned int cmd,
 
 	if (!dma) return -EINVAL;
 
-	if (copy_from_user(&request,
-			   (drm_buf_desc_t *)arg,
-			   sizeof(request)))
+	if (copy_from_user(&request, (drm_buf_desc_t *)arg, sizeof(request)))
 		return -EFAULT;
 
 	count      = request.count;
@@ -94,7 +92,7 @@ int r128_addbufs_agp(struct inode *inode, struct file *filp, unsigned int cmd,
 	}
 	atomic_inc(&dev->buf_alloc);
 	spin_unlock(&dev->count_lock);
-   
+
 	down(&dev->struct_sem);
 	entry = &dma->bufs[order];
 	if (entry->buf_count) {
@@ -102,7 +100,7 @@ int r128_addbufs_agp(struct inode *inode, struct file *filp, unsigned int cmd,
 		atomic_dec(&dev->buf_alloc);
 		return -ENOMEM; /* May only call once for each order */
 	}
-   
+
 	entry->buflist = drm_alloc(count * sizeof(*entry->buflist),
 				   DRM_MEM_BUFS);
 	if (!entry->buflist) {
@@ -111,7 +109,7 @@ int r128_addbufs_agp(struct inode *inode, struct file *filp, unsigned int cmd,
 		return -ENOMEM;
 	}
 	memset(entry->buflist, 0, count * sizeof(*entry->buflist));
-   
+
 	entry->buf_size   = size;
 	entry->page_order = page_order;
 	offset            = 0;
@@ -173,9 +171,7 @@ int r128_addbufs_agp(struct inode *inode, struct file *filp, unsigned int cmd,
 	request.count = entry->buf_count;
 	request.size  = size;
 
-	if (copy_to_user((drm_buf_desc_t *)arg,
-			 &request,
-			 sizeof(request)))
+	if (copy_to_user((drm_buf_desc_t *)arg, &request, sizeof(request)))
 		return -EFAULT;
 
 	dma->flags = _DRM_DMA_USE_AGP;
@@ -195,9 +191,7 @@ int r128_addbufs(struct inode *inode, struct file *filp, unsigned int cmd,
 
 	if (!dev_priv || dev_priv->is_pci) return -EINVAL;
 
-	if (copy_from_user(&request,
-			   (drm_buf_desc_t *)arg,
-			   sizeof(request)))
+	if (copy_from_user(&request, (drm_buf_desc_t *)arg, sizeof(request)))
 		return -EFAULT;
 
 #if defined(CONFIG_AGP) || defined(CONFIG_AGP_MODULE)
@@ -234,9 +228,7 @@ int r128_mapbufs(struct inode *inode, struct file *filp, unsigned int cmd,
 	++dev->buf_use;		/* Can't allocate more after this call */
 	spin_unlock(&dev->count_lock);
 
-	if (copy_from_user(&request,
-			   (drm_buf_map_t *)arg,
-			   sizeof(request)))
+	if (copy_from_user(&request, (drm_buf_map_t *)arg, sizeof(request)))
 		return -EFAULT;
 
 	if (request.count >= dma->buf_count) {
@@ -250,9 +242,9 @@ int r128_mapbufs(struct inode *inode, struct file *filp, unsigned int cmd,
 			}
 
 			down(&current->mm->mmap_sem);
-			virtual = do_mmap(filp, 0, map->size, 
+			virtual = do_mmap(filp, 0, map->size,
 					  PROT_READ|PROT_WRITE,
-					  MAP_SHARED, 
+					  MAP_SHARED,
 					  (unsigned long)map->offset);
 			up(&current->mm->mmap_sem);
 		} else {
@@ -300,9 +292,7 @@ int r128_mapbufs(struct inode *inode, struct file *filp, unsigned int cmd,
 	request.count = dma->buf_count;
 	DRM_DEBUG("%d buffers, retcode = %d\n", request.count, retcode);
 
-	if (copy_to_user((drm_buf_map_t *)arg,
-			 &request,
-			 sizeof(request)))
+	if (copy_to_user((drm_buf_map_t *)arg, &request, sizeof(request)))
 		return -EFAULT;
 
 	return retcode;

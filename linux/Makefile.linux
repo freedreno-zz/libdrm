@@ -11,11 +11,11 @@
 # the rights to use, copy, modify, merge, publish, distribute, sublicense,
 # and/or sell copies of the Software, and to permit persons to whom the
 # Software is furnished to do so, subject to the following conditions:
-# 
+#
 # The above copyright notice and this permission notice (including the next
 # paragraph) shall be included in all copies or substantial portions of the
 # Software.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
@@ -23,7 +23,7 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
-# 
+#
 # $XFree86: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/kernel/Makefile.linux,v 1.9 2000/08/04 03:51:47 tsi Exp $
 #
 # ***** NOTE NOTE NOTE NOTE NOTE *****
@@ -62,7 +62,7 @@ GAMMAHEADERS=   gamma_drv.h $(DRMHEADERS)
 TDFXOBJS=       tdfx_drv.o tdfx_context.o
 TDFXHEADERS=    tdfx_drv.h $(DRMHEADERS)
 
-R128OBJS=	r128_drv.o r128_dma.o r128_bufs.o r128_context.o
+R128OBJS=	r128_drv.o r128_cce.o r128_bufs.o r128_state.o r128_context.o
 R128HEADERS=	r128_drv.h r128_drm.h $(DRMHEADERS)
 
 PROGOBJS=       drmstat.po xf86drm.po xf86drmHash.po xf86drmRandom.po sigio.po

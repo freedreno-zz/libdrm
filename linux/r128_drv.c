@@ -33,15 +33,15 @@
 #include "drmP.h"
 #include "r128_drv.h"
 
-#define R128_NAME	 "r128"
-#define R128_DESC	 "ATI Rage 128"
-#define R128_DATE	 "20000910"
-#define R128_MAJOR	 1
-#define R128_MINOR	 0
-#define R128_PATCHLEVEL  0
+#define R128_NAME		"r128"
+#define R128_DESC		"ATI Rage 128"
+#define R128_DATE		"20000905"
+#define R128_MAJOR		1
+#define R128_MINOR		1
+#define R128_PATCHLEVEL		0
 
-static drm_device_t	      r128_device;
-drm_ctx_t	              r128_res_ctx;
+static drm_device_t	r128_device;
+drm_ctx_t		r128_res_ctx;
 
 static struct file_operations r128_fops = {
 #if LINUX_VERSION_CODE >= 0x020400
@@ -108,9 +108,9 @@ static drm_ioctl_desc_t	      r128_ioctls[] = {
 	[DRM_IOCTL_NR(DRM_IOCTL_R128_INIT)]   = { r128_init_cce,   1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_R128_RESET)]  = { r128_eng_reset,  1, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_R128_FLUSH)]  = { r128_eng_flush,  1, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_R128_PACKET)] = { r128_submit_pkt, 1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_R128_PACKET)] = { r128_cce_packet, 1, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_R128_IDLE)]   = { r128_cce_idle,   1, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_R128_VERTEX)] = { r128_vertex_buf, 1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_R128_VERTEX)] = { r128_cce_vertex, 1, 0 },
 };
 #define R128_IOCTL_COUNT DRM_ARRAY_SIZE(r128_ioctls)
 
@@ -425,13 +425,13 @@ int r128_version(struct inode *inode, struct file *filp, unsigned int cmd,
 			   sizeof(version)))
 		return -EFAULT;
 
-#define DRM_COPY(name,value)				     \
-	len = strlen(value);				     \
-	if (len > name##_len) len = name##_len;		     \
-	name##_len = strlen(value);			     \
-	if (len && name) {				     \
-		if (copy_to_user(name, value, len))	     \
-			return -EFAULT;			     \
+#define DRM_COPY(name,value)					\
+	len = strlen(value);					\
+	if (len > name##_len) len = name##_len;			\
+	name##_len = strlen(value);				\
+	if (len && name) {					\
+		if (copy_to_user(name, value, len))		\
+			return -EFAULT;				\
 	}
 
 	version.version_major	   = R128_MAJOR;
@@ -666,6 +666,7 @@ int r128_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 		dev->sigdata.context = lock.context;
 		dev->sigdata.lock    = dev->lock.hw_lock;
 		block_all_signals(drm_notifier, &dev->sigdata, &dev->sigmask);
+
                 if (lock.flags & _DRM_LOCK_READY) {
 				/* Wait for space in DMA/FIFO */
 		}
@@ -730,6 +731,7 @@ int r128_unlock(struct inode *inode, struct file *filp, unsigned int cmd,
 		current->priority = DEF_PRIORITY;
 	}
 #endif
+
 	unblock_all_signals();
 	return 0;
 }

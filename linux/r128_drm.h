@@ -32,6 +32,119 @@
 #define _R128_DRM_H_
 
 /* WARNING: If you change any of these defines, make sure to change the
+ * defines in the X server file (r128_sarea.h)
+ */
+#ifndef __R128_SAREA_DEFINES__
+#define __R128_SAREA_DEFINES__
+
+/* What needs to be changed for the current vertex buffer?
+ */
+#define R128_UPLOAD_CONTEXT		0x001
+#define R128_UPLOAD_SETUP		0x002
+#define R128_UPLOAD_TEX0		0x004
+#define R128_UPLOAD_TEX1		0x008
+#define R128_UPLOAD_TEX0IMAGES		0x010
+#define R128_UPLOAD_TEX1IMAGES		0x020
+#define R128_UPLOAD_CORE		0x040
+#define R128_UPLOAD_MASKS		0x080
+#define R128_UPLOAD_WINDOW		0x100
+#define R128_UPLOAD_CLIPRECTS		0x200	/* handled client-side */
+#define R128_REQUIRE_QUIESCENCE		0x400
+
+#define R128_FRONT	0x1
+#define R128_BACK	0x2
+#define R128_DEPTH	0x4
+
+/* Keep these small for testing.
+ */
+#define R128_NR_SAREA_CLIPRECTS		12
+
+/* There are 2 heaps (local/AGP).  Each region within a heap is a
+ *  minimum of 64k, and there are at most 64 of them per heap.
+ */
+#define R128_LOCAL_TEX_HEAP		0
+#define R128_AGP_TEX_HEAP		1
+#define R128_NR_TEX_HEAPS		2
+#define R128_NR_TEX_REGIONS		16
+#define R128_LOG_TEX_GRANULARITY	16
+
+#define R128_NR_CONTEXT_REGS		12
+#define R128_TEX_MAXLEVELS		11
+
+#endif /* __R128_SAREA_DEFINES__ */
+
+typedef struct {
+	/* Context state - can be written in one large chunk */
+	u32 dst_pitch_offset_c;
+	u32 dp_gui_master_cntl_c;
+	u32 sc_top_left_c;
+	u32 sc_bottom_right_c;
+	u32 z_offset_c;
+	u32 z_pitch_c;
+	u32 z_sten_cntl_c;
+	u32 tex_cntl_c;
+	u32 misc_3d_state_cntl_reg;
+	u32 texture_clr_cmp_clr_c;
+	u32 texture_clr_cmp_msk_c;
+	u32 fog_color_c;
+
+	/* Texture state */
+	u32 tex_size_pitch_c;
+	u32 constant_color_c;
+
+	/* Setup state */
+	u32 pm4_vc_fpu_setup;
+	u32 setup_cntl;
+
+	/* Mask state */
+	u32 dp_write_mask;
+	u32 sten_ref_mask_c;
+	u32 plane_3d_mask_c;
+
+	/* Window state */
+	u32 window_xy_offset;
+
+	/* Core state */
+	u32 scale_3d_cntl;
+} drm_r128_context_regs_t;
+
+/* Setup registers for each texture unit */
+typedef struct {
+	u32 tex_cntl;
+	u32 tex_combine_cntl;
+	u32 tex_size_pitch;
+	u32 tex_offset[R128_TEX_MAXLEVELS];
+	u32 tex_border_color;
+} drm_r128_texture_regs_t;
+
+
+typedef struct drm_tex_region {
+	unsigned char next, prev;
+	unsigned char in_use;
+	int age;
+} drm_tex_region_t;
+
+typedef struct drm_r128_sarea {
+	/* The channel for communication of state information to the kernel
+	 * on firing a vertex buffer.
+	 */
+	drm_r128_context_regs_t context_state;
+	drm_r128_texture_regs_t tex_state[R128_NR_TEX_HEAPS];
+	unsigned int dirty;
+	unsigned int vertsize;
+	unsigned int vc_format;
+
+	drm_clip_rect_t boxes[R128_NR_SAREA_CLIPRECTS];
+	unsigned int nbox;
+
+	drm_tex_region_t tex_list[R128_NR_TEX_HEAPS][R128_NR_TEX_REGIONS+1];
+	int tex_age[R128_NR_TEX_HEAPS];
+	int ctx_owner;
+	int ring_write;
+} drm_r128_sarea_t;
+
+
+/* WARNING: If you change any of these defines, make sure to change the
  * defines in the Xserver file (xf86drmR128.h)
  */
 typedef struct drm_r128_init {
@@ -56,107 +169,25 @@ typedef struct drm_r128_init {
 	int mmio_offset;
 } drm_r128_init_t;
 
-typedef struct drm_r128_packet {
-	unsigned long *buffer;
-	int            count;
-	int            flags;
-} drm_r128_packet_t;
-
-typedef enum drm_r128_prim {
-	_DRM_R128_PRIM_NONE		= 0x0001,
-	_DRM_R128_PRIM_POINT		= 0x0002,
-	_DRM_R128_PRIM_LINE		= 0x0004,
-	_DRM_R128_PRIM_POLY_LINE	= 0x0008,
-	_DRM_R128_PRIM_TRI_LIST		= 0x0010,
-	_DRM_R128_PRIM_TRI_FAN		= 0x0020,
-	_DRM_R128_PRIM_TRI_STRIP	= 0x0040,
-	_DRM_R128_PRIM_TRI_TYPE2	= 0x0080
-} drm_r128_prim_t;
+typedef struct drm_r128_clear {
+	unsigned int clear_color;
+	unsigned int clear_depth;
+	unsigned int flags;
+} drm_r128_clear_t;
 
 typedef struct drm_r128_vertex {
-				/* Indices here refer to the offset into
-				   buflist in drm_buf_get_t.  */
-	int		send_count;	  /* Number of buffers to send	    */
-	int		*send_indices;	  /* List of handles to buffers	    */
-	int		*send_sizes;	  /* Lengths of data to send	    */
-	drm_r128_prim_t	prim;		  /* Primitive type		    */
-	int		request_count;	  /* Number of buffers requested    */
-	int		*request_indices; /* Buffer information		    */
-	int		*request_sizes;
-	int		granted_count;	  /* Number of buffers granted	    */
+	int index;			/* Index of vertex buffer */
+	int used;			/* Amount of buffer used */
+	int send;			/* Dispatch buffer? */
+	int discard;			/* Discard buffer? */
+	int request;			/* Request new buffer? */
+	int granted;			/* New buffer granted? */
 } drm_r128_vertex_t;
 
-/* WARNING: If you change any of these defines, make sure to change the
- * defines in the Xserver file (r128_sarea.h)
- */
-#define R128_LOCAL_TEX_HEAP       0
-#define R128_AGP_TEX_HEAP         1
-#define R128_NR_TEX_HEAPS         2
-#define R128_NR_TEX_REGIONS      64
-#define R128_LOG_TEX_GRANULARITY 16
-
-typedef struct drm_tex_region {
-	unsigned char next, prev;
-	unsigned char in_use;
-	int age;
-} drm_tex_region_t;
-
-typedef struct drm_r128_sarea {
-	drm_tex_region_t tex_list[R128_NR_TEX_HEAPS][R128_NR_TEX_REGIONS+1];
-	int              tex_age[R128_NR_TEX_HEAPS];
-	int              ctx_owner;
-	int              ring_write;
-} drm_r128_sarea_t;
-
-
-/* GH: These typedefs are taken from my latest kernel module work, and
- * needed for the client-side 3D driver.  They will go away (along with
- * most of the rest of the current kernel module).
- */
-#define R128_TEX_MAXLEVELS	11
-
-typedef struct {
-	/* Context state - can be written in one large chunk */
-	unsigned long dst_pitch_offset_c;
-	unsigned long dp_gui_master_cntl_c;
-	unsigned long sc_top_left_c;
-	unsigned long sc_bottom_right_c;
-	unsigned long z_offset_c;
-	unsigned long z_pitch_c;
-	unsigned long z_sten_cntl_c;
-	unsigned long tex_cntl_c;
-	unsigned long misc_3d_state_cntl_reg;
-	unsigned long texture_clr_cmp_clr_c;
-	unsigned long texture_clr_cmp_msk_c;
-	unsigned long fog_color_c;
-
-	/* Setup state */
-	unsigned long pm4_vc_fpu_setup;
-	unsigned long setup_cntl;
-
-	/* Texture state */
-	unsigned long tex_size_pitch_c;
-	unsigned long constant_color_c;
-
-	/* Mask state */
-	unsigned long dp_write_mask;
-	unsigned long sten_ref_mask_c;
-	unsigned long plane_3d_mask_c;
-
-	/* Window state */
-	unsigned long window_xy_offset;
-
-	/* Core state */
-	unsigned long scale_3d_cntl;
-} drm_r128_context_regs_t;
-
-/* Setup registers for each texture unit */
-typedef struct {
-	unsigned long tex_cntl;
-	unsigned long tex_combine_cntl;
-	unsigned long tex_size_pitch;
-	unsigned long tex_offset[R128_TEX_MAXLEVELS];
-	unsigned long tex_border_color;
-} drm_r128_texture_regs_t;
+typedef struct drm_r128_packet {
+	u32 *buffer;
+	int count;
+	int flags;
+} drm_r128_packet_t;
 
 #endif
