@@ -1,5 +1,5 @@
-/* dma.c -- DMA IOCTL and function support -*- linux-c -*-
- * Created: Fri Mar 19 14:30:16 1999 by faith@precisioninsight.com
+/* drm_dma.c -- DMA IOCTL and function support -*- linux-c -*-
+ * Created: Fri Mar 19 14:30:16 1999 by faith@valinux.com
  *
  * Copyright 1999, 2000 Precision Insight, Inc., Cedar Park, Texas.
  * Copyright 2000 VA Linux Systems, Inc., Sunnyvale, California.
@@ -11,22 +11,22 @@
  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
  * and/or sell copies of the Software, and to permit persons to whom the
  * Software is furnished to do so, subject to the following conditions:
- * 
+ *
  * The above copyright notice and this permission notice (including the next
  * paragraph) shall be included in all copies or substantial portions of the
  * Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- * PRECISION INSIGHT AND/OR ITS SUPPLIERS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+ * VA LINUX SYSTEMS AND/OR ITS SUPPLIERS BE LIABLE FOR ANY CLAIM, DAMAGES OR
  * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
- * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
- * DEALINGS IN THE SOFTWARE.
- * 
- * Authors:
- *    Rickard E. (Rik) Faith <faith@valinuxa.com>
+ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
  *
+ * Authors:
+ *   Rickard E. (Rik) Faith <faith@valinux.com>
+ *   Gareth Hughes <gareth@valinux.com>
  */
 
 #define __NO_VERSION__
@@ -34,23 +34,35 @@
 
 #include <linux/interrupt.h>	/* For task queue support */
 
-void drm_dma_setup(drm_device_t *dev)
+#ifndef __HAVE_DMA_WAITQUEUE
+#define __HAVE_DMA_WAITQUEUE	0
+#endif
+
+#if __HAVE_DMA
+
+int DRM(dma_setup)( drm_device_t *dev )
 {
 	int i;
-	
-	dev->dma = drm_alloc(sizeof(*dev->dma), DRM_MEM_DRIVER);
-	memset(dev->dma, 0, sizeof(*dev->dma));
-	for (i = 0; i <= DRM_MAX_ORDER; i++)
+
+	dev->dma = DRM(alloc)( sizeof(*dev->dma), DRM_MEM_DRIVER );
+	if ( !dev->dma )
+		return -ENOMEM;
+
+	memset( dev->dma, 0, sizeof(*dev->dma) );
+
+	for ( i = 0 ; i <= DRM_MAX_ORDER ; i++ )
 		memset(&dev->dma->bufs[i], 0, sizeof(dev->dma->bufs[0]));
+
+	return 0;
 }
 
-void drm_dma_takedown(drm_device_t *dev)
+void DRM(dma_takedown)(drm_device_t *dev)
 {
 	drm_device_dma_t  *dma = dev->dma;
 	int		  i, j;
 
 	if (!dma) return;
-	
+
 				/* Clear dma buffers */
 	for (i = 0; i <= DRM_MAX_ORDER; i++) {
 		if (dma->bufs[i].seg_count) {
@@ -60,49 +72,51 @@ void drm_dma_takedown(drm_device_t *dev)
 				  dma->bufs[i].buf_count,
 				  dma->bufs[i].seg_count);
 			for (j = 0; j < dma->bufs[i].seg_count; j++) {
-				drm_free_pages(dma->bufs[i].seglist[j],
-					       dma->bufs[i].page_order,
-					       DRM_MEM_DMA);
+				DRM(free_pages)(dma->bufs[i].seglist[j],
+						dma->bufs[i].page_order,
+						DRM_MEM_DMA);
 			}
-			drm_free(dma->bufs[i].seglist,
-				 dma->bufs[i].seg_count
-				 * sizeof(*dma->bufs[0].seglist),
-				 DRM_MEM_SEGS);
+			DRM(free)(dma->bufs[i].seglist,
+				  dma->bufs[i].seg_count
+				  * sizeof(*dma->bufs[0].seglist),
+				  DRM_MEM_SEGS);
 		}
 	   	if(dma->bufs[i].buf_count) {
 		   	for(j = 0; j < dma->bufs[i].buf_count; j++) {
 			   if(dma->bufs[i].buflist[j].dev_private) {
-			      drm_free(dma->bufs[i].buflist[j].dev_private,
-				       dma->bufs[i].buflist[j].dev_priv_size,
-				       DRM_MEM_BUFS);
+			      DRM(free)(dma->bufs[i].buflist[j].dev_private,
+					dma->bufs[i].buflist[j].dev_priv_size,
+					DRM_MEM_BUFS);
 			   }
 			}
-		   	drm_free(dma->bufs[i].buflist,
-				 dma->bufs[i].buf_count *
-				 sizeof(*dma->bufs[0].buflist),
-				 DRM_MEM_BUFS);
-		   	drm_freelist_destroy(&dma->bufs[i].freelist);
+		   	DRM(free)(dma->bufs[i].buflist,
+				  dma->bufs[i].buf_count *
+				  sizeof(*dma->bufs[0].buflist),
+				  DRM_MEM_BUFS);
+#if __HAVE_DMA_FREELIST
+		   	DRM(freelist_destroy)(&dma->bufs[i].freelist);
+#endif
 		}
 	}
-	
+
 	if (dma->buflist) {
-		drm_free(dma->buflist,
-			 dma->buf_count * sizeof(*dma->buflist),
-			 DRM_MEM_BUFS);
+		DRM(free)(dma->buflist,
+			  dma->buf_count * sizeof(*dma->buflist),
+			  DRM_MEM_BUFS);
 	}
 
 	if (dma->pagelist) {
-		drm_free(dma->pagelist,
-			 dma->page_count * sizeof(*dma->pagelist),
-			 DRM_MEM_PAGES);
+		DRM(free)(dma->pagelist,
+			  dma->page_count * sizeof(*dma->pagelist),
+			  DRM_MEM_PAGES);
 	}
-	drm_free(dev->dma, sizeof(*dev->dma), DRM_MEM_DRIVER);
+	DRM(free)(dev->dma, sizeof(*dev->dma), DRM_MEM_DRIVER);
 	dev->dma = NULL;
 }
 
 #if DRM_DMA_HISTOGRAM
 /* This is slow, but is useful for debugging. */
-int drm_histogram_slot(unsigned long count)
+int DRM(histogram_slot)(unsigned long count)
 {
 	int value = DRM_DMA_HISTOGRAM_INITIAL;
 	int slot;
@@ -115,13 +129,13 @@ int drm_histogram_slot(unsigned long count)
 	return DRM_DMA_HISTOGRAM_SLOTS - 1;
 }
 
-void drm_histogram_compute(drm_device_t *dev, drm_buf_t *buf)
+void DRM(histogram_compute)(drm_device_t *dev, drm_buf_t *buf)
 {
 	cycles_t queued_to_dispatched;
 	cycles_t dispatched_to_completed;
 	cycles_t completed_to_freed;
 	int	 q2d, d2c, c2f, q2c, q2f;
-	
+
 	if (buf->time_queued) {
 		queued_to_dispatched	= (buf->time_dispatched
 					   - buf->time_queued);
@@ -130,21 +144,21 @@ void drm_histogram_compute(drm_device_t *dev, drm_buf_t *buf)
 		completed_to_freed	= (buf->time_freed
 					   - buf->time_completed);
 
-		q2d = drm_histogram_slot(queued_to_dispatched);
-		d2c = drm_histogram_slot(dispatched_to_completed);
-		c2f = drm_histogram_slot(completed_to_freed);
+		q2d = DRM(histogram_slot)(queued_to_dispatched);
+		d2c = DRM(histogram_slot)(dispatched_to_completed);
+		c2f = DRM(histogram_slot)(completed_to_freed);
 
-		q2c = drm_histogram_slot(queued_to_dispatched
-					 + dispatched_to_completed);
-		q2f = drm_histogram_slot(queued_to_dispatched
-					 + dispatched_to_completed
-					 + completed_to_freed);
-		
+		q2c = DRM(histogram_slot)(queued_to_dispatched
+					  + dispatched_to_completed);
+		q2f = DRM(histogram_slot)(queued_to_dispatched
+					  + dispatched_to_completed
+					  + completed_to_freed);
+
 		atomic_inc(&dev->histo.total);
 		atomic_inc(&dev->histo.queued_to_dispatched[q2d]);
 		atomic_inc(&dev->histo.dispatched_to_completed[d2c]);
 		atomic_inc(&dev->histo.completed_to_freed[c2f]);
-		
+
 		atomic_inc(&dev->histo.queued_to_completed[q2c]);
 		atomic_inc(&dev->histo.queued_to_freed[q2f]);
 
@@ -156,12 +170,10 @@ void drm_histogram_compute(drm_device_t *dev, drm_buf_t *buf)
 }
 #endif
 
-void drm_free_buffer(drm_device_t *dev, drm_buf_t *buf)
+void DRM(free_buffer)(drm_device_t *dev, drm_buf_t *buf)
 {
-	drm_device_dma_t *dma = dev->dma;
-
 	if (!buf) return;
-	
+
 	buf->waiting  = 0;
 	buf->pending  = 0;
 	buf->pid      = 0;
@@ -169,18 +181,23 @@ void drm_free_buffer(drm_device_t *dev, drm_buf_t *buf)
 #if DRM_DMA_HISTOGRAM
 	buf->time_completed = get_cycles();
 #endif
-	if (waitqueue_active(&buf->dma_wait)) {
+
+	if ( __HAVE_DMA_WAITQUEUE && waitqueue_active(&buf->dma_wait)) {
 		wake_up_interruptible(&buf->dma_wait);
-	} else {
+	}
+#if __HAVE_DMA_FREELIST
+	else {
+		drm_device_dma_t *dma = dev->dma;
 				/* If processes are waiting, the last one
 				   to wake will put the buffer on the free
 				   list.  If no processes are waiting, we
 				   put the buffer on the freelist here. */
-		drm_freelist_put(dev, &dma->bufs[buf->order].freelist, buf);
+		DRM(freelist_put)(dev, &dma->bufs[buf->order].freelist, buf);
 	}
+#endif
 }
 
-void drm_reclaim_buffers(drm_device_t *dev, pid_t pid)
+void DRM(reclaim_buffers)(drm_device_t *dev, pid_t pid)
 {
 	drm_device_dma_t *dma = dev->dma;
 	int		 i;
@@ -190,7 +207,7 @@ void drm_reclaim_buffers(drm_device_t *dev, pid_t pid)
 		if (dma->buflist[i]->pid == pid) {
 			switch (dma->buflist[i]->list) {
 			case DRM_LIST_NONE:
-				drm_free_buffer(dev, dma->buflist[i]);
+				DRM(free_buffer)(dev, dma->buflist[i]);
 				break;
 			case DRM_LIST_WAIT:
 				dma->buflist[i]->list = DRM_LIST_RECLAIM;
@@ -203,6 +220,7 @@ void drm_reclaim_buffers(drm_device_t *dev, pid_t pid)
 	}
 }
 
+#if 0
 int drm_context_switch(drm_device_t *dev, int old, int new)
 {
 	char	    buf[64];
@@ -218,7 +236,7 @@ int drm_context_switch(drm_device_t *dev, int old, int new)
 #if DRM_DMA_HISTOGRAM
 	dev->ctx_start = get_cycles();
 #endif
-	
+
 	DRM_DEBUG("Context switch from %d to %d\n", old, new);
 
 	if (new >= dev->queue_count) {
@@ -230,7 +248,7 @@ int drm_context_switch(drm_device_t *dev, int old, int new)
 		clear_bit(0, &dev->context_flag);
 		return 0;
 	}
-	
+
 	q = dev->queuelist[new];
 	atomic_inc(&q->use_count);
 	if (atomic_read(&q->use_count) == 1) {
@@ -245,19 +263,19 @@ int drm_context_switch(drm_device_t *dev, int old, int new)
 		sprintf(buf, "C %d %d\n", old, new);
 		drm_write_string(dev, buf);
 	}
-	
+
 	atomic_dec(&q->use_count);
-	
+
 	return 0;
 }
 
 int drm_context_switch_complete(drm_device_t *dev, int new)
 {
 	drm_device_dma_t *dma = dev->dma;
-	
+
 	dev->last_context = new;  /* PRE/POST: This is the _only_ writer. */
 	dev->last_switch  = jiffies;
-	
+
 	if (!_DRM_LOCK_IS_HELD(dev->lock.hw_lock->lock)) {
 		DRM_ERROR("Lock isn't held after context switch\n");
 	}
@@ -268,22 +286,26 @@ int drm_context_switch_complete(drm_device_t *dev, int new)
 			DRM_ERROR("Cannot free lock\n");
 		}
 	}
-	
+
 #if DRM_DMA_HISTOGRAM
 	atomic_inc(&dev->histo.ctx[drm_histogram_slot(get_cycles()
 						      - dev->ctx_start)]);
-		   
+
 #endif
 	clear_bit(0, &dev->context_flag);
 	wake_up_interruptible(&dev->context_wait);
-	
+
 	return 0;
 }
+#endif
 
-void drm_clear_next_buffer(drm_device_t *dev)
+
+
+#if 0
+void DRM(clear_next_buffer)(drm_device_t *dev)
 {
 	drm_device_dma_t *dma = dev->dma;
-	
+
 	dma->next_buffer = NULL;
 	if (dma->next_queue && !DRM_BUFCOUNT(&dma->next_queue->waitlist)) {
 		wake_up_interruptible(&dma->next_queue->flush_queue);
@@ -291,8 +313,7 @@ void drm_clear_next_buffer(drm_device_t *dev)
 	dma->next_queue	 = NULL;
 }
 
-
-int drm_select_queue(drm_device_t *dev, void (*wrapper)(unsigned long))
+int DRM(select_queue)(drm_device_t *dev, void (*wrapper)(unsigned long))
 {
 	int	   i;
 	int	   candidate = -1;
@@ -360,7 +381,7 @@ int drm_select_queue(drm_device_t *dev, void (*wrapper)(unsigned long))
 }
 
 
-int drm_dma_enqueue(drm_device_t *dev, drm_dma_t *d)
+int DRM(dma_enqueue)(drm_device_t *dev, drm_dma_t *d)
 {
 	int		  i;
 	drm_queue_t	  *q;
@@ -374,7 +395,7 @@ int drm_dma_enqueue(drm_device_t *dev, drm_dma_t *d)
 
 	if (d->flags & _DRM_DMA_WHILE_LOCKED) {
 		int context = dev->lock.hw_lock->lock;
-		
+
 		if (!_DRM_LOCK_IS_HELD(context)) {
 			DRM_ERROR("No lock held during \"while locked\""
 				  " request\n");
@@ -413,7 +434,7 @@ int drm_dma_enqueue(drm_device_t *dev, drm_dma_t *d)
 		current->state = TASK_RUNNING;
 		remove_wait_queue(&q->write_queue, &entry);
 	}
-	
+
 	for (i = 0; i < d->send_count; i++) {
 		idx = d->send_indices[i];
 		if (idx < 0 || idx >= dma->buf_count) {
@@ -457,27 +478,27 @@ int drm_dma_enqueue(drm_device_t *dev, drm_dma_t *d)
 		buf->waiting = 1;
 		if (atomic_read(&q->use_count) == 1
 		    || atomic_read(&q->finalization)) {
-			drm_free_buffer(dev, buf);
+			DRM(free_buffer)(dev, buf);
 		} else {
-			drm_waitlist_put(&q->waitlist, buf);
+			DRM(waitlist_put)(&q->waitlist, buf);
 			atomic_inc(&q->total_queued);
 		}
 	}
 	atomic_dec(&q->use_count);
-	
+
 	return 0;
 }
 
-static int drm_dma_get_buffers_of_order(drm_device_t *dev, drm_dma_t *d,
-					int order)
+static int DRM(dma_get_buffers_of_order)(drm_device_t *dev, drm_dma_t *d,
+					 int order)
 {
 	int		  i;
 	drm_buf_t	  *buf;
 	drm_device_dma_t  *dma = dev->dma;
-	
+
 	for (i = d->granted_count; i < d->request_count; i++) {
-		buf = drm_freelist_get(&dma->bufs[order].freelist,
-				       d->flags & _DRM_DMA_WAIT);
+		buf = DRM(freelist_get)(&dma->bufs[order].freelist,
+					d->flags & _DRM_DMA_WAIT);
 		if (!buf) break;
 		if (buf->pending || buf->waiting) {
 			DRM_ERROR("Free buffer %d in use by %d (w%d, p%d)\n",
@@ -503,16 +524,16 @@ static int drm_dma_get_buffers_of_order(drm_device_t *dev, drm_dma_t *d,
 }
 
 
-int drm_dma_get_buffers(drm_device_t *dev, drm_dma_t *dma)
+int DRM(dma_get_buffers)(drm_device_t *dev, drm_dma_t *dma)
 {
 	int		  order;
 	int		  retcode = 0;
 	int		  tmp_order;
-	
-	order = drm_order(dma->request_size);
+
+	order = DRM(order)(dma->request_size);
 
 	dma->granted_count = 0;
-	retcode		   = drm_dma_get_buffers_of_order(dev, dma, order);
+	retcode		   = DRM(dma_get_buffers_of_order)(dev, dma, order);
 
 	if (dma->granted_count < dma->request_count
 	    && (dma->flags & _DRM_DMA_SMALLER_OK)) {
@@ -521,9 +542,9 @@ int drm_dma_get_buffers(drm_device_t *dev, drm_dma_t *dma)
 			     && dma->granted_count < dma->request_count
 			     && tmp_order >= DRM_MIN_ORDER;
 		     --tmp_order) {
-			
-			retcode = drm_dma_get_buffers_of_order(dev, dma,
-							       tmp_order);
+
+			retcode = DRM(dma_get_buffers_of_order)(dev, dma,
+								tmp_order);
 		}
 	}
 
@@ -534,10 +555,14 @@ int drm_dma_get_buffers(drm_device_t *dev, drm_dma_t *dma)
 			     && dma->granted_count < dma->request_count
 			     && tmp_order <= DRM_MAX_ORDER;
 		     ++tmp_order) {
-			
-			retcode = drm_dma_get_buffers_of_order(dev, dma,
-							       tmp_order);
+
+			retcode = DRM(dma_get_buffers_of_order)(dev, dma,
+								tmp_order);
 		}
 	}
 	return 0;
 }
+
+#endif
+
+#endif

@@ -23,7 +23,7 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
-# 
+#
 #
 # ***** NOTE NOTE NOTE NOTE NOTE *****
 # To override the automatic Linux source tree determination, pass the
@@ -47,11 +47,15 @@
 
 # **** End of SMP/MODVERSIONS detection
 
-MODS=           gamma.o tdfx.o
+MODS=           gamma.o tdfx.o r128.o radeon.o
 LIBS=           libdrm.a
 
 DRMOBJS=	init.o memory.o proc.o auth.o context.o drawable.o bufs.o \
 		lists.o lock.o ioctl.o fops.o vm.o dma.o ctxbitmap.o
+#DRMHEADERS=	drm.h drmP.h compat-pre24.h
+DRMTEMPLATES=	drm_init.h drm_memory.h drm_proc.h drm_auth.h drm_context.h \
+		drm_drawable.h drm_bufs.h drm_lists.h drm_lock.h drm_ioctl.h \
+		drm_fops.h drm_vm.h drm_dma.h
 DRMHEADERS=	drm.h drmP.h compat-pre24.h
 
 GAMMAOBJS=      gamma_drv.o gamma_dma.o
@@ -129,17 +133,14 @@ endif
 ifeq ($(AGP),1)
 MODCFLAGS += -DCONFIG_AGP -DCONFIG_AGP_MODULE
 DRMOBJS += agpsupport.o
-MODS += mga.o r128.o radeon.o
+MODS += mga.o
 ifeq ($(MACHINE),i386)
 MODS += i810.o
 endif
-ifeq ($(MACHINE),i686)
-MODS += i810.o
-endif
 
 
-MGAOBJS=	mga_drv.o mga_dma.o mga_bufs.o mga_context.o mga_state.o
-MGAHEADERS=	mga_drv.h $(DRMHEADERS)
+MGAOBJS=	mga_drv.o mga_drm.o mga_dma.o mga_state.o mga_warp.o
+MGAHEADERS=	mga_drv.h $(DRMHEADERS) $(DRMTEMPLATES)
 
 I810OBJS=	i810_drv.o i810_dma.o i810_bufs.o i810_context.o
 I810HEADERS=	i810_drv.h $(DRMHEADERS)
@@ -219,7 +220,7 @@ sis.o: $(SISOBJS) $(LIBS)
 ifeq ($(AGP),1)
 mga_drv.o: mga_drv.c
 	$(CC) $(MODCFLAGS) -DEXPORT_SYMTAB -I$(TREE) -c $< -o $@
-mga.o: $(MGAOBJS) $(LIBS)
+mga.o: $(MGAOBJS)
 	$(LD) -r $^ -o $@
 
 i810_drv.o: i810_drv.c

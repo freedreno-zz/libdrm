@@ -1,7 +1,6 @@
-/* drawable.c -- IOCTLs for drawables -*- linux-c -*-
- * Created: Tue Feb  2 08:37:54 1999 by faith@precisioninsight.com
+/* mga.h -- Matrox G200/G400 DRM template customization -*- linux-c -*-
+ * Created: Thu Jan 11 21:29:32 2001 by gareth@valinux.com
  *
- * Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
  * Copyright 2000 VA Linux Systems, Inc., Sunnyvale, California.
  * All Rights Reserved.
  *
@@ -11,41 +10,38 @@
  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
  * and/or sell copies of the Software, and to permit persons to whom the
  * Software is furnished to do so, subject to the following conditions:
- * 
+ *
  * The above copyright notice and this permission notice (including the next
  * paragraph) shall be included in all copies or substantial portions of the
  * Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- * PRECISION INSIGHT AND/OR ITS SUPPLIERS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+ * VA LINUX SYSTEMS AND/OR ITS SUPPLIERS BE LIABLE FOR ANY CLAIM, DAMAGES OR
  * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
- * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
- * DEALINGS IN THE SOFTWARE.
- * 
- * Authors:
- *    Rickard E. (Rik) Faith <faith@valinux.com>
+ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
  *
+ * Authors:
+ *   Gareth Hughes <gareth@valinux.com>
  */
 
-#define __NO_VERSION__
-#include "drmP.h"
+#ifndef __MGA_H__
+#define __MGA_H__
 
-int drm_adddraw(struct inode *inode, struct file *filp, unsigned int cmd,
-		unsigned long arg)
-{
-	drm_draw_t draw;
+/* This remains constant for all DRM template files.
+ */
+#define DRM(x) mga_##x
 
-	draw.handle = 0;	/* NOOP */
-	DRM_DEBUG("%d\n", draw.handle);
-	if (copy_to_user((drm_draw_t *)arg, &draw, sizeof(draw)))
-		return -EFAULT;
-	return 0;
-}
+#define __HAVE_AGP		1
+#define __MUST_HAVE_AGP		1
 
-int drm_rmdraw(struct inode *inode, struct file *filp, unsigned int cmd,
-	       unsigned long arg)
-{
-	return 0;		/* NOOP */
-}
+#define __HAVE_MTRR		1
+
+#define __HAVE_CTX_BITMAP	1
+
+#define __HAVE_DMA		1
+#define __HAVE_DMA_IRQ		1
+
+#endif

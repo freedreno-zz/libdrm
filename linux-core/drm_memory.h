@@ -1,5 +1,5 @@
-/* memory.c -- Memory management wrappers for DRM -*- linux-c -*-
- * Created: Thu Feb  4 14:00:34 1999 by faith@precisioninsight.com
+/* drm_memory.h -- Memory management wrappers for DRM -*- linux-c -*-
+ * Created: Thu Feb  4 14:00:34 1999 by faith@valinux.com
  *
  * Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
  * Copyright 2000 VA Linux Systems, Inc., Sunnyvale, California.
@@ -11,22 +11,22 @@
  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
  * and/or sell copies of the Software, and to permit persons to whom the
  * Software is furnished to do so, subject to the following conditions:
- * 
+ *
  * The above copyright notice and this permission notice (including the next
  * paragraph) shall be included in all copies or substantial portions of the
  * Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- * PRECISION INSIGHT AND/OR ITS SUPPLIERS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+ * VA LINUX SYSTEMS AND/OR ITS SUPPLIERS BE LIABLE FOR ANY CLAIM, DAMAGES OR
  * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
- * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
- * DEALINGS IN THE SOFTWARE.
- * 
- * Authors:
- *    Rickard E. (Rik) Faith <faith@valinux.com>
+ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
  *
+ * Authors:
+ *   Rickard E. (Rik) Faith <faith@valinux.com>
+ *   Gareth Hughes <gareth@valinux.com>
  */
 
 #define __NO_VERSION__
@@ -69,11 +69,11 @@ static drm_mem_stats_t	  drm_mem_stats[]   = {
 	{ NULL, 0, }		/* Last entry must be null */
 };
 
-void drm_mem_init(void)
+void DRM(mem_init)(void)
 {
 	drm_mem_stats_t *mem;
 	struct sysinfo	si;
-	
+
 	for (mem = drm_mem_stats; mem->name; ++mem) {
 		mem->succeed_count   = 0;
 		mem->free_count	     = 0;
@@ -81,7 +81,7 @@ void drm_mem_init(void)
 		mem->bytes_allocated = 0;
 		mem->bytes_freed     = 0;
 	}
-	
+
 	si_meminfo(&si);
 #if LINUX_VERSION_CODE < 0x020317
 				/* Changed to page count in 2.3.23 */
@@ -94,8 +94,8 @@ void drm_mem_init(void)
 
 /* drm_mem_info is called whenever a process reads /dev/drm/mem. */
 
-static int _drm_mem_info(char *buf, char **start, off_t offset, int len,
-			 int *eof, void *data)
+static int _drm_mem_info(char *buf, char **start, off_t offset,
+			 int len, int *eof, void *data)
 {
 	drm_mem_stats_t *pt;
 
@@ -124,30 +124,30 @@ static int _drm_mem_info(char *buf, char **start, off_t offset, int len,
 			       (long)pt->bytes_allocated
 			       - (long)pt->bytes_freed);
 	}
-	
+
 	return len;
 }
 
-int drm_mem_info(char *buf, char **start, off_t offset, int len,
-		 int *eof, void *data)
+int DRM(mem_info)(char *buf, char **start, off_t offset,
+		  int len, int *eof, void *data)
 {
 	int ret;
-	
+
 	spin_lock(&drm_mem_lock);
 	ret = _drm_mem_info(buf, start, offset, len, eof, data);
 	spin_unlock(&drm_mem_lock);
 	return ret;
 }
 
-void *drm_alloc(size_t size, int area)
+void *DRM(alloc)(size_t size, int area)
 {
 	void *pt;
-	
+
 	if (!size) {
 		DRM_MEM_ERROR(area, "Allocating 0 bytes\n");
 		return NULL;
 	}
-	
+
 	if (!(pt = kmalloc(size, GFP_KERNEL))) {
 		spin_lock(&drm_mem_lock);
 		++drm_mem_stats[area].fail_count;
@@ -161,43 +161,43 @@ void *drm_alloc(size_t size, int area)
 	return pt;
 }
 
-void *drm_realloc(void *oldpt, size_t oldsize, size_t size, int area)
+void *DRM(realloc)(void *oldpt, size_t oldsize, size_t size, int area)
 {
 	void *pt;
-	
-	if (!(pt = drm_alloc(size, area))) return NULL;
+
+	if (!(pt = DRM(alloc)(size, area))) return NULL;
 	if (oldpt && oldsize) {
 		memcpy(pt, oldpt, oldsize);
-		drm_free(oldpt, oldsize, area);
+		DRM(free)(oldpt, oldsize, area);
 	}
 	return pt;
 }
 
-char *drm_strdup(const char *s, int area)
+char *DRM(strdup)(const char *s, int area)
 {
 	char *pt;
 	int	 length = s ? strlen(s) : 0;
-	
-	if (!(pt = drm_alloc(length+1, area))) return NULL;
+
+	if (!(pt = DRM(alloc)(length+1, area))) return NULL;
 	strcpy(pt, s);
 	return pt;
 }
 
-void drm_strfree(const char *s, int area)
+void DRM(strfree)(const char *s, int area)
 {
 	unsigned int size;
-	
+
 	if (!s) return;
-	
+
 	size = 1 + (s ? strlen(s) : 0);
-	drm_free((void *)s, size, area);
+	DRM(free)((void *)s, size, area);
 }
 
-void drm_free(void *pt, size_t size, int area)
+void DRM(free)(void *pt, size_t size, int area)
 {
 	int alloc_count;
 	int free_count;
-	
+
 	if (!pt) DRM_MEM_ERROR(area, "Attempt to free NULL pointer\n");
 	else	 kfree(pt);
 	spin_lock(&drm_mem_lock);
@@ -211,13 +211,13 @@ void drm_free(void *pt, size_t size, int area)
 	}
 }
 
-unsigned long drm_alloc_pages(int order, int area)
+unsigned long DRM(alloc_pages)(int order, int area)
 {
 	unsigned long address;
 	unsigned long bytes	  = PAGE_SIZE << order;
 	unsigned long addr;
 	unsigned int  sz;
-	
+
 	spin_lock(&drm_mem_lock);
 	if ((drm_ram_used >> PAGE_SHIFT)
 	    > (DRM_RAM_PERCENT * drm_ram_available) / 100) {
@@ -225,7 +225,7 @@ unsigned long drm_alloc_pages(int order, int area)
 		return 0;
 	}
 	spin_unlock(&drm_mem_lock);
-	
+
 	address = __get_free_pages(GFP_KERNEL, order);
 	if (!address) {
 		spin_lock(&drm_mem_lock);
@@ -238,11 +238,11 @@ unsigned long drm_alloc_pages(int order, int area)
 	drm_mem_stats[area].bytes_allocated += bytes;
 	drm_ram_used		            += bytes;
 	spin_unlock(&drm_mem_lock);
-	
-	
+
+
 				/* Zero outside the lock */
 	memset((void *)address, 0, bytes);
-	
+
 				/* Reserve */
 	for (addr = address, sz = bytes;
 	     sz > 0;
@@ -254,18 +254,18 @@ unsigned long drm_alloc_pages(int order, int area)
 		mem_map_reserve(MAP_NR(addr));
 #endif
 	}
-	
+
 	return address;
 }
 
-void drm_free_pages(unsigned long address, int order, int area)
+void DRM(free_pages)(unsigned long address, int order, int area)
 {
 	unsigned long bytes = PAGE_SIZE << order;
 	int		  alloc_count;
 	int		  free_count;
 	unsigned long addr;
 	unsigned int  sz;
-	
+
 	if (!address) {
 		DRM_MEM_ERROR(area, "Attempt to free address 0\n");
 	} else {
@@ -282,7 +282,7 @@ void drm_free_pages(unsigned long address, int order, int area)
 		}
 		free_pages(address, order);
 	}
-	
+
 	spin_lock(&drm_mem_lock);
 	free_count  = ++drm_mem_stats[area].free_count;
 	alloc_count =	drm_mem_stats[area].succeed_count;
@@ -296,16 +296,16 @@ void drm_free_pages(unsigned long address, int order, int area)
 	}
 }
 
-void *drm_ioremap(unsigned long offset, unsigned long size)
+void *DRM(ioremap)(unsigned long offset, unsigned long size)
 {
 	void *pt;
-	
+
 	if (!size) {
 		DRM_MEM_ERROR(DRM_MEM_MAPPINGS,
 			      "Mapping 0 bytes at 0x%08lx\n", offset);
 		return NULL;
 	}
-	
+
 	if (!(pt = ioremap(offset, size))) {
 		spin_lock(&drm_mem_lock);
 		++drm_mem_stats[DRM_MEM_MAPPINGS].fail_count;
@@ -319,17 +319,17 @@ void *drm_ioremap(unsigned long offset, unsigned long size)
 	return pt;
 }
 
-void drm_ioremapfree(void *pt, unsigned long size)
+void DRM(ioremapfree)(void *pt, unsigned long size)
 {
 	int alloc_count;
 	int free_count;
-	
+
 	if (!pt)
 		DRM_MEM_ERROR(DRM_MEM_MAPPINGS,
 			      "Attempt to free NULL pointer\n");
 	else
 		iounmap(pt);
-	
+
 	spin_lock(&drm_mem_lock);
 	drm_mem_stats[DRM_MEM_MAPPINGS].bytes_freed += size;
 	free_count  = ++drm_mem_stats[DRM_MEM_MAPPINGS].free_count;
@@ -343,7 +343,8 @@ void drm_ioremapfree(void *pt, unsigned long size)
 }
 
 #if defined(CONFIG_AGP) || defined(CONFIG_AGP_MODULE)
-agp_memory *drm_alloc_agp(int pages, u32 type)
+
+agp_memory *DRM(alloc_agp)(int pages, u32 type)
 {
 	agp_memory *handle;
 
@@ -351,8 +352,8 @@ agp_memory *drm_alloc_agp(int pages, u32 type)
 		DRM_MEM_ERROR(DRM_MEM_TOTALAGP, "Allocating 0 pages\n");
 		return NULL;
 	}
-	
-	if ((handle = drm_agp_allocate_memory(pages, type))) {
+
+	if ((handle = DRM(agp_allocate_memory)(pages, type))) {
 		spin_lock(&drm_mem_lock);
 		++drm_mem_stats[DRM_MEM_TOTALAGP].succeed_count;
 		drm_mem_stats[DRM_MEM_TOTALAGP].bytes_allocated
@@ -366,7 +367,7 @@ agp_memory *drm_alloc_agp(int pages, u32 type)
 	return NULL;
 }
 
-int drm_free_agp(agp_memory *handle, int pages)
+int DRM(free_agp)(agp_memory *handle, int pages)
 {
 	int           alloc_count;
 	int           free_count;
@@ -377,8 +378,8 @@ int drm_free_agp(agp_memory *handle, int pages)
 			      "Attempt to free NULL AGP handle\n");
 		return retval;;
 	}
-	
-	if (drm_agp_free_memory(handle)) {
+
+	if (DRM(agp_free_memory)(handle)) {
 		spin_lock(&drm_mem_lock);
 		free_count  = ++drm_mem_stats[DRM_MEM_TOTALAGP].free_count;
 		alloc_count =   drm_mem_stats[DRM_MEM_TOTALAGP].succeed_count;
@@ -395,7 +396,7 @@ int drm_free_agp(agp_memory *handle, int pages)
 	return retval;
 }
 
-int drm_bind_agp(agp_memory *handle, unsigned int start)
+int DRM(bind_agp)(agp_memory *handle, unsigned int start)
 {
 	int retcode = -EINVAL;
 
@@ -405,7 +406,7 @@ int drm_bind_agp(agp_memory *handle, unsigned int start)
 		return retcode;
 	}
 
-	if (!(retcode = drm_agp_bind_memory(handle, start))) {
+	if (!(retcode = DRM(agp_bind_memory)(handle, start))) {
 		spin_lock(&drm_mem_lock);
 		++drm_mem_stats[DRM_MEM_BOUNDAGP].succeed_count;
 		drm_mem_stats[DRM_MEM_BOUNDAGP].bytes_allocated
@@ -419,19 +420,19 @@ int drm_bind_agp(agp_memory *handle, unsigned int start)
 	return retcode;
 }
 
-int drm_unbind_agp(agp_memory *handle)
+int DRM(unbind_agp)(agp_memory *handle)
 {
 	int alloc_count;
 	int free_count;
 	int retcode = -EINVAL;
-	
+
 	if (!handle) {
 		DRM_MEM_ERROR(DRM_MEM_BOUNDAGP,
 			      "Attempt to unbind NULL AGP handle\n");
 		return retcode;
 	}
 
-	if ((retcode = drm_agp_unbind_memory(handle))) return retcode;
+	if ((retcode = DRM(agp_unbind_memory)(handle))) return retcode;
 	spin_lock(&drm_mem_lock);
 	free_count  = ++drm_mem_stats[DRM_MEM_BOUNDAGP].free_count;
 	alloc_count = drm_mem_stats[DRM_MEM_BOUNDAGP].succeed_count;
@@ -445,4 +446,5 @@ int drm_unbind_agp(agp_memory *handle)
 	}
 	return retcode;
 }
-#endif
+
+#endif /* defined(CONFIG_AGP) || defined(CONFIG_AGP_MODULE) */

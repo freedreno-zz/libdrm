@@ -1,5 +1,5 @@
-/* ioctl.c -- IOCTL processing for DRM -*- linux-c -*-
- * Created: Fri Jan  8 09:01:26 1999 by faith@precisioninsight.com
+/* drm_ioctl.h -- IOCTL processing for DRM -*- linux-c -*-
+ * Created: Fri Jan  8 09:01:26 1999 by faith@valinux.com
  *
  * Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
  * Copyright 2000 VA Linux Systems, Inc., Sunnyvale, California.
@@ -11,29 +11,29 @@
  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
  * and/or sell copies of the Software, and to permit persons to whom the
  * Software is furnished to do so, subject to the following conditions:
- * 
+ *
  * The above copyright notice and this permission notice (including the next
  * paragraph) shall be included in all copies or substantial portions of the
  * Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- * PRECISION INSIGHT AND/OR ITS SUPPLIERS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+ * VA LINUX SYSTEMS AND/OR ITS SUPPLIERS BE LIABLE FOR ANY CLAIM, DAMAGES OR
  * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
- * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
- * DEALINGS IN THE SOFTWARE.
- * 
- * Authors:
- *    Rickard E. (Rik) Faith <faith@valinux.com>
+ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
  *
+ * Authors:
+ *   Rickard E. (Rik) Faith <faith@valinux.com>
+ *   Gareth Hughes <gareth@valinux.com>
  */
 
 #define __NO_VERSION__
 #include "drmP.h"
 
-int drm_irq_busid(struct inode *inode, struct file *filp, unsigned int cmd,
-		  unsigned long arg)
+int DRM(irq_busid)(struct inode *inode, struct file *filp,
+		   unsigned int cmd, unsigned long arg)
 {
 	drm_irq_busid_t p;
 	struct pci_dev	*dev;
@@ -50,8 +50,8 @@ int drm_irq_busid(struct inode *inode, struct file *filp, unsigned int cmd,
 	return 0;
 }
 
-int drm_getunique(struct inode *inode, struct file *filp, unsigned int cmd,
-		  unsigned long arg)
+int DRM(getunique)(struct inode *inode, struct file *filp,
+		   unsigned int cmd, unsigned long arg)
 {
 	drm_file_t	 *priv	 = filp->private_data;
 	drm_device_t	 *dev	 = priv->dev;
@@ -69,8 +69,8 @@ int drm_getunique(struct inode *inode, struct file *filp, unsigned int cmd,
 	return 0;
 }
 
-int drm_setunique(struct inode *inode, struct file *filp, unsigned int cmd,
-		  unsigned long arg)
+int DRM(setunique)(struct inode *inode, struct file *filp,
+		   unsigned int cmd, unsigned long arg)
 {
 	drm_file_t	 *priv	 = filp->private_data;
 	drm_device_t	 *dev	 = priv->dev;
@@ -84,15 +84,15 @@ int drm_setunique(struct inode *inode, struct file *filp, unsigned int cmd,
 
 	if (!u.unique_len)
 		return -EINVAL;
-	
+
 	dev->unique_len = u.unique_len;
-	dev->unique	= drm_alloc(u.unique_len + 1, DRM_MEM_DRIVER);
+	dev->unique	= DRM(alloc)(u.unique_len + 1, DRM_MEM_DRIVER);
 	if (copy_from_user(dev->unique, u.unique, dev->unique_len))
 		return -EFAULT;
 	dev->unique[dev->unique_len] = '\0';
 
-	dev->devname = drm_alloc(strlen(dev->name) + strlen(dev->unique) + 2,
-				 DRM_MEM_DRIVER);
+	dev->devname = DRM(alloc)(strlen(dev->name) + strlen(dev->unique) + 2,
+				  DRM_MEM_DRIVER);
 	sprintf(dev->devname, "%s@%s", dev->name, dev->unique);
 
 	return 0;

@@ -85,6 +85,26 @@ static u32 r128_cce_microcode[] = {
 };
 
 
+#define DO_IOREMAP(_m) (_m)->handle = drm_ioremap((_m)->offset, (_m)->size)
+
+#define DO_IOREMAPFREE(_m)						\
+	do {								\
+		if ((_m)->handle && (_m)->size)				\
+			drm_ioremapfree((_m)->handle, (_m)->size);	\
+	} while (0)
+
+#define DO_FIND_MAP(_m, _o)						\
+	do {								\
+		int _i;							\
+		for (_i = 0; _i < dev->map_count; _i++) {		\
+			if (dev->maplist[_i]->offset == _o) {		\
+				_m = dev->maplist[_i];			\
+				break;					\
+			}						\
+		}							\
+	} while (0)
+
+
 int R128_READ_PLL(drm_device_t *dev, int addr)
 {
 	drm_r128_private_t *dev_priv = dev->dev_private;
@@ -203,7 +223,7 @@ static void r128_do_cce_flush( drm_r128_private_t *dev_priv )
 
 /* Wait for the CCE to go idle.
  */
-int r128_do_cce_idle( drm_r128_private_t *dev_priv )
+static int r128_do_cce_idle( drm_r128_private_t *dev_priv )
 {
 	int i;
 
@@ -413,30 +433,13 @@ static int r128_do_init_cce( drm_device_t *dev, drm_r128_init_t *init )
 		break;
 	}
 
-	switch ( init->fb_bpp ) {
-	case 16:
-		dev_priv->color_fmt = R128_DATATYPE_RGB565;
-		break;
-	case 32:
-	default:
-		dev_priv->color_fmt = R128_DATATYPE_ARGB8888;
-		break;
-	}
+	dev_priv->fb_bpp	= init->fb_bpp;
 	dev_priv->front_offset	= init->front_offset;
 	dev_priv->front_pitch	= init->front_pitch;
 	dev_priv->back_offset	= init->back_offset;
 	dev_priv->back_pitch	= init->back_pitch;
 
-	switch ( init->depth_bpp ) {
-	case 16:
-		dev_priv->depth_fmt = R128_DATATYPE_RGB565;
-		break;
-	case 24:
-	case 32:
-	default:
-		dev_priv->depth_fmt = R128_DATATYPE_ARGB8888;
-		break;
-	}
+	dev_priv->depth_bpp	= init->depth_bpp;
 	dev_priv->depth_offset	= init->depth_offset;
 	dev_priv->depth_pitch	= init->depth_pitch;
 	dev_priv->span_offset	= init->span_offset;
@@ -461,24 +464,29 @@ static int r128_do_init_cce( drm_device_t *dev, drm_r128_init_t *init )
 		}
 	}
 
-	DRM_FIND_MAP( dev_priv->fb, init->fb_offset );
-	DRM_FIND_MAP( dev_priv->mmio, init->mmio_offset );
-	DRM_FIND_MAP( dev_priv->cce_ring, init->ring_offset );
-	DRM_FIND_MAP( dev_priv->ring_rptr, init->ring_rptr_offset );
-	DRM_FIND_MAP( dev_priv->buffers, init->buffers_offset );
+	DO_FIND_MAP( dev_priv->fb, init->fb_offset );
+	DO_FIND_MAP( dev_priv->mmio, init->mmio_offset );
+	DO_FIND_MAP( dev_priv->cce_ring, init->ring_offset );
+	DO_FIND_MAP( dev_priv->ring_rptr, init->ring_rptr_offset );
+	DO_FIND_MAP( dev_priv->buffers, init->buffers_offset );
 
 	if ( !dev_priv->is_pci ) {
-		DRM_FIND_MAP( dev_priv->agp_textures,
-			      init->agp_textures_offset );
+		DO_FIND_MAP( dev_priv->agp_textures,
+			     init->agp_textures_offset );
 	}
 
 	dev_priv->sarea_priv =
 		(drm_r128_sarea_t *)((u8 *)dev_priv->sarea->handle +
 				     init->sarea_priv_offset);
 
-	DRM_IOREMAP( dev_priv->cce_ring );
-	DRM_IOREMAP( dev_priv->ring_rptr );
-	DRM_IOREMAP( dev_priv->buffers );
+	DO_IOREMAP( dev_priv->cce_ring );
+	DO_IOREMAP( dev_priv->ring_rptr );
+	DO_IOREMAP( dev_priv->buffers );
+#if 0
+	if ( !dev_priv->is_pci ) {
+		DO_IOREMAP( dev_priv->agp_textures );
+	}
+#endif
 
 	dev_priv->ring.head = ((__volatile__ u32 *)
 			       dev_priv->ring_rptr->handle);
@@ -491,8 +499,6 @@ static int r128_do_init_cce( drm_device_t *dev, drm_r128_init_t *init )
 
 	dev_priv->ring.tail_mask =
 		(dev_priv->ring.size / sizeof(u32)) - 1;
-
-	dev_priv->ring.high_mark = 128;
 
 	dev_priv->sarea_priv->last_frame = 0;
 	R128_WRITE( R128_LAST_FRAME_REG, dev_priv->sarea_priv->last_frame );
@@ -513,9 +519,14 @@ static int r128_do_cleanup_cce( drm_device_t *dev )
 	if ( dev->dev_private ) {
 		drm_r128_private_t *dev_priv = dev->dev_private;
 
-		DRM_IOREMAPFREE( dev_priv->cce_ring );
-		DRM_IOREMAPFREE( dev_priv->ring_rptr );
-		DRM_IOREMAPFREE( dev_priv->buffers );
+		DO_IOREMAPFREE( dev_priv->cce_ring );
+		DO_IOREMAPFREE( dev_priv->ring_rptr );
+		DO_IOREMAPFREE( dev_priv->buffers );
+#if 0
+		if ( !dev_priv->is_pci ) {
+			DO_IOREMAPFREE( dev_priv->agp_textures );
+		}
+#endif
 
 		drm_free( dev->dev_private, sizeof(drm_r128_private_t),
 			  DRM_MEM_DRIVER );
@@ -553,8 +564,11 @@ int r128_cce_start( struct inode *inode, struct file *filp,
 	drm_r128_private_t *dev_priv = dev->dev_private;
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
-	LOCK_TEST_WITH_RETURN( dev );
-
+	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||
+	     dev->lock.pid != current->pid ) {
+		DRM_ERROR( "%s called without lock held\n", __FUNCTION__ );
+		return -EINVAL;
+	}
 	if ( dev_priv->cce_running || dev_priv->cce_mode == R128_PM4_NONPM4 ) {
 		DRM_DEBUG( "%s while CCE running\n", __FUNCTION__ );
 		return 0;
@@ -578,7 +592,11 @@ int r128_cce_stop( struct inode *inode, struct file *filp,
 	int ret;
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
-	LOCK_TEST_WITH_RETURN( dev );
+	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||
+	     dev->lock.pid != current->pid ) {
+		DRM_ERROR( "%s called without lock held\n", __FUNCTION__ );
+		return -EINVAL;
+	}
 
 	if ( copy_from_user( &stop, (drm_r128_init_t *)arg, sizeof(stop) ) )
 		return -EFAULT;
@@ -620,8 +638,11 @@ int r128_cce_reset( struct inode *inode, struct file *filp,
 	drm_r128_private_t *dev_priv = dev->dev_private;
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
-	LOCK_TEST_WITH_RETURN( dev );
-
+	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||
+	     dev->lock.pid != current->pid ) {
+		DRM_ERROR( "%s called without lock held\n", __FUNCTION__ );
+		return -EINVAL;
+	}
 	if ( !dev_priv ) {
 		DRM_DEBUG( "%s called before init done\n", __FUNCTION__ );
 		return -EINVAL;
@@ -643,7 +664,11 @@ int r128_cce_idle( struct inode *inode, struct file *filp,
 	drm_r128_private_t *dev_priv = dev->dev_private;
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
-	LOCK_TEST_WITH_RETURN( dev );
+	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||
+	     dev->lock.pid != current->pid ) {
+		DRM_ERROR( "%s called without lock held\n", __FUNCTION__ );
+		return -EINVAL;
+	}
 
 	if ( dev_priv->cce_running ) {
 		r128_do_cce_flush( dev_priv );
@@ -659,7 +684,11 @@ int r128_engine_reset( struct inode *inode, struct file *filp,
         drm_device_t *dev = priv->dev;
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
-	LOCK_TEST_WITH_RETURN( dev );
+	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||
+	     dev->lock.pid != current->pid ) {
+		DRM_ERROR( "%s called without lock held\n", __FUNCTION__ );
+		return -EINVAL;
+	}
 
 	return r128_do_engine_reset( dev );
 }
@@ -708,7 +737,11 @@ int r128_fullscreen( struct inode *inode, struct file *filp,
         drm_device_t *dev = priv->dev;
 	drm_r128_fullscreen_t fs;
 
-	LOCK_TEST_WITH_RETURN( dev );
+	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||
+	     dev->lock.pid != current->pid ) {
+		DRM_ERROR( "%s called without lock held\n", __FUNCTION__ );
+		return -EINVAL;
+	}
 
 	if ( copy_from_user( &fs, (drm_r128_fullscreen_t *)arg, sizeof(fs) ) )
 		return -EFAULT;
@@ -899,10 +932,14 @@ int r128_cce_buffers( struct inode *inode, struct file *filp,
 	int ret = 0;
 	drm_dma_t d;
 
-	LOCK_TEST_WITH_RETURN( dev );
-
 	if ( copy_from_user( &d, (drm_dma_t *) arg, sizeof(d) ) )
 		return -EFAULT;
+
+	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||
+	     dev->lock.pid != current->pid ) {
+		DRM_ERROR( "%s called without lock held\n", __FUNCTION__ );
+		return -EINVAL;
+	}
 
 	/* Please don't send us buffers.
 	 */

@@ -1,5 +1,5 @@
-/* proc.c -- /proc support for DRM -*- linux-c -*-
- * Created: Mon Jan 11 09:48:47 1999 by faith@precisioninsight.com
+/* drm_proc.h -- /proc support for DRM -*- linux-c -*-
+ * Created: Mon Jan 11 09:48:47 1999 by faith@valinux.com
  *
  * Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
  * Copyright 2000 VA Linux Systems, Inc., Sunnyvale, California.
@@ -11,21 +11,22 @@
  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
  * and/or sell copies of the Software, and to permit persons to whom the
  * Software is furnished to do so, subject to the following conditions:
- * 
+ *
  * The above copyright notice and this permission notice (including the next
  * paragraph) shall be included in all copies or substantial portions of the
  * Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- * PRECISION INSIGHT AND/OR ITS SUPPLIERS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+ * VA LINUX SYSTEMS AND/OR ITS SUPPLIERS BE LIABLE FOR ANY CLAIM, DAMAGES OR
  * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
- * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
- * DEALINGS IN THE SOFTWARE.
+ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
  *
  * Authors:
- *    Rickard E. (Rik) Faith <faith@valinux.com>
+ *   Rickard E. (Rik) Faith <faith@valinux.com>
+ *   Gareth Hughes <gareth@valinux.com>
  */
 
 #define __NO_VERSION__
@@ -59,7 +60,7 @@ struct drm_proc_list {
 	int	   (*f)(char *, char **, off_t, int, int *, void *);
 } drm_proc_list[] = {
 	{ "name",    drm_name_info    },
-	{ "mem",     drm_mem_info     },
+	{ "mem",     DRM(mem_info)    },
 	{ "vm",	     drm_vm_info      },
 	{ "clients", drm_clients_info },
 	{ "queues",  drm_queues_info  },
@@ -73,7 +74,7 @@ struct drm_proc_list {
 };
 #define DRM_PROC_ENTRIES (sizeof(drm_proc_list)/sizeof(drm_proc_list[0]))
 
-int drm_proc_init(drm_device_t *dev)
+int DRM(proc_init)(drm_device_t *dev)
 {
 	struct proc_dir_entry *ent;
 	int		      i, j;
@@ -122,10 +123,10 @@ int drm_proc_init(drm_device_t *dev)
 }
 
 
-int drm_proc_cleanup(void)
+int DRM(proc_cleanup)(void)
 {
 	int i;
-	
+
 	if (drm_root) {
 		if (drm_dev_root) {
 			for (i = 0; i < DRM_PROC_ENTRIES; i++) {
@@ -245,7 +246,7 @@ static int _drm_queues_info(char *buf, char **start, off_t offset, int len,
 				   atomic_read(&q->total_locks));
 		atomic_dec(&q->use_count);
 	}
-	
+
 	return len;
 }
 
@@ -389,7 +390,7 @@ static int _drm_vma_info(char *buf, char **start, off_t offset, int len,
 			       vma->vm_flags & VM_LOCKED   ? 'l' : '-',
 			       vma->vm_flags & VM_IO	   ? 'i' : '-',
 			       VM_OFFSET(vma));
-		
+
 #if defined(__i386__)
 		pgprot = pgprot_val(vma->vm_page_prot);
 		DRM_PROC_PRINT(" %c%c%c%c%c%c%c%c%c",
@@ -402,7 +403,7 @@ static int _drm_vma_info(char *buf, char **start, off_t offset, int len,
 			       pgprot & _PAGE_DIRTY    ? 'd' : '-',
 			       pgprot & _PAGE_PSE      ? 'm' : 'k',
 			       pgprot & _PAGE_GLOBAL   ? 'g' : 'l' );
-#endif		
+#endif
 		DRM_PROC_PRINT("\n");
 #if 0
 		for (i = vma->vm_start; i < vma->vm_end; i += PAGE_SIZE) {
@@ -427,7 +428,7 @@ static int _drm_vma_info(char *buf, char **start, off_t offset, int len,
 		}
 #endif
 	}
-	
+
 	return len;
 }
 
@@ -467,7 +468,7 @@ static int _drm_histo_info(char *buf, char **start, off_t offset, int len,
 	DRM_PROC_PRINT("ioctl	 %10u\n", atomic_read(&dev->total_ioctl));
 	DRM_PROC_PRINT("irq	 %10u\n", atomic_read(&dev->total_irq));
 	DRM_PROC_PRINT("ctx	 %10u\n", atomic_read(&dev->total_ctx));
-	
+
 	DRM_PROC_PRINT("\nlock statistics:\n");
 	DRM_PROC_PRINT("locks	 %10u\n", atomic_read(&dev->total_locks));
 	DRM_PROC_PRINT("unlocks	 %10u\n", atomic_read(&dev->total_unlocks));
@@ -498,7 +499,7 @@ static int _drm_histo_info(char *buf, char **start, off_t offset, int len,
 			       atomic_read(&dma->total_hit));
 		DRM_PROC_PRINT("lost	 %10u\n",
 			       atomic_read(&dma->total_lost));
-		
+
 		buffer = dma->next_buffer;
 		if (buffer) {
 			DRM_PROC_PRINT("next_buffer %7d\n", buffer->idx);
@@ -512,7 +513,7 @@ static int _drm_histo_info(char *buf, char **start, off_t offset, int len,
 			DRM_PROC_PRINT("this_buffer    none\n");
 		}
 	}
-	
+
 
 	DRM_PROC_PRINT("\nvalues:\n");
 	if (dev->lock.hw_lock) {
@@ -529,8 +530,8 @@ static int _drm_histo_info(char *buf, char **start, off_t offset, int len,
 	DRM_PROC_PRINT("last_context   %10d\n",	 dev->last_context);
 	DRM_PROC_PRINT("last_switch    %10lu\n", dev->last_switch);
 	DRM_PROC_PRINT("last_checked   %10d\n",	 dev->last_checked);
-		
-	
+
+
 	DRM_PROC_PRINT("\n		       q2d	  d2c	     c2f"
 		       "	q2c	   q2f	      dma	 sch"
 		       "	ctx	  lacq	     lhld\n\n");
@@ -540,14 +541,14 @@ static int _drm_histo_info(char *buf, char **start, off_t offset, int len,
 			       i == DRM_DMA_HISTOGRAM_SLOTS - 1 ? ">=" : "< ",
 			       i == DRM_DMA_HISTOGRAM_SLOTS - 1
 			       ? prev_value : slot_value ,
-			       
+
 			       atomic_read(&dev->histo
 					   .queued_to_dispatched[i]),
 			       atomic_read(&dev->histo
 					   .dispatched_to_completed[i]),
 			       atomic_read(&dev->histo
 					   .completed_to_freed[i]),
-			       
+
 			       atomic_read(&dev->histo
 					   .queued_to_completed[i]),
 			       atomic_read(&dev->histo

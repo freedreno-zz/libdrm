@@ -49,8 +49,7 @@ r128-objs   := r128_drv.o     r128_cce.o    r128_context.o   r128_bufs.o \
 radeon-objs := radeon_drv.o   radeon_cp.o   radeon_context.o radeon_bufs.o \
                radeon_state.o
 ffb-objs    := ffb_drv.o                    ffb_context.o
-mga-objs    := mga_drv.o      mga_dma.o     mga_context.o    mga_bufs.o \
-               mga_state.o
+mga-objs    := mga_drv.o mga_drm.o mga_dma.o mga_state.o mga_warp.o
 i810-objs   := i810_drv.o     i810_dma.o    i810_context.o   i810_bufs.o
 
 obj-$(CONFIG_DRM_GAMMA)  += gamma.o
@@ -62,7 +61,7 @@ obj-$(CONFIG_DRM_MGA)    += mga.o
 obj-$(CONFIG_DRM_I810)   += i810.o
 
 
-# When linking into the kernel, link the library just once. 
+# When linking into the kernel, link the library just once.
 # If making modules, we include the library into each module
 
 lib-objs-mod := $(patsubst %.o,%-mod.o,$(lib-objs))
@@ -75,7 +74,7 @@ endif
 
 include $(TOPDIR)/Rules.make
 
-$(patsubst %.o,%.c,$(lib-objs-mod)): 
+$(patsubst %.o,%.c,$(lib-objs-mod)):
 	@ln -sf $(subst -mod,,$@) $@
 
 drmlib-mod.a: $(lib-objs-mod)
