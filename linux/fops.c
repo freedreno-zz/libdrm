@@ -106,8 +106,9 @@ int drm_release(struct inode *inode, struct file *filp)
                                    processed via a callback to the X
                                    server. */
 	}
-	drm_reclaim_buffers(dev, priv->pid);
-
+#if 0
+   	drm_reclaim_buffers(dev, priv->pid);
+#endif
 	drm_fasync(-1, filp, 0);
 
 	down(&dev->struct_sem);

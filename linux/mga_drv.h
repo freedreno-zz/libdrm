@@ -54,12 +54,17 @@ typedef struct _drm_mga_private {
    	atomic_t dispatch_lock;
    	atomic_t pending_bufs;
    	atomic_t in_flush;
+   	unsigned int last_sync_tag;
+   	unsigned int sync_tag;
+   	void *status_page;
+   	unsigned long real_status_page;
    	void *ioremap;
    	u32 *prim_head;
    	u32 *current_dma_ptr;
    	u32 prim_phys_head;
    	int prim_num_dwords;
    	int prim_max_dwords;
+   	struct pci_dev *device;
 
 
 	/* Some validated register values:
