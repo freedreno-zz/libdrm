@@ -47,8 +47,6 @@
 
 # **** End of SMP/MODVERSIONS detection
 
-#MODS=           gamma.o tdfx.o r128.o radeon.o
-#LIBS=           libdrm.a
 MODS=           gamma.o tdfx.o
 LIBS=
 
@@ -137,9 +135,13 @@ ifeq ($(AGP),1)
 MODCFLAGS += -DCONFIG_AGP -DCONFIG_AGP_MODULE
 #DRMOBJS += agpsupport.o
 MODS += mga.o r128.o radeon.o
-#ifeq ($(MACHINE),i386)
+ifeq ($(MACHINE),i386)
 MODS += i810.o
-#endif
+endif
+ifeq ($(MACHINE),i686)
+MODS += i810.o
+endif
+
 
 MGAOBJS=	mga_drv.o mga_dma.o mga_state.o mga_warp.o
 MGAHEADERS=	mga.h mga_drv.h $(DRMHEADERS) $(DRMTEMPLATES)
