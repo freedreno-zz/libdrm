@@ -32,7 +32,7 @@
 
 #include "drmP.h"
 
-drm_file_t *DRM(find_file_by_proc)(drm_device_t *dev, DRM_OS_STRUCTPROC *p)
+drm_file_t *DRM(find_file_by_proc)(drm_device_t *dev, DRM_STRUCTPROC *p)
 {
 #if __FreeBSD_version >= 500021
 	uid_t uid = p->td_proc->p_ucred->cr_svuid;
@@ -51,7 +51,7 @@ drm_file_t *DRM(find_file_by_proc)(drm_device_t *dev, DRM_OS_STRUCTPROC *p)
 
 /* DRM(open) is called whenever a process opens /dev/drm. */
 
-int DRM(open_helper)(dev_t kdev, int flags, int fmt, DRM_OS_STRUCTPROC *p,
+int DRM(open_helper)(dev_t kdev, int flags, int fmt, DRM_STRUCTPROC *p,
 		    drm_device_t *dev)
 {
 	int	     m = minor(kdev);
@@ -61,9 +61,9 @@ int DRM(open_helper)(dev_t kdev, int flags, int fmt, DRM_OS_STRUCTPROC *p,
 		return EBUSY; /* No exclusive opens */
 	dev->flags = flags;
 	if (!DRM(cpu_valid)())
-		DRM_OS_RETURN(EINVAL);
+		return DRM_ERR(EINVAL);
 
-	DRM_DEBUG("pid = %d, minor = %d\n", DRM_OS_CURRENTPID, m);
+	DRM_DEBUG("pid = %d, minor = %d\n", DRM_CURRENTPID, m);
 
 	/* FIXME: linux mallocs and bzeros here */
 	priv = (drm_file_t *) DRM(find_file_by_proc)(dev, p);
@@ -84,10 +84,10 @@ int DRM(open_helper)(dev_t kdev, int flags, int fmt, DRM_OS_STRUCTPROC *p,
 		priv->minor		= m;
 		priv->devXX		= dev;
 		priv->ioctl_count 	= 0;
-		priv->authenticated	= !DRM_OS_SUSER(p);
-		DRM_OS_LOCK;
+		priv->authenticated	= !DRM_SUSER(p);
+		DRM_LOCK;
 		TAILQ_INSERT_TAIL(&dev->files, priv, link);
-		DRM_OS_UNLOCK;
+		DRM_UNLOCK;
 	}
 #ifdef __FreeBSD__
 	kdev->si_drv1 = dev;
@@ -102,7 +102,7 @@ int DRM(open_helper)(dev_t kdev, int flags, int fmt, DRM_OS_STRUCTPROC *p,
 
 ssize_t DRM(read)(dev_t kdev, struct uio *uio, int ioflag)
 {
-	DRM_OS_DEVICE;
+	DRM_DEVICE;
 	int	      left;
 	int	      avail;
 	int	      send;
@@ -207,9 +207,9 @@ int DRM(write_string)(drm_device_t *dev, const char *s)
 	return 0;
 }
 
-int DRM(poll)(dev_t kdev, int events, DRM_OS_STRUCTPROC *p)
+int DRM(poll)(dev_t kdev, int events, DRM_STRUCTPROC *p)
 {
-	DRM_OS_DEVICE;
+	DRM_DEVICE;
 	int           s;
 	int	      revents = 0;
 
@@ -229,7 +229,7 @@ int DRM(poll)(dev_t kdev, int events, DRM_OS_STRUCTPROC *p)
 int DRM(write)(dev_t kdev, struct uio *uio, int ioflag)
 {
 #if DRM_DEBUG_CODE
-	DRM_OS_DEVICE;
+	DRM_DEVICE;
 #endif
 #ifdef __FreeBSD__
 	DRM_DEBUG("pid = %d, device = %p, open_count = %d\n",

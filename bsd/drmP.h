@@ -243,8 +243,8 @@ typedef struct drm_waitlist {
 	drm_buf_t	  **rp;		/* Read pointer			   */
 	drm_buf_t	  **wp;		/* Write pointer		   */
 	drm_buf_t	  **end;	/* End pointer			   */
-	DRM_OS_SPINTYPE	  read_lock;
-	DRM_OS_SPINTYPE	  write_lock;
+	DRM_SPINTYPE	  read_lock;
+	DRM_SPINTYPE	  write_lock;
 } drm_waitlist_t;
 
 typedef struct drm_freelist {
@@ -256,7 +256,7 @@ typedef struct drm_freelist {
 	int		  low_mark;    /* Low water mark		   */
 	int		  high_mark;   /* High water mark		   */
 	atomic_t	  wfh;	       /* If waiting for high mark	   */
-	DRM_OS_SPINTYPE   lock;
+	DRM_SPINTYPE   lock;
 } drm_freelist_t;
 
 typedef struct drm_buf_entry {
@@ -410,7 +410,7 @@ struct drm_device {
 	int		  writable;	/* Opened with FWRITE		   */
 
 				/* Locks */
-	DRM_OS_SPINTYPE	  count_lock;	/* For inuse, open_count, buf_use  */
+	DRM_SPINTYPE	  count_lock;	/* For inuse, open_count, buf_use  */
 	struct lock       dev_lock;	/* For others			   */
 				/* Usage Counters */
 	int		  open_count;	/* Outstanding files open	   */
@@ -510,7 +510,7 @@ extern int           DRM(add_magic)(drm_device_t *dev, drm_file_t *priv,
 extern int           DRM(remove_magic)(drm_device_t *dev, drm_magic_t magic);
 
 				/* Driver support (drm_drv.h) */
-extern int           DRM(version)( DRM_OS_IOCTL );
+extern int           DRM(version)( DRM_IOCTL_ARGS );
 extern int	     DRM(write_string)(drm_device_t *dev, const char *s);
 
 				/* Memory management support (drm_memory.h) */
@@ -578,9 +578,9 @@ extern int	     DRM(dma_get_buffers)(drm_device_t *dev, drm_dma_t *dma);
 #if __HAVE_DMA_IRQ
 extern int           DRM(irq_install)( drm_device_t *dev, int irq );
 extern int           DRM(irq_uninstall)( drm_device_t *dev );
-extern void          DRM(dma_service)( DRM_OS_IRQ_ARGS );
+extern void          DRM(dma_service)( DRM_IRQ_ARGS );
 #if __HAVE_DMA_IRQ_BH
-extern void          DRM(dma_immediate_bh)( DRM_OS_TASKQUEUE_ARGS );
+extern void          DRM(dma_immediate_bh)( DRM_TASKQUEUE_ARGS );
 #endif
 #endif
 #if DRM_DMA_HISTOGRAM

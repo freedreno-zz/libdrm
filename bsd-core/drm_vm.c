@@ -5,7 +5,7 @@ static int DRM(dma_mmap)(dev_t kdev, vm_offset_t offset, int prot)
 static paddr_t DRM(dma_mmap)(dev_t kdev, vm_offset_t offset, int prot)
 #endif
 {
-	DRM_OS_DEVICE;
+	DRM_DEVICE;
 	drm_device_dma_t *dma	 = dev->dma;
 	unsigned long	 physical;
 	unsigned long	 page;
@@ -26,20 +26,20 @@ int DRM(mmap)(dev_t kdev, vm_offset_t offset, int prot)
 paddr_t DRM(mmap)(dev_t kdev, off_t offset, int prot)
 #endif
 {
-	DRM_OS_DEVICE;
+	DRM_DEVICE;
 	drm_map_t	*map	= NULL;
 	drm_map_list_entry_t *listentry=NULL;
 	drm_file_t *priv;
 
 /*	DRM_DEBUG("offset = 0x%x\n", offset);*/
 
-	priv = DRM(find_file_by_proc)(dev, DRM_OS_CURPROC);
+	priv = DRM(find_file_by_proc)(dev, DRM_CURPROC);
 	if (!priv) {
 		DRM_DEBUG("can't find authenticator\n");
 		return EINVAL;
 	}
 
-	if (!priv->authenticated) DRM_OS_RETURN(EACCES);
+	if (!priv->authenticated) return DRM_ERR(EACCES);
 
 	if (dev->dma
 	    && offset >= 0
@@ -64,7 +64,7 @@ paddr_t DRM(mmap)(dev_t kdev, off_t offset, int prot)
 		DRM_DEBUG("can't find map\n");
 		return -1;
 	}
-	if (((map->flags&_DRM_RESTRICTED) && DRM_OS_SUSER(DRM_OS_CURPROC))) {
+	if (((map->flags&_DRM_RESTRICTED) && DRM_SUSER(DRM_CURPROC))) {
 		DRM_DEBUG("restricted map\n");
 		return -1;
 	}

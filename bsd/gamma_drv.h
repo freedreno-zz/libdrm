@@ -44,10 +44,10 @@ typedef struct drm_gamma_private {
 #define LOCK_TEST_WITH_RETURN( dev )					\
 do {									\
 	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||		\
-	     dev->lock.pid != DRM_OS_CURRENTPID ) {				\
+	     dev->lock.pid != DRM_CURRENTPID ) {				\
 		DRM_ERROR( "%s called without lock held\n",		\
 			   __FUNCTION__ );				\
-		DRM_OS_RETURN( EINVAL );						\
+		return DRM_ERR( EINVAL );						\
 	}								\
 } while (0)
 
@@ -58,7 +58,7 @@ extern void gamma_dma_quiescent_dual(drm_device_t *dev);
 
 				/* gamma_dma.c */
 extern int  gamma_dma_schedule(drm_device_t *dev, int locked);
-extern int  gamma_dma( DRM_OS_IOCTL );
+extern int  gamma_dma( DRM_IOCTL_ARGS );
 extern int  gamma_find_devices(void);
 extern int  gamma_found(void);
 

@@ -122,7 +122,7 @@ int DRM(ati_pcigart_init)( drm_device_t *dev,
 
 	ret = 1;
 
-	DRM_OS_READMEMORYBARRIER();
+	DRM_READMEMORYBARRIER();
 
 done:
 	*addr = address;

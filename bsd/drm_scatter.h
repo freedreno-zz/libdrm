@@ -48,9 +48,9 @@ void DRM(sg_cleanup)( drm_sg_mem_t *entry )
 		   DRM_MEM_SGLISTS );
 }
 
-int DRM(sg_alloc)( DRM_OS_IOCTL )
+int DRM(sg_alloc)( DRM_IOCTL_ARGS )
 {
-	DRM_OS_DEVICE;
+	DRM_DEVICE;
 	drm_scatter_gather_t request;
 	drm_sg_mem_t *entry;
 	unsigned long pages;
@@ -60,7 +60,7 @@ int DRM(sg_alloc)( DRM_OS_IOCTL )
 	if ( dev->sg )
 		return EINVAL;
 
-	DRM_OS_KRNFROMUSR(request, (drm_scatter_gather_t *)data,
+	DRM_COPY_FROM_USER_IOCTL(request, (drm_scatter_gather_t *)data,
 			     sizeof(request) );
 
 	entry = DRM(alloc)( sizeof(*entry), DRM_MEM_SGLISTS );
@@ -118,7 +118,7 @@ int DRM(sg_alloc)( DRM_OS_IOCTL )
 
 	request.handle = entry->handle;
 
-	DRM_OS_KRNTOUSR( (drm_scatter_gather_t *)data,
+	DRM_COPY_TO_USER_IOCTL( (drm_scatter_gather_t *)data,
 			   request,
 			   sizeof(request) );
 
@@ -170,13 +170,13 @@ int DRM(sg_alloc)( DRM_OS_IOCTL )
 	return ENOMEM;
 }
 
-int DRM(sg_free)( DRM_OS_IOCTL )
+int DRM(sg_free)( DRM_IOCTL_ARGS )
 {
-	DRM_OS_DEVICE;
+	DRM_DEVICE;
 	drm_scatter_gather_t request;
 	drm_sg_mem_t *entry;
 
-	DRM_OS_KRNFROMUSR( request, (drm_scatter_gather_t *)data,
+	DRM_COPY_FROM_USER_IOCTL( request, (drm_scatter_gather_t *)data,
 			     sizeof(request) );
 
 	entry = dev->sg;
@@ -194,13 +194,13 @@ int DRM(sg_free)( DRM_OS_IOCTL )
 
 #else /* __REALLY_HAVE_SG */
 
-int DRM(sg_alloc)( DRM_OS_IOCTL )
+int DRM(sg_alloc)( DRM_IOCTL_ARGS )
 {
-	return DRM_OS_ERR(EINVAL);
+	return DRM_ERR(EINVAL);
 }
-int DRM(sg_free)( DRM_OS_IOCTL )
+int DRM(sg_free)( DRM_IOCTL_ARGS )
 {
-	return DRM_OS_ERR(EINVAL);
+	return DRM_ERR(EINVAL);
 }
 
 #endif

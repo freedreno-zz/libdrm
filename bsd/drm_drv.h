@@ -426,7 +426,7 @@ static int DRM(setup)( drm_device_t *dev )
 
 	dev->maplist = DRM(alloc)(sizeof(*dev->maplist),
 				  DRM_MEM_MAPS);
-	if(dev->maplist == NULL) DRM_OS_RETURN(ENOMEM);
+	if(dev->maplist == NULL) return DRM_ERR(ENOMEM);
 	memset(dev->maplist, 0, sizeof(*dev->maplist));
 	TAILQ_INIT(dev->maplist);
 	dev->map_count = 0;
@@ -495,7 +495,7 @@ static int DRM(takedown)( drm_device_t *dev )
 	if ( dev->irq ) DRM(irq_uninstall)( dev );
 #endif
 
-	DRM_OS_LOCK;
+	DRM_LOCK;
 	callout_stop( &dev->timer );
 
 	if ( dev->devname ) {
@@ -580,7 +580,7 @@ static int DRM(takedown)( drm_device_t *dev )
 					/*mtrrmap.owner = p->p_pid;*/
 					/* XXX: Use curproc here? */
 					retcode = mtrr_set( &mtrrmap, &one, 
-						DRM_OS_CURPROC, MTRR_GETSET_KERNEL);
+						DRM_CURPROC, MTRR_GETSET_KERNEL);
 #endif
 					DRM_DEBUG( "mtrr_del=%d\n", retcode );
 				}
@@ -643,9 +643,9 @@ static int DRM(takedown)( drm_device_t *dev )
 	if ( dev->lock.hw_lock ) {
 		dev->lock.hw_lock = NULL; /* SHM removed */
 		dev->lock.pid = 0;
-		DRM_OS_WAKEUP_INT((void *)&dev->lock.lock_queue);
+		DRM_WAKEUP_INT((void *)&dev->lock.lock_queue);
 	}
-	DRM_OS_UNLOCK;
+	DRM_UNLOCK;
 
 	return 0;
 }
@@ -684,7 +684,7 @@ static int DRM(init)( drm_device_t *dev )
 #elif defined(__NetBSD__)
 	unit = minor(dev->device.dv_unit);
 #endif
-	DRM_OS_SPININIT(dev->count_lock, "drm device");
+	DRM_SPININIT(dev->count_lock, "drm device");
 	lockinit(&dev->dev_lock, PZERO, "drmlk", 0, 0);
 	dev->name = DRIVER_NAME;
 	DRM(mem_init)();
@@ -701,7 +701,7 @@ static int DRM(init)( drm_device_t *dev )
 		destroy_dev(dev->devnode);
 #endif
 		DRM(takedown)( dev );
-		DRM_OS_RETURN(ENOMEM);
+		return DRM_ERR(ENOMEM);
 	}
 #endif /* __MUST_HAVE_AGP */
 #if __REALLY_HAVE_MTRR
@@ -813,20 +813,20 @@ static void DRM(cleanup)(drm_device_t *dev)
 }
 
 
-int DRM(version)( DRM_OS_IOCTL )
+int DRM(version)( DRM_IOCTL_ARGS )
 {
 	drm_version_t version;
 	int len;
 
-	DRM_OS_KRNFROMUSR( version, (drm_version_t *)data, sizeof(version) );
+	DRM_COPY_FROM_USER_IOCTL( version, (drm_version_t *)data, sizeof(version) );
 
 #define DRM_COPY( name, value )						\
 	len = strlen( value );						\
 	if ( len > name##_len ) len = name##_len;			\
 	name##_len = strlen( value );					\
 	if ( len && name ) {						\
-		if ( DRM_OS_COPYTOUSR( name, value, len ) )		\
-			DRM_OS_RETURN(EFAULT);				\
+		if ( DRM_COPY_TO_USER( name, value, len ) )		\
+			return DRM_ERR(EFAULT);				\
 	}
 
 	version.version_major = DRIVER_MAJOR;
@@ -837,12 +837,12 @@ int DRM(version)( DRM_OS_IOCTL )
 	DRM_COPY( version.date, DRIVER_DATE );
 	DRM_COPY( version.desc, DRIVER_DESC );
 
-	DRM_OS_KRNTOUSR( (drm_version_t *)data, version, sizeof(version) );
+	DRM_COPY_TO_USER_IOCTL( (drm_version_t *)data, version, sizeof(version) );
 
 	return 0;
 }
 
-int DRM(open)(dev_t kdev, int flags, int fmt, DRM_OS_STRUCTPROC *p)
+int DRM(open)(dev_t kdev, int flags, int fmt, DRM_STRUCTPROC *p)
 {
 	drm_device_t *dev = NULL;
 	int retcode = 0;
@@ -858,13 +858,13 @@ int DRM(open)(dev_t kdev, int flags, int fmt, DRM_OS_STRUCTPROC *p)
 
 	if ( !retcode ) {
 		atomic_inc( &dev->counts[_DRM_STAT_OPENS] );
-		DRM_OS_SPINLOCK( &dev->count_lock );
+		DRM_SPINLOCK( &dev->count_lock );
 		if ( !dev->open_count++ ) {
 			retcode = DRM(setup)( dev );
-			DRM_OS_SPINUNLOCK( &dev->count_lock );
+			DRM_SPINUNLOCK( &dev->count_lock );
 			return retcode;
 		}
-		DRM_OS_SPINUNLOCK( &dev->count_lock );
+		DRM_SPINUNLOCK( &dev->count_lock );
 	}
 #ifdef __FreeBSD__
 	device_unbusy(dev->device);
@@ -873,10 +873,10 @@ int DRM(open)(dev_t kdev, int flags, int fmt, DRM_OS_STRUCTPROC *p)
 	return retcode;
 }
 
-int DRM(close)(dev_t kdev, int flags, int fmt, DRM_OS_STRUCTPROC *p)
+int DRM(close)(dev_t kdev, int flags, int fmt, DRM_STRUCTPROC *p)
 {
 	drm_file_t *priv;
-	DRM_OS_DEVICE;
+	DRM_DEVICE;
 	int retcode = 0;
 
 	DRM_DEBUG( "open_count = %d\n", dev->open_count );
@@ -894,16 +894,16 @@ int DRM(close)(dev_t kdev, int flags, int fmt, DRM_OS_STRUCTPROC *p)
 
 #ifdef __FreeBSD__
 	DRM_DEBUG( "pid = %d, device = 0x%lx, open_count = %d\n",
-		   DRM_OS_CURRENTPID, (long)dev->device, dev->open_count );
+		   DRM_CURRENTPID, (long)dev->device, dev->open_count );
 #elif defined(__NetBSD__)
 	DRM_DEBUG( "pid = %d, device = 0x%lx, open_count = %d\n",
-		   DRM_OS_CURRENTPID, (long)&dev->device, dev->open_count);
+		   DRM_CURRENTPID, (long)&dev->device, dev->open_count);
 #endif
 
 	if (dev->lock.hw_lock && _DRM_LOCK_IS_HELD(dev->lock.hw_lock->lock)
-	    && dev->lock.pid == DRM_OS_CURRENTPID) {
+	    && dev->lock.pid == DRM_CURRENTPID) {
 		DRM_DEBUG("Process %d dead, freeing lock for context %d\n",
-			  DRM_OS_CURRENTPID,
+			  DRM_CURRENTPID,
 			  _DRM_LOCKING_CONTEXT(dev->lock.hw_lock->lock));
 #if HAVE_DRIVER_RELEASE
 		DRIVER_RELEASE();
@@ -962,7 +962,7 @@ int DRM(close)(dev_t kdev, int flags, int fmt, DRM_OS_STRUCTPROC *p)
 	dev->buf_pgid = 0;
 #endif /* __NetBSD__ */
 
-	DRM_OS_LOCK;
+	DRM_LOCK;
 	priv = DRM(find_file_by_proc)(dev, p);
 	if (priv) {
 		priv->refs--;
@@ -970,7 +970,7 @@ int DRM(close)(dev_t kdev, int flags, int fmt, DRM_OS_STRUCTPROC *p)
 			TAILQ_REMOVE(&dev->files, priv, link);
 		}
 	}
-	DRM_OS_UNLOCK;
+	DRM_UNLOCK;
 
 	DRM(free)( priv, sizeof(*priv), DRM_MEM_FILES );
 
@@ -979,36 +979,36 @@ int DRM(close)(dev_t kdev, int flags, int fmt, DRM_OS_STRUCTPROC *p)
 	 */
 
 	atomic_inc( &dev->counts[_DRM_STAT_CLOSES] );
-	DRM_OS_SPINLOCK( &dev->count_lock );
+	DRM_SPINLOCK( &dev->count_lock );
 	if ( !--dev->open_count ) {
 		if ( atomic_read( &dev->ioctl_count ) || dev->blocked ) {
 			DRM_ERROR( "Device busy: %ld %d\n",
 				(unsigned long)atomic_read( &dev->ioctl_count ),
 				   dev->blocked );
-			DRM_OS_SPINUNLOCK( &dev->count_lock );
-			DRM_OS_RETURN(EBUSY);
+			DRM_SPINUNLOCK( &dev->count_lock );
+			return DRM_ERR(EBUSY);
 		}
-		DRM_OS_SPINUNLOCK( &dev->count_lock );
+		DRM_SPINUNLOCK( &dev->count_lock );
 		return DRM(takedown)( dev );
 	}
-	DRM_OS_SPINUNLOCK( &dev->count_lock );
+	DRM_SPINUNLOCK( &dev->count_lock );
 #ifdef __FreeBSD__
 	device_unbusy(dev->device);
 #endif
 	
-	DRM_OS_RETURN(retcode);
+	return DRM_ERR(retcode);
 }
 
 /* DRM(ioctl) is called whenever a process performs an ioctl on /dev/drm.
  */
-int DRM(ioctl)( DRM_OS_IOCTL )
+int DRM(ioctl)( DRM_IOCTL_ARGS )
 {
-	DRM_OS_DEVICE;
+	DRM_DEVICE;
 	int retcode = 0;
 	drm_ioctl_desc_t *ioctl;
 	d_ioctl_t *func;
 	int nr = DRM_IOCTL_NR(cmd);
-	DRM_OS_PRIV;
+	DRM_PRIV;
 
 	atomic_inc( &dev->ioctl_count );
 	atomic_inc( &dev->counts[_DRM_STAT_IOCTLS] );
@@ -1016,10 +1016,10 @@ int DRM(ioctl)( DRM_OS_IOCTL )
 
 #ifdef __FreeBSD__
 	DRM_DEBUG( "pid=%d, cmd=0x%02lx, nr=0x%02x, dev 0x%lx, auth=%d\n",
-		 DRM_OS_CURRENTPID, cmd, nr, (long)dev->device, priv->authenticated );
+		 DRM_CURRENTPID, cmd, nr, (long)dev->device, priv->authenticated );
 #elif defined(__NetBSD__)
 	DRM_DEBUG( "pid=%d, cmd=0x%02lx, nr=0x%02x, dev 0x%lx, auth=%d\n",
-		 DRM_OS_CURRENTPID, cmd, nr, (long)&dev->device, priv->authenticated );
+		 DRM_CURRENTPID, cmd, nr, (long)&dev->device, priv->authenticated );
 #endif
 
 	switch (cmd) {
@@ -1064,7 +1064,7 @@ int DRM(ioctl)( DRM_OS_IOCTL )
 		if ( !func ) {
 			DRM_DEBUG( "no function\n" );
 			retcode = EINVAL;
-		} else if ( ( ioctl->root_only && DRM_OS_SUSER(p) ) 
+		} else if ( ( ioctl->root_only && DRM_SUSER(p) ) 
 			 || ( ioctl->auth_needed && !priv->authenticated ) ) {
 			retcode = EACCES;
 		} else {
@@ -1073,12 +1073,12 @@ int DRM(ioctl)( DRM_OS_IOCTL )
 	}
 
 	atomic_dec( &dev->ioctl_count );
-	DRM_OS_RETURN(retcode);
+	return DRM_ERR(retcode);
 }
 
-int DRM(lock)( DRM_OS_IOCTL )
+int DRM(lock)( DRM_IOCTL_ARGS )
 {
-	DRM_OS_DEVICE;
+	DRM_DEVICE;
         drm_lock_t lock;
         int ret = 0;
 #if __HAVE_MULTIPLE_DMA_QUEUES
@@ -1090,24 +1090,24 @@ int DRM(lock)( DRM_OS_IOCTL )
         dev->lck_start = start = get_cycles();
 #endif
 
-	DRM_OS_KRNFROMUSR( lock, (drm_lock_t *)data, sizeof(lock) );
+	DRM_COPY_FROM_USER_IOCTL( lock, (drm_lock_t *)data, sizeof(lock) );
 
         if ( lock.context == DRM_KERNEL_CONTEXT ) {
                 DRM_ERROR( "Process %d using kernel context %d\n",
-			   DRM_OS_CURRENTPID, lock.context );
-                DRM_OS_RETURN(EINVAL);
+			   DRM_CURRENTPID, lock.context );
+                return DRM_ERR(EINVAL);
         }
 
         DRM_DEBUG( "%d (pid %d) requests lock (0x%08x), flags = 0x%08x\n",
-		   lock.context, DRM_OS_CURRENTPID,
+		   lock.context, DRM_CURRENTPID,
 		   dev->lock.hw_lock->lock, lock.flags );
 
 #if __HAVE_DMA_QUEUE
         if ( lock.context < 0 )
-                DRM_OS_RETURN(EINVAL);
+                return DRM_ERR(EINVAL);
 #elif __HAVE_MULTIPLE_DMA_QUEUES
         if ( lock.context < 0 || lock.context >= dev->queue_count )
-                DRM_OS_RETURN(EINVAL);
+                return DRM_ERR(EINVAL);
 	q = dev->queuelist[lock.context];
 #endif
 
@@ -1123,7 +1123,7 @@ int DRM(lock)( DRM_OS_IOCTL )
                         }
                         if ( DRM(lock_take)( &dev->lock.hw_lock->lock,
 					     lock.context ) ) {
-                                dev->lock.pid       = DRM_OS_CURRENTPID;
+                                dev->lock.pid       = DRM_CURRENTPID;
                                 dev->lock.lock_time = jiffies;
                                 atomic_inc( &dev->counts[_DRM_STAT_LOCKS] );
                                 break;  /* Got lock */
@@ -1169,21 +1169,21 @@ int DRM(lock)( DRM_OS_IOCTL )
         atomic_inc(&dev->histo.lacq[DRM(histogram_slot)(get_cycles()-start)]);
 #endif
 
-	DRM_OS_RETURN(ret);
+	return DRM_ERR(ret);
 }
 
 
-int DRM(unlock)( DRM_OS_IOCTL )
+int DRM(unlock)( DRM_IOCTL_ARGS )
 {
-	DRM_OS_DEVICE;
+	DRM_DEVICE;
 	drm_lock_t lock;
 
-	DRM_OS_KRNFROMUSR( lock, (drm_lock_t *)data, sizeof(lock) ) ;
+	DRM_COPY_FROM_USER_IOCTL( lock, (drm_lock_t *)data, sizeof(lock) ) ;
 
 	if ( lock.context == DRM_KERNEL_CONTEXT ) {
 		DRM_ERROR( "Process %d using kernel context %d\n",
-			   DRM_OS_CURRENTPID, lock.context );
-		DRM_OS_RETURN(EINVAL);
+			   DRM_CURRENTPID, lock.context );
+		return DRM_ERR(EINVAL);
 	}
 
 	atomic_inc( &dev->counts[_DRM_STAT_UNLOCKS] );
@@ -1236,7 +1236,7 @@ SYSUNINIT(DRM( unregister), SI_SUB_KLD, SI_ORDER_MIDDLE, linux_ioctl_unregister_
  * Linux emulation IOCTL
  */
 static int
-DRM(linux_ioctl)(DRM_OS_STRUCTPROC *p, struct linux_ioctl_args* args)
+DRM(linux_ioctl)(DRM_STRUCTPROC *p, struct linux_ioctl_args* args)
 {
 #if (__FreeBSD_version >= 500000)
     struct file		*fp = p->td_proc->p_fd->fd_ofiles[args->fd];

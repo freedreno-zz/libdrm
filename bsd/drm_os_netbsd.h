@@ -59,38 +59,38 @@ extern struct cfdriver DRM(_cd);
 #define DRM_DEV_GID	0
 #define CDEV_MAJOR	90
 
-#define DRM_OS_CURPROC		curproc
-#define DRM_OS_STRUCTPROC	struct proc
-#define DRM_OS_SPINTYPE		struct simplelock
-#define DRM_OS_SPININIT(l,name)	simple_lock_init(&l)
-#define DRM_OS_SPINLOCK(l)	simple_lock(l)
-#define DRM_OS_SPINUNLOCK(u)	simple_unlock(u);
-#define DRM_OS_CURRENTPID       curproc->p_pid
+#define DRM_CURPROC		curproc
+#define DRM_STRUCTPROC	struct proc
+#define DRM_SPINTYPE		struct simplelock
+#define DRM_SPININIT(l,name)	simple_lock_init(&l)
+#define DRM_SPINLOCK(l)	simple_lock(l)
+#define DRM_SPINUNLOCK(u)	simple_unlock(u);
+#define DRM_CURRENTPID       curproc->p_pid
 
-#define DRM_OS_IOCTL		dev_t kdev, u_long cmd, caddr_t data, int flags, DRM_OS_STRUCTPROC *p
-#define DRM_OS_LOCK		lockmgr(&dev->dev_lock, LK_EXCLUSIVE, NULL)
-#define DRM_OS_UNLOCK 		lockmgr(&dev->dev_lock, LK_RELEASE, NULL)
-#define DRM_OS_SUSER(p)		suser(p->p_ucred, &p->p_acflag)
-#define DRM_OS_TASKQUEUE_ARGS	void *dev, int pending
-#define DRM_OS_IRQ_ARGS		void *device
-#define DRM_OS_DEVICE		drm_device_t *dev = device_lookup(&DRM(_cd), minor(kdev))
-#define DRM_OS_MALLOC(size)	malloc( size, DRM(M_DRM), M_NOWAIT )
-#define DRM_OS_FREE(pt)		free( pt, DRM(M_DRM) )
-#define DRM_OS_VTOPHYS(addr)	vtophys(addr)
-#define DRM_OS_READ8(addr)	*((volatile char *)(addr))
-#define DRM_OS_READ32(addr)	*((volatile long *)(addr))
-#define DRM_OS_WRITE8(addr, val)	*((volatile char *)(addr)) = (val)
-#define DRM_OS_WRITE32(addr, val)	*((volatile long *)(addr)) = (val)
-#define DRM_OS_AGP_FIND_DEVICE()
+#define DRM_IOCTL_ARGS		dev_t kdev, u_long cmd, caddr_t data, int flags, DRM_STRUCTPROC *p
+#define DRM_LOCK		lockmgr(&dev->dev_lock, LK_EXCLUSIVE, NULL)
+#define DRM_UNLOCK 		lockmgr(&dev->dev_lock, LK_RELEASE, NULL)
+#define DRM_SUSER(p)		suser(p->p_ucred, &p->p_acflag)
+#define DRM_TASKQUEUE_ARGS	void *dev, int pending
+#define DRM_IRQ_ARGS		void *device
+#define DRM_DEVICE		drm_device_t *dev = device_lookup(&DRM(_cd), minor(kdev))
+#define DRM_MALLOC(size)	malloc( size, DRM(M_DRM), M_NOWAIT )
+#define DRM_FREE(pt)		free( pt, DRM(M_DRM) )
+#define DRM_VTOPHYS(addr)	vtophys(addr)
+#define DRM_READ8(addr)	*((volatile char *)(addr))
+#define DRM_READ32(addr)	*((volatile long *)(addr))
+#define DRM_WRITE8(addr, val)	*((volatile char *)(addr)) = (val)
+#define DRM_WRITE32(addr, val)	*((volatile long *)(addr)) = (val)
+#define DRM_AGP_FIND_DEVICE()
 
-#define DRM_OS_PRIV					\
+#define DRM_PRIV					\
 	drm_file_t	*priv	= (drm_file_t *) DRM(find_file_by_proc)(dev, p); \
 	if (!priv) {						\
 		DRM_DEBUG("can't find authenticator\n");	\
 		return EINVAL;					\
 	}
 
-#define DRM_OS_DELAY( udelay )					\
+#define DRM_UDELAY( udelay )					\
 do {								\
 	struct timeval tv1, tv2;				\
 	microtime(&tv1);					\
@@ -100,7 +100,7 @@ do {								\
 	while (((tv2.tv_sec-tv1.tv_sec)*1000000 + tv2.tv_usec - tv1.tv_usec) < udelay ); \
 } while (0)
 
-#define DRM_OS_GETSAREA()					\
+#define DRM_GETSAREA()					\
 do {								\
 	drm_map_list_entry_t *listentry;			\
 	TAILQ_FOREACH(listentry, dev->maplist, link) {		\
@@ -113,19 +113,19 @@ do {								\
 	}							\
 } while (0)
 
-#define DRM_OS_RETURN(v)	return v;
-#define DRM_OS_ERR(v)		v
+#define return DRM_ERR(v)	return v;
+#define DRM_ERR(v)		v
 
-#define DRM_OS_KRNTOUSR(arg1, arg2, arg3) \
+#define DRM_COPY_TO_USER_IOCTL(arg1, arg2, arg3) \
 	*arg1 = arg2
-#define DRM_OS_KRNFROMUSR(arg1, arg2, arg3) \
+#define DRM_COPY_FROM_USER_IOCTL(arg1, arg2, arg3) \
 	arg1 = *arg2
-#define DRM_OS_COPYTOUSR(arg1, arg2, arg3) \
+#define DRM_COPY_TO_USER(arg1, arg2, arg3) \
 	copyout(arg2, arg1, arg3)
-#define DRM_OS_COPYFROMUSR(arg1, arg2, arg3) \
+#define DRM_COPY_FROM_USER(arg1, arg2, arg3) \
 	copyin(arg2, arg1, arg3)
 
-#define DRM_OS_READMEMORYBARRIER \
+#define DRM_READMEMORYBARRIER \
 {												\
    	int xchangeDummy;									\
 	DRM_DEBUG("%s\n", __FUNCTION__);							\
@@ -135,10 +135,10 @@ do {								\
 			 " pop %%eax" : /* no outputs */ :  /* no inputs */ );			\
 } while (0);
 
-#define DRM_OS_WRITEMEMORYBARRIER DRM_OS_READMEMORYBARRIER
+#define DRM_WRITEMEMORYBARRIER DRM_READMEMORYBARRIER
 
-#define DRM_OS_WAKEUP(w) wakeup(w)
-#define DRM_OS_WAKEUP_INT(w) wakeup(w)
+#define DRM_WAKEUP(w) wakeup(w)
+#define DRM_WAKEUP_INT(w) wakeup(w)
 
 #define PAGE_ALIGN(addr) (((addr)+PAGE_SIZE-1)&PAGE_MASK)
 
@@ -300,9 +300,9 @@ extern dev_type_write(DRM(write));
 extern dev_type_poll(DRM(poll));
 extern dev_type_mmap(DRM(mmap));
 extern int		DRM(open_helper)(dev_t kdev, int flags, int fmt, 
-					 DRM_OS_STRUCTPROC *p, drm_device_t *dev);
+					 DRM_STRUCTPROC *p, drm_device_t *dev);
 extern drm_file_t	*DRM(find_file_by_proc)(drm_device_t *dev, 
-					 DRM_OS_STRUCTPROC *p);
+					 DRM_STRUCTPROC *p);
 
 /* Misc. IOCTL support (drm_ioctl.h) */
 extern dev_type_ioctl(DRM(irq_busid));
