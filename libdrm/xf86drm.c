@@ -1,8 +1,8 @@
 /* xf86drm.c -- User-level interface to DRM device
  * Created: Tue Jan  5 08:16:21 1999 by faith@precisioninsight.com
- * Revised: Sun Feb 13 23:43:32 2000 by kevin@precisioninsight.com
  *
  * Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
+ * Copyright 2000 VA Linux Systems, Inc., Sunnyvale, California.
  * All Rights Reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -24,7 +24,10 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
  * 
- * $XFree86: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/xf86drm.c,v 1.10 2000/02/23 04:47:23 martin Exp $
+ * Authors: Rickard E. (Rik) Faith <faith@valinux.com>
+ *	    Kevin E. Martin <martin@valinux.com>
+ *
+ * $XFree86: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/xf86drm.c,v 1.14 2000/06/27 16:42:07 alanh Exp $
  * 
  */
 
@@ -65,14 +68,34 @@ extern int xf86RemoveSIGIOHandler(int fd);
 # endif
 #endif
 
+#ifdef __alpha__
+extern unsigned long _bus_base(void);
+#define BUS_BASE _bus_base()
+#else
+#define BUS_BASE (0)
+#endif
+
 /* Not all systems have MAP_FAILED defined */
 #ifndef MAP_FAILED
 #define MAP_FAILED ((void *)-1)
 #endif
 
-#include <sys/sysmacros.h>	/* for makedev() */
 #include "xf86drm.h"
 #include "drm.h"
+
+#define DRM_FIXED_DEVICE_MAJOR 145
+
+#ifdef __linux__
+#include <sys/sysmacros.h>	/* for makedev() */
+#endif
+
+#ifndef makedev
+				/* This definition needs to be changed on
+                                   some systems if dev_t is a structure.
+                                   If there is a header file we can get it
+                                   from, there would be best. */
+#define makedev(x,y)    ((dev_t)(((x) << 8) | (y)))
+#endif
 
 static void *drmHashTable = NULL; /* Context switch callbacks */
 
@@ -94,9 +117,16 @@ void drmFree(void *pt)
     if (pt) _DRM_FREE(pt);
 }
 
+/* drmStrdup can't use strdup(3), since it doesn't call _DRM_MALLOC... */
 static char *drmStrdup(const char *s)
 {
-    return s ? strdup(s) : NULL;
+    char *retval = NULL;
+    
+    if (s) {
+	retval = _DRM_MALLOC(strlen(s)+1);
+	strcpy(retval, s);
+    }
+    return retval;
 }
 
 
@@ -133,7 +163,7 @@ static drmHashEntry *drmGetEntry(int fd)
     return entry;
 }
 
-/* drm_open is used to open the /dev/drm device */
+/* drm_open is used to open the /dev/dri device */
 
 static int drm_open(const char *file)
 {
@@ -141,14 +171,6 @@ static int drm_open(const char *file)
 
     if (fd >= 0) return fd;
     return -errno;
-}
-
-/* drmAvailable looks for /proc/drm, and returns 1 if it is present. */
-
-int drmAvailable(void)
-{
-    if (!access("/proc/dri/0", R_OK)) return 1;
-    return 0;
 }
 
 static int drmOpenDevice(const char *path, long dev,
@@ -160,7 +182,16 @@ static int drmOpenDevice(const char *path, long dev,
     struct stat     st;
 #endif
 
-    if (!stat(path, &st) && st.st_rdev == dev) return drm_open(path);
+				/* Fiddle mode to remove execute bits */
+    mode &= ~(S_IXUSR|S_IXGRP|S_IXOTH);
+
+    if (!stat(path, &st) && st.st_rdev == dev) {
+	if (!geteuid()) {
+	    chown(path, user, group);
+	    chmod(path, mode);
+	}
+	return drm_open(path);
+    }
 
     if (geteuid()) return DRM_ERR_NOT_ROOT;
     remove(path);
@@ -171,6 +202,38 @@ static int drmOpenDevice(const char *path, long dev,
     chown(path, user, group);
     chmod(path, mode);
     return drm_open(path);
+}
+
+/* drmAvailable looks for /proc/dri, and returns 1 if it is present.  On
+   OSs that do not have a Linux-like /proc, this information will not be
+   available, and we'll have to create a device and check if the driver is
+   loaded that way. */
+
+int drmAvailable(void)
+{
+    char          dev_name[64];
+    drmVersionPtr version;
+    int           retval = 0;
+    int           fd;
+    
+    if (!access("/proc/dri/0", R_OK)) return 1;
+
+    sprintf(dev_name, "/dev/dri-temp-%d", getpid());
+
+    remove(dev_name);
+    if ((fd = drmOpenDevice(dev_name, makedev(DRM_FIXED_DEVICE_MAJOR, 0),
+			    S_IRUSR, geteuid(), getegid())) >= 0) {
+				/* Read version to make sure this is
+                                   actually a DRI device. */
+	if ((version = drmGetVersion(fd))) {
+	    retval = 1;
+	    drmFreeVersion(version);
+	}
+	close(fd);
+    }
+    remove(dev_name);
+
+    return retval;
 }
 
 static int drmOpenByBusid(const char *busid)
@@ -214,7 +277,21 @@ static int drmOpenByName(const char *name)
 
 #if defined(XFree86Server)
     mode  = xf86ConfigDRI.mode ? xf86ConfigDRI.mode : DRM_DEV_MODE;
-    group = xf86ConfigDRI.group ? xf86ConfigDRI.group : DRM_DEV_GID;
+    group = (xf86ConfigDRI.group >= 0) ? xf86ConfigDRI.group : DRM_DEV_GID;
+#endif
+
+#if defined(XFree86Server)
+    if (!drmAvailable()) {
+        /* try to load the kernel module now */
+        if (!xf86LoadKernelModule(name)) {
+            ErrorF("[drm] failed to load kernel module \"%s\"\n",
+		   name);
+            return -1;
+        }
+    }
+#else
+    if (!drmAvailable())
+       return -1;
 #endif
 
     if (!geteuid()) {
@@ -253,7 +330,24 @@ static int drmOpenByName(const char *name)
 		    }
 		}
 	    }
-	} else remove(dev_name);
+	} else {
+	    drmVersionPtr version;
+				/* /proc/dri not available, possibly
+                                   because we aren't on a Linux system.
+                                   So, try to create the next device and
+                                   see if it's active. */
+	    dev = makedev(DRM_FIXED_DEVICE_MAJOR, i);
+	    if ((fd = drmOpenDevice(dev_name, dev, mode, user, group))) {
+		if ((version = drmGetVersion(fd))) {
+		    if (!strcmp(version->name, name)) {
+			drmFreeVersion(version);
+			return fd;
+		    }
+		    drmFreeVersion(version);
+		}
+	    }
+	    remove(dev_name);
+	}
     }
     return -1;
 }
@@ -288,7 +382,7 @@ static void drmFreeKernelVersion(drm_version_t *v)
     drmFree(v);
 }
 
-static void drmCopyVersion(drmVersionPtr d, drm_version_t *s)
+static void drmCopyVersion(drmVersionPtr d, const drm_version_t *s)
 {
     d->version_major      = s->version_major;
     d->version_minor      = s->version_minor;
@@ -302,7 +396,7 @@ static void drmCopyVersion(drmVersionPtr d, drm_version_t *s)
 }
 
 /* drmVersion obtains the version information via an ioctl.  Similar
- * information is available via /proc/drm. */
+ * information is available via /proc/dri. */
 
 drmVersionPtr drmGetVersion(int fd)
 {
@@ -409,6 +503,10 @@ int drmAddMap(int fd,
     drm_map_t map;
 
     map.offset  = offset;
+#ifdef __alpha__
+    if (!(type & DRM_SHM))
+	map.offset += BUS_BASE;
+#endif
     map.size    = size;
     map.handle  = 0;
     map.type    = type;
@@ -418,7 +516,8 @@ int drmAddMap(int fd,
     return 0;
 }
 
-int drmAddBufs(int fd, int count, int size, int flags)
+int drmAddBufs(int fd, int count, int size, drmBufDescFlags flags,
+	       int agp_offset)
 {
     drm_buf_desc_t request;
     
@@ -427,6 +526,8 @@ int drmAddBufs(int fd, int count, int size, int flags)
     request.low_mark  = 0;
     request.high_mark = 0;
     request.flags     = flags;
+    request.agp_start = agp_offset;
+   
     if (ioctl(fd, DRM_IOCTL_ADD_BUFS, &request)) return -errno;
     return request.count;
 }
@@ -742,6 +843,143 @@ int drmDestroyDrawable(int fd, drmDrawable handle)
     draw.handle = handle;
     if (ioctl(fd, DRM_IOCTL_RM_DRAW, &draw)) return -errno;
     return 0;
+}
+
+int drmAgpAcquire(int fd)
+{
+    if (ioctl(fd, DRM_IOCTL_AGP_ACQUIRE, NULL)) return -errno;
+    return 0;
+}
+
+int drmAgpRelease(int fd)
+{
+    if (ioctl(fd, DRM_IOCTL_AGP_RELEASE, NULL)) return -errno;
+    return 0;
+}
+
+int drmAgpEnable(int fd, unsigned long mode)
+{
+    drm_agp_mode_t m;
+
+    m.mode = mode;
+    if (ioctl(fd, DRM_IOCTL_AGP_ENABLE, &m)) return -errno;
+    return 0;
+}
+
+int drmAgpAlloc(int fd, unsigned long size, unsigned long type,
+		unsigned long *address, unsigned long *handle)
+{
+    drm_agp_buffer_t b;
+    *handle = 0;
+    b.size   = size;
+    b.handle = 0;
+    b.type   = type;
+    if (ioctl(fd, DRM_IOCTL_AGP_ALLOC, &b)) return -errno;
+    if (address != 0UL) *address = b.physical;
+    *handle = b.handle;
+    return 0;
+}
+
+int drmAgpFree(int fd, unsigned long handle)
+{
+    drm_agp_buffer_t b;
+
+    b.size   = 0;
+    b.handle = handle;
+    if (ioctl(fd, DRM_IOCTL_AGP_FREE, &b)) return -errno;
+    return 0;
+}
+
+int drmAgpBind(int fd, unsigned long handle, unsigned long offset)
+{
+    drm_agp_binding_t b;
+
+    b.handle = handle;
+    b.offset = offset;
+    if (ioctl(fd, DRM_IOCTL_AGP_BIND, &b)) return -errno;
+    return 0;
+}
+
+int drmAgpUnbind(int fd, unsigned long handle)
+{
+    drm_agp_binding_t b;
+
+    b.handle = handle;
+    b.offset = 0;
+    if (ioctl(fd, DRM_IOCTL_AGP_UNBIND, &b)) return -errno;
+    return 0;
+}
+
+int drmAgpVersionMajor(int fd)
+{
+    drm_agp_info_t i;
+
+    if (ioctl(fd, DRM_IOCTL_AGP_INFO, &i)) return -errno;
+    return i.agp_version_major;
+}
+
+int drmAgpVersionMinor(int fd)
+{
+    drm_agp_info_t i;
+
+    if (ioctl(fd, DRM_IOCTL_AGP_INFO, &i)) return -errno;
+    return i.agp_version_minor;
+}
+
+unsigned long drmAgpGetMode(int fd)
+{
+    drm_agp_info_t i;
+
+    if (ioctl(fd, DRM_IOCTL_AGP_INFO, &i)) return 0;
+    return i.mode;
+}
+
+unsigned long drmAgpBase(int fd)
+{
+    drm_agp_info_t i;
+
+    if (ioctl(fd, DRM_IOCTL_AGP_INFO, &i)) return 0;
+    return i.aperture_base;
+}
+
+unsigned long drmAgpSize(int fd)
+{
+    drm_agp_info_t i;
+
+    if (ioctl(fd, DRM_IOCTL_AGP_INFO, &i)) return 0;
+    return i.aperture_size;
+}
+
+unsigned long drmAgpMemoryUsed(int fd)
+{
+    drm_agp_info_t i;
+
+    if (ioctl(fd, DRM_IOCTL_AGP_INFO, &i)) return 0;
+    return i.memory_used;
+}
+
+unsigned long drmAgpMemoryAvail(int fd)
+{
+    drm_agp_info_t i;
+
+    if (ioctl(fd, DRM_IOCTL_AGP_INFO, &i)) return 0;
+    return i.memory_allowed;
+}
+
+unsigned int drmAgpVendorId(int fd)
+{
+    drm_agp_info_t i;
+
+    if (ioctl(fd, DRM_IOCTL_AGP_INFO, &i)) return 0;
+    return i.id_vendor;
+}
+
+unsigned int drmAgpDeviceId(int fd)
+{
+    drm_agp_info_t i;
+
+    if (ioctl(fd, DRM_IOCTL_AGP_INFO, &i)) return 0;
+    return i.id_device;
 }
 
 int drmError(int err, const char *label)

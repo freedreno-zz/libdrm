@@ -1,8 +1,8 @@
 /* bufs.c -- IOCTLs to manage buffers -*- linux-c -*-
  * Created: Tue Feb  2 08:37:54 1999 by faith@precisioninsight.com
- * Revised: Mon Feb 14 00:14:11 2000 by kevin@precisioninsight.com
  *
- * Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
+ * Copyright 1999, 2000 Precision Insight, Inc., Cedar Park, Texas.
+ * Copyright 2000 VA Linux Systems, Inc., Sunnyvale, California.
  * All Rights Reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -24,11 +24,13 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
  * 
- * $XFree86: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/kernel/bufs.c,v 1.5 2000/02/23 04:47:25 martin Exp $
+ * Authors:
+ *    Rickard E. (Rik) Faith <faith@valinux.com>
  *
  */
 
 #define __NO_VERSION__
+#include <linux/config.h>
 #include "drmP.h"
 #include "linux/un.h"
 
@@ -102,6 +104,11 @@ int drm_addmap(struct inode *inode, struct file *filp, unsigned int cmd,
 			dev->lock.hw_lock = map->handle; /* Pointer to lock */
 		}
 		break;
+#ifdef DRM_AGP
+	case _DRM_AGP:
+		map->offset = map->offset + dev->agp->base;
+		break;
+#endif
 	default:
 		drm_free(map, sizeof(*map), DRM_MEM_MAPS);
 		return -EINVAL;
@@ -172,7 +179,7 @@ int drm_addbufs(struct inode *inode, struct file *filp, unsigned int cmd,
 	if (order < DRM_MIN_ORDER || order > DRM_MAX_ORDER) return -EINVAL;
 	if (dev->queue_count) return -EBUSY; /* Not while in use */
 
-	alignment  = (request.flags & DRM_PAGE_ALIGN) ? PAGE_ALIGN(size) :size;
+	alignment  = (request.flags & _DRM_PAGE_ALIGN) ? PAGE_ALIGN(size):size;
 	page_order = order - PAGE_SHIFT > 0 ? order - PAGE_SHIFT : 0;
 	total	   = PAGE_SIZE << page_order;
 

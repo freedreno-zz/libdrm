@@ -1,8 +1,8 @@
 /* vm.c -- Memory mapping for DRM -*- linux-c -*-
  * Created: Mon Jan  4 08:58:31 1999 by faith@precisioninsight.com
- * Revised: Mon Feb 14 00:16:45 2000 by kevin@precisioninsight.com
  *
  * Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
+ * Copyright 2000 VA Linux Systems, Inc., Sunnyvale, California.
  * All Rights Reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -24,7 +24,8 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
  * 
- * $XFree86: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/kernel/vm.c,v 1.5 2000/02/23 04:47:31 martin Exp $
+ * Authors:
+ *    Rickard E. (Rik) Faith <faith@valinux.com>
  *
  */
 
@@ -246,13 +247,26 @@ int drm_mmap(struct file *filp, struct vm_area_struct *vma)
 				/* Check for valid size. */
 	if (map->size != vma->vm_end - vma->vm_start) return -EINVAL;
 	
+	if (!capable(CAP_SYS_ADMIN) && (map->flags & _DRM_READ_ONLY)) {
+		vma->vm_flags &= VM_MAYWRITE;
+#if defined(__i386__)
+		pgprot_val(vma->vm_page_prot) &= ~_PAGE_RW;
+#else
+				/* Ye gads this is ugly.  With more thought
+                                   we could move this up higher and use
+                                   `protection_map' instead.  */
+		vma->vm_page_prot = __pgprot(pte_val(pte_wrprotect(
+			__pte(pgprot_val(vma->vm_page_prot)))));
+#endif
+	}
 
 	switch (map->type) {
 	case _DRM_FRAME_BUFFER:
 	case _DRM_REGISTERS:
+	case _DRM_AGP:
 		if (VM_OFFSET(vma) >= __pa(high_memory)) {
 #if defined(__i386__)
-			if (boot_cpu_data.x86 > 3) {
+			if (boot_cpu_data.x86 > 3 && map->type != _DRM_AGP) {
 				pgprot_val(vma->vm_page_prot) |= _PAGE_PCD;
 				pgprot_val(vma->vm_page_prot) &= ~_PAGE_PWT;
 			}
@@ -264,6 +278,10 @@ int drm_mmap(struct file *filp, struct vm_area_struct *vma)
 				     vma->vm_end - vma->vm_start,
 				     vma->vm_page_prot))
 				return -EAGAIN;
+		DRM_DEBUG("   Type = %d; start = 0x%lx, end = 0x%lx,"
+			  " offset = 0x%lx\n",
+			  map->type,
+			  vma->vm_start, vma->vm_end, VM_OFFSET(vma));
 		vma->vm_ops = &drm_vm_ops;
 		break;
 	case _DRM_SHM:
@@ -276,19 +294,7 @@ int drm_mmap(struct file *filp, struct vm_area_struct *vma)
 		return -EINVAL;	/* This should never happen. */
 	}
 	vma->vm_flags |= VM_LOCKED | VM_SHM; /* Don't swap */
-	if (map->flags & _DRM_READ_ONLY) {
-#if defined(__i386__)
-		pgprot_val(vma->vm_page_prot) &= ~_PAGE_RW;
-#else
-				/* Ye gads this is ugly.  With more thought
-                                   we could move this up higher and use
-                                   `protection_map' instead.  */
-		vma->vm_page_prot = __pgprot(pte_val(pte_wrprotect(
-			__pte(pgprot_val(vma->vm_page_prot)))));
-#endif
-	}
 
-	
 #if LINUX_VERSION_CODE < 0x020203 /* KERNEL_VERSION(2,2,3) */
 				/* In Linux 2.2.3 and above, this is
 				   handled in do_mmap() in mm/mmap.c. */

@@ -2,6 +2,7 @@
  * Created: Mon Dec 13 09:51:35 1999 by faith@precisioninsight.com
  *
  * Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
+ * Copyright 2000 VA Linux Systems, Inc., Sunnyvale, California.
  * All Rights Reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -23,9 +24,8 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
  * 
- * Author: Rickard E. (Rik) Faith <faith@precisioninsight.com>
- *
- * $XFree86: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/kernel/mga_context.c,v 1.1 2000/02/11 17:26:06 dawes Exp $
+ * Author: Rickard E. (Rik) Faith <faith@valinux.com>
+ *	   Jeff Hartmann <jhartmann@valinux.com>
  *
  */
 
@@ -38,7 +38,7 @@
 static int mga_alloc_queue(drm_device_t *dev)
 {
    	int temp = drm_ctxbitmap_next(dev);
-   	printk("mga_alloc_queue: %d\n", temp);
+   	DRM_DEBUG("mga_alloc_queue: %d\n", temp);
 	return temp;
 }
 
@@ -57,7 +57,7 @@ int mga_context_switch(drm_device_t *dev, int old, int new)
         dev->ctx_start = get_cycles();
 #endif
         
-        printk("Context switch from %d to %d\n", old, new);
+        DRM_DEBUG("Context switch from %d to %d\n", old, new);
 
         if (new == dev->last_context) {
                 clear_bit(0, &dev->context_flag);
@@ -104,7 +104,7 @@ int mga_resctx(struct inode *inode, struct file *filp, unsigned int cmd,
 	drm_ctx_t	ctx;
 	int		i;
 
-	printk("%d\n", DRM_RESERVED_CONTEXTS);
+	DRM_DEBUG("%d\n", DRM_RESERVED_CONTEXTS);
 	copy_from_user_ret(&res, (drm_ctx_res_t *)arg, sizeof(res), -EFAULT);
 	if (res.count >= DRM_RESERVED_CONTEXTS) {
 		memset(&ctx, 0, sizeof(ctx));
@@ -134,11 +134,11 @@ int mga_addctx(struct inode *inode, struct file *filp, unsigned int cmd,
 		ctx.handle = mga_alloc_queue(dev);
 	}
         if (ctx.handle == -1) {
-		printk("Not enough free contexts.\n");
+		DRM_DEBUG("Not enough free contexts.\n");
 				/* Should this return -EBUSY instead? */
 		return -ENOMEM;
 	}
-	printk("%d\n", ctx.handle);
+	DRM_DEBUG("%d\n", ctx.handle);
 	copy_to_user_ret((drm_ctx_t *)arg, &ctx, sizeof(ctx), -EFAULT);
 	return 0;
 }
@@ -170,7 +170,7 @@ int mga_switchctx(struct inode *inode, struct file *filp, unsigned int cmd,
 	drm_ctx_t	ctx;
 
 	copy_from_user_ret(&ctx, (drm_ctx_t *)arg, sizeof(ctx), -EFAULT);
-	printk("%d\n", ctx.handle);
+	DRM_DEBUG("%d\n", ctx.handle);
 	return mga_context_switch(dev, dev->last_context, ctx.handle);
 }
 
@@ -182,7 +182,7 @@ int mga_newctx(struct inode *inode, struct file *filp, unsigned int cmd,
 	drm_ctx_t	ctx;
 
 	copy_from_user_ret(&ctx, (drm_ctx_t *)arg, sizeof(ctx), -EFAULT);
-	printk("%d\n", ctx.handle);
+	DRM_DEBUG("%d\n", ctx.handle);
 	mga_context_switch_complete(dev, ctx.handle);
 
 	return 0;
@@ -194,51 +194,11 @@ int mga_rmctx(struct inode *inode, struct file *filp, unsigned int cmd,
 	drm_file_t	*priv	= filp->private_data;
 	drm_device_t	*dev	= priv->dev;
 	drm_ctx_t	ctx;
-	drm_queue_t	*q;
-	drm_buf_t	*buf;
 
 	copy_from_user_ret(&ctx, (drm_ctx_t *)arg, sizeof(ctx), -EFAULT);
-	printk("%d\n", ctx.handle);
-	if(ctx.handle == DRM_KERNEL_CONTEXT) {
-	   q = dev->queuelist[ctx.handle];
-	   atomic_inc(&q->use_count);
-	   if (atomic_read(&q->use_count) == 1) {
-	      /* No longer in use */
-	      atomic_dec(&q->use_count);
-	      return -EINVAL;
-	   }
-	   atomic_inc(&q->finalization); /* Mark queue in finalization state */
-	   atomic_sub(2, &q->use_count); 
-	   /* Mark queue as unused (pending finalization) */
-	   
-	   while (test_and_set_bit(0, &dev->interrupt_flag)) {
-	      printk("Calling schedule from rmctx\n");
-	      schedule();
-	      if (signal_pending(current)) {
-		 clear_bit(0, &dev->interrupt_flag);
-		 return -EINTR;
-	      }
-	   }
-	   
-	   /* Remove queued buffers */
-	   while ((buf = drm_waitlist_get(&q->waitlist))) {
-	      drm_free_buffer(dev, buf);
-	   }
-	   clear_bit(0, &dev->interrupt_flag);
-	   
-	   /* Wakeup blocked processes */
-	   wake_up_interruptible(&q->read_queue);
-	   wake_up_interruptible(&q->write_queue);
-	   wake_up_interruptible(&q->flush_queue);
-	   
-	   /* Finalization over.  Queue is made
-	    available when both use_count and
-	    finalization become 0, which won't
-	    happen until all the waiting processes
-	    stop waiting. */
-	   atomic_dec(&q->finalization);
-	} else {
-	   drm_ctxbitmap_free(dev, ctx.handle);
+	DRM_DEBUG("%d\n", ctx.handle);
+      	if(ctx.handle != DRM_KERNEL_CONTEXT) {
+	   	drm_ctxbitmap_free(dev, ctx.handle);
 	}
 	
 	return 0;

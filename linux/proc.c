@@ -1,8 +1,8 @@
 /* proc.c -- /proc support for DRM -*- linux-c -*-
  * Created: Mon Jan 11 09:48:47 1999 by faith@precisioninsight.com
- * Revised: Sun Feb 13 23:41:04 2000 by kevin@precisioninsight.com
  *
  * Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
+ * Copyright 2000 VA Linux Systems, Inc., Sunnyvale, California.
  * All Rights Reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -23,9 +23,9 @@
  * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
- * 
- * $XFree86: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/kernel/proc.c,v 1.6 2000/02/23 04:47:30 martin Exp $
  *
+ * Authors:
+ *    Rickard E. (Rik) Faith <faith@valinux.com>
  */
 
 #define __NO_VERSION__
@@ -164,7 +164,10 @@ static int _drm_vm_info(char *buf, char **start, off_t offset, int len,
 {
 	drm_device_t *dev = (drm_device_t *)data;
 	drm_map_t    *map;
-	const char   *types[] = { "FB", "REG", "SHM" };
+				/* Hardcoded from _DRM_FRAME_BUFFER,
+                                   _DRM_REGISTERS, _DRM_SHM, and
+                                   _DRM_AGP. */
+	const char   *types[] = { "FB", "REG", "SHM", "AGP" };
 	const char   *type;
 	int	     i;
 
@@ -175,7 +178,7 @@ static int _drm_vm_info(char *buf, char **start, off_t offset, int len,
 		       "address mtrr\n\n");
 	for (i = 0; i < dev->map_count; i++) {
 		map = dev->maplist[i];
-		if (map->type < 0 || map->type > 2) type = "??";
+		if (map->type < 0 || map->type > 3) type = "??";
 		else				    type = types[map->type];
 		DRM_PROC_PRINT("%4d 0x%08lx 0x%08lx %4.4s  0x%02x 0x%08lx ",
 			       i,
@@ -397,6 +400,7 @@ static int _drm_vma_info(char *buf, char **start, off_t offset, int len,
 			       pgprot & _PAGE_GLOBAL   ? 'g' : 'l' );
 #endif		
 		DRM_PROC_PRINT("\n");
+#if 0
 		for (i = vma->vm_start; i < vma->vm_end; i += PAGE_SIZE) {
 			pgd = pgd_offset(vma->vm_mm, i);
 			pmd = pmd_offset(pgd, i);
@@ -417,6 +421,7 @@ static int _drm_vma_info(char *buf, char **start, off_t offset, int len,
 				DRM_PROC_PRINT("      0x%08lx\n", i);
 			}
 		}
+#endif
 	}
 	
 	return len;
