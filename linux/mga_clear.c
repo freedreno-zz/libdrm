@@ -139,7 +139,9 @@ static int mgaClearBuffers(drm_device_t *dev,
 	d.request_sizes = NULL;
 	d.granted_count = 0;	   
 
-	drm_dma_enqueue(dev, &d);
+      	atomic_inc(&dev_priv->pending_bufs);
+   	if((drm_dma_enqueue(dev, &d)) != 0) 
+     		atomic_dec(&dev_priv->pending_bufs);
 	mga_dma_schedule(dev, 1);
    	return 0;
 }
@@ -208,8 +210,10 @@ int mgaSwapBuffers(drm_device_t *dev, int flags)
 	d.request_indices = NULL;
 	d.request_sizes = NULL;
 	d.granted_count = 0;	 
-  
-	drm_dma_enqueue(dev, &d);
+
+   	atomic_inc(&dev_priv->pending_bufs);
+      	if((drm_dma_enqueue(dev, &d)) != 0) 
+     		atomic_dec(&dev_priv->pending_bufs);
 	mga_dma_schedule(dev, 1);
    	return 0;
 }
@@ -265,7 +269,9 @@ static int mgaIload(drm_device_t *dev, drm_mga_iload_t *args)
 	d.request_sizes = NULL;
 	d.granted_count = 0;	 
    
-	drm_dma_enqueue(dev, &d);
+      	atomic_inc(&dev_priv->pending_bufs);
+      	if((drm_dma_enqueue(dev, &d)) != 0) 
+     		atomic_dec(&dev_priv->pending_bufs);
 	mga_dma_schedule(dev, 1);
 
 	return 0; 
@@ -390,7 +396,10 @@ int mga_dma(struct inode *inode, struct file *filp, unsigned int cmd,
 		 */
 		mgaCopyAndVerifyState( dev_priv, buf_priv );
 
+	      	atomic_inc(&dev_priv->pending_bufs);
 		retcode = drm_dma_enqueue(dev, &d);
+	      	if(retcode != 0) 
+     			atomic_dec(&dev_priv->pending_bufs);
 		mga_dma_schedule(dev, 1);
 	}
 	

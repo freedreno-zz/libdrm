@@ -52,6 +52,7 @@ typedef struct _drm_mga_private {
    	mgaWarpIndex WarpIndex[MGA_MAX_G400_PIPES];
    	__volatile__ unsigned long softrap_age;
    	atomic_t dispatch_lock;
+   	atomic_t pending_bufs;
    	void *ioremap;
    	u32 *prim_head;
    	u32 *current_dma_ptr;
@@ -123,6 +124,24 @@ extern int  mga_swap_bufs(struct inode *inode, struct file *filp,
 			  unsigned int cmd, unsigned long arg);
 extern int  mga_iload(struct inode *inode, struct file *filp,
 		      unsigned int cmd, unsigned long arg);
+				/* mga_context.c */
+extern int  mga_resctx(struct inode *inode, struct file *filp,
+		       unsigned int cmd, unsigned long arg);
+extern int  mga_addctx(struct inode *inode, struct file *filp,
+		       unsigned int cmd, unsigned long arg);
+extern int  mga_modctx(struct inode *inode, struct file *filp,
+		       unsigned int cmd, unsigned long arg);
+extern int  mga_getctx(struct inode *inode, struct file *filp,
+		       unsigned int cmd, unsigned long arg);
+extern int  mga_switchctx(struct inode *inode, struct file *filp,
+			  unsigned int cmd, unsigned long arg);
+extern int  mga_newctx(struct inode *inode, struct file *filp,
+		       unsigned int cmd, unsigned long arg);
+extern int  mga_rmctx(struct inode *inode, struct file *filp,
+		      unsigned int cmd, unsigned long arg);
+
+extern int  mga_context_switch(drm_device_t *dev, int old, int new);
+extern int  mga_context_switch_complete(drm_device_t *dev, int new);
 
 
 

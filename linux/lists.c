@@ -230,6 +230,7 @@ drm_buf_t *drm_freelist_get(drm_freelist_t *bl, int block)
 			for (;;) {
 				if (!atomic_read(&bl->wfh)
 				    && (buf = drm_freelist_try(bl))) break;
+			   	printk("calling schedule from freelist_get\n");
 				schedule();
 				if (signal_pending(current)) break;
 			}

@@ -80,13 +80,13 @@ static drm_ioctl_desc_t	      mga_ioctls[] = {
 	[DRM_IOCTL_NR(DRM_IOCTL_MAP_BUFS)]    = { mga_mapbufs,	  1, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_FREE_BUFS)]   = { mga_freebufs,	  1, 0 },
 
-	[DRM_IOCTL_NR(DRM_IOCTL_ADD_CTX)]     = { drm_addctx,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_RM_CTX)]      = { drm_rmctx,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_MOD_CTX)]     = { drm_modctx,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_GET_CTX)]     = { drm_getctx,	  1, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_SWITCH_CTX)]  = { drm_switchctx,  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_NEW_CTX)]     = { drm_newctx,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_RES_CTX)]     = { drm_resctx,	  1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_ADD_CTX)]     = { mga_addctx,	  1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_RM_CTX)]      = { mga_rmctx,	  1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_MOD_CTX)]     = { mga_modctx,	  1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_GET_CTX)]     = { mga_getctx,	  1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_SWITCH_CTX)]  = { mga_switchctx,  1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_NEW_CTX)]     = { mga_newctx,	  1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_RES_CTX)]     = { mga_resctx,	  1, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_ADD_DRAW)]    = { drm_adddraw,	  1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_RM_DRAW)]     = { drm_rmdraw,	  1, 1 },
 
@@ -571,6 +571,6 @@ int mga_unlock(struct inode *inode, struct file *filp, unsigned int cmd,
 			  DRM_KERNEL_CONTEXT)) {
 	   DRM_ERROR("\n");
 	}
-	
+
 	return 0;
 }

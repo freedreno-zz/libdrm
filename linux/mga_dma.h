@@ -67,7 +67,7 @@ typedef struct {
 
 
 
-#define VERBO 1
+#define VERBO 0
 
 
 /* Primary buffer versions of above -- pretty similar really.

@@ -281,6 +281,7 @@ int drm_rmctx(struct inode *inode, struct file *filp, unsigned int cmd,
 					 finalization) */
 
 	while (test_and_set_bit(0, &dev->interrupt_flag)) {
+	   	printk("Calling schedule from rmctx\n");
 		schedule();
 		if (signal_pending(current)) {
 			clear_bit(0, &dev->interrupt_flag);

@@ -133,12 +133,15 @@ int drm_flush_queue(drm_device_t *dev, int context)
 		atomic_inc(&q->block_count);
 		for (;;) {
 			if (!DRM_BUFCOUNT(&q->waitlist)) break;
+		   	printk("Calling schedule from flush_queue : %d\n",
+			       DRM_BUFCOUNT(&q->waitlist));
 			schedule();
 			if (signal_pending(current)) {
 				ret = -EINTR; /* Can't restart */
 				break;
 			}
 		}
+	   	printk("Exited out of schedule from flush_queue\n");
 		atomic_dec(&q->block_count);
 		current->state = TASK_RUNNING;
 		remove_wait_queue(&q->flush_queue, &entry);

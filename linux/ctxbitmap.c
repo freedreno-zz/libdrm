@@ -41,7 +41,7 @@ void drm_ctxbitmap_free(drm_device_t *dev, int ctx_handle)
 		return;
 	}
 failed:
-       	DRM_DEBUG("Attempt to free invalid context handle: %d\n",
+       	DRM_ERROR("Attempt to free invalid context handle: %d\n",
 		  ctx_handle);
        	return;
 }
@@ -53,6 +53,7 @@ int drm_ctxbitmap_next(drm_device_t *dev)
 	bit = find_first_zero_bit(dev->ctx_bitmap, DRM_MAX_CTXBITMAP);
 	if (bit < DRM_MAX_CTXBITMAP) {
 		set_bit(bit, dev->ctx_bitmap);
+	   	printk("drm_ctxbitmap_next bit : %d\n", bit);
 		return bit;
 	}
 	return -1;
@@ -61,6 +62,7 @@ int drm_ctxbitmap_next(drm_device_t *dev)
 int drm_ctxbitmap_init(drm_device_t *dev)
 {
 	int i;
+   	int temp;
 
 	dev->ctx_bitmap = (unsigned long *) drm_alloc(PAGE_SIZE * 4, 
 						      DRM_MEM_CTXBITMAP);
@@ -69,7 +71,8 @@ int drm_ctxbitmap_init(drm_device_t *dev)
 	}
 	memset((void *) dev->ctx_bitmap, 0, PAGE_SIZE * 4);
 	for(i = 0; i < DRM_RESERVED_CONTEXTS; i++) {
-		drm_ctxbitmap_next(dev);
+		temp = drm_ctxbitmap_next(dev);
+	   	printk("drm_ctxbitmap_init : %d\n", temp);
 	}
 
 	return 0;
