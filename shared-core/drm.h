@@ -76,6 +76,7 @@ typedef struct drm_clip_rect {
 #include "mga_drm.h"
 #include "i810_drm.h"
 #include "r128_drm.h"
+#include "radeon_drm.h"
 
 typedef struct drm_version {
 	int    version_major;	  /* Major version			    */
@@ -363,5 +364,13 @@ typedef struct drm_agp_info {
 #define DRM_IOCTL_R128_IDLE	DRM_IO(  0x43)
 #define DRM_IOCTL_R128_PACKET	DRM_IOW( 0x44, drm_r128_packet_t)
 #define DRM_IOCTL_R128_VERTEX	DRM_IOW( 0x45, drm_r128_vertex_t)
+
+/* Radeon specific ioctls */
+#define DRM_IOCTL_RADEON_INIT	DRM_IOW( 0x40, drm_radeon_init_t)
+#define DRM_IOCTL_RADEON_RESET	DRM_IO(  0x41)
+#define DRM_IOCTL_RADEON_FLUSH	DRM_IO(  0x42)
+#define DRM_IOCTL_RADEON_IDLE	DRM_IO(  0x43)
+#define DRM_IOCTL_RADEON_PACKET	DRM_IOW( 0x44, drm_radeon_packet_t)
+#define DRM_IOCTL_RADEON_VERTEX	DRM_IOW( 0x45, drm_radeon_vertex_t)
 
 #endif
