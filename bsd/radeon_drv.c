@@ -42,13 +42,16 @@
  * Please report to eta@lclark.edu inaccuracies or if a chip you have works that is marked unsupported here.
  */
 drm_chipinfo_t DRM(devicelist)[] = {
-	{0x1002, 0x5144, 1, "ATI Radeon QD"},
-	{0x1002, 0x5145, 1, "ATI Radeon QE"},
-	{0x1002, 0x5146, 1, "ATI Radeon QF"},
-	{0x1002, 0x5147, 1, "ATI Radeon QG"},
-	{0x1002, 0x5157, 1, "ATI Radeon 7500"},
-	{0x1002, 0x5159, 1, "ATI Radeon VE"},
-	{0x1002, 0x5159, 1, "ATI Radeon VE"},
+	{0x1002, 0x4C57, 1, "ATI Radeon LW Mobility 7 (AGP)"},
+	{0x1002, 0x4C59, 1, "ATI Radeon LY Mobility 6 (AGP)"},
+	{0x1002, 0x4C5A, 1, "ATI Radeon LZ Mobility 6 (AGP)"},
+	{0x1002, 0x5144, 1, "ATI Radeon QD (AGP)"},
+	{0x1002, 0x5145, 1, "ATI Radeon QE (AGP)"},
+	{0x1002, 0x5146, 1, "ATI Radeon QF (AGP)"},
+	{0x1002, 0x5147, 1, "ATI Radeon QG (AGP)"},
+	{0x1002, 0x5157, 1, "ATI Radeon QW 7500 (AGP)"},
+	{0x1002, 0x5159, 1, "ATI Radeon QY VE (AGP)"},
+	{0x1002, 0x515A, 1, "ATI Radeon QZ VE (AGP)"},
 	{0, 0, 0, NULL}
 };
 

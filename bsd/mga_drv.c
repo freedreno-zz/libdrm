@@ -43,7 +43,8 @@
 drm_chipinfo_t DRM(devicelist)[] = {
 	{0x102b, 0x0520, 0, "Matrox G200 (PCI)"},
 	{0x102b, 0x0521, 1, "Matrox G200 (AGP)"},
-	{0x102b, 0x0525, 1, "Matrox G400 (AGP)"},
+	{0x102b, 0x0525, 1, "Matrox G400/G450 (AGP)"},
+	{0x102b, 0x2527, 1, "Matrox G550 (AGP)"},
 	{0, 0, 0, NULL}
 };
 
