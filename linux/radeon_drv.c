@@ -43,8 +43,12 @@
 #define DRIVER_MINOR		2
 #define DRIVER_PATCHLEVEL	0
 
-/* 1.1 - ??
- * 1.2 - Add vertex2 ioctl, add stencil capability to clear ioctl
+/* Interface history:
+ *
+ * 1.1 - ??
+ * 1.2 - Add vertex2 ioctl (keith)
+ *     - Add stencil capability to clear ioctl (gareth, keith)
+ *     - Increase MAX_TEXTURE_LEVELS (brian)
  */
 #define DRIVER_IOCTLS							     \
  [DRM_IOCTL_NR(DRM_IOCTL_DMA)]               = { radeon_cp_buffers,  1, 0 }, \

@@ -41,8 +41,16 @@
 #define DRIVER_DESC		"Intel i810"
 #define DRIVER_DATE		"20010917"
 
+/* Interface history
+ *
+ * 1.0
+ * 2.0 - Security fixes.
+ * 2.1 - Add i810_dma_vertex2 ioctl,
+ *     - Disable copying code (leave stub ioctls for backwards compatibility)
+ *
+ */
 #define DRIVER_MAJOR		2
-#define DRIVER_MINOR		0
+#define DRIVER_MINOR		1
 #define DRIVER_PATCHLEVEL	0
 
 #define DRIVER_IOCTLS							    \

@@ -1000,7 +1000,7 @@ int i810_dma_vertex(struct inode *inode, struct file *filp,
    	buf_priv = buf->dev_private;
 
 	if (vertex.idx < 0 || vertex.idx >= I810_DMA_BUF_NR) {
-		DRM_ERROR("i810_dma_vertex2 bad buffer idx\n");
+		DRM_ERROR("i810_dma_vertex bad buffer idx\n");
 		return -EINVAL;
 	}
 		

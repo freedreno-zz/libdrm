@@ -573,6 +573,13 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 				   RADEON_VTX_FMT_RADEON_MODE |
 				   (3 << RADEON_NUM_VERTICES_SHIFT)) );
 
+/*  			printk( "depth box %d: %x %x %x %x\n",  */
+/*  				i, */
+/*  				depth_boxes[i].ui[CLEAR_X1], */
+/*  				depth_boxes[i].ui[CLEAR_Y1], */
+/*  				depth_boxes[i].ui[CLEAR_X2], */
+/*  				depth_boxes[i].ui[CLEAR_Y2]); */
+
 			OUT_RING( depth_boxes[i].ui[CLEAR_X1] );
 			OUT_RING( depth_boxes[i].ui[CLEAR_Y1] );
 			OUT_RING( depth_boxes[i].ui[CLEAR_DEPTH] );
@@ -1542,12 +1549,17 @@ int radeon_cp_vertex2( struct inode *inode, struct file *filp,
 		}
 
 		if ( prim.stateidx != laststate ) {
-			drm_radeon_state_t state;
-
+			drm_radeon_state_t state;			       
+				
 			if ( copy_from_user( &state, 
 					     &vertex.state[prim.stateidx], 
 					     sizeof(state) ) )
 				return -EFAULT;
+
+/*  			printk("emit state %d (%p) dirty %x\n", */
+/*  			       prim.stateidx, */
+/*  			       &vertex.state[prim.stateidx], */
+/*  			       state.dirty); */
 
 			radeon_emit_state2( dev_priv, &state );
 
