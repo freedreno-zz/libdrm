@@ -69,7 +69,7 @@ extern int  gamma_dma(struct inode *inode, struct file *filp,
 extern int  gamma_find_devices(void);
 extern int  gamma_found(void);
 
-#define GLINT_DRI_BUF_COUNT 20
+#define GLINT_DRI_BUF_COUNT 256
 
 #define GAMMA_OFF(reg)						   \
 	((reg < 0x1000)						   \

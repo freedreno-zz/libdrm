@@ -74,11 +74,6 @@
 #define DRIVER_PREINSTALL() do {					\
 	drm_gamma_private_t *dev_priv =					\
 				(drm_gamma_private_t *)dev->dev_private;\
-printk("map is 0x%x 0x%x 0x%x 0x%x\n",	\
-dev_priv->mmio0->handle, \
-dev_priv->mmio1->handle, \
-dev_priv->mmio2->handle, \
-dev_priv->mmio3->handle); \
 	while(GAMMA_READ(GAMMA_INFIFOSPACE) < 2);			\
 	GAMMA_WRITE( GAMMA_GCOMMANDMODE,	0x00000004 );		\
 	GAMMA_WRITE( GAMMA_GDMACONTROL,		0x00000000 );		\
