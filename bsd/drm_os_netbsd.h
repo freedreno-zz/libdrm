@@ -148,6 +148,16 @@ while (!condition) {						\
 	copyout(arg2, arg1, arg3)
 #define DRM_COPY_FROM_USER(arg1, arg2, arg3) \
 	copyin(arg2, arg1, arg3)
+/* Macros for userspace access with checking readability once */
+/* FIXME: can't find equivalent functionality for nocheck yet.
+ * It'll be slower than linux, but should be correct.
+ */
+#define DRM_VERIFYAREA_READ( uaddr, size )		\
+	(!uvm_useracc((caddr_t)uaddr, size, VM_PROT_READ))
+#define DRM_COPY_FROM_USER_UNCHECKED(arg1, arg2, arg3) 	\
+	copyin(arg2, arg1, arg3)
+#define DRM_GET_USER_UNCHECKED(val, uaddr)			\
+	((val) = fuword(uaddr), 0)
 
 #define DRM_WRITEMEMORYBARRIER( map )					\
 	bus_space_barrier((map)->iot, (map)->ioh, 0, (map)->size, 0);
@@ -156,6 +166,7 @@ while (!condition) {						\
 
 #define DRM_WAKEUP(w) wakeup((void *)w)
 #define DRM_WAKEUP_INT(w) wakeup(w)
+#define DRM_INIT_WAITQUEUE( queue )  do {} while (0)
 
 #define PAGE_ALIGN(addr) (((addr)+PAGE_SIZE-1)&PAGE_MASK)
 
