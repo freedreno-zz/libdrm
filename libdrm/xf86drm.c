@@ -215,7 +215,7 @@ int drmAvailable(void)
 
     remove(dev_name);
     if ((fd = drmOpenDevice(dev_name, makedev(DRM_FIXED_DEVICE_MAJOR, 0),
-			    S_IRUSR, getuid(), getgid())) >= 0) {
+			    S_IRUSR, geteuid(), getegid())) >= 0) {
 				/* Read version to make sure this is
                                    actually a DRI device. */
 	if ((version = drmGetVersion(fd))) {
