@@ -219,7 +219,6 @@ typedef struct _drm_mga_sarea {
 	/* Mechanism to validate card state.
 	 */
    	int ctxOwner;
-   	int vertexsize;
 
    	unsigned int wacceptseq;
 } drm_mga_sarea_t;	

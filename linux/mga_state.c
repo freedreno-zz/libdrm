@@ -270,6 +270,7 @@ static inline void mga_g400_emit_pipe( drm_mga_private_t *dev_priv )
 {
 	drm_mga_sarea_t *sarea_priv = dev_priv->sarea_priv;
 	unsigned int pipe = sarea_priv->warp_pipe;
+	unsigned int wacceptseq = sarea_priv->wacceptseq;
 	DMA_LOCALS;
 
 	BEGIN_DMA( 10 );
@@ -288,7 +289,7 @@ static inline void mga_g400_emit_pipe( drm_mga_private_t *dev_priv )
 		DMA_BLOCK( MGA_WACCEPTSEQ,	0x00000000,
 			   MGA_WACCEPTSEQ,	0x00000000,
 			   MGA_WACCEPTSEQ,	0x00000000,
-			   MGA_WACCEPTSEQ,	0x1e000000 );
+			   MGA_WACCEPTSEQ,	wacceptseq );
 	} else {
 		if ( dev_priv->warp_pipe & MGA_T2 ) {
 			/* Flush the WARP pipe */
@@ -317,7 +318,7 @@ static inline void mga_g400_emit_pipe( drm_mga_private_t *dev_priv )
 		DMA_BLOCK( MGA_WACCEPTSEQ,	0x00000000,
 			   MGA_WACCEPTSEQ,	0x00000000,
 			   MGA_WACCEPTSEQ,	0x00000000,
-			   MGA_WACCEPTSEQ,	0x18000000 );
+			   MGA_WACCEPTSEQ,	wacceptseq );
 	}
 
 	DMA_BLOCK( MGA_WFLAG,	0x00000000,
