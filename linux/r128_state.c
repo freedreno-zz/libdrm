@@ -25,13 +25,14 @@
  *
  * Authors:
  *    Gareth Hughes <gareth@valinux.com>
- *
  */
 
 #define __NO_VERSION__
+#include "r128.h"
 #include "drmP.h"
 #include "r128_drv.h"
 #include "drm.h"
+#include <linux/delay.h>
 
 
 /* ================================================================
@@ -360,45 +361,18 @@ static void r128_print_dirty( const char *msg, unsigned int flags )
 }
 
 static void r128_cce_dispatch_clear( drm_device_t *dev,
-				     unsigned int flags,
-				     int cx, int cy, int cw, int ch,
-				     unsigned int clear_color,
-				     unsigned int clear_depth )
+				     drm_r128_clear_t *clear )
 {
 	drm_r128_private_t *dev_priv = dev->dev_private;
 	drm_r128_sarea_t *sarea_priv = dev_priv->sarea_priv;
 	int nbox = sarea_priv->nbox;
 	drm_clip_rect_t *pbox = sarea_priv->boxes;
-	u32 fb_bpp, depth_bpp;
+	unsigned int flags = clear->flags;
 	int i;
 	RING_LOCALS;
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
-	r128_update_ring_snapshot( dev_priv );
-
-	switch ( dev_priv->fb_bpp ) {
-	case 16:
-		fb_bpp = R128_GMC_DST_16BPP;
-		break;
-	case 32:
-		fb_bpp = R128_GMC_DST_32BPP;
-		break;
-	default:
-		return;
-	}
-	switch ( dev_priv->depth_bpp ) {
-	case 16:
-		depth_bpp = R128_GMC_DST_16BPP;
-		break;
-	case 24:
-	case 32:
-		depth_bpp = R128_GMC_DST_32BPP;
-		break;
-	default:
-		return;
-	}
-
-	if ( dev_priv->page_flipping && dev_priv->current_page == 1) {
+	if ( dev_priv->page_flipping && dev_priv->current_page == 1 ) {
 		unsigned int tmp = flags;
 
 		flags &= ~(R128_FRONT | R128_BACK);
@@ -420,7 +394,7 @@ static void r128_cce_dispatch_clear( drm_device_t *dev,
 			BEGIN_RING( 2 );
 
 			OUT_RING( CCE_PACKET0( R128_DP_WRITE_MASK, 0 ) );
-			OUT_RING( sarea_priv->context_state.plane_3d_mask_c );
+			OUT_RING( clear->colormask );
 
 			ADVANCE_RING();
 		}
@@ -431,14 +405,14 @@ static void r128_cce_dispatch_clear( drm_device_t *dev,
 			OUT_RING( CCE_PACKET3( R128_CNTL_PAINT_MULTI, 4 ) );
 			OUT_RING( R128_GMC_DST_PITCH_OFFSET_CNTL |
 				  R128_GMC_BRUSH_SOLID_COLOR |
-				  fb_bpp |
+				  (dev_priv->color_fmt << 8) |
 				  R128_GMC_SRC_DATATYPE_COLOR |
 				  R128_ROP3_P |
 				  R128_GMC_CLR_CMP_CNTL_DIS |
 				  R128_GMC_AUX_CLIP_DIS );
 
 			OUT_RING( dev_priv->front_pitch_offset_c );
-			OUT_RING( clear_color );
+			OUT_RING( clear->color );
 
 			OUT_RING( (x << 16) | y );
 			OUT_RING( (w << 16) | h );
@@ -452,14 +426,14 @@ static void r128_cce_dispatch_clear( drm_device_t *dev,
 			OUT_RING( CCE_PACKET3( R128_CNTL_PAINT_MULTI, 4 ) );
 			OUT_RING( R128_GMC_DST_PITCH_OFFSET_CNTL |
 				  R128_GMC_BRUSH_SOLID_COLOR |
-				  fb_bpp |
+				  (dev_priv->color_fmt << 8) |
 				  R128_GMC_SRC_DATATYPE_COLOR |
 				  R128_ROP3_P |
 				  R128_GMC_CLR_CMP_CNTL_DIS |
 				  R128_GMC_AUX_CLIP_DIS );
 
 			OUT_RING( dev_priv->back_pitch_offset_c );
-			OUT_RING( clear_color );
+			OUT_RING( clear->color );
 
 			OUT_RING( (x << 16) | y );
 			OUT_RING( (w << 16) | h );
@@ -473,7 +447,7 @@ static void r128_cce_dispatch_clear( drm_device_t *dev,
 			OUT_RING( CCE_PACKET3( R128_CNTL_PAINT_MULTI, 4 ) );
 			OUT_RING( R128_GMC_DST_PITCH_OFFSET_CNTL |
 				  R128_GMC_BRUSH_SOLID_COLOR |
-				  depth_bpp |
+				  (dev_priv->depth_fmt << 8) |
 				  R128_GMC_SRC_DATATYPE_COLOR |
 				  R128_ROP3_P |
 				  R128_GMC_CLR_CMP_CNTL_DIS |
@@ -481,7 +455,7 @@ static void r128_cce_dispatch_clear( drm_device_t *dev,
 				  R128_GMC_WR_MSK_DIS );
 
 			OUT_RING( dev_priv->depth_pitch_offset_c );
-			OUT_RING( clear_depth );
+			OUT_RING( clear->depth );
 
 			OUT_RING( (x << 16) | y );
 			OUT_RING( (w << 16) | h );
@@ -497,28 +471,15 @@ static void r128_cce_dispatch_swap( drm_device_t *dev )
 	drm_r128_sarea_t *sarea_priv = dev_priv->sarea_priv;
 	int nbox = sarea_priv->nbox;
 	drm_clip_rect_t *pbox = sarea_priv->boxes;
-	u32 fb_bpp;
 	int i;
 	RING_LOCALS;
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
-
-	r128_update_ring_snapshot( dev_priv );
 
 #if R128_PERFORMANCE_BOXES
 	/* Do some trivial performance monitoring...
 	 */
 	r128_cce_performance_boxes( dev_priv );
 #endif
-
-	switch ( dev_priv->fb_bpp ) {
-	case 16:
-		fb_bpp = R128_GMC_DST_16BPP;
-		break;
-	case 32:
-	default:
-		fb_bpp = R128_GMC_DST_32BPP;
-		break;
-	}
 
 	for ( i = 0 ; i < nbox ; i++ ) {
 		int x = pbox[i].x1;
@@ -532,7 +493,7 @@ static void r128_cce_dispatch_swap( drm_device_t *dev )
 		OUT_RING( R128_GMC_SRC_PITCH_OFFSET_CNTL |
 			  R128_GMC_DST_PITCH_OFFSET_CNTL |
 			  R128_GMC_BRUSH_NONE |
-			  fb_bpp |
+			  (dev_priv->color_fmt << 8) |
 			  R128_GMC_SRC_DATATYPE_COLOR |
 			  R128_ROP3_S |
 			  R128_DP_SRC_SOURCE_MEMORY |
@@ -570,16 +531,15 @@ static void r128_cce_dispatch_flip( drm_device_t *dev )
 	RING_LOCALS;
 	DRM_DEBUG( "%s: page=%d\n", __FUNCTION__, dev_priv->current_page );
 
-	r128_update_ring_snapshot( dev_priv );
-
 #if R128_PERFORMANCE_BOXES
 	/* Do some trivial performance monitoring...
 	 */
 	r128_cce_performance_boxes( dev_priv );
 #endif
 
-	BEGIN_RING( 2 );
+	BEGIN_RING( 4 );
 
+	R128_WAIT_UNTIL_PAGE_FLIPPED();
 	OUT_RING( CCE_PACKET0( R128_CRTC_OFFSET, 0 ) );
 
 	if ( dev_priv->current_page == 0 ) {
@@ -613,15 +573,13 @@ static void r128_cce_dispatch_vertex( drm_device_t *dev,
 	drm_r128_buf_priv_t *buf_priv = buf->dev_private;
 	drm_r128_sarea_t *sarea_priv = dev_priv->sarea_priv;
 	int format = sarea_priv->vc_format;
-	int offset = dev_priv->buffers->offset + buf->offset - dev->agp->base;
+	int offset = buf->bus_address;
 	int size = buf->used;
 	int prim = buf_priv->prim;
 	int i = 0;
 	RING_LOCALS;
 	DRM_DEBUG( "%s: buf=%d nbox=%d\n",
 		   __FUNCTION__, buf->idx, sarea_priv->nbox );
-
-	r128_update_ring_snapshot( dev_priv );
 
 	if ( 0 )
 		r128_print_dirty( "dispatch_vertex", sarea_priv->dirty );
@@ -676,21 +634,9 @@ static void r128_cce_dispatch_vertex( drm_device_t *dev,
 
 	dev_priv->sarea_priv->last_dispatch++;
 
-#if 0
-	if ( dev_priv->submit_age == R128_MAX_VB_AGE ) {
-		ret = r128_do_cce_idle( dev_priv );
-		if ( ret < 0 ) return ret;
-		dev_priv->submit_age = 0;
-		r128_freelist_reset( dev );
-	}
-#endif
-
 	sarea_priv->dirty &= ~R128_UPLOAD_CLIPRECTS;
 	sarea_priv->nbox = 0;
 }
-
-
-
 
 static void r128_cce_dispatch_indirect( drm_device_t *dev,
 					drm_buf_t *buf,
@@ -702,11 +648,8 @@ static void r128_cce_dispatch_indirect( drm_device_t *dev,
 	DRM_DEBUG( "indirect: buf=%d s=0x%x e=0x%x\n",
 		   buf->idx, start, end );
 
-	r128_update_ring_snapshot( dev_priv );
-
 	if ( start != end ) {
-		int offset = (dev_priv->buffers->offset - dev->agp->base
-			      + buf->offset + start);
+		int offset = buf->bus_address + start;
 		int dwords = (end - start + 3) / sizeof(u32);
 
 		/* Indirect buffer data must be an even number of
@@ -750,15 +693,6 @@ static void r128_cce_dispatch_indirect( drm_device_t *dev,
 	}
 
 	dev_priv->sarea_priv->last_dispatch++;
-
-#if 0
-	if ( dev_priv->submit_age == R128_MAX_VB_AGE ) {
-		ret = r128_do_cce_idle( dev_priv );
-		if ( ret < 0 ) return ret;
-		dev_priv->submit_age = 0;
-		r128_freelist_reset( dev );
-	}
-#endif
 }
 
 static void r128_cce_dispatch_indices( drm_device_t *dev,
@@ -777,8 +711,6 @@ static void r128_cce_dispatch_indices( drm_device_t *dev,
 	int i = 0;
 	RING_LOCALS;
 	DRM_DEBUG( "indices: s=%d e=%d c=%d\n", start, end, count );
-
-	r128_update_ring_snapshot( dev_priv );
 
 	if ( 0 )
 		r128_print_dirty( "dispatch_indices", sarea_priv->dirty );
@@ -839,15 +771,6 @@ static void r128_cce_dispatch_indices( drm_device_t *dev,
 
 	dev_priv->sarea_priv->last_dispatch++;
 
-#if 0
-	if ( dev_priv->submit_age == R128_MAX_VB_AGE ) {
-		ret = r128_do_cce_idle( dev_priv );
-		if ( ret < 0 ) return ret;
-		dev_priv->submit_age = 0;
-		r128_freelist_reset( dev );
-	}
-#endif
-
 	sarea_priv->dirty &= ~R128_UPLOAD_CLIPRECTS;
 	sarea_priv->nbox = 0;
 }
@@ -863,8 +786,6 @@ static int r128_cce_dispatch_blit( drm_device_t *dev,
 	int dword_shift, dwords;
 	RING_LOCALS;
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
-
-	r128_update_ring_snapshot( dev_priv );
 
 	/* The compiler won't optimize away a division by a variable,
 	 * even if the only legal values are powers of two.  Thus, we'll
@@ -972,24 +893,9 @@ static int r128_cce_dispatch_write_span( drm_device_t *dev,
 	int count, x, y;
 	u32 *buffer;
 	u8 *mask;
-	u32 depth_bpp;
 	int i;
 	RING_LOCALS;
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
-
-	r128_update_ring_snapshot( dev_priv );
-
-	switch ( dev_priv->depth_bpp ) {
-	case 16:
-		depth_bpp = R128_GMC_DST_16BPP;
-		break;
-	case 24:
-	case 32:
-		depth_bpp = R128_GMC_DST_32BPP;
-		break;
-	default:
-		return -EINVAL;
-	}
 
 	count = depth->n;
 	if ( copy_from_user( &x, depth->x, sizeof(x) ) ) {
@@ -1028,7 +934,7 @@ static int r128_cce_dispatch_write_span( drm_device_t *dev,
 				OUT_RING( CCE_PACKET3( R128_CNTL_PAINT_MULTI, 4 ) );
 				OUT_RING( R128_GMC_DST_PITCH_OFFSET_CNTL |
 					  R128_GMC_BRUSH_SOLID_COLOR |
-					  depth_bpp |
+					  (dev_priv->depth_fmt << 8) |
 					  R128_GMC_SRC_DATATYPE_COLOR |
 					  R128_ROP3_P |
 					  R128_GMC_CLR_CMP_CNTL_DIS |
@@ -1052,7 +958,7 @@ static int r128_cce_dispatch_write_span( drm_device_t *dev,
 			OUT_RING( CCE_PACKET3( R128_CNTL_PAINT_MULTI, 4 ) );
 			OUT_RING( R128_GMC_DST_PITCH_OFFSET_CNTL |
 				  R128_GMC_BRUSH_SOLID_COLOR |
-				  depth_bpp |
+				  (dev_priv->depth_fmt << 8) |
 				  R128_GMC_SRC_DATATYPE_COLOR |
 				  R128_ROP3_P |
 				  R128_GMC_CLR_CMP_CNTL_DIS |
@@ -1080,24 +986,9 @@ static int r128_cce_dispatch_write_pixels( drm_device_t *dev,
 	int count, *x, *y;
 	u32 *buffer;
 	u8 *mask;
-	u32 depth_bpp;
 	int i;
 	RING_LOCALS;
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
-
-	r128_update_ring_snapshot( dev_priv );
-
-	switch ( dev_priv->depth_bpp ) {
-	case 16:
-		depth_bpp = R128_GMC_DST_16BPP;
-		break;
-	case 24:
-	case 32:
-		depth_bpp = R128_GMC_DST_32BPP;
-		break;
-	default:
-		return -EINVAL;
-	}
 
 	count = depth->n;
 
@@ -1159,7 +1050,7 @@ static int r128_cce_dispatch_write_pixels( drm_device_t *dev,
 				OUT_RING( CCE_PACKET3( R128_CNTL_PAINT_MULTI, 4 ) );
 				OUT_RING( R128_GMC_DST_PITCH_OFFSET_CNTL |
 					  R128_GMC_BRUSH_SOLID_COLOR |
-					  depth_bpp |
+					  (dev_priv->depth_fmt << 8) |
 					  R128_GMC_SRC_DATATYPE_COLOR |
 					  R128_ROP3_P |
 					  R128_GMC_CLR_CMP_CNTL_DIS |
@@ -1183,7 +1074,7 @@ static int r128_cce_dispatch_write_pixels( drm_device_t *dev,
 			OUT_RING( CCE_PACKET3( R128_CNTL_PAINT_MULTI, 4 ) );
 			OUT_RING( R128_GMC_DST_PITCH_OFFSET_CNTL |
 				  R128_GMC_BRUSH_SOLID_COLOR |
-				  depth_bpp |
+				  (dev_priv->depth_fmt << 8) |
 				  R128_GMC_SRC_DATATYPE_COLOR |
 				  R128_ROP3_P |
 				  R128_GMC_CLR_CMP_CNTL_DIS |
@@ -1211,23 +1102,8 @@ static int r128_cce_dispatch_read_span( drm_device_t *dev,
 {
 	drm_r128_private_t *dev_priv = dev->dev_private;
 	int count, x, y;
-	u32 depth_bpp;
 	RING_LOCALS;
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
-
-	r128_update_ring_snapshot( dev_priv );
-
-	switch ( dev_priv->depth_bpp ) {
-	case 16:
-		depth_bpp = R128_GMC_DST_16BPP;
-		break;
-	case 24:
-	case 32:
-		depth_bpp = R128_GMC_DST_32BPP;
-		break;
-	default:
-		return -EINVAL;
-	}
 
 	count = depth->n;
 	if ( copy_from_user( &x, depth->x, sizeof(x) ) ) {
@@ -1243,7 +1119,7 @@ static int r128_cce_dispatch_read_span( drm_device_t *dev,
 	OUT_RING( R128_GMC_SRC_PITCH_OFFSET_CNTL |
 		  R128_GMC_DST_PITCH_OFFSET_CNTL |
 		  R128_GMC_BRUSH_NONE |
-		  depth_bpp |
+		  (dev_priv->depth_fmt << 8) |
 		  R128_GMC_SRC_DATATYPE_COLOR |
 		  R128_ROP3_S |
 		  R128_DP_SRC_SOURCE_MEMORY |
@@ -1267,24 +1143,9 @@ static int r128_cce_dispatch_read_pixels( drm_device_t *dev,
 {
 	drm_r128_private_t *dev_priv = dev->dev_private;
 	int count, *x, *y;
-	u32 depth_bpp;
 	int i;
 	RING_LOCALS;
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
-
-	r128_update_ring_snapshot( dev_priv );
-
-	switch ( dev_priv->depth_bpp ) {
-	case 16:
-		depth_bpp = R128_GMC_DST_16BPP;
-		break;
-	case 24:
-	case 32:
-		depth_bpp = R128_GMC_DST_32BPP;
-		break;
-	default:
-		return -EINVAL;
-	}
 
 	count = depth->n;
 	if ( count > dev_priv->depth_pitch ) {
@@ -1318,7 +1179,7 @@ static int r128_cce_dispatch_read_pixels( drm_device_t *dev,
 		OUT_RING( R128_GMC_SRC_PITCH_OFFSET_CNTL |
 			  R128_GMC_DST_PITCH_OFFSET_CNTL |
 			  R128_GMC_BRUSH_NONE |
-			  depth_bpp |
+			  (dev_priv->depth_fmt << 8) |
 			  R128_GMC_SRC_DATATYPE_COLOR |
 			  R128_ROP3_S |
 			  R128_DP_SRC_SOURCE_MEMORY |
@@ -1353,8 +1214,6 @@ static void r128_cce_dispatch_stipple( drm_device_t *dev, u32 *stipple )
 	RING_LOCALS;
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
-	r128_update_ring_snapshot( dev_priv );
-
 	BEGIN_RING( 33 );
 
 	OUT_RING( CCE_PACKET0( R128_BRUSH_DATA0, 31 ) );
@@ -1380,22 +1239,18 @@ int r128_cce_clear( struct inode *inode, struct file *filp,
 	drm_r128_clear_t clear;
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
-	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||
-	     dev->lock.pid != current->pid ) {
-		DRM_ERROR( "r128_cce_clear called without lock held\n" );
-		return -EINVAL;
-	}
+	LOCK_TEST_WITH_RETURN( dev );
 
 	if ( copy_from_user( &clear, (drm_r128_clear_t *) arg,
 			     sizeof(clear) ) )
 		return -EFAULT;
 
+	RING_SPACE_TEST_WITH_RETURN( dev_priv );
+
 	if ( sarea_priv->nbox > R128_NR_SAREA_CLIPRECTS )
 		sarea_priv->nbox = R128_NR_SAREA_CLIPRECTS;
 
-	r128_cce_dispatch_clear( dev, clear.flags,
-				 clear.x, clear.y, clear.w, clear.h,
-				 clear.clear_color, clear.clear_depth );
+	r128_cce_dispatch_clear( dev, &clear );
 
 	/* Make sure we restore the 3D state next time.
 	 */
@@ -1413,11 +1268,9 @@ int r128_cce_swap( struct inode *inode, struct file *filp,
 	drm_r128_sarea_t *sarea_priv = dev_priv->sarea_priv;
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
-	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||
-	     dev->lock.pid != current->pid ) {
-		DRM_ERROR( "r128_cce_swap called without lock held\n" );
-		return -EINVAL;
-	}
+	LOCK_TEST_WITH_RETURN( dev );
+
+	RING_SPACE_TEST_WITH_RETURN( dev_priv );
 
 	if ( sarea_priv->nbox > R128_NR_SAREA_CLIPRECTS )
 		sarea_priv->nbox = R128_NR_SAREA_CLIPRECTS;
@@ -1444,11 +1297,8 @@ int r128_cce_vertex( struct inode *inode, struct file *filp,
 	drm_r128_buf_priv_t *buf_priv;
 	drm_r128_vertex_t vertex;
 
-	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||
-	     dev->lock.pid != current->pid ) {
-		DRM_ERROR( "%s called without lock held\n", __FUNCTION__ );
-		return -EINVAL;
-	}
+	LOCK_TEST_WITH_RETURN( dev );
+
 	if ( !dev_priv || dev_priv->is_pci ) {
 		DRM_ERROR( "%s called with a PCI card\n", __FUNCTION__ );
 		return -EINVAL;
@@ -1472,6 +1322,9 @@ int r128_cce_vertex( struct inode *inode, struct file *filp,
 		DRM_ERROR( "buffer prim %d\n", vertex.prim );
 		return -EINVAL;
 	}
+
+	RING_SPACE_TEST_WITH_RETURN( dev_priv );
+	VB_AGE_TEST_WITH_RETURN( dev_priv );
 
 	buf = dma->buflist[vertex.idx];
 	buf_priv = buf->dev_private;
@@ -1507,11 +1360,8 @@ int r128_cce_indices( struct inode *inode, struct file *filp,
 	drm_r128_indices_t elts;
 	int count;
 
-	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||
-	     dev->lock.pid != current->pid ) {
-		DRM_ERROR( "%s called without lock held\n", __FUNCTION__ );
-		return -EINVAL;
-	}
+	LOCK_TEST_WITH_RETURN( dev );
+
 	if ( !dev_priv || dev_priv->is_pci ) {
 		DRM_ERROR( "%s called with a PCI card\n", __FUNCTION__ );
 		return -EINVAL;
@@ -1535,6 +1385,9 @@ int r128_cce_indices( struct inode *inode, struct file *filp,
 		DRM_ERROR( "buffer prim %d\n", elts.prim );
 		return -EINVAL;
 	}
+
+	RING_SPACE_TEST_WITH_RETURN( dev_priv );
+	VB_AGE_TEST_WITH_RETURN( dev_priv );
 
 	buf = dma->buflist[elts.idx];
 	buf_priv = buf->dev_private;
@@ -1576,13 +1429,10 @@ int r128_cce_blit( struct inode *inode, struct file *filp,
 	drm_file_t *priv = filp->private_data;
 	drm_device_t *dev = priv->dev;
 	drm_device_dma_t *dma = dev->dma;
+	drm_r128_private_t *dev_priv = dev->dev_private;
 	drm_r128_blit_t blit;
 
-	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||
-	     dev->lock.pid != current->pid ) {
-		DRM_ERROR( "%s called without lock held\n", __FUNCTION__ );
-		return -EINVAL;
-	}
+	LOCK_TEST_WITH_RETURN( dev );
 
 	if ( copy_from_user( &blit, (drm_r128_blit_t *)arg,
 			     sizeof(blit) ) )
@@ -1597,6 +1447,9 @@ int r128_cce_blit( struct inode *inode, struct file *filp,
 		return -EINVAL;
 	}
 
+	RING_SPACE_TEST_WITH_RETURN( dev_priv );
+	VB_AGE_TEST_WITH_RETURN( dev_priv );
+
 	return r128_cce_dispatch_blit( dev, &blit );
 }
 
@@ -1605,17 +1458,16 @@ int r128_cce_depth( struct inode *inode, struct file *filp,
 {
 	drm_file_t *priv = filp->private_data;
 	drm_device_t *dev = priv->dev;
+	drm_r128_private_t *dev_priv = dev->dev_private;
 	drm_r128_depth_t depth;
 
-	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||
-	     dev->lock.pid != current->pid ) {
-		DRM_ERROR( "%s called without lock held\n", __FUNCTION__ );
-		return -EINVAL;
-	}
+	LOCK_TEST_WITH_RETURN( dev );
 
 	if ( copy_from_user( &depth, (drm_r128_depth_t *)arg,
 			     sizeof(depth) ) )
 		return -EFAULT;
+
+	RING_SPACE_TEST_WITH_RETURN( dev_priv );
 
 	switch ( depth.func ) {
 	case R128_WRITE_SPAN:
@@ -1636,14 +1488,11 @@ int r128_cce_stipple( struct inode *inode, struct file *filp,
 {
 	drm_file_t *priv = filp->private_data;
 	drm_device_t *dev = priv->dev;
+	drm_r128_private_t *dev_priv = dev->dev_private;
 	drm_r128_stipple_t stipple;
 	u32 mask[32];
 
-	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||
-	     dev->lock.pid != current->pid ) {
-		DRM_ERROR( "%s called without lock held\n", __FUNCTION__ );
-		return -EINVAL;
-	}
+	LOCK_TEST_WITH_RETURN( dev );
 
 	if ( copy_from_user( &stipple, (drm_r128_stipple_t *)arg,
 			     sizeof(stipple) ) )
@@ -1652,6 +1501,8 @@ int r128_cce_stipple( struct inode *inode, struct file *filp,
 	if ( copy_from_user( &mask, stipple.mask,
 			     32 * sizeof(u32) ) )
 		return -EFAULT;
+
+	RING_SPACE_TEST_WITH_RETURN( dev_priv );
 
 	r128_cce_dispatch_stipple( dev, mask );
 
@@ -1664,11 +1515,7 @@ int r128_cce_indirect( struct inode *inode, struct file *filp,
 	drm_file_t *priv = filp->private_data;
 	drm_device_t *dev = priv->dev;
 
-	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||
-	     dev->lock.pid != current->pid ) {
-		DRM_ERROR( "%s called without lock held\n", __FUNCTION__ );
-		return -EINVAL;
-	}
+	LOCK_TEST_WITH_RETURN( dev );
 
 	/* Indirect buffer firing is not supported at this time.
 	 */

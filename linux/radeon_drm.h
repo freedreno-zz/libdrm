@@ -26,7 +26,6 @@
  * Authors:
  *    Kevin E. Martin <martin@valinux.com>
  *    Gareth Hughes <gareth@valinux.com>
- *
  */
 
 #ifndef __RADEON_DRM_H__
@@ -300,17 +299,18 @@ typedef struct drm_radeon_fullscreen {
 #define CLEAR_Y2	3
 #define CLEAR_DEPTH	4
 
+typedef union drm_radeon_clear_rect {
+	float f[5];
+	unsigned int ui[5];
+} drm_radeon_clear_rect_t;
+
 typedef struct drm_radeon_clear {
 	unsigned int flags;
-	int x, y, w, h;
-	unsigned int clear_color;
-	unsigned int clear_colormask;
-	unsigned int clear_depth;
-	unsigned int clear_stencil;
-	union {
-		float f[5];
-		unsigned int ui[5];
-	} rect;
+	unsigned int color;
+	unsigned int colormask;
+	unsigned int depth;
+	unsigned int stencil;
+	drm_radeon_clear_rect_t *depth_boxes;
 } drm_radeon_clear_t;
 
 typedef struct drm_radeon_vertex {
@@ -318,14 +318,20 @@ typedef struct drm_radeon_vertex {
 	int discard;			/* Client finished with buffer? */
 } drm_radeon_vertex_t;
 
-typedef struct drm_radeon_blit {
-	int idx;
-	int pitch;
+typedef struct drm_radeon_tex_image {
+	unsigned int x, y;		/* Blit coordinates */
+	unsigned int width, height;
+} drm_radeon_tex_image_t;
+
+typedef struct drm_radeon_texture {
 	int offset;
+	int pitch;
 	int format;
-	unsigned short x, y;
-	unsigned short width, height;
-} drm_radeon_blit_t;
+	int width;			/* Texture image coordinates */
+	int height;
+	drm_radeon_tex_image_t blit;
+	const void *data;
+} drm_radeon_texture_t;
 
 typedef struct drm_radeon_stipple {
 	unsigned int *mask;
