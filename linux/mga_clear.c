@@ -34,6 +34,7 @@
 #include "mga_drv.h"
 #include "mgareg_flags.h"
 #include "mga_dma.h"
+#include "mga_state.h"
 
 #define MGA_CLEAR_CMD (DC_opcod_trap | DC_arzero_enable | 		\
 		       DC_sgnzero_enable | DC_shftzero_enable | 	\
@@ -48,6 +49,12 @@
 		      DC_pattern_disable | DC_transc_disable | 		\
 		      DC_clipdis_enable)				\
 
+
+
+/* Build and queue a TT_GENERAL secondary buffer to do the clears.
+ * With Jeff's ringbuffer idea, it might make sense if there are only
+ * one or two cliprects to emit straight to the primary buffer.
+ */
 static int mgaClearBuffers(drm_device_t *dev,
 			   int clear_color,
 			   int clear_depth,
@@ -61,7 +68,7 @@ static int mgaClearBuffers(drm_device_t *dev,
 	int nbox = sarea_priv->nbox;
 	drm_buf_t *buf;
 	drm_dma_t d;
-	int order = 10;		/* ??? */
+	int order = 10;		/* ??? what orders do we have ???*/
 	DMALOCALS;
 
 
@@ -119,6 +126,8 @@ static int mgaClearBuffers(drm_device_t *dev,
 	 */
 	sarea_priv->dirty |= MGASAREA_NEW_CONTEXT;
 
+	((drm_mga_buf_priv_t *)buf->dev_private)->dma_type = MGA_DMA_GENERAL;
+
 	d.context = DRM_KERNEL_CONTEXT;
 	d.send_count = 1;
 	d.send_indices = &buf->idx;
@@ -131,6 +140,7 @@ static int mgaClearBuffers(drm_device_t *dev,
 	d.granted_count = 0;	   
 
 	drm_dma_enqueue(dev, &d);
+	mga_dma_schedule(dev, 1);
    	return 0;
 }
 
@@ -186,6 +196,8 @@ int mgaSwapBuffers(drm_device_t *dev, int flags)
 	 */
 	sarea_priv->dirty |= MGASAREA_NEW_CONTEXT;
 
+	((drm_mga_buf_priv_t *)buf->dev_private)->dma_type = MGA_DMA_GENERAL;
+
 	d.context = DRM_KERNEL_CONTEXT;
 	d.send_count = 1;
 	d.send_indices = &buf->idx;
@@ -198,56 +210,148 @@ int mgaSwapBuffers(drm_device_t *dev, int flags)
 	d.granted_count = 0;	 
   
 	drm_dma_enqueue(dev, &d);
+	mga_dma_schedule(dev, 1);
    	return 0;
+}
+
+
+static int mgaIload( drm_device_t *dev, drm_mga_iload_t *args )
+{
+	return 0; 
+}
+
+
+/* Necessary?  Not necessary??
+ */
+static int check_lock( void )
+{
+	return 1;
 }
 
 
 int mga_clear_bufs(struct inode *inode, struct file *filp,
 		   unsigned int cmd, unsigned long arg)
 {
-   drm_file_t *priv = filp->private_data;
-   drm_device_t *dev = priv->dev;
-   drm_mga_clear_t clear;
-   int retcode;
+	drm_file_t *priv = filp->private_data;
+	drm_device_t *dev = priv->dev;
+	drm_mga_clear_t clear;
+	int retcode;
    
-   copy_from_user_ret(&clear, (drm_mga_clear_t *)arg,
-		      sizeof(clear), -EFAULT);
+	copy_from_user_ret(&clear, (drm_mga_clear_t *)arg,
+			   sizeof(clear), -EFAULT);
    
-   retcode = mgaClearBuffers(dev, clear.clear_color,
-			   clear.clear_depth,
-			   clear.flags);
+/*  	if (!check_lock( dev )) */
+/*  		return -EIEIO; */
+		
+	retcode = mgaClearBuffers(dev, clear.clear_color,
+				  clear.clear_depth,
+				  clear.flags);
    
-   return retcode;
+	return retcode;
 }
 
 int mga_swap_bufs(struct inode *inode, struct file *filp,
 		  unsigned int cmd, unsigned long arg)
 {
-   drm_file_t *priv = filp->private_data;
-   drm_device_t *dev = priv->dev;
-   drm_mga_swap_t swap;
-   int retcode = 0;
+	drm_file_t *priv = filp->private_data;
+	drm_device_t *dev = priv->dev;
+	drm_mga_swap_t swap;
+	int retcode = 0;
+
+/*  	if (!check_lock( dev )) */
+/*  		return -EIEIO; */
    
-   copy_from_user_ret(&swap, (drm_mga_swap_t *)arg,
-		      sizeof(swap), -EFAULT);
+	copy_from_user_ret(&swap, (drm_mga_swap_t *)arg,
+			   sizeof(swap), -EFAULT);
    
-   retcode = mgaSwapBuffers(dev, swap.flags);
+	retcode = mgaSwapBuffers(dev, swap.flags);
    
-   return retcode;
+	return retcode;
 }
 
 int mga_iload(struct inode *inode, struct file *filp,
 	      unsigned int cmd, unsigned long arg)
 {
-   drm_file_t *priv = filp->private_data;
-   drm_device_t *dev = priv->dev;
-   drm_mga_iload_t iload;
-   int retcode = 0;
+	drm_file_t *priv = filp->private_data;
+	drm_device_t *dev = priv->dev;
+	drm_mga_iload_t iload;
+	int retcode = 0;
 
-   copy_from_user_ret(&iload, (drm_mga_iload_t *)arg, 
-		      sizeof(iload), -EFAULT);
+/*  	if (!check_lock( dev )) */
+/*  		return -EIEIO; */
+
+	copy_from_user_ret(&iload, (drm_mga_iload_t *)arg, 
+			   sizeof(iload), -EFAULT);
    
-   retcode = mgaIload(dev, &iload);
+	retcode = mgaIload(dev, &iload);
    
-   return retcode;
+	return retcode;
+}
+
+
+int mga_dma(struct inode *inode, struct file *filp, unsigned int cmd,
+	    unsigned long arg)
+{
+	drm_file_t	  *priv	    = filp->private_data;
+	drm_device_t	  *dev	    = priv->dev;
+	drm_device_dma_t  *dma	    = dev->dma;
+	int		  retcode   = 0;
+	drm_dma_t	  d;
+
+   	copy_from_user_ret(&d, (drm_dma_t *)arg, sizeof(d), -EFAULT);
+	DRM_DEBUG("%d %d: %d send, %d req\n",
+		  current->pid, d.context, d.send_count, d.request_count);
+
+	/* Per-context queues are unworkable if you are trying to do
+	 * state management from the client.
+	 */
+	d.context = DRM_KERNEL_CONTEXT;
+	d.flags &= ~_DRM_DMA_WHILE_LOCKED;
+
+	/* Maybe multiple buffers is useful for iload...
+	 * But this ioctl is only for *despatching* vertex data...
+	 */
+	if (d.send_count < 0 || d.send_count > 1) {
+		DRM_ERROR("Process %d trying to send %d buffers (max 1)\n",
+			  current->pid, d.send_count);
+		return -EINVAL;
+	}
+
+	
+	/* But it *is* used to request buffers for all types of dma:
+	 */
+	if (d.request_count < 0 || d.request_count > dma->buf_count) {
+		DRM_ERROR("Process %d trying to get %d buffers (of %d max)\n",
+			  current->pid, d.request_count, dma->buf_count);
+		return -EINVAL;
+	}
+
+	if (d.send_count) {
+		drm_mga_buf_priv_t *buf_priv = d.buflist[0]->dev_private;
+		drm_mga_private_t *dev_priv = dev->dev_private;
+
+		buf_priv->dma_type = MGA_DMA_VERTEX;
+
+/*         	if (!check_lock( dev )) */
+/*  		        return -EIEIO; */
+
+		/* Snapshot the relevent bits of the sarea... 
+		 */
+		mgaCopyAndVerifyState( dev );
+
+		retcode = drm_dma_enqueue(dev, &d);
+		mga_dma_schedule(dev, 1);
+	}
+	
+	d.granted_count = 0;
+
+	if (!retcode && d.request_count) {
+		retcode = drm_dma_get_buffers(dev, &d);
+	}
+
+	DRM_DEBUG("%d returning, granted = %d\n",
+		  current->pid, d.granted_count);
+	copy_to_user_ret((drm_dma_t *)arg, &d, sizeof(d), -EFAULT);
+
+	return retcode;
 }

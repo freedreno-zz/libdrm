@@ -199,9 +199,7 @@ static int mga_setup(drm_device_t *dev)
 	dev->last_checked   = 0;
 	init_timer(&dev->timer);
 	init_waitqueue_head(&dev->context_wait);
-#if DRM_DMA_HISTO
-	memset(&dev->histo, 0, sizeof(dev->histo));
-#endif
+
 	dev->ctx_start	    = 0;
 	dev->lck_start	    = 0;
 	
@@ -572,16 +570,11 @@ int mga_unlock(struct inode *inode, struct file *filp, unsigned int cmd,
 		atomic_inc(&dev->total_contends);
 	drm_lock_transfer(dev, &dev->lock.hw_lock->lock, DRM_KERNEL_CONTEXT);
 	mga_dma_schedule(dev, 1);
-	if (!dev->context_flag) {
-		if (drm_lock_free(dev, &dev->lock.hw_lock->lock,
-				  DRM_KERNEL_CONTEXT)) {
-			DRM_ERROR("\n");
-		}
+
+	if (drm_lock_free(dev, &dev->lock.hw_lock->lock,
+			  DRM_KERNEL_CONTEXT)) {
+	   DRM_ERROR("\n");
 	}
-#if DRM_DMA_HISTOGRAM
-	atomic_inc(&dev->histo.lhld[drm_histogram_slot(get_cycles()
-						       - dev->lck_start)]);
-#endif
 	
 	return 0;
 }

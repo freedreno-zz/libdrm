@@ -262,8 +262,7 @@ typedef struct drm_buf {
 	}		  list;	       /* Which list we're on		     */
 
 
-	int type;		/* push into dev_priv? */
-	void *dev_priv;
+	void *dev_private;
 
 
 #if DRM_DMA_HISTOGRAM
@@ -704,6 +703,12 @@ extern int	     drm_lock_free(drm_device_t *dev,
 				   unsigned int context);
 extern int	     drm_finish(struct inode *inode, struct file *filp,
 				unsigned int cmd, unsigned long arg);
+
+/* Let a driver manage a single queue efficiently:
+ */
+extern int drm_flush_queue(drm_device_t *dev, int context);
+extern int drm_flush_unblock_queue(drm_device_t *dev, int context);
+
 extern int	     drm_flush_unblock(drm_device_t *dev, int context,
 				       drm_lock_flags_t flags);
 extern int	     drm_flush_block_and_flush(drm_device_t *dev, int context,

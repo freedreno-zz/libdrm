@@ -117,7 +117,7 @@ int drm_lock_free(drm_device_t *dev,
 	return 0;
 }
 
-static int drm_flush_queue(drm_device_t *dev, int context)
+int drm_flush_queue(drm_device_t *dev, int context)
 {
 	DECLARE_WAITQUEUE(entry, current);
 	int		  ret	= 0;
@@ -151,7 +151,7 @@ static int drm_flush_queue(drm_device_t *dev, int context)
 	return ret;
 }
 
-static int drm_flush_unblock_queue(drm_device_t *dev, int context)
+int drm_flush_unblock_queue(drm_device_t *dev, int context)
 {
 	drm_queue_t	  *q	= dev->queuelist[context];
 	

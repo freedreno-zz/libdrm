@@ -92,6 +92,13 @@ typedef struct drm_mga_init {
    	int sgram;
 	int chipset;
    	mgaWarpIndex WarpIndex[MGA_MAX_WARP_PIPES];
+
+	/* Redundant?
+	 */
+	int frontOrg;
+	int backOrg;
+	int depthOrg;
+	int mAccess;
 } drm_mga_init_t;
 
 
@@ -108,28 +115,28 @@ typedef struct _xf86drmClipRectRec {
 #define MGA_CLEAR_BACKBUFFER  0x2
 #define MGA_CLEAR_DEPTHBUFFER 0x4
 
-typedef struct drm_mga_clear {
+typedef struct {
 	int clear_color;
 	int clear_depth;
 	int flags;
 } drm_mga_clear_t;
 
-typedef struct drm_mga_swap {
+typedef struct {
 	int flags;		/* not actually used? */
 } drm_mga_swap_t;
 
-
-
-/* These were context regs, but are constant under the DRI:
- */
-#define MGA_CONST_PITCH    0	/* constant */
-#define MGA_CONST_ZORG     7	/* constant */
+typedef struct {
+	unsigned int destOrg;
+	unsigned int mAccess;
+	unsigned int pitch;
+	unsigned int x,y,width,height;
+} drm_mga_iload_t;
 
 /* Each context has a state:
  */
-#define MGA_CTXREG_DSTORG   0	/* top of either front or backbuffer */
-#define MGA_CTXREG_MACCESS  1	/* constant -- except for fog enable */
-#define MGA_CTXREG_PLNWT    2	/*  */
+#define MGA_CTXREG_DSTORG   0	/* validated */
+#define MGA_CTXREG_MACCESS  1	
+#define MGA_CTXREG_PLNWT    2	
 #define MGA_CTXREG_DWGCTL    3	
 #define MGA_CTXREG_ALPHACTRL 4
 #define MGA_CTXREG_FOGCOLOR  5
@@ -138,40 +145,13 @@ typedef struct drm_mga_swap {
 #define MGA_CTXREG_TDUAL1    8
 #define MGA_CTX_SETUP_SIZE   9
 
-/* Clipper registers - these #defines aren't used.
- */
-#define MGA_CLIPREG_CXBNDRY  0
-#define MGA_CLIPREG_YTOP     1	
-#define MGA_CLIPREG_YBOT     2	
-
-/* Do we restore the server state ourselves, or let the X server do 
- * it after contention?  The contended case seems hard to find
- * in WakeupHandler.
- *
- * We need to at least *know* the X server state in order to emit
- * swapbuffers and clear-front-buffer requests.
- *
- * This state is *constant*:
- */
-#define MGA_2DREG_YDSTORG      0 
-#define MGA_2DREG_MACCESS      1
-#define MGA_2DREG_PITCH        2
-#define MGA_2DREG_DSTORG       3
-#define MGA_2DREG_DWGCTL       4
-#define MGA_2DREG_CXBNDRY      5
-#define MGA_2DREG_YTOP         6
-#define MGA_2DREG_YBOT         7
-#define MGA_2DREG_PLNWT        8	/* write mask -- must be restored */
-#define MGA_2D_SETUP_SIZE      9
-
-
 /* Each texture unit has a state:
  */
 #define MGA_TEXREG_CTL        0
 #define MGA_TEXREG_CTL2       1
 #define MGA_TEXREG_FILTER     2
 #define MGA_TEXREG_BORDERCOL  3
-#define MGA_TEXREG_ORG        4 /* insecure -- validate? */
+#define MGA_TEXREG_ORG        4 /* validated */
 #define MGA_TEXREG_ORG1       5
 #define MGA_TEXREG_ORG2       6
 #define MGA_TEXREG_ORG3       7
@@ -181,35 +161,44 @@ typedef struct drm_mga_swap {
 #define MGA_TEX_SETUP_SIZE    11
 
 
-/* Keep this small for testing
- */
-#define MGA_NR_SAREA_CLIPRECTS 2
-
-
-/* Not useful?
+/* What needs to be changed for the current vertex dma buffer?
  */
 #define MGASAREA_NEW_CONTEXT    0x1
 #define MGASAREA_NEW_TEX0       0x2
 #define MGASAREA_NEW_TEX1       0x4
 #define MGASAREA_NEW_PIPE       0x8
-#define MGASAREA_NEW_2D_CONTEXT 0x10 /* does it ever happen? */
 
 
+/* Keep this small for testing
+ */
+#define MGA_NR_SAREA_CLIPRECTS 2
 
-typedef struct _drm_mga_sarea {
-   	unsigned int ServerState[MGA_2D_SETUP_SIZE];
+/* Upto 128 regions.  Minimum region size of 256k.
+ */
+#define MGA_NR_TEX_REGIONS 128
+#define MGA_MIN_LOG_TEX_GRANULARITY 18
+
+typedef struct {
+   unsigned char next, prev;	
+   unsigned char in_use;	
+   int age;			
+} mgaTexRegion;
+
+typedef struct 
+{
    	unsigned int ContextState[MGA_CTX_SETUP_SIZE];
-   	unsigned int Tex0State[MGA_TEX_SETUP_SIZE];
-   	unsigned int Tex1State[MGA_TEX_SETUP_SIZE];
+   	unsigned int TexState[2][MGA_TEX_SETUP_SIZE];
    	unsigned int WarpPipe;
    	unsigned int dirty;
 
    	unsigned int nbox;
    	xf86drmClipRectRec boxes[MGA_NR_SAREA_CLIPRECTS];
 
-   	int CtxOwner;		/* kernel doesn't touch from here down */
-   	int TexOwner;
-} drm_mga_sarea_t;
+	/* kernel doesn't touch from here down */
+   	int ctxOwner;		
+	mgaTexRegion texList[MGA_NR_TEX_REGIONS+1];
+	int texAge;	                            
+} drm_mga_sarea_t;	
 
 
  

@@ -33,7 +33,9 @@
 #define __NO_VERSION__
 #include "drmP.h"
 #include "mga_drv.h"
+#include "mga_dma.h"
 #include "linux/un.h"
+
 
 int mga_addbufs_agp(struct inode *inode, struct file *filp, unsigned int cmd,
 		    unsigned long arg)
@@ -110,6 +112,7 @@ int mga_addbufs_agp(struct inode *inode, struct file *filp, unsigned int cmd,
    entry->buf_size   = size;
    entry->page_order = page_order;
    offset = 0;
+
    
    while(entry->buf_count < count) {
       buf = &entry->buflist[entry->buf_count];
@@ -128,6 +131,10 @@ int mga_addbufs_agp(struct inode *inode, struct file *filp, unsigned int cmd,
       buf->pending = 0;
       init_waitqueue_head(&buf->dma_wait);
       buf->pid = 0;
+
+      buf->dev_private = drm_alloc(sizeof(drm_mga_buf_priv_t), DRM_MEM_BUFS);
+      
+
 #if DRM_DMA_HISTOGRAM
       buf->time_queued = 0;
       buf->time_dispatched = 0;

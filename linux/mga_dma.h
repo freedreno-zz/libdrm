@@ -1,6 +1,31 @@
 #ifndef MGA_DMA_H
 #define MGA_DMA_H
 
+#include "mga_drm_public.h"
+
+
+/* Isn't this fun.  This has to be fixed asap by emitting primary
+ * dma commands in the 'do_dma' ioctl.
+ */
+typedef struct {
+	int dma_type;
+
+   	unsigned int ContextState[MGA_CTX_SETUP_SIZE];
+   	unsigned int TexState[2][MGA_TEX_SETUP_SIZE];
+   	unsigned int WarpPipe;
+   	unsigned int dirty;
+
+   	unsigned int nbox;
+   	xf86drmClipRectRec boxes[MGA_NR_SAREA_CLIPRECTS];
+
+} drm_mga_buf_priv_t;
+
+
+#define MGA_DMA_GENERAL 0
+#define MGA_DMA_VERTEX  1
+#define MGA_DMA_SETUP   2
+#define MGA_DMA_ILOAD   3
+
 
 #define DWGREG0 	0x1c00
 #define DWGREG0_END 	0x1dff
@@ -40,18 +65,40 @@
   }						\
 }while (0)
 
-/* Not used for emitting state, as we assume the state will always fit 
- * in a single buffer.  
- *
- * For clip/swap -- choose a maximum number of cliprects so that a single
- * buffer is always sufficient?
- *
- * For vertex cliprects -- ???
+
+
+/* Primary buffer versions of above -- pretty similar really.
  */
-#define CHECK_OVERFLOW(length) do {		\
-   if (buf->total - buf->used < length * 4)	\
-	mga_prim_overflow(dev);			\
-}while(0)
+#define PRIMLOCALS	u8 tempIndex[4]; u32 *dma_ptr; u32 phys_head; \
+			int outcount, num_dwords
+
+#define PRIMRESET(dev_priv) do {				\
+	dev_priv->prim_num_dwords = 0;				\
+   	dev_priv->current_dma_ptr = dev_priv->prim_head;	\
+} while (0)
+	
+#define	PRIMGETPTR(dev_priv) do {		\
+	dma_ptr = dev_priv->current_dma_ptr;	\
+	phys_head = dev_priv->prim_phys_head;	\
+	num_dwords = dev_priv->prim_num_dwords;	\
+	outcount = 0;				\
+} while (0)
+
+#define PRIMADVANCE(dev_priv)	do {		\
+	dev_priv->prim_num_dwords = num_dwords;	\
+	dev_priv->current_dma_ptr = dma_ptr;	\
+} while (0)
+
+#define PRIMOUTREG(reg, val) do {		\
+	tempIndex[outcount]=ADRINDEX(reg);	\
+	dma_ptr[1+outcount] = val;		\
+	if( ++outcount == 4) {			\
+		outcount = 0;			\
+		dma_ptr[0] = *(u32 *)tempIndex;	\
+		dma_ptr+=5;			\
+		num_dwords += 5;		\
+	}					\
+}while (0)
 
 
 #endif
