@@ -34,6 +34,7 @@
 #include "drmP.h"
 #include "mga_drv.h"
 #include "mgareg_flags.h"
+#include "mga_dma.h"
 
 #include <linux/interrupt.h>	/* For task queue support */
 
@@ -45,31 +46,23 @@
 #define MGA_READ(reg)		MGA_DEREF(reg)
 #define MGA_WRITE(reg,val) 	do { MGA_DEREF(reg) = val; } while (0)
 
-#define DWGREG0 	0x1c00
-#define DWGREG0_END 	0x1dff
-#define DWGREG1		0x2c00
-#define DWGREG1_END	0x2dff
 
-#define ISREG0(r)	(r >= DWGREG0 && r <= DWGREG0_END)
-#define ADRINDEX0(r)	(u8)((r - DWGREG0) >> 2)
-#define ADRINDEX1(r)	(u8)(((r - DWGREG1) >> 2) | 0x80)
-#define ADRINDEX(r)	(ISREG0(r) ? ADRINDEX0(r) : ADRINDEX1(r)) 
-#define DMALOCALS()	u8 tempIndex[4]; u32 *dma_ptr; u32 phys_head; \
+#define PRIMLOCALS	u8 tempIndex[4]; u32 *dma_ptr; u32 phys_head; \
 			int outcount, num_dwords; unsigned long flags
 
-#define	DMAGETPTR() do {		\
+#define	PRIMGETPTR() do {		\
 dma_ptr = dev_priv->current_dma_ptr;	\
 phys_head = dev_priv->prim_phys_head;	\
 outcount = 0;				\
 num_dwords = dev_priv->prim_num_dwords; \
 } while(0)
 
-#define DMAADVANCE()	do {		\
+#define PRIMADVANCE()	do {		\
 dev_priv->prim_num_dwords = num_dwords; \
 dev_priv->current_dma_ptr = dma_ptr;	\
 } while(0);
 
-#define DMAOUTREG(reg, val) do {	\
+#define PRIMOUTREG(reg, val) do {	\
 tempIndex[outcount]=ADRINDEX(reg);	\
 dma_ptr[1+outcount] = val;		\
 if( ++outcount == 4) {			\
@@ -80,7 +73,7 @@ num_dwords += 5;			\
 }					\
 }while (0)
 
-#define CHECK_OVERFLOW(length) do {				\
+#define PRIM_CHECK_OVERFLOW(length) do {				\
 if((dev_priv->prim_max_dwords - dev_priv->prim_num_dwords) < 	\
 	length) {						\
 	mga_prim_overflow(dev);					\
@@ -89,9 +82,6 @@ if((dev_priv->prim_max_dwords - dev_priv->prim_num_dwords) < 	\
 
 #define PDEA_pagpxfer_enable 	     0x2
 #define MGA_SYNC_TAG         	     0x423f4200
-#define MGA_YDSTLEN(y,LEN)           DMAOUTREG(MGAREG_YDSTLEN,((y) << 16) | (LEN))
-#define MGA_FXBNDRY(x1,x2)           DMAOUTREG(MGAREG_FXBNDRY,((x2) << 16) | (x1))
-#define MGA_DWGCTL_EXEC(x)           DMAOUTREG(MGAREG_DWGCTL+MGAREG_MGA_EXEC,x)
 
 typedef enum {
 	TT_GENERAL,
@@ -122,7 +112,7 @@ int mga_dma_cleanup(drm_device_t *dev)
       int temp;
       
       if(dev_priv->ioremap) {
-	 temp = dev_priv->warp_mc_size + dev_priv->primary_size;
+	 temp = dev_priv->warp_ucode_size + dev_priv->primary_size;
 	 temp = ((temp + PAGE_SIZE - 1) / 
 		 PAGE_SIZE) * PAGE_SIZE;
 	 drm_ioremapfree((void *) dev_priv->ioremap, temp);
@@ -160,8 +150,8 @@ static int mga_dma_initialize(drm_device_t *dev, drm_mga_private_t *dev_priv,
    /* Scale primary size to the next page */
    dev_priv->primary_size = ((init->primary_size + PAGE_SIZE - 1) / 
 			     PAGE_SIZE) * PAGE_SIZE;
-   dev_priv->warp_mc_size = init->warp_mc_size;
-   dev_priv->type = init->type;
+   dev_priv->warp_ucode_size = init->warp_ucode_size;
+   dev_priv->chipset = init->chipset;
    dev_priv->fbOffset = init->fbOffset;
    dev_priv->backOffset = init->backOffset;
    dev_priv->depthOffset = init->depthOffset;
@@ -177,7 +167,7 @@ static int mga_dma_initialize(drm_device_t *dev, drm_mga_private_t *dev_priv,
    printk("memcpy done\n");
    prim_map = dev->maplist[init->reserved_map_idx];
    dev_priv->prim_phys_head = dev->agp->base + init->reserved_map_agpstart;
-   temp = init->warp_mc_size + dev_priv->primary_size;
+   temp = init->warp_ucode_size + dev_priv->primary_size;
    temp = ((temp + PAGE_SIZE - 1) / 
 			     PAGE_SIZE) * PAGE_SIZE;
    printk("temp : %x\n", temp);
@@ -199,14 +189,14 @@ static int mga_dma_initialize(drm_device_t *dev, drm_mga_private_t *dev_priv,
    printk("dma initialization\n");
    /* Private is now filled in, initialize the hardware */
      {
-	DMALOCALS();
+	PRIMLOCALS;
 	mga_prim_overflow(dev);
-	DMAGETPTR();
-	DMAOUTREG(MGAREG_DMAPAD, 0);
-   	DMAOUTREG(MGAREG_DMAPAD, 0);
-   	DMAOUTREG(MGAREG_DWGSYNC, 0);
-   	DMAOUTREG(MGAREG_SOFTRAP, 0);
-	DMAADVANCE();
+	PRIMGETPTR();
+	PRIMOUTREG(MGAREG_DMAPAD, 0);
+   	PRIMOUTREG(MGAREG_DMAPAD, 0);
+   	PRIMOUTREG(MGAREG_DWGSYNC, 0);
+   	PRIMOUTREG(MGAREG_SOFTRAP, 0);
+	PRIMADVANCE();
 
 	/* Poll for the first buffer to insure that
 	 * the status register will be correct
@@ -258,58 +248,121 @@ int mga_dma_init(struct inode *inode, struct file *filp,
    return retcode;
 }
 
-static void mga_dma_dispatch(drm_device_t *dev, unsigned long address,
-			     unsigned long length)
+
+#define MGA_ILOAD_CMD (DC_opcod_iload | DC_atype_rpl |          	\
+		       DC_linear_linear | DC_bltmod_bfcol |       	\
+		       (0xC << DC_bop_SHIFT) | DC_sgnzero_enable |	\
+		       DC_shftzero_enable | DC_clipdis_enable)
+
+
+static void mga_dma_dispatch_iload(drm_device_t *dev, unsigned long address,
+				   unsigned long length)
 {
    	drm_mga_private_t *dev_priv = dev->dev_private;
 	int use_agp = PDEA_pagpxfer_enable;
    	static int j = 0;
    	static int k = 0;
 	int cmd;
-   	DMALOCALS();
+	int y,h,x1,x2;
+   	PRIMLOCALS;
 
-	CHECK_OVERFLOW(20);
-   	DMAGETPTR();
-   	cmd = DC_opcod_iload |       /* image load */
-     	DC_atype_rpl |               /* raster replace mode */
-     	DC_linear_linear |           /* linear source */
-     	DC_bltmod_bfcol |            /* source data is pre-formatted color */
-     	(0xC << DC_bop_SHIFT)  |     /* use source bit op */
-     	DC_sgnzero_enable |          /* normal scanning direction */
-     	DC_shftzero_enable |         /* required for iload */
-     	DC_clipdis_enable;           /* don't use the clip rect */
+	PRIM_CHECK_OVERFLOW(20);
+   	PRIMGETPTR();
 
-      	MGA_YDSTLEN( k, 512 );       /* top to bottom */
-   	MGA_FXBNDRY( j, 511+j );     /* full width */
-   	DMAOUTREG( MGAREG_AR0, 512 * /* source pixel count */
-		  512 - 1); 
-   	DMAOUTREG( MGAREG_AR3, 0 );  /* required */
-   	DMAOUTREG( MGAREG_DMAPAD, 0);
-   	DMAOUTREG( MGAREG_DMAPAD, 0);
-   	DMAOUTREG( MGAREG_DMAPAD, 0);
-   	MGA_DWGCTL_EXEC(cmd);
-	DMAOUTREG(MGAREG_DMAPAD, 0);
-	DMAOUTREG(MGAREG_DMAPAD, 0);
-	DMAOUTREG(MGAREG_SECADDRESS, address | TT_BLIT);
-	DMAOUTREG(MGAREG_SECEND, (address + length) | use_agp);
-	DMAOUTREG(MGAREG_DMAPAD, 0);
-	DMAOUTREG(MGAREG_DMAPAD, 0);
-      	DMAOUTREG(MGAREG_DWGSYNC, 0);
-   	DMAOUTREG(MGAREG_SOFTRAP, 0);
-   	DMAADVANCE();
+	y = k;
+	h = 512;
+	PRIMOUTREG( MGAREG_YDSTLEN,((y) << 16) | (h));      
+
+	x2 = j + 511; 
+	x1 = j;
+        PRIMOUTREG( MGAREG_FXBNDRY,((x2) << 16) | (x1));
+
+   	PRIMOUTREG( MGAREG_AR0, 512 * 512 - 1);
+   	PRIMOUTREG( MGAREG_AR3, 0 );
+   	PRIMOUTREG( MGAREG_DMAPAD, 0);
+   	PRIMOUTREG( MGAREG_DMAPAD, 0);
+   	PRIMOUTREG( MGAREG_DMAPAD, 0);
+        PRIMOUTREG( MGAREG_DWGCTL+MGAREG_MGA_EXEC, MGA_ILOAD_CMD);
+	PRIMOUTREG( MGAREG_DMAPAD, 0);
+	PRIMOUTREG( MGAREG_DMAPAD, 0);
+	PRIMOUTREG( MGAREG_SECADDRESS, address | TT_BLIT);
+	PRIMOUTREG( MGAREG_SECEND, (address + length) | use_agp);
+	PRIMOUTREG( MGAREG_DMAPAD, 0);
+	PRIMOUTREG( MGAREG_DMAPAD, 0);
+      	PRIMOUTREG( MGAREG_DWGSYNC, 0);
+   	PRIMOUTREG( MGAREG_SOFTRAP, 0);
+   	PRIMADVANCE();
 
    	MGA_WRITE(MGAREG_DWGSYNC, MGA_SYNC_TAG);
    	while(MGA_READ(MGAREG_DWGSYNC) != MGA_SYNC_TAG) ;
 
-	MGA_WRITE(MGAREG_PRIMEND, (phys_head + 
-		 (num_dwords*sizeof(unsigned long))) | 
-		  use_agp);
+	MGA_WRITE(MGAREG_PRIMEND, (phys_head + num_dwords * 4) | use_agp);
 
       	k += 20;
    	j += 5;
    	if( j < 1280-512) j = 0;
    	if( k < 512) k = 0;
 }
+
+
+static void mga_dma_dispatch_vertex(drm_device_t *dev, unsigned long address,
+				    unsigned long length)
+{
+   	drm_mga_private_t *dev_priv = dev->dev_private;
+	int use_agp = PDEA_pagpxfer_enable;
+   	PRIMLOCALS;
+
+	PRIM_CHECK_OVERFLOW(20);
+   	PRIMGETPTR();
+
+	PRIMOUTREG( MGAREG_DMAPAD, 0);
+	PRIMOUTREG( MGAREG_DMAPAD, 0);
+	PRIMOUTREG( MGAREG_SECADDRESS, address | TT_VERTEX);
+	PRIMOUTREG( MGAREG_SECEND, (address + length) | use_agp);
+
+	PRIMOUTREG( MGAREG_DMAPAD, 0);
+	PRIMOUTREG( MGAREG_DMAPAD, 0);
+      	PRIMOUTREG( MGAREG_DWGSYNC, 0);
+   	PRIMOUTREG( MGAREG_SOFTRAP, 0);
+   	PRIMADVANCE();
+
+   	MGA_WRITE(MGAREG_DWGSYNC, MGA_SYNC_TAG);
+   	while(MGA_READ(MGAREG_DWGSYNC) != MGA_SYNC_TAG) ;
+
+	MGA_WRITE(MGAREG_PRIMEND, (phys_head + num_dwords * 4) | use_agp);
+}
+
+
+/* Used internally for the small buffers generated from client state
+ * information. 
+ */
+static void mga_dma_dispatch_general(drm_device_t *dev, unsigned long address,
+				    unsigned long length)
+{
+   	drm_mga_private_t *dev_priv = dev->dev_private;
+	int use_agp = PDEA_pagpxfer_enable;
+   	PRIMLOCALS;
+
+	PRIM_CHECK_OVERFLOW(20);
+   	PRIMGETPTR();
+
+	PRIMOUTREG( MGAREG_DMAPAD, 0);
+	PRIMOUTREG( MGAREG_DMAPAD, 0);
+	PRIMOUTREG( MGAREG_SECADDRESS, address | TT_VERTEX);
+	PRIMOUTREG( MGAREG_SECEND, (address + length) | use_agp);
+
+	PRIMOUTREG( MGAREG_DMAPAD, 0);
+	PRIMOUTREG( MGAREG_DMAPAD, 0);
+      	PRIMOUTREG( MGAREG_DWGSYNC, 0);
+   	PRIMOUTREG( MGAREG_SOFTRAP, 0);
+   	PRIMADVANCE();
+
+   	MGA_WRITE(MGAREG_DWGSYNC, MGA_SYNC_TAG);
+   	while(MGA_READ(MGAREG_DWGSYNC) != MGA_SYNC_TAG) ;
+
+	MGA_WRITE(MGAREG_PRIMEND, (phys_head + num_dwords * 4) | use_agp);
+}
+
 
 /* Frees dispatch lock */
 static inline void mga_dma_quiescent(drm_device_t *dev)
@@ -406,7 +459,6 @@ static void mga_dma_service(int irq, void *device, struct pt_regs *regs)
 /* Only called by mga_dma_schedule. */
 static int mga_do_dma(drm_device_t *dev, int locked)
 {
-
 	unsigned long	 address;
 	unsigned long	 length;
 	drm_buf_t	 *buf;
@@ -503,7 +555,27 @@ static int mga_do_dma(drm_device_t *dev, int locked)
 	buf->time_dispatched = get_cycles();
 #endif
 
-	mga_dma_dispatch(dev, address, length);
+
+	switch (buf->type & _DRM_DMA_TYPE_MASK) {
+	case _DRM_DMA_GENERAL:
+		mga_dma_dispatch_general(dev, address, length);
+		break;
+	case _DRM_DMA_VERTEX:
+		mga_dma_dispatch_vertex(dev, address, length);
+		break;
+/*  	case _DRM_DMA_SETUP: */
+/*  		mga_dma_dispatch_setup(dev, address, length); */
+/*  		break; */
+	case _DRM_DMA_BLIT:
+		mga_dma_dispatch_iload(dev, address, length);
+		break;
+	default:
+		printk("bad buffer type %x in dispatch\n", 
+		       buf->type & _DRM_DMA_TYPE_MASK);
+		/* panic? */
+		break;
+	}
+
 	drm_free_buffer(dev, dma->this_buffer);
 	dma->this_buffer = buf;
 

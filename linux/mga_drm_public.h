@@ -23,7 +23,8 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
  *
- * Author: Jeff Hartmann <jhartmann@precisioninsight.com>
+ * Authors: Jeff Hartmann <jhartmann@precisioninsight.com>
+ *          Keith Whitwell <keithw@precisioninsight.com>
  *
  * $XFree86$
  */
@@ -31,34 +32,38 @@
 #ifndef _MGA_DRM_PUBLIC_H_
 #define _MGA_DRM_PUBLIC_H_
 
-/* These defines must match the Xserver code */
-#define MGA_WARP_TGZ            0
-#define MGA_WARP_TGZA           1
-#define MGA_WARP_TGZAF          2
-#define MGA_WARP_TGZF           3
-#define MGA_WARP_TGZS           4
-#define MGA_WARP_TGZSA          5
-#define MGA_WARP_TGZSAF         6
-#define MGA_WARP_TGZSF          7
-#define MGA_WARP_T2GZ           8
-#define MGA_WARP_T2GZA          9
-#define MGA_WARP_T2GZAF         10
-#define MGA_WARP_T2GZF          11
-#define MGA_WARP_T2GZS          12
-#define MGA_WARP_T2GZSA         13
-#define MGA_WARP_T2GZSAF        14
-#define MGA_WARP_T2GZSF         15
+#define MGA_A  0x1		/* alpha */
+#define MGA_F  0x2		/* fog */
+#define MGA_S  0x4		/* specular */
+#define MGA_T2 0x8		/* multitexture */
 
-#define MGA_MAX_WARP_PIPES 16
+#define MGA_WARP_TGZ            0
+#define MGA_WARP_TGZA           (MGA_A)
+#define MGA_WARP_TGZF           (MGA_F)
+#define MGA_WARP_TGZFA          (MGA_F|MGA_A)
+#define MGA_WARP_TGZS           (MGA_S)
+#define MGA_WARP_TGZSA          (MGA_S|MGA_A)
+#define MGA_WARP_TGZSF          (MGA_S|MGA_F)
+#define MGA_WARP_TGZSFA         (MGA_S|MGA_F|MGA_A)
+#define MGA_WARP_T2GZ           (MGA_T2)
+#define MGA_WARP_T2GZA          (MGA_T2|MGA_A)
+#define MGA_WARP_T2GZF          (MGA_T2|MGA_F)
+#define MGA_WARP_T2GZFA         (MGA_T2|MGA_A|MGA_F)
+#define MGA_WARP_T2GZS          (MGA_T2|MGA_S)
+#define MGA_WARP_T2GZSA         (MGA_T2|MGA_S|MGA_A)
+#define MGA_WARP_T2GZSF         (MGA_T2|MGA_S|MGA_F)
+#define MGA_WARP_T2GZSFA        (MGA_T2|MGA_S|MGA_F|MGA_A)
+
+
+#define MGA_MAX_G400_PIPES 16
+#define MGA_MAX_G200_PIPES  8	/* no multitex */
+
+
+#define MGA_MAX_WARP_PIPES MGA_MAX_G400_PIPES
 
 #define MGA_CARD_TYPE_G200 1
 #define MGA_CARD_TYPE_G400 2
 
-/* Bogus values */
-
-#define MGA_X_SETUP_SIZE   16
-#define MGA_SETUP_SIZE     16
-#define MGA_TEX_SETUP_SIZE 16
 
 typedef struct _drm_mga_warp_index {
    	int installed;
@@ -76,8 +81,7 @@ typedef struct drm_mga_init {
    	int buffer_map_idx;
    	int sarea_priv_offset;
    	int primary_size;
-   	int warp_mc_size;
-   	int type;
+   	int warp_ucode_size;
    	int fbOffset;
    	int backOffset;
    	int depthOffset;
@@ -86,8 +90,12 @@ typedef struct drm_mga_init {
    	int cpp;
    	int stride;
    	int sgram;
+	int chipset;
    	mgaWarpIndex WarpIndex[MGA_MAX_WARP_PIPES];
 } drm_mga_init_t;
+
+
+
 
 typedef struct _xf86drmClipRectRec {
    	unsigned short x1;
@@ -96,65 +104,118 @@ typedef struct _xf86drmClipRectRec {
    	unsigned short y2;
 } xf86drmClipRectRec;
 
-#define _MGA_2D_DIRTY 0
-/* These aren't finals, its just what the Xserver uses */
-#define _MGA_SETUP_PITCH 0
-#define _MGA_SETUP_CXBNDRY 1
-#define _MGA_SETUP_YTOP 2
-#define _MGA_SETUP_YBOT 3
-#define _MGA_SETUP_DSTORG 4
-#define _MGA_SETUP_MACCESS 5
-#define _MGA_SETUP_PLNWT 6
-#define _MGA_SETUP_ZORG 7
-#define _MGA_SETUP_YDSTLEN 8
-#define _MGA_SETUP_YDSTORG 9
-#define _MGA_SETUP_FXBNDRY 10
-#define _MGA_SETUP_SRCORG 11
-#define _MGA_SETUP_DSTORG 12
-#define _MGA_SETUP_SGN 13
-#define _MGA_SETUP_AR0 14
-#define _MGA_SETUP_AR1 15
-#define _MGA_SETUP_AR2 16
-#define _MGA_SETUP_AR3 17
-#define _MGA_SETUP_AR4 18
-#define _MGA_SETUP_AR5 19
-#define _MGA_SETUP_AR6 20
-#define _MGA_SETUP_CXRIGHT 21
-#define _MGA_SETUP_DWGCTL 22
-#define _MGA_SETUP_XYEND 23
-#define _MGA_SETUP_XYSTRT 24
-#define _MGA_SETUP_FCOL 25
-#define _MGA_SETUP_BCOL 26
-#define _MGA_SETUP_PAT0 27
-#define _MGA_SETUP_PAT1 28
-#define _MGA_SETUP_SHIFT 29
-#define _MGA_SETUP_SRC0 30
-#define _MGA_SETUP_SRC1 31
-#define _MGA_SETUP_SRC2 32
-#define _MGA_SETUP_SRC3 33
-#define _MGA_SETUP_OPMODE 34
-#define _MGA_SETUP_WIADDR2 35
-#define _MGA_SETUP_WGETMSB 36
-#define _MGA_SETUP_WVRTXSZ 37
-#define _MGA_SETUP_WACCEPTSEQ 38
-#define _MGA_SETUP_WIADDR 39
-#define _MGA_SETUP_WMISC 40
+#define MGA_CLEAR_FRONTBUFFER 0x1
+#define MGA_CLEAR_BACKBUFFER  0x2
+#define MGA_CLEAR_DEPTHBUFFER 0x4
+
+typedef struct drm_mga_clear {
+	int clear_color;
+	int clear_depth;
+	int flags;
+} drm_mga_clear_t;
+
+typedef struct drm_mga_swap {
+	int flags;		/* not actually used? */
+} drm_mga_swap_t;
+
+
+
+/* These were context regs, but are constant under the DRI:
+ */
+#define MGA_CONST_PITCH    0	/* constant */
+#define MGA_CONST_ZORG     7	/* constant */
+
+/* Each context has a state:
+ */
+#define MGA_CTXREG_DSTORG   0	/* top of either front or backbuffer */
+#define MGA_CTXREG_MACCESS  1	/* constant -- except for fog enable */
+#define MGA_CTXREG_PLNWT    2	/*  */
+#define MGA_CTXREG_DWGCTL    3	
+#define MGA_CTXREG_ALPHACTRL 4
+#define MGA_CTXREG_FOGCOLOR  5
+#define MGA_CTXREG_WFLAG     6
+#define MGA_CTXREG_TDUAL0    7
+#define MGA_CTXREG_TDUAL1    8
+#define MGA_CTX_SETUP_SIZE   9
+
+/* Clipper registers - these #defines aren't used.
+ */
+#define MGA_CLIPREG_CXBNDRY  0
+#define MGA_CLIPREG_YTOP     1	
+#define MGA_CLIPREG_YBOT     2	
+
+/* Do we restore the server state ourselves, or let the X server do 
+ * it after contention?  The contended case seems hard to find
+ * in WakeupHandler.
+ *
+ * We need to at least *know* the X server state in order to emit
+ * swapbuffers and clear-front-buffer requests.
+ *
+ * This state is *constant*:
+ */
+#define MGA_2DREG_YDSTORG      0 
+#define MGA_2DREG_MACCESS      1
+#define MGA_2DREG_PITCH        2
+#define MGA_2DREG_DSTORG       3
+#define MGA_2DREG_DWGCTL       4
+#define MGA_2DREG_CXBNDRY      5
+#define MGA_2DREG_YTOP         6
+#define MGA_2DREG_YBOT         7
+#define MGA_2DREG_PLNWT        8	/* write mask -- must be restored */
+#define MGA_2D_SETUP_SIZE      9
+
+
+/* Each texture unit has a state:
+ */
+#define MGA_TEXREG_CTL        0
+#define MGA_TEXREG_CTL2       1
+#define MGA_TEXREG_FILTER     2
+#define MGA_TEXREG_BORDERCOL  3
+#define MGA_TEXREG_ORG        4 /* insecure -- validate? */
+#define MGA_TEXREG_ORG1       5
+#define MGA_TEXREG_ORG2       6
+#define MGA_TEXREG_ORG3       7
+#define MGA_TEXREG_ORG4       8
+#define MGA_TEXREG_WIDTH      9
+#define MGA_TEXREG_HEIGHT     10
+#define MGA_TEX_SETUP_SIZE    11
+
+
+/* Keep this small for testing
+ */
+#define MGA_NR_SAREA_CLIPRECTS 2
+
+
+/* Not useful?
+ */
+#define MGASAREA_NEW_CONTEXT    0x1
+#define MGASAREA_NEW_TEX0       0x2
+#define MGASAREA_NEW_TEX1       0x4
+#define MGASAREA_NEW_PIPE       0x8
+#define MGASAREA_NEW_2D_CONTEXT 0x10 /* does it ever happen? */
 
 
 
 typedef struct _drm_mga_sarea {
-   	int CtxOwner;
+   	unsigned int ServerState[MGA_2D_SETUP_SIZE];
+   	unsigned int ContextState[MGA_CTX_SETUP_SIZE];
+   	unsigned int Tex0State[MGA_TEX_SETUP_SIZE];
+   	unsigned int Tex1State[MGA_TEX_SETUP_SIZE];
+   	unsigned int WarpPipe;
+   	unsigned int dirty;
+
+   	unsigned int nbox;
+   	xf86drmClipRectRec boxes[MGA_NR_SAREA_CLIPRECTS];
+
+   	int CtxOwner;		/* kernel doesn't touch from here down */
    	int TexOwner;
-   	unsigned long ServerState[MGA_X_SETUP_SIZE];
-   	unsigned long ContextState[MGA_SETUP_SIZE];
-   	unsigned long Tex0State[MGA_TEX_SETUP_SIZE];
-   	unsigned long Tex1State[MGA_TEX_SETUP_SIZE];
-   	int WarpPipe;
-   	unsigned long NewState;
-   	int nbox;
-   	xf86drmClipRectRec boxes[256];
 } drm_mga_sarea_t;
 
+
+ 
+
 #define DRM_IOCTL_MGA_INIT    DRM_IOW( 0x40, drm_mga_init_t)
+#define DRM_IOCTL_MGA_SWAP    DRM_IOW( 0x40, drm_mga_swap_t)
+#define DRM_IOCTL_MGA_CLEAR   DRM_IOW( 0x40, drm_mga_clear_t)
 
 #endif

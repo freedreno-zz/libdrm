@@ -38,8 +38,8 @@ typedef struct _drm_mga_private {
    	int buffer_map_idx;
    	drm_mga_sarea_t *sarea_priv;
    	int primary_size;
-   	int warp_mc_size;
-   	int type;
+   	int warp_ucode_size;
+   	int chipset;
    	int fbOffset;
    	int backOffset;
    	int depthOffset;
@@ -48,7 +48,8 @@ typedef struct _drm_mga_private {
    	int cpp;
    	int stride;
    	int sgram;
-   	mgaWarpIndex WarpIndex[MGA_MAX_WARP_PIPES];
+	int use_agp;
+   	mgaWarpIndex WarpIndex[MGA_MAX_G400_PIPES];
    	__volatile__ unsigned long softrap_age;
    	atomic_t dispatch_lock;
    	void *ioremap;
@@ -57,6 +58,15 @@ typedef struct _drm_mga_private {
    	u32 prim_phys_head;
    	int prim_num_dwords;
    	int prim_max_dwords;
+
+
+	/* Some validated register values:
+	 */	
+	u32 frontOrg;
+	u32 backOrg;
+	u32 depthOrg;
+	u32 mAccess;
+
 } drm_mga_private_t;
 
 				/* mga_drv.c */
@@ -197,6 +207,7 @@ extern int  mga_addmap(struct inode *inode, struct file *filp,
 #define MGAREG_STATUS 				0x1e14
 #define MGAREG_STENCIL				0x2cc8
 #define MGAREG_STENCILCTL 			0x2ccc
+#define MGAREG_TDUALSTAGE0 			0x2cf8
 #define MGAREG_TDUALSTAGE1 			0x2cfc
 #define MGAREG_TEST0 				0x1e48
 #define MGAREG_TEXBORDERCOL 			0x2c5c

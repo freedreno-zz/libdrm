@@ -259,7 +259,7 @@ static int mga_takedown(drm_device_t *dev)
 		drm_agp_mem_t *nexte;
 		
 				/* Remove AGP resources, but leave dev->agp
-                                   intact until r128_cleanup is called. */
+                                   intact until cleanup is called. */
 		for (entry = dev->agp->memory; entry; entry = nexte) {
 			nexte = entry->next;
 			if (entry->bound) drm_unbind_agp(entry->memory);

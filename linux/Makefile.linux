@@ -71,8 +71,8 @@ GAMMAHEADERS=   gamma_drv.h $(DRMHEADERS)
 TDFXOBJS=       tdfx_drv.o tdfx_context.o
 TDFXHEADERS=    tdfx_drv.h $(DRMHEADERS)
 
-MGAOBJS=	mga_drv.o mga_dma.o mga_bufs.o
-MGAHEADERS=	mga_drv.h $(DRMHEADERS)
+MGAOBJS=	mga_drv.o mga_dma.o mga_bufs.o mga_state.o mga_clear.o
+MGAHEADERS=	mga_drv.h mga_drm_public.h $(DRMHEADERS)
 
 R128OBJS=	r128_drv.o r128_context.o
 R128HEADERS=	r128_drv.h $(DRMHEADERS)

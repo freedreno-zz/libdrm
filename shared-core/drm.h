@@ -162,9 +162,11 @@ typedef enum drm_dma_flags {	      /* These values *MUST* match xf86drm.h */
 	_DRM_DMA_LARGER_OK    = 0x40, /* Larger-than-requested buffers ok    */
 			  /* Specially for MGA, but not limited to use by it */
 
+	_DRM_DMA_TYPE_MASK    = 0x0F000000,
+	_DRM_DMA_GENERAL      = 0x00000000, /* the default type */
 	_DRM_DMA_VERTEX	      = 0x01000000, 
 	_DRM_DMA_SETUP	      = 0x02000000,
-	_DRM_DMA_BLIT	      = 0x04000000
+	_DRM_DMA_BLIT	      = 0x03000000
 } drm_dma_flags_t;
 
 typedef struct drm_buf_desc {
