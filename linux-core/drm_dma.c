@@ -114,6 +114,7 @@ void DRM(dma_takedown)(drm_device_t *dev)
 	dev->dma = NULL;
 }
 
+
 #if DRM_DMA_HISTOGRAM
 /* This is slow, but is useful for debugging. */
 int DRM(histogram_slot)(unsigned long count)
@@ -219,6 +220,8 @@ void DRM(reclaim_buffers)(drm_device_t *dev, pid_t pid)
 		}
 	}
 }
+
+#if __HAVE_OLD_DMA
 
 #if 0
 int drm_context_switch(drm_device_t *dev, int old, int new)
@@ -560,5 +563,7 @@ int DRM(dma_get_buffers)(drm_device_t *dev, drm_dma_t *dma)
 	}
 	return 0;
 }
+
+#endif
 
 #endif

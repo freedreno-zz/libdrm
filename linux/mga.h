@@ -42,6 +42,5 @@
 #define __HAVE_CTX_BITMAP	1
 
 #define __HAVE_DMA		1
-#define __HAVE_DMA_IRQ		1
 
 #endif

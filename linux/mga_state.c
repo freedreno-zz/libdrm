@@ -598,7 +598,7 @@ static void mga_dma_dispatch_clear( drm_device_t *dev,
 	ADVANCE_DMA();
 #endif
 
-	mga_do_dma_flush( dev_priv );
+	FLUSH_DMA();
 }
 
 static void mga_dma_dispatch_swap( drm_device_t *dev )
@@ -611,7 +611,8 @@ static void mga_dma_dispatch_swap( drm_device_t *dev )
 	u32 pitch = dev_priv->front_pitch / dev_priv->fb_cpp;
 	int i;
 	DMA_LOCALS;
-	DRM_DEBUG( "%s\n", __FUNCTION__ );
+	DRM_DEBUG( "%s:\n", __FUNCTION__ );
+	DRM_DEBUG( "   head = 0x%06x\n", *dev_priv->prim.head );
 
 	BEGIN_DMA( 2 + nbox );
 
@@ -645,7 +646,13 @@ static void mga_dma_dispatch_swap( drm_device_t *dev )
 
 	ADVANCE_DMA();
 
-	mga_do_dma_flush( dev_priv );
+	sarea_priv->last_frame.head = dev_priv->prim.tail;
+	sarea_priv->last_frame.wrap = dev_priv->prim.last_wrap;
+
+	DRM_DEBUG( "   tail = 0x%06x\n", dev_priv->prim.tail );
+	DRM_DEBUG( "   wrap = 0x%06x\n", dev_priv->prim.last_wrap );
+
+	FLUSH_DMA();
 }
 
 static void mga_dma_dispatch_vertex( drm_device_t *dev, drm_buf_t *buf )
@@ -695,65 +702,56 @@ static void mga_dma_dispatch_vertex( drm_device_t *dev, drm_buf_t *buf )
 		mga_freelist_put( dev, buf );
 	}
 
-	mga_do_dma_flush( dev_priv );
+	FLUSH_DMA();
 }
 
-
-
-#if 0
-
-
-static void mga_dma_dispatch_indices(drm_device_t * dev,
-				     drm_buf_t * buf,
-				     unsigned int start, unsigned int end)
+static void mga_dma_dispatch_indices( drm_device_t *dev, drm_buf_t *buf,
+				      unsigned int start, unsigned int end )
 {
 	drm_mga_private_t *dev_priv = dev->dev_private;
 	drm_mga_buf_priv_t *buf_priv = buf->dev_private;
 	drm_mga_sarea_t *sarea_priv = dev_priv->sarea_priv;
-	unsigned int address = (unsigned int) buf->bus_address;
-	int use_agp = PDEA_pagpxfer_enable;
+	u32 address = (u32) buf->bus_address;
 	int i = 0;
-	PRIMLOCALS;
+	DMA_LOCALS;
+	DRM_INFO( __FUNCTION__ ": buf=%d start=%d end=%d\n",
+		  buf->idx, start, end );
 
-	if (start != end) {
-		/* WARNING: if you change any of the state functions verify
-		 * these numbers (Overestimating this doesn't hurt).
-		 */
+	if ( start != end ) {
 		buf_priv->dispatched = 1;
-		PRIM_OVERFLOW(dev, dev_priv,
-			      (MAX_STATE_SIZE + (5 * MGA_NR_SAREA_CLIPRECTS)));
-		mgaEmitState(dev_priv);
+
+		MGA_EMIT_STATE( dev_priv, sarea_priv->dirty );
 
 		do {
-			if (i < sarea_priv->nbox) {
-				mgaEmitClipRect(dev_priv,
-						&sarea_priv->boxes[i]);
+			if ( i < sarea_priv->nbox ) {
+				mga_emit_clip_rect( dev_priv,
+						    &sarea_priv->boxes[i] );
 			}
 
-			PRIMGETPTR(dev_priv);
-			PRIMOUTREG(MGAREG_DMAPAD, 0);
-			PRIMOUTREG(MGAREG_DMAPAD, 0);
-			PRIMOUTREG(MGAREG_SETUPADDRESS,
-				   ((address + start) |
-				    SETADD_mode_vertlist));
-			PRIMOUTREG(MGAREG_SETUPEND,
-				   ((address + end) | use_agp));
-/*				   ((address + start + 12) | use_agp)); */
-			PRIMADVANCE(dev_priv);
-		} while (++i < sarea_priv->nbox);
+			BEGIN_DMA( 1 );
+
+			DMA_BLOCK( MGA_DMAPAD,		0x00000000,
+				   MGA_DMAPAD,		0x00000000,
+				   MGA_SETUPADDRESS,	address + start,
+				   MGA_SETUPEND,	((address + end) |
+							 MGA_PAGPXFER) );
+
+			ADVANCE_DMA();
+		} while ( ++i < sarea_priv->nbox );
 	}
-	if (buf_priv->discard) {
-		if (buf_priv->dispatched == 1)
-			AGEBUF(dev_priv, buf_priv);
+
+	if ( buf_priv->discard ) {
+		if ( buf_priv->dispatched == 1 )
+			AGE_BUFFER( buf_priv );
+		buf->pending = 0;
+		buf->used = 0;
 		buf_priv->dispatched = 0;
-		mga_freelist_put(dev, buf);
+
+		mga_freelist_put( dev, buf );
 	}
+
+	FLUSH_DMA();
 }
-
-
-
-#endif
-
 
 /* This copies a 64 byte aligned agp region to the frambuffer with a
  * standard blit, the ioctl needs to do checking.
@@ -766,6 +764,9 @@ static void mga_dma_dispatch_iload( drm_device_t *dev, drm_buf_t *buf,
 	u32 srcorg = buf->bus_address | MGA_SRCACC_AGP | MGA_SRCMAP_SYSMEM;
 	u32 y2;
 	DMA_LOCALS;
+
+	DRM_DEBUG( "%s: buf=%d used=%d\n",
+		   __FUNCTION__, buf->idx, buf->used );
 
 	y2 = length / 64;
 
@@ -793,11 +794,12 @@ static void mga_dma_dispatch_iload( drm_device_t *dev, drm_buf_t *buf,
 
 	ADVANCE_DMA();
 
-#if 0
 	AGE_BUFFER( buf_priv );
-#endif
+
 	buf_priv->discard = 1;
 	mga_freelist_put( dev, buf );
+
+	FLUSH_DMA();
 }
 
 
@@ -871,12 +873,6 @@ int mga_dma_vertex( struct inode *inode, struct file *filp,
 			     (drm_mga_vertex_t *)arg,
 			     sizeof(vertex) ) )
 		return -EFAULT;
-#if 0
-	/* HACK: oh well...
-	 */
-	if ( mga_do_wait_for_idle( dev_priv ) < 0 )
-		return -EBUSY;
-#endif
 
 	buf = dma->buflist[vertex.idx];
 	buf_priv = buf->dev_private;
@@ -886,10 +882,8 @@ int mga_dma_vertex( struct inode *inode, struct file *filp,
 
 	if ( !mga_verify_state( dev_priv ) ) {
 		if ( vertex.discard ) {
-#if 0
 			if ( buf_priv->dispatched == 1 )
-				AGEBUF(dev_priv, buf_priv);
-#endif
+				AGE_BUFFER( buf_priv );
 			buf_priv->dispatched = 0;
 			mga_freelist_put( dev, buf );
 		}
@@ -901,58 +895,44 @@ int mga_dma_vertex( struct inode *inode, struct file *filp,
 	return 0;
 }
 
-
-
-#if 0
-
-
-int mga_indices(struct inode *inode, struct file *filp,
-		unsigned int cmd, unsigned long arg)
+int mga_dma_indices( struct inode *inode, struct file *filp,
+		     unsigned int cmd, unsigned long arg )
 {
 	drm_file_t *priv = filp->private_data;
 	drm_device_t *dev = priv->dev;
-	drm_mga_private_t *dev_priv =
-	    (drm_mga_private_t *) dev->dev_private;
+	drm_mga_private_t *dev_priv = dev->dev_private;
 	drm_device_dma_t *dma = dev->dma;
 	drm_buf_t *buf;
 	drm_mga_buf_priv_t *buf_priv;
 	drm_mga_indices_t indices;
+	DRM_INFO( __FUNCTION__ "\n" );
 
-	if (copy_from_user(&indices,
-			   (drm_mga_indices_t *)arg, sizeof(indices)))
+	LOCK_TEST_WITH_RETURN( dev );
+
+	if ( copy_from_user( &indices,
+			     (drm_mga_indices_t *)arg,
+			     sizeof(indices) ) )
 		return -EFAULT;
-
-	if (!_DRM_LOCK_IS_HELD(dev->lock.hw_lock->lock)) {
-		DRM_ERROR("mga_indices called without lock held\n");
-		return -EINVAL;
-	}
 
 	buf = dma->buflist[indices.idx];
 	buf_priv = buf->dev_private;
 
 	buf_priv->discard = indices.discard;
 
-	if (!mgaVerifyState(dev_priv)) {
-		if (indices.discard) {
-			if (buf_priv->dispatched == 1)
-				AGEBUF(dev_priv, buf_priv);
+	if ( !mga_verify_state( dev_priv ) ) {
+		if ( indices.discard ) {
+			if ( buf_priv->dispatched == 1 )
+				AGE_BUFFER( buf_priv );
 			buf_priv->dispatched = 0;
-			mga_freelist_put(dev, buf);
+			mga_freelist_put( dev, buf );
 		}
 		return -EINVAL;
 	}
 
-	mga_dma_dispatch_indices(dev, buf, indices.start, indices.end);
+	mga_dma_dispatch_indices( dev, buf, indices.start, indices.end );
 
-	PRIMUPDATE(dev_priv);
-	mga_flush_write_combine();
-	mga_dma_schedule(dev, 1);
 	return 0;
 }
-
-
-#endif
-
 
 int mga_dma_iload( struct inode *inode, struct file *filp,
 		   unsigned int cmd, unsigned long arg )
@@ -970,12 +950,9 @@ int mga_dma_iload( struct inode *inode, struct file *filp,
 
 	if ( copy_from_user( &iload, (drm_mga_iload_t *)arg, sizeof(iload) ) )
 		return -EFAULT;
-#if 1
-	/* HACK: oh well...
-	 */
+
 	if ( mga_do_wait_for_idle( dev_priv ) < 0 )
 		return -EBUSY;
-#endif
 
 	buf = dma->buflist[iload.idx];
 	buf_priv = buf->dev_private;

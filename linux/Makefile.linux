@@ -136,7 +136,7 @@ endif
 ifeq ($(AGP),1)
 MODCFLAGS += -DCONFIG_AGP -DCONFIG_AGP_MODULE
 #DRMOBJS += agpsupport.o
-MODS += mga.o gamma.o
+MODS += mga.o
 #ifeq ($(MACHINE),i386)
 #MODS += i810.o
 #endif
@@ -211,7 +211,7 @@ dristat: dristat.c
 
 gamma_drv.o: gamma_drv.c
 	$(CC) $(MODCFLAGS) -DEXPORT_SYMTAB -I$(TREE) -c $< -o $@
-gamma.o: $(GAMMAOBJS) 
+gamma.o: $(GAMMAOBJS)
 	$(LD) -r $^ -o $@
 
 tdfx_drv.o: tdfx_drv.c

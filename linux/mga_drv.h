@@ -64,13 +64,15 @@ typedef struct drm_mga_primary_buffer {
 	u32 tail;
 	int space;
 
-	unsigned long status_page;
 	volatile u32 *status;
 
 	u32 last_flush;
+	u32 last_wrap;
+	__volatile__ long wrap_flag;
+
 	u32 high_mark;
 
-	spinlock_t tail_lock;
+	spinlock_t flush_lock;
 	spinlock_t list_lock;
 } drm_mga_primary_buffer_t;
 
@@ -173,19 +175,10 @@ extern int  mga_dma_swap( struct inode *inode, struct file *filp,
 			  unsigned int cmd, unsigned long arg );
 extern int  mga_dma_vertex( struct inode *inode, struct file *filp,
 			    unsigned int cmd, unsigned long arg );
+extern int  mga_dma_indices( struct inode *inode, struct file *filp,
+			     unsigned int cmd, unsigned long arg );
 extern int  mga_dma_iload( struct inode *inode, struct file *filp,
 			   unsigned int cmd, unsigned long arg );
-
-#if 0
-extern int  mga_clear_bufs( struct inode *inode, struct file *filp,
-			    unsigned int cmd, unsigned long arg );
-extern int  mga_swap_bufs( struct inode *inode, struct file *filp,
-			   unsigned int cmd, unsigned long arg );
-extern int  mga_iload( struct inode *inode, struct file *filp,
-		       unsigned int cmd, unsigned long arg );
-extern int  mga_indices( struct inode *inode, struct file *filp,
-			 unsigned int cmd, unsigned long arg );
-#endif
 
 				/* mga_warp.c */
 extern int mga_warp_install_microcode( drm_device_t *dev );
@@ -201,13 +194,6 @@ extern int mga_warp_init( drm_device_t *dev );
 #define MGA_READ( reg )		MGA_DEREF( reg )
 #define MGA_WRITE( reg, val )	do { MGA_DEREF( reg ) = val; } while (0)
 
-typedef enum {
-	TT_GENERAL,
-	TT_BLIT,
-	TT_VECTOR,
-	TT_VERTEX
-} transferType_t;
-
 
 #define DWGREG0 	0x1c00
 #define DWGREG0_END 	0x1dff
@@ -218,104 +204,6 @@ typedef enum {
 #define DMAREG0(r)	(u8)((r - DWGREG0) >> 2)
 #define DMAREG1(r)	(u8)(((r - DWGREG1) >> 2) | 0x80)
 #define DMAREG(r)	(ISREG0(r) ? DMAREG0(r) : DMAREG1(r))
-
-#define MGA_NUM_PRIM_BUFS 	8
-
-#define PRIMLOCALS	u8 tempIndex[4]; u32 *dma_ptr; u32 phys_head; \
-			int outcount, num_dwords
-
-#define PRIM_OVERFLOW(dev, dev_priv, length) do {			   \
-	drm_mga_prim_buf_t *tmp_buf =					   \
- 		dev_priv->prim_bufs[dev_priv->current_prim_idx];	   \
-	if( test_bit(MGA_BUF_NEEDS_OVERFLOW, &tmp_buf->buffer_status)) {   \
- 		mga_advance_primary(dev);				   \
- 		mga_dma_schedule(dev, 1);				   \
-		tmp_buf = dev_priv->prim_bufs[dev_priv->current_prim_idx]; \
- 	} else if( tmp_buf->max_dwords - tmp_buf->num_dwords < length ||   \
- 	           tmp_buf->sec_used > MGA_DMA_BUF_NR/2) {		   \
-		set_bit(MGA_BUF_FORCE_FIRE, &tmp_buf->buffer_status);	   \
- 		mga_advance_primary(dev);				   \
- 		mga_dma_schedule(dev, 1);				   \
-		tmp_buf = dev_priv->prim_bufs[dev_priv->current_prim_idx]; \
-	}								   \
-	if(MGA_VERBOSE)							   \
-		DRM_DEBUG("PRIMGETPTR in %s\n", __FUNCTION__);		   \
-	dma_ptr = tmp_buf->current_dma_ptr;				   \
-	num_dwords = tmp_buf->num_dwords;				   \
-	phys_head = tmp_buf->phys_head;					   \
-	outcount = 0;							   \
-} while(0)
-
-#define PRIMGETPTR(dev_priv) do {					\
-	drm_mga_prim_buf_t *tmp_buf =					\
-		dev_priv->prim_bufs[dev_priv->current_prim_idx];	\
-	if(MGA_VERBOSE)							\
-		DRM_DEBUG("PRIMGETPTR in %s\n", __FUNCTION__);		\
-	dma_ptr = tmp_buf->current_dma_ptr;				\
-	num_dwords = tmp_buf->num_dwords;				\
-	phys_head = tmp_buf->phys_head;					\
-	outcount = 0;							\
-} while(0)
-
-#define PRIMPTR(prim_buf) do {					\
-	if(MGA_VERBOSE)						\
-		DRM_DEBUG("PRIMPTR in %s\n", __FUNCTION__);	\
-	dma_ptr = prim_buf->current_dma_ptr;			\
-	num_dwords = prim_buf->num_dwords;			\
-	phys_head = prim_buf->phys_head;			\
-	outcount = 0;						\
-} while(0)
-
-#define PRIMFINISH(prim_buf) do {				\
-	if (MGA_VERBOSE) {					\
-		DRM_DEBUG( "PRIMFINISH in %s\n", __FUNCTION__);	\
-                if (outcount & 3)				\
-                      DRM_DEBUG(" --- truncation\n");	        \
-        }							\
-	prim_buf->num_dwords = num_dwords;			\
-	prim_buf->current_dma_ptr = dma_ptr;			\
-} while(0)
-
-#define PRIMADVANCE(dev_priv)	do {				\
-drm_mga_prim_buf_t *tmp_buf = 					\
-	dev_priv->prim_bufs[dev_priv->current_prim_idx];	\
-	if (MGA_VERBOSE) {					\
-		DRM_DEBUG("PRIMADVANCE in %s\n", __FUNCTION__);	\
-                if (outcount & 3)				\
-                      DRM_DEBUG(" --- truncation\n");	\
-        }							\
-	tmp_buf->num_dwords = num_dwords;      			\
-	tmp_buf->current_dma_ptr = dma_ptr;    			\
-} while (0)
-
-#define PRIMUPDATE(dev_priv)	do {					\
-	drm_mga_prim_buf_t *tmp_buf =					\
-		dev_priv->prim_bufs[dev_priv->current_prim_idx];	\
-	tmp_buf->sec_used++;						\
-} while (0)
-
-#define AGEBUF(dev_priv, buf_priv)	do {				\
-	drm_mga_prim_buf_t *tmp_buf =					\
-		dev_priv->prim_bufs[dev_priv->current_prim_idx];	\
-	buf_priv->my_freelist->age = tmp_buf->prim_age;			\
-} while (0)
-
-
-#define PRIMOUTREG(reg, val) do {					\
-	tempIndex[outcount]=ADRINDEX(reg);				\
-	dma_ptr[1+outcount] = val;					\
-	if (MGA_VERBOSE)						\
-		DRM_DEBUG("   PRIMOUT %d: 0x%x -- 0x%x\n",		\
-		       num_dwords + 1 + outcount, ADRINDEX(reg), val);	\
-	if( ++outcount == 4) {						\
-		outcount = 0;						\
-		dma_ptr[0] = *(unsigned long *)tempIndex;		\
-		dma_ptr+=5;						\
-		num_dwords += 5;					\
-	}								\
-}while (0)
-
-
 
 
 
@@ -349,10 +237,10 @@ do {									\
  * Primary DMA command stream
  */
 
-#define MGA_VERBOSE	0
+#define MGA_VERBOSE	( 0 /*dev_priv->prim.space < 0x100*/ )
 
-#define DMA_LOCALS	unsigned int write; volatile u8 *prim;		\
-			unsigned long flags;
+#define DMA_LOCALS	unsigned int write; volatile u8 *prim;
+
 #define DMA_BLOCK_SIZE	(5 * sizeof(u32))
 
 #define BEGIN_DMA( n )							\
@@ -363,7 +251,8 @@ do {									\
 		DRM_INFO( "   space=0x%x req=0x%x\n",			\
 			  dev_priv->prim.space, (n) * DMA_BLOCK_SIZE );	\
 	}								\
-	if ( dev_priv->prim.space < (int)((n) * DMA_BLOCK_SIZE) ) {	\
+	if ( dev_priv->prim.space < (int)((n) * DMA_BLOCK_SIZE +	\
+					  MGA_DMA_SOFTRAP_SIZE) ) {	\
 		mga_do_dma_wrap( dev_priv );				\
 	}								\
 	prim = dev_priv->prim.start;					\
@@ -382,15 +271,26 @@ do {									\
 
 #define ADVANCE_DMA()							\
 do {									\
-	dev_priv->prim.space -= (write - dev_priv->prim.tail);		\
-	spin_lock_irqsave( &dev_priv->prim.tail_lock, flags );		\
 	dev_priv->prim.tail = write;					\
-	spin_unlock_irqrestore( &dev_priv->prim.tail_lock, flags );	\
 	if ( MGA_VERBOSE ) {						\
 		DRM_INFO( "ADVANCE_DMA() tail=0x%05x sp=0x%x\n",	\
 			  write, dev_priv->prim.space );		\
 	}								\
 } while (0)
+
+#if 0
+#define FLUSH_DMA()							\
+do {									\
+	if ( dev_priv->prim.space  < (int)(128 * DMA_BLOCK_SIZE +	\
+					   MGA_DMA_SOFTRAP_SIZE) ) {	\
+		mga_do_dma_wrap( dev_priv );				\
+	} else {							\
+		mga_do_dma_flush( dev_priv );				\
+	}								\
+} while (0)
+#else
+#define FLUSH_DMA()	mga_do_dma_flush( dev_priv );
+#endif
 
 /* Never use this, always use DMA_BLOCK(...) for primary DMA output.
  */
