@@ -124,12 +124,10 @@ int DRM(addmap)( struct inode *inode, struct file *filp,
 			dev->lock.hw_lock = map->handle; /* Pointer to lock */
 		}
 		break;
-#if defined(CONFIG_AGP) || defined(CONFIG_AGP_MODULE)
-#if 1 /* __MUST_HAVE_AGP GH: WTF??? */
+#if __REALLY_HAVE_AGP
 	case _DRM_AGP:
 		map->offset = map->offset + dev->agp->base;
 		break;
-#endif
 #endif
 	default:
 		DRM(free)( map, sizeof(*map), DRM_MEM_MAPS );
