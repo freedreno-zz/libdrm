@@ -2583,6 +2583,9 @@ static void radeon_driver_open_helper(drm_device_t *dev, drm_file_t *filp_priv)
 void radeon_driver_register_fns(struct drm_device *dev)
 {	
 	dev->dev_priv_size = sizeof(drm_radeon_buf_priv_t);
+	dev->fn_tbl.preinit = radeon_preinit;
+	dev->fn_tbl.postinit = radeon_postinit;
+	dev->fn_tbl.postcleanup = radeon_postcleanup;
 	dev->fn_tbl.prerelease = radeon_driver_prerelease;
 	dev->fn_tbl.pretakedown = radeon_driver_pretakedown;
 	dev->fn_tbl.open_helper = radeon_driver_open_helper;

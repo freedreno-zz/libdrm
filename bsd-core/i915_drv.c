@@ -28,14 +28,13 @@
  *
  */
 
+#define DRM_DEV_NAME "drmsub"
+
 #include "i915.h"
 #include "drmP.h"
 #include "drm.h"
 #include "i915_drm.h"
 #include "i915_drv.h"
-#if __REALLY_HAVE_SG
-#include "ati_pcigart.h"
-#endif
 
 #include "drm_agpsupport.h"
 #include "drm_auth.h"
@@ -52,7 +51,6 @@
 #include "drm_pci.h"
 #include "drm_vm.h"
 #include "drm_sysctl.h"
-#include "drm_scatter.h"
 
 #ifdef __FreeBSD__
 DRIVER_MODULE(DRIVER_NAME, agp, DRM(driver), DRM(devclass), 0, 0);

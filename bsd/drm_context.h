@@ -341,6 +341,7 @@ int DRM(rmctx)( DRM_IOCTL_ARGS )
 	if ( ctx.handle != DRM_KERNEL_CONTEXT ) {
 		if (dev->fn_tbl.context_dtor)
 			dev->fn_tbl.context_dtor(dev, ctx.handle);
+
 		DRM(ctxbitmap_free)( dev, ctx.handle );
 	}
 

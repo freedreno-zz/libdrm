@@ -521,8 +521,8 @@ typedef struct drm_vbl_sig {
 struct drm_device;
 
 struct drm_driver_fn {
-	int (*preinit)(struct drm_device *);
-	int (*postinit)(struct drm_device *);
+	int (*preinit)(struct drm_device *, unsigned long flags);
+	int (*postinit)(struct drm_device *, unsigned long flags);
 	void (*prerelease)(struct drm_device *, struct file *filp);
 	void (*pretakedown)(struct drm_device *);
 	int (*postcleanup)(struct drm_device *);
@@ -544,6 +544,7 @@ struct drm_driver_fn {
 	int (*freelist_put)(struct drm_device *dev, drm_freelist_t *bl, drm_buf_t *buf);
 	int (*freelist_destroy)(drm_freelist_t *bl);
 };
+
 /**
  * DRM device structure.
  */
@@ -706,6 +707,7 @@ extern int           DRM(lock)(struct inode *inode, struct file *filp,
 extern int           DRM(unlock)(struct inode *inode, struct file *filp,
 				 unsigned int cmd, unsigned long arg);
 extern int           DRM(fb_loaded);
+extern struct file_operations DRM(fops);
 
 				/* Device support (drm_fops.h) */
 extern int	     DRM(open_helper)(struct inode *inode, struct file *filp,

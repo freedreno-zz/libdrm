@@ -76,10 +76,10 @@ static struct file_operations DRM(stub_fops) = {
 	.open  = DRM(stub_open)
 };
 
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,0)
 static int drm_hotplug (struct class_device *dev, char **envp, int num_envp,
 				char *buffer, int buffer_size)
 {
-	drm_device_t *ddev;
 	struct pci_dev *pdev;
 	char *scratch;
 	int i = 0;
@@ -128,7 +128,8 @@ static int drm_hotplug (struct class_device *dev, char **envp, int num_envp,
 		return -ENOMEM;
 	++length;
 	scratch += length;
-	
+#if 0	
+	drm_device_t *ddev;
 	ddev = pci_get_drvdata(pdev);
 	if (ddev) {
 		envp[i++] = scratch;
@@ -137,11 +138,12 @@ static int drm_hotplug (struct class_device *dev, char **envp, int num_envp,
 		if ((buffer_size - length <= 0) || (i >= num_envp))
 			return -ENOMEM;
 	}
+#endif	
 	envp[i] = 0;
-	DRM_DEBUG(" - ok\n");
 	
 	return 0;
 }
+#endif
 
 /**
  * Get a device minor number.
@@ -177,6 +179,7 @@ static int DRM(stub_getminor)(const char *name, struct file_operations *fops,
 							&DRM(stub_list)[i].dev_root);
 			(*DRM(stub_info).info_count)++;
 			DRM_DEBUG("info count increased %d\n", *DRM(stub_info).info_count);
+			
 			return i;
 		}
 	}
@@ -301,7 +304,10 @@ int DRM(stub_register)(const char *name, struct file_operations *fops,
 				DRM_DEBUG("info_register failed, deregistered everything\n");
 			}
 			DRM_DEBUG("info_register failed\n");
+			return ret2;
 		}
+		class_simple_device_add(DRM(stub_info).drm_class, 
+				MKDEV(DRM_MAJOR, ret2), &dev->pdev->dev, "card%d", ret2);
 		return ret2;
 	}
 	return -1;
@@ -317,6 +323,7 @@ int DRM(stub_register)(const char *name, struct file_operations *fops,
 int DRM(stub_unregister)(int minor)
 {
 	DRM_DEBUG("%d\n", minor);
+	class_simple_device_remove(MKDEV(DRM_MAJOR, minor));
 	if (DRM(stub_info).info_unregister)
 		return DRM(stub_info).info_unregister(minor);
 	return -1;

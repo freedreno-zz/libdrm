@@ -912,7 +912,7 @@ void DRM(driver_irq_uninstall)( drm_device_t *dev ) {
 
 extern drm_ioctl_desc_t DRM(ioctls)[];
 
-static int gamma_driver_preinit(drm_device_t *dev)
+static int gamma_driver_preinit(drm_device_t *dev, unsigned long flags)
 {
 	/* reset the finish ioctl */
 	DRM(ioctls)[DRM_IOCTL_NR(DRM_IOCTL_FINISH)].func = DRM(finish);
