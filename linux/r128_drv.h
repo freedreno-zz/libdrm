@@ -63,8 +63,6 @@ typedef struct drm_r128_private {
    	drm_r128_freelist_t *head;
    	drm_r128_freelist_t *tail;
 
-	unsigned int submit_age;
-
 	int usec_timeout;
 	int is_pci;
 
@@ -346,8 +344,9 @@ extern int  r128_context_switch_complete(drm_device_t *dev, int new);
 
 #define R128_MAX_USEC_TIMEOUT	100000	/* 100 ms */
 
-#define R128_MAX_VB_AGE		0xffffffff
-#define R128_VB_AGE_REG		R128_GUI_SCRATCH_REG0
+#define R128_LAST_FRAME_REG		R128_GUI_SCRATCH_REG0
+#define R128_LAST_VB_REG		R128_GUI_SCRATCH_REG1
+#define R128_MAX_VB_AGE			0xffffffff
 
 
 #define R128_BASE(reg)		((unsigned long)(dev_priv->mmio->handle))

@@ -477,14 +477,18 @@ static void r128_cce_dispatch_swap( drm_device_t *dev )
 		ADVANCE_RING();
 	}
 
-#if 0
+	/* Increment the frame counter.  The client-side 3D driver must
+	 * throttle the framerate by waiting for this value before
+	 * performing the swapbuffer ioctl.
+	 */
+	dev_priv->sarea_priv->last_frame++;
+
 	BEGIN_RING( 2 );
 
-	OUT_RING( CCE_PACKET0( R128_SWAP_AGE_REG, 0 ) );
-	OUT_RING( r128ctx->lastSwapAge );
+	OUT_RING( CCE_PACKET0( R128_LAST_FRAME_REG, 0 ) );
+	OUT_RING( dev_priv->sarea_priv->last_frame );
 
 	ADVANCE_RING();
-#endif
 }
 
 static void r128_cce_dispatch_vertex( drm_device_t *dev,
@@ -552,8 +556,8 @@ static void r128_cce_dispatch_vertex( drm_device_t *dev,
 		/* Emit the vertex buffer age */
 		BEGIN_RING( 2 );
 
-		OUT_RING( CCE_PACKET0( R128_VB_AGE_REG, 0 ) );
-		OUT_RING( dev_priv->submit_age );
+		OUT_RING( CCE_PACKET0( R128_LAST_VB_REG, 0 ) );
+		OUT_RING( dev_priv->sarea_priv->last_dispatch );
 
 		ADVANCE_RING();
 
@@ -561,10 +565,10 @@ static void r128_cce_dispatch_vertex( drm_device_t *dev,
 
 		/* FIXME: Check dispatched field */
 		buf_priv->dispatched = 0;
-		buf_priv->age = dev_priv->submit_age;
+		buf_priv->age = dev_priv->sarea_priv->last_dispatch;
 	}
 
-	dev_priv->submit_age++;
+	dev_priv->sarea_priv->last_dispatch++;
 
 #if 0
 	if ( dev_priv->submit_age == R128_MAX_VB_AGE ) {

@@ -134,8 +134,15 @@ typedef struct drm_r128_sarea {
 	unsigned int vertsize;
 	unsigned int vc_format;
 
+	/* The current cliprects, or a subset thereof.
+	 */
 	drm_clip_rect_t boxes[R128_NR_SAREA_CLIPRECTS];
 	unsigned int nbox;
+
+	/* Counters for client-side throttling of rendering clients.
+	 */
+	unsigned int last_frame;
+	unsigned int last_dispatch;
 
 	drm_tex_region_t tex_list[R128_NR_TEX_HEAPS][R128_NR_TEX_REGIONS+1];
 	int tex_age[R128_NR_TEX_HEAPS];

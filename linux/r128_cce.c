@@ -490,8 +490,11 @@ static int r128_do_init_cce( drm_device_t *dev, drm_r128_init_t *init )
 	dev_priv->ring.tail_mask =
 		(dev_priv->ring.size / sizeof(u32)) - 1;
 
-	dev_priv->submit_age = 0;
-	R128_WRITE( R128_VB_AGE_REG, dev_priv->submit_age );
+	dev_priv->sarea_priv->last_frame = 0;
+	R128_WRITE( R128_LAST_FRAME_REG, dev_priv->sarea_priv->last_frame );
+
+	dev_priv->sarea_priv->last_dispatch = 0;
+	R128_WRITE( R128_LAST_VB_REG, dev_priv->sarea_priv->last_dispatch );
 
 	r128_cce_init_ring_buffer( dev );
 	r128_cce_load_microcode( dev_priv );
@@ -555,6 +558,8 @@ int r128_cce_start( struct inode *inode, struct file *filp,
 		DRM_ERROR( "r128_cce_start called without lock held\n" );
 		return -EINVAL;
 	}
+	if ( !dev_priv )
+		return -EINVAL;
 
 	if ( dev_priv->cce_running || dev_priv->cce_mode == R128_PM4_NONPM4 )
 		return 0;
@@ -577,6 +582,8 @@ int r128_cce_stop( struct inode *inode, struct file *filp,
 		DRM_ERROR( "r128_cce_stop called without lock held\n" );
 		return -EINVAL;
 	}
+	if ( !dev_priv )
+		return -EINVAL;
 
 	if ( !dev_priv->cce_running || dev_priv->cce_mode == R128_PM4_NONPM4 )
 		return 0;
@@ -609,6 +616,8 @@ int r128_cce_reset( struct inode *inode, struct file *filp,
 		DRM_ERROR( "r128_cce_reset called without lock held\n" );
 		return -EINVAL;
 	}
+	if ( !dev_priv )
+		return -EINVAL;
 
 	if ( !dev_priv->cce_running || dev_priv->cce_mode == R128_PM4_NONPM4 )
 		return 0;
@@ -686,7 +695,7 @@ drm_buf_t *r128_freelist_get( drm_device_t *dev )
 	}
 
 	for ( t = 0 ; t < dev_priv->usec_timeout ; t++ ) {
-		u32 done_age = R128_READ( R128_VB_AGE_REG );
+		u32 done_age = R128_READ( R128_LAST_VB_REG );
 
 		for ( i = 0 ; i < dma->buf_count ; i++ ) {
 			buf = dma->buflist[i];
