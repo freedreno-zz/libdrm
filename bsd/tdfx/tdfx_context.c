@@ -1,8 +1,8 @@
 /* tdfx_context.c -- IOCTLs for tdfx contexts -*- c -*-
  * Created: Thu Oct  7 10:50:22 1999 by faith@precisioninsight.com
- * Revised: Sat Oct  9 23:39:56 1999 by faith@precisioninsight.com
  *
  * Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
+ * Copyright 2000 VA Linux Systems, Inc., Sunnyvale, California.
  * All Rights Reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -24,8 +24,9 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
  * 
- * $PI$
- * $XFree86$
+ * Authors:
+ *    Rickard E. (Rik) Faith <faith@valinux.com>
+ *    Daryll Strauss <daryll@valinux.com>
  *
  */
 
@@ -36,9 +37,7 @@ extern drm_ctx_t tdfx_res_ctx;
 
 static int tdfx_alloc_queue(drm_device_t *dev)
 {
-	static int context = 0;
-
-	return ++context;	/* Should this reuse contexts in the future? */
+	return drm_ctxbitmap_next(dev);
 }
 
 int tdfx_context_switch(drm_device_t *dev, int old, int new)
@@ -135,6 +134,12 @@ tdfx_addctx(dev_t kdev, u_long cmd, caddr_t data, int flags, struct proc *p)
 		ctx.handle = tdfx_alloc_queue(dev);
 	}
 	DRM_DEBUG("%d\n", ctx.handle);
+	if (ctx.handle == -1) {
+		DRM_DEBUG("Not enough free contexts.\n");
+				/* Should this return -EBUSY instead? */
+		return ENOMEM;
+	}
+
 	*(drm_ctx_t *) data = ctx;
 	return 0;
 }
@@ -189,13 +194,11 @@ tdfx_newctx(dev_t kdev, u_long cmd, caddr_t data, int flags, struct proc *p)
 int
 tdfx_rmctx(dev_t kdev, u_long cmd, caddr_t data, int flags, struct proc *p)
 {
+	drm_device_t	*dev	= kdev->si_drv1;
 	drm_ctx_t	ctx;
 
 	ctx = *(drm_ctx_t *) data;
-	DRM_DEBUG("%d\n", ctx.handle);
-				/* This is currently a noop because we
-				   don't reuse context values.  Perhaps we
-				   should? */
+	drm_ctxbitmap_free(dev, ctx.handle);
 	
 	return 0;
 }
