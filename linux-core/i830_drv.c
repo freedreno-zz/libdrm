@@ -32,7 +32,6 @@
  *    Keith Whitwell <keith@tungstengraphics.com>
  */
 
-#include <linux/config.h>
 #include "i830.h"
 #include "drmP.h"
 #include "drm.h"

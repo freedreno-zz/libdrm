@@ -49,6 +49,7 @@ typedef struct _drm_i830_ring_buffer{
 	int head;
 	int tail;
 	int space;
+	drm_local_map_t map;
 } drm_i830_ring_buffer_t;
 
 struct mem_block {
@@ -60,9 +61,9 @@ struct mem_block {
 };
 
 typedef struct drm_i830_private {
-	drm_map_t *sarea_map;
-	drm_map_t *buffer_map;
-	drm_map_t *mmio_map;
+	drm_local_map_t *sarea;
+	drm_local_map_t *buffer_map;
+	drm_local_map_t *mmio_map;
 
 	drm_i830_sarea_t *sarea_priv;
    	drm_i830_ring_buffer_t ring;
@@ -106,7 +107,6 @@ typedef struct drm_i830_private {
 extern int  i830_dma_schedule(drm_device_t *dev, int locked);
 extern int  i830_dma_cleanup(drm_device_t *dev);
 extern void i830_dma_quiescent(drm_device_t *dev);
-extern void i830_reclaim_buffers( DRMFILE filp);
 
 extern int i830_getbuf( DRM_IOCTL_ARGS );
 extern int i830_getbuf2( DRM_IOCTL_ARGS );
@@ -139,14 +139,10 @@ extern void i830_mem_takedown( struct mem_block **heap );
 extern void i830_mem_release( drm_device_t *dev, 
 			      DRMFILE filp, struct mem_block *heap );
 
-#define I830_BASE(reg)		((unsigned long) dev_priv->mmio_map->handle)
-#define I830_ADDR(reg)		(I830_BASE(reg) + reg)
-#define I830_DEREF(reg)		*(__volatile__ unsigned int *)I830_ADDR(reg)
-#define I830_READ(reg)		readl((volatile u32 *)I830_ADDR(reg))
-#define I830_WRITE(reg,val) 	writel(val, (volatile u32 *)I830_ADDR(reg))
-#define I830_DEREF16(reg)	*(__volatile__ u16 *)I830_ADDR(reg)
-#define I830_READ16(reg) 	I830_DEREF16(reg)
-#define I830_WRITE16(reg,val)	do { I830_DEREF16(reg) = val; } while (0)
+#define I830_READ(reg)          DRM_READ32(dev_priv->mmio_map, reg)
+#define I830_WRITE(reg,val)     DRM_WRITE32(dev_priv->mmio_map, reg, val)
+#define I830_READ16(reg) 	DRM_READ16(dev_priv->mmio_map, reg)
+#define I830_WRITE16(reg,val)	DRM_WRITE16(dev_priv->mmio_map, reg, val)
 
 
 

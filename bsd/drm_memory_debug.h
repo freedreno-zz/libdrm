@@ -266,10 +266,12 @@ void *DRM(ioremap_nocache)(unsigned long offset, unsigned long size)
 }
 #endif
 
-void DRM(ioremapfree)(drm_local_map_t *map)
+void DRM(ioremapfree)(drm_device_t *dev, drm_local_map_t *map)
 {
 	int alloc_count;
 	int free_count;
+
+	(void) dev;
 
 	if (map->handle == NULL)
 		DRM_MEM_ERROR(DRM_MEM_MAPPINGS,

@@ -172,8 +172,11 @@ static inline void *drm_ioremap_nocache(unsigned long offset, unsigned long size
 	return ioremap_nocache(offset, size);
 }
 
-static inline void drm_ioremapfree(void *pt, unsigned long size, drm_device_t *dev)
+static inline void drm_ioremapfree(drm_device_t *dev, drm_local_map_t *map)
 {
+	void *pt = map->handle;
+	unsigned long size = map->size;
+
 #if __REALLY_HAVE_AGP && defined(VMAP_4_ARGS)
 	/*
 	 * This is a bit ugly.  It would be much cleaner if the DRM API would use separate
@@ -325,9 +328,9 @@ void *DRM(ioremap_nocache)(unsigned long offset, unsigned long size, drm_device_
 }
 
 /** Wrapper around drm_iounmap() */
-void DRM(ioremapfree)(void *pt, unsigned long size, drm_device_t *dev)
+void DRM(ioremapfree)(drm_device_t *dev, drm_local_map_t *map)
 {
-	drm_ioremapfree(pt, size, dev);
+	drm_ioremapfree(map->handle, map->size, dev);
 }
 
 #if __REALLY_HAVE_AGP

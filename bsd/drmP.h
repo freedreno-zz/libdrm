@@ -110,7 +110,7 @@ typedef struct drm_file drm_file_t;
 #define DRM_IOREMAPFREE(map, dev)						\
 	do {								\
 		if ( (map)->handle && (map)->size )			\
-			DRM(ioremapfree)( map );			\
+			DRM(ioremapfree)( dev, map );			\
 	} while (0)
 
 				/* Internal types and structures */
@@ -405,7 +405,7 @@ extern void	     *DRM(realloc)(void *oldpt, size_t oldsize, size_t size,
 				   int area);
 extern void	     DRM(free)(void *pt, size_t size, int area);
 extern void	     *DRM(ioremap)(drm_device_t *dev, drm_local_map_t *map);
-extern void	     DRM(ioremapfree)(drm_local_map_t *map);
+extern void	     DRM(ioremapfree)(drm_device_t *dev, drm_local_map_t *map);
 
 #if __REALLY_HAVE_AGP
 extern agp_memory    *DRM(alloc_agp)(int pages, u32 type);

@@ -318,8 +318,10 @@ void *DRM(ioremap_nocache)(unsigned long offset, unsigned long size, drm_device_
 	return pt;
 }
 
-void DRM(ioremapfree)(void *pt, unsigned long size, drm_device_t *dev)
+void DRM(ioremapfree)( drm_device_t *dev, drm_local_map_t *map)
 {
+	void *pt = map->handle;
+	unsigned long size = map->size;
 	int alloc_count;
 	int free_count;
 

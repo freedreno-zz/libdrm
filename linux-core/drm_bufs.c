@@ -282,7 +282,7 @@ int DRM(rmmap)(struct inode *inode, struct file *filp,
 				DRM_DEBUG("mtrr_del = %d\n", retcode);
 			}
 #endif
-			DRM(ioremapfree)(map->handle, map->size, dev);
+			DRM(ioremapfree)(dev, map);
 			break;
 		case _DRM_SHM:
 			vfree(map->handle);

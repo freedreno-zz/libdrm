@@ -207,6 +207,39 @@ static int i830_dma_get_buffer(drm_device_t *dev, drm_i830_dma_t *d,
 	return 0;
 }
 
+
+
+
+/* Must be called with the lock held -- this is actually "compat" code
+ */
+void i830_reclaim_buffers( drm_device_t *dev, DRMFILE filp )
+{
+	drm_device_dma_t *dma = dev->dma;
+	int		 i;
+
+	if (!dma) return;
+      	if (!dev->dev_private) return;
+	if (!dma->buflist) return;
+
+        i830_dma_quiescent(dev);
+
+	for (i = 0; i < dma->buf_count; i++) {
+	   	drm_buf_t *buf = dma->buflist[ i ];
+	   	drm_i830_buf_priv_t *buf_priv = buf->dev_private;
+	   
+		if (buf->filp == filp && buf_priv) {
+			int used = cmpxchg(buf_priv->in_use, I830_BUF_CLIENT, 
+					   I830_BUF_FREE);
+
+			if (used == I830_BUF_CLIENT)
+				DRM_DEBUG("reclaimed from client\n");
+		   	if(buf_priv->currently_mapped == I830_BUF_MAPPED)
+		     		buf_priv->currently_mapped = I830_BUF_UNMAPPED;
+		}
+	}
+}
+
+
 static void i830_dma_dispatch_vertex(drm_device_t *dev, 
 				     drm_buf_t *buf,
 				     int discard,

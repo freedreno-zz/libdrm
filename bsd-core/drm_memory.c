@@ -91,8 +91,10 @@ void *DRM(ioremap)( drm_device_t *dev, drm_local_map_t *map )
 #endif
 }
 
-void DRM(ioremapfree)(drm_local_map_t *map)
+void DRM(ioremapfree)(drm_device_t *dev, drm_local_map_t *map)
 {
+	(void) dev;
+
 #ifdef __FreeBSD__
 	pmap_unmapdev((vm_offset_t) map->handle, map->size);
 #elif defined(__NetBSD__)

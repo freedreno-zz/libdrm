@@ -37,29 +37,13 @@
 #include "drm.h"
 #include "i830_drm.h"
 #include "i830_drv.h"
-#include <linux/interrupt.h>	/* For task queue support */
-#include <linux/pagemap.h>     /* For FASTCALL on unlock_page() */
-#include <linux/delay.h>
-
-#ifdef DO_MUNMAP_4_ARGS
-#define DO_MUNMAP(m, a, l)	do_munmap(m, a, l, 1)
-#else
-#define DO_MUNMAP(m, a, l)	do_munmap(m, a, l)
-#endif
 
 #define I830_BUF_FREE		2
 #define I830_BUF_CLIENT		1
 #define I830_BUF_HARDWARE      	0
 
-#define I830_BUF_UNMAPPED 0
-#define I830_BUF_MAPPED   1
 
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,4,2)
-#define down_write down
-#define up_write up
-#endif
-
-static inline void i830_print_status_page(drm_device_t *dev)
+static void i830_print_status_page(drm_device_t *dev)
 {
    	drm_device_dma_t *dma = dev->dma;
       	drm_i830_private_t *dev_priv = dev->dev_private;
@@ -74,6 +58,8 @@ static inline void i830_print_status_page(drm_device_t *dev)
    	for(i = 9; i < dma->buf_count + 9; i++) {
 	   	DRM_DEBUG( "buffer status idx : %d used: %d\n", i - 9, temp[i]);
 	}
+	
+	(void) temp;		/* quieten compiler */
 }
 
 
@@ -84,7 +70,7 @@ static int i830_dma_get_buffer2(drm_device_t *dev,
 	drm_buf_t *buf;
 	drm_i830_buf_priv_t *buf_priv;
    	drm_device_dma_t *dma = dev->dma;
-	int i, ret;
+	int i;
    
 	/* Never use the last dma buffer, hw errata.
 	 */
@@ -115,6 +101,8 @@ int i830_dma_cleanup(drm_device_t *dev)
 {
 	drm_device_dma_t *dma = dev->dma;
 
+	(void) dma;
+
 #if _HAVE_DMA_IRQ
 	/* Make sure interrupts are disabled here because the uninstall ioctl
 	 * may not have been called from userspace and after dev_private
@@ -124,18 +112,16 @@ int i830_dma_cleanup(drm_device_t *dev)
 #endif
 
 	if (dev->dev_private) {
-		int i;
 	   	drm_i830_private_t *dev_priv = 
 	     		(drm_i830_private_t *) dev->dev_private;
 	   
 	   	if (dev_priv->ring.virtual_start) {
-		   	DRM(ioremapfree)((void *) dev_priv->ring.virtual_start,
-					 dev_priv->ring.Size, dev);
+		   	DRM_IOREMAPFREE( &dev_priv->ring.map, dev);
 		}
 	   	if (dev_priv->hw_status_page) {
-			pci_free_consistent(dev->pdev, PAGE_SIZE,
-					    dev_priv->hw_status_page,
-					    dev_priv->dma_status_page);
+			DRM(pci_free)(dev, PAGE_SIZE,
+				      dev_priv->hw_status_page,
+				      dev_priv->dma_status_page);
 		   	/* Need to rewrite hardware status page */
 		   	I830_WRITE(0x02080, 0x1ffff000);
 		}
@@ -144,47 +130,45 @@ int i830_dma_cleanup(drm_device_t *dev)
 			 DRM_MEM_DRIVER);
 	   	dev->dev_private = NULL;
 
+#if COMPAT
 		for (i = 0; i < dma->buf_count; i++) {
 			drm_buf_t *buf = dma->buflist[ i ];
 			drm_i830_buf_priv_t *buf_priv = buf->dev_private;
 			if ( buf_priv->kernel_virtual && buf->total )
 				DRM(ioremapfree)(buf_priv->kernel_virtual, buf->total, dev);
 		}
+#endif
 	}
    	return 0;
 }
 
-int i830_wait_ring(drm_device_t *dev, int n, const char *caller)
+
+int i830_wait_ring( drm_device_t *dev, int n, const char *caller )
 {
    	drm_i830_private_t *dev_priv = dev->dev_private;
    	drm_i830_ring_buffer_t *ring = &(dev_priv->ring);
-   	int iters = 0;
-   	unsigned long end;
-	unsigned int last_head = I830_READ(LP_RING + RING_HEAD) & HEAD_ADDR;
+	u32 last_head = I830_READ(LP_RING + RING_HEAD) & HEAD_ADDR;
+	int i;
 
-	end = jiffies + (HZ*3);
-   	while (ring->space < n) {	
-	   	ring->head = I830_READ(LP_RING + RING_HEAD) & HEAD_ADDR;
+	for ( i = 0 ; i < 3000 ; i++ ) {
+		u32 head = I830_READ(LP_RING + RING_HEAD) & HEAD_ADDR;
+
 	   	ring->space = ring->head - (ring->tail+8);
 		if (ring->space < 0) ring->space += ring->Size;
-	   
-		if (ring->head != last_head) {
-			end = jiffies + (HZ*3);
-			last_head = ring->head;
-		}
-	  
-	   	iters++;
-		if(time_before(end, jiffies)) {
-		   	DRM_ERROR("space: %d wanted %d\n", ring->space, n);
-		   	DRM_ERROR("lockup\n");
-		   	goto out_wait_ring;
-		}
-		udelay(1);
+		if ( ring->space > n )
+			return 0;
+		
 		dev_priv->sarea_priv->perf_boxes |= I830_BOX_WAIT;
+
+		if (head != last_head)
+			i = 0;
+
+		last_head = head;
+
+		DRM_UDELAY( 1 );
 	}
 
-out_wait_ring:   
-   	return iters;
+	return DRM_ERR(EBUSY);
 }
 
 static void i830_kernel_lost_context(drm_device_t *dev)
@@ -205,7 +189,7 @@ static int i830_freelist_init(drm_device_t *dev, drm_i830_private_t *dev_priv)
 {
       	drm_device_dma_t *dma = dev->dma;
    	int my_idx = 36;
-   	u32 *hw_status = (u32 *)(dev_priv->hw_status_page + my_idx);
+   	u32 *hw_status = (u32 *)((unsigned long)dev_priv->hw_status_page + my_idx);
    	int i;
 
    	if(dma->buf_count > 1019) {
@@ -223,8 +207,10 @@ static int i830_freelist_init(drm_device_t *dev, drm_i830_private_t *dev_priv)
 
 	   	*buf_priv->in_use = I830_BUF_FREE;
 
+#if COMPAT
 		buf_priv->kernel_virtual = DRM(ioremap)(buf->bus_address, 
 							buf->total, dev);
+#endif
 	}
 	return 0;
 }
@@ -233,26 +219,16 @@ static int i830_dma_initialize(drm_device_t *dev,
 			       drm_i830_private_t *dev_priv,
 			       drm_i830_init_t *init)
 {
-	struct list_head *list;
-
    	memset(dev_priv, 0, sizeof(drm_i830_private_t));
 
-	list_for_each(list, &dev->maplist->head) {
-		drm_map_list_t *r_list = list_entry(list, drm_map_list_t, head);
-		if( r_list->map &&
-		    r_list->map->type == _DRM_SHM &&
-		    r_list->map->flags & _DRM_CONTAINS_LOCK ) {
-			dev_priv->sarea_map = r_list->map;
- 			break;
- 		}
- 	}
-
-	if(!dev_priv->sarea_map) {
+	DRM_GETSAREA();
+	if(!dev_priv->sarea) {
+		DRM_ERROR("can not find sarea!\n");
 		dev->dev_private = (void *)dev_priv;
 		i830_dma_cleanup(dev);
-		DRM_ERROR("can not find sarea!\n");
 		return DRM_ERR(EINVAL);
 	}
+
 	DRM_FIND_MAP( dev_priv->mmio_map, init->mmio_offset );
 	if(!dev_priv->mmio_map) {
 		dev->dev_private = (void *)dev_priv;
@@ -269,18 +245,23 @@ static int i830_dma_initialize(drm_device_t *dev,
 	}
 
 	dev_priv->sarea_priv = (drm_i830_sarea_t *)
-		((u8 *)dev_priv->sarea_map->handle +
+		((u8 *)dev_priv->sarea->handle +
 		 init->sarea_priv_offset);
 
    	dev_priv->ring.Start = init->ring_start;
    	dev_priv->ring.End = init->ring_end;
    	dev_priv->ring.Size = init->ring_size;
+   	dev_priv->ring.tail_mask = dev_priv->ring.Size - 1;
+		
+	dev_priv->ring.map.offset = init->ring_start;
+	dev_priv->ring.map.size = init->ring_size;
+	dev_priv->ring.map.type = 0;
+	dev_priv->ring.map.flags = 0;
+	dev_priv->ring.map.mtrr = 0;
 
-   	dev_priv->ring.virtual_start = DRM(ioremap)(dev->agp->base + 
-						    init->ring_start, 
-						    init->ring_size, dev);
+	DRM_IOREMAP( &dev_priv->ring.map, dev );
 
-   	if (dev_priv->ring.virtual_start == NULL) {
+   	if (dev_priv->ring.map.handle == NULL) {
 		dev->dev_private = (void *) dev_priv;
 	   	i830_dma_cleanup(dev);
 	   	DRM_ERROR("can not ioremap virtual address for"
@@ -288,7 +269,7 @@ static int i830_dma_initialize(drm_device_t *dev,
 	   	return DRM_ERR(ENOMEM);
 	}
 
-   	dev_priv->ring.tail_mask = dev_priv->ring.Size - 1;
+   	dev_priv->ring.virtual_start = dev_priv->ring.map.handle;
    
 	dev_priv->w = init->w;
 	dev_priv->h = init->h;
@@ -318,8 +299,12 @@ static int i830_dma_initialize(drm_device_t *dev,
 
    	/* Program Hardware Status Page */
    	dev_priv->hw_status_page =
-		pci_alloc_consistent(dev->pdev, PAGE_SIZE,
-						&dev_priv->dma_status_page);
+		DRM(pci_alloc)( dev, 
+				PAGE_SIZE, 
+				PAGE_SIZE, /* align? */
+				~0,        /* maxaddr? */
+				&dev_priv->dma_status_page );
+
    	if (!dev_priv->hw_status_page) {
 		dev->dev_private = (void *)dev_priv;
 		i830_dma_cleanup(dev);
@@ -347,8 +332,7 @@ static int i830_dma_initialize(drm_device_t *dev,
 
 int i830_dma_init( DRM_IOCTL_ARGS )
 {
-   	drm_file_t *priv = filp->private_data;
-   	drm_device_t *dev = priv->dev;
+	DRM_DEVICE;
    	drm_i830_private_t *dev_priv;
    	drm_i830_init_t init;
    	int retcode = 0;
@@ -440,14 +424,15 @@ static void i830EmitTexVerified( drm_device_t *dev, unsigned int *code )
 
 		BEGIN_LP_RING( I830_TEX_SETUP_SIZE );
 
+#if 0
 		OUT_RING( code[I830_TEXREG_MI0] ); /* TM0LI */
 		OUT_RING( code[I830_TEXREG_MI1] ); /* TM0S0 */
 		OUT_RING( code[I830_TEXREG_MI2] ); /* TM0S1 */
 		OUT_RING( code[I830_TEXREG_MI3] ); /* TM0S2 */
 		OUT_RING( code[I830_TEXREG_MI4] ); /* TM0S3 */
 		OUT_RING( code[I830_TEXREG_MI5] ); /* TM0S4 */
-		
-		for ( i = 6 ; i < I830_TEX_SETUP_SIZE ; i++ ) {
+#endif	
+		for ( i = 0 ; i < I830_TEX_SETUP_SIZE ; i++ ) {
 			tmp = code[i];
 			OUT_RING( tmp ); 
 			j++;
@@ -459,7 +444,7 @@ static void i830EmitTexVerified( drm_device_t *dev, unsigned int *code )
 		ADVANCE_LP_RING();
 	}
 	else
-		printk("rejected packet %x\n", code[0]);
+		DRM_ERROR("rejected packet %x\n", code[0]);
 }
 
 static void i830EmitTexBlendVerified( drm_device_t *dev, 
@@ -473,6 +458,11 @@ static void i830EmitTexBlendVerified( drm_device_t *dev,
 
 	if (!num)
 		return;
+
+	if (!num > I830_TEXBLEND_SIZE) {
+		DRM_ERROR("num: %d\n", num);
+		return;
+	}
 
 	BEGIN_LP_RING( num + 1 );
 
@@ -866,6 +856,16 @@ static void i830_dma_dispatch_clear( drm_device_t *dev, int flags,
 			ADVANCE_LP_RING();
 		}
 	}
+
+	dev_priv->sarea_priv->last_enqueue = dev_priv->counter++;
+
+	BEGIN_LP_RING(4);
+	OUT_RING( CMD_STORE_DWORD_IDX );
+	OUT_RING( 20 );
+	OUT_RING( dev_priv->counter );
+	OUT_RING( 0 );
+	ADVANCE_LP_RING();
+
 }
 
 static int i830_dma_dispatch_blit( drm_device_t *dev,
@@ -913,8 +913,9 @@ static int i830_dma_dispatch_blit( drm_device_t *dev,
 		return DRM_ERR(EINVAL);
 #endif	
 
+	dev_priv->sarea_priv->last_enqueue = dev_priv->counter++;
 
-	BEGIN_LP_RING( 8 );
+	BEGIN_LP_RING( 12 );
 	OUT_RING( CMD );
 	OUT_RING( BR13 );
 	OUT_RING( (blit->dst_y << 16) | blit->dst_x );
@@ -923,6 +924,10 @@ static int i830_dma_dispatch_blit( drm_device_t *dev,
 	OUT_RING( (blit->src_y << 16) | blit->src_x );
 	OUT_RING( srcpitch );
 	OUT_RING( blit->src_offset ); 
+	OUT_RING( CMD_STORE_DWORD_IDX );
+	OUT_RING( 20 );
+	OUT_RING( dev_priv->counter );
+	OUT_RING( 0 );
 	ADVANCE_LP_RING();
 
 	return 0;
@@ -1001,6 +1006,14 @@ static void i830_dma_dispatch_swap( drm_device_t *dev )
 
 		ADVANCE_LP_RING();
 	}
+
+	dev_priv->sarea_priv->last_enqueue = dev_priv->counter++;
+	BEGIN_LP_RING(4);
+	OUT_RING( CMD_STORE_DWORD_IDX );
+	OUT_RING( 20 );
+	OUT_RING( dev_priv->counter );
+	OUT_RING( 0 );
+	ADVANCE_LP_RING();
 }
 
 static void i830_dma_dispatch_flip( drm_device_t *dev )
@@ -1046,6 +1059,14 @@ static void i830_dma_dispatch_flip( drm_device_t *dev )
 	OUT_RING( 0 );
 	ADVANCE_LP_RING();
 	
+
+	dev_priv->sarea_priv->last_enqueue = dev_priv->counter++;
+	BEGIN_LP_RING(4);
+	OUT_RING( CMD_STORE_DWORD_IDX );
+	OUT_RING( 20 );
+	OUT_RING( dev_priv->counter );
+	OUT_RING( 0 );
+	ADVANCE_LP_RING();
 
 	dev_priv->sarea_priv->pf_current_page = dev_priv->current_page;
 }
@@ -1202,7 +1223,7 @@ static int i830_dma_dispatch_vertex2(drm_device_t *dev,
    	int nbox = sarea_priv->nbox;
 	unsigned long address = (unsigned long)buf->bus_address;
 	unsigned long start = address - dev->agp->base;     
-	int i = 0, u, vertsize, vertcount;
+	int i = 0, vertsize, vertcount;
    	RING_LOCALS;
 
 	
@@ -1234,7 +1255,9 @@ static int i830_dma_dispatch_vertex2(drm_device_t *dev,
 	 * provide this information).
 	 */ 
 	vertsize = i830_calc_vertex_size( sarea_priv );
-	vertcount = used / (vertsize * 4);
+	vertcount = 0;
+	if (vertsize)
+		vertcount = used / (vertsize * 4);
 
 	if (vertcount * vertsize * 4 != used) {
 		DRM_ERROR("vertex size confusion %d %d %d\n", used, vertsize,
@@ -1310,9 +1333,9 @@ static int i830_dma_dispatch_vertex2(drm_device_t *dev,
 	} while (++i < nbox);
 
  do_discard:
-	sarea_priv->last_enqueue = dev_priv->counter++;
 
 	if (discard) {
+		sarea_priv->last_enqueue = dev_priv->counter++;
 		(void) cmpxchg(buf_priv->in_use, I830_BUF_CLIENT,
 			       I830_BUF_HARDWARE);
 
@@ -1360,40 +1383,10 @@ void i830_dma_quiescent(drm_device_t *dev)
 	}
 }
 
-/* Must be called with the lock held */
-void i830_reclaim_buffers( struct file *filp )
-{
-	drm_file_t    *priv   = filp->private_data;
-	drm_device_t  *dev    = priv->dev;
-	drm_device_dma_t *dma = dev->dma;
-	int		 i;
-
-	if (!dma) return;
-      	if (!dev->dev_private) return;
-	if (!dma->buflist) return;
-
-        i830_dma_quiescent(dev);
-
-	for (i = 0; i < dma->buf_count; i++) {
-	   	drm_buf_t *buf = dma->buflist[ i ];
-	   	drm_i830_buf_priv_t *buf_priv = buf->dev_private;
-	   
-		if (buf->filp == filp && buf_priv) {
-			int used = cmpxchg(buf_priv->in_use, I830_BUF_CLIENT, 
-					   I830_BUF_FREE);
-
-			if (used == I830_BUF_CLIENT)
-				DRM_DEBUG("reclaimed from client\n");
-		   	if(buf_priv->currently_mapped == I830_BUF_MAPPED)
-		     		buf_priv->currently_mapped = I830_BUF_UNMAPPED;
-		}
-	}
-}
 
 int i830_flush_ioctl( DRM_IOCTL_ARGS )
 {
-   	drm_file_t	  *priv	  = filp->private_data;
-   	drm_device_t	  *dev	  = priv->dev;
+	DRM_DEVICE;
 
    	if(!_DRM_LOCK_IS_HELD(dev->lock.hw_lock->lock)) {
 		DRM_ERROR("i830_flush_ioctl called without lock held\n");
@@ -1406,8 +1399,7 @@ int i830_flush_ioctl( DRM_IOCTL_ARGS )
 
 int i830_dma_vertex2( DRM_IOCTL_ARGS )
 {
-	drm_file_t *priv = filp->private_data;
-	drm_device_t *dev = priv->dev;
+	DRM_DEVICE;
 	drm_device_dma_t *dma = dev->dma;
    	drm_i830_private_t *dev_priv = (drm_i830_private_t *)dev->dev_private;
       	u32 *hw_status = dev_priv->hw_status_page;
@@ -1442,9 +1434,7 @@ int i830_dma_vertex2( DRM_IOCTL_ARGS )
 
 int i830_dma_copy_blit( DRM_IOCTL_ARGS )
 {
-	drm_file_t *priv = filp->private_data;
-	drm_device_t *dev = priv->dev;
-   	drm_i830_private_t *dev_priv = (drm_i830_private_t *)dev->dev_private;
+	DRM_DEVICE;
 	drm_i830_copy_blit_t blit;
 
 	DRM_COPY_FROM_USER_IOCTL( blit, (drm_i830_copy_blit_t *)data, 
@@ -1458,16 +1448,12 @@ int i830_dma_copy_blit( DRM_IOCTL_ARGS )
 	}
 
 	i830_dma_dispatch_blit( dev, &blit ); 
-	dev_priv->sarea_priv->last_enqueue = dev_priv->counter++;
-
 	return 0;
 }
 
 int i830_clear_bufs( DRM_IOCTL_ARGS )
 {
-	drm_file_t *priv = filp->private_data;
-	drm_device_t *dev = priv->dev;
-	drm_i830_private_t *dev_priv = dev->dev_private;
+	DRM_DEVICE;
 	drm_i830_clear_t clear;
 
    	DRM_COPY_FROM_USER_IOCTL( clear, (drm_i830_clear_t *)data, 
@@ -1487,16 +1473,12 @@ int i830_clear_bufs( DRM_IOCTL_ARGS )
 				 clear.clear_color, 
 				 clear.clear_depth,
 			         clear.clear_depthmask);
-	dev_priv->sarea_priv->last_enqueue = dev_priv->counter++;
-
    	return 0;
 }
 
 int i830_swap_bufs( DRM_IOCTL_ARGS )
 {
-	drm_file_t *priv = filp->private_data;
-	drm_device_t *dev = priv->dev;
-	drm_i830_private_t *dev_priv = dev->dev_private;
+	DRM_DEVICE;
    
 	DRM_DEBUG("i830_swap_bufs\n");
 
@@ -1506,8 +1488,6 @@ int i830_swap_bufs( DRM_IOCTL_ARGS )
 	}
 
 	i830_dma_dispatch_swap( dev );
-	dev_priv->sarea_priv->last_enqueue = dev_priv->counter++;
-
    	return 0;
 }
 
@@ -1539,8 +1519,7 @@ int i830_do_cleanup_pageflip( drm_device_t *dev )
 
 int i830_flip_bufs( DRM_IOCTL_ARGS )
 {
-	drm_file_t *priv = filp->private_data;
-	drm_device_t *dev = priv->dev;
+	DRM_DEVICE;
 	drm_i830_private_t *dev_priv = dev->dev_private;
 
 	DRM_DEBUG("%s\n", __FUNCTION__);
@@ -1554,14 +1533,12 @@ int i830_flip_bufs( DRM_IOCTL_ARGS )
 		i830_do_init_pageflip( dev );
 
 	i830_dma_dispatch_flip( dev );
-	dev_priv->sarea_priv->last_enqueue = dev_priv->counter++;
    	return 0;
 }
 
 int i830_getage( DRM_IOCTL_ARGS )
 {
-   	drm_file_t	  *priv	    = filp->private_data;
-	drm_device_t	  *dev	    = priv->dev;
+	DRM_DEVICE;
    	drm_i830_private_t *dev_priv = (drm_i830_private_t *)dev->dev_private;
       	u32 *hw_status = dev_priv->hw_status_page;
    	drm_i830_sarea_t *sarea_priv = (drm_i830_sarea_t *) 
@@ -1574,8 +1551,7 @@ int i830_getage( DRM_IOCTL_ARGS )
 
 int i830_getbuf2( DRM_IOCTL_ARGS )
 {
-	drm_file_t	  *priv	    = filp->private_data;
-	drm_device_t	  *dev	    = priv->dev;
+	DRM_DEVICE;
 	int		  retcode   = 0;
 	drm_i830_dma_t	  d;
    	drm_i830_private_t *dev_priv = (drm_i830_private_t *)dev->dev_private;
@@ -1621,8 +1597,7 @@ int i830_docopy( DRM_IOCTL_ARGS )
 
 int i830_getparam( DRM_IOCTL_ARGS )
 {
-	drm_file_t	  *priv	    = filp->private_data;
-	drm_device_t	  *dev	    = priv->dev;
+	DRM_DEVICE;
 	drm_i830_private_t *dev_priv = dev->dev_private;
 	drm_i830_getparam_t param;
 	int value;
@@ -1653,8 +1628,7 @@ int i830_getparam( DRM_IOCTL_ARGS )
 
 int i830_setparam( DRM_IOCTL_ARGS )
 {
-	drm_file_t	  *priv	    = filp->private_data;
-	drm_device_t	  *dev	    = priv->dev;
+	DRM_DEVICE;
 	drm_i830_private_t *dev_priv = dev->dev_private;
 	drm_i830_setparam_t param;
 

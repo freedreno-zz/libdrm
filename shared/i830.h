@@ -62,13 +62,17 @@
 #define DRIVER_MINOR		4
 #define DRIVER_PATCHLEVEL	0
 
+#define COMPAT 0
+
+#define COMPAT_IOCTLS \
+	[DRM_IOCTL_NR(DRM_IOCTL_I830_GETBUF)] = { i830_getbuf,      1, 0 }, \
+	[DRM_IOCTL_NR(DRM_IOCTL_I830_VERTEX)] = { i830_dma_vertex,  1, 0 }, 
+
 #define DRIVER_IOCTLS							    \
 	[DRM_IOCTL_NR(DRM_IOCTL_I830_INIT)]   = { i830_dma_init,    1, 1 }, \
-	[DRM_IOCTL_NR(DRM_IOCTL_I830_VERTEX)] = { i830_dma_vertex,  1, 0 }, \
 	[DRM_IOCTL_NR(DRM_IOCTL_I830_CLEAR)]  = { i830_clear_bufs,  1, 0 }, \
 	[DRM_IOCTL_NR(DRM_IOCTL_I830_FLUSH)]  = { i830_flush_ioctl, 1, 0 }, \
 	[DRM_IOCTL_NR(DRM_IOCTL_I830_GETAGE)] = { i830_getage,      1, 0 }, \
-	[DRM_IOCTL_NR(DRM_IOCTL_I830_GETBUF)] = { i830_getbuf,      1, 0 }, \
 	[DRM_IOCTL_NR(DRM_IOCTL_I830_SWAP)]   = { i830_swap_bufs,   1, 0 }, \
 	[DRM_IOCTL_NR(DRM_IOCTL_I830_COPY)]   = { i830_copybuf,     1, 0 }, \
 	[DRM_IOCTL_NR(DRM_IOCTL_I830_DOCOPY)] = { i830_docopy,      1, 0 }, \
@@ -93,10 +97,12 @@
 
 /* Driver customization:
  */
+#if COMPAT
 #define __HAVE_RELEASE		1
 #define DRIVER_RELEASE() do {						\
-	i830_reclaim_buffers( filp );					\
+	i830_reclaim_buffers( dev, filp );		      		\
 } while (0)
+#endif
 
 #define DRIVER_PRETAKEDOWN() do {					\
 	if ( dev->dev_private ) {					\
@@ -128,7 +134,7 @@ do {									\
 #define __HAVE_DMA		1
 #define __HAVE_DMA_QUEUE	1
 #define __HAVE_DMA_WAITLIST	0
-#define __HAVE_DMA_RECLAIM	1
+#define __HAVE_DMA_RECLAIM	COMPAT
 
 #define __HAVE_DMA_QUIESCENT	1
 #define DRIVER_DMA_QUIESCENT() do {					\

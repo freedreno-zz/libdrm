@@ -261,7 +261,7 @@ int DRM(rmmap)( DRM_IOCTL_ARGS )
 #endif
 			}
 #endif
-			DRM(ioremapfree)( map );
+			DRM(ioremapfree)( dev, map );
 			break;
 		case _DRM_SHM:
 			DRM(free)( map->handle, map->size, DRM_MEM_SAREA );
