@@ -73,6 +73,7 @@
 #if LINUX_VERSION_CODE < 0x020400
 #include "compat-pre24.h"
 #endif
+#include <asm/pgalloc.h>
 #include "drm.h"
 
 /* DRM template customization defaults

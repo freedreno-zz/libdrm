@@ -165,7 +165,6 @@ int DRM(addmap)( struct inode *inode, struct file *filp,
 	return 0;
 }
 
-void DRM(rmmap_fixup_vmas)(drm_device_t *dev, drm_map_t *map)
 
 /* Remove a map private from list and deallocate resources */
 int DRM(rmmap)(struct inode *inode, struct file *filp, 

@@ -341,6 +341,7 @@ void DRM(rmmap_fixup_vmas)(drm_device_t *dev, drm_map_t *map)
 {
 	drm_vma_entry_t *pt, *prev;
 
+	lock_kernel();
 	down(&dev->struct_sem);
 	for (pt = dev->vmalist, prev = NULL; pt; prev = pt, pt = pt->next) {
 #if LINUX_VERSION_CODE >= 0x020300
@@ -350,18 +351,19 @@ void DRM(rmmap_fixup_vmas)(drm_device_t *dev, drm_map_t *map)
 #endif
 		{
 			/* Zap the mappings */
-			flush_cache_range(vma->vm_mm,
-					  vma->vm_start,
-					  vma->vm_end - vma->vm_start);
-			zap_page_range(vma->vm_mm,
-				       vma->vm_start,
-				       vma->vm_end - vma->vm_start);
-			flush_tlb_range(vma->vm_mm,
-					vma->vm_start,
-					vma->vm_end - vma->vm_start);
+			flush_cache_range(pt->vma->vm_mm,
+					  pt->vma->vm_start,
+					  pt->vma->vm_end - pt->vma->vm_start);
+			zap_page_range(pt->vma->vm_mm,
+				       pt->vma->vm_start,
+				       pt->vma->vm_end - pt->vma->vm_start);
+			flush_tlb_range(pt->vma->vm_mm,
+					pt->vma->vm_start,
+					pt->vma->vm_end - pt->vma->vm_start);
 			/* Change the vm_ops so no page isn't defined */
-			vma->vm_ops = &drm_vm_ops;
+			pt->vma->vm_ops = &drm_vm_ops;
 		}
 	}
 	up(&dev->struct_sem);
+	unlock_kernel();
 }
