@@ -711,7 +711,6 @@ int gamma_irq_uninstall(drm_device_t *dev)
 	return 0;
 }
 
-
 int gamma_control(struct inode *inode, struct file *filp, unsigned int cmd,
 		  unsigned long arg)
 {
@@ -735,5 +734,43 @@ int gamma_control(struct inode *inode, struct file *filp, unsigned int cmd,
 	default:
 		return -EINVAL;
 	}
+	return 0;
+}
+
+void gamma_dma_cleanup(drm_device_t *dev)
+{
+	drm_gamma_private_t *dev_priv;
+
+	if(dev->dev_private) {
+		dev_priv = (drm_gamma_private_t *)dev->dev_private;
+		DRM(free)(dev_priv,
+			  sizeof(drm_gamma_private_t),
+			  DRM_MEM_DRIVER);
+		dev->dev_private = NULL;
+	}
+}
+
+int gamma_dma_init(struct inode *inode, struct file *filp, unsigned int cmd,
+		   unsigned long arg)
+{
+	drm_file_t	*priv	= filp->private_data;
+	drm_device_t	*dev	= priv->dev;
+	drm_gamma_init_t init;
+	drm_gamma_private_t *dev_priv;
+
+	if (copy_from_user(&init, (drm_gamma_init_t *)arg, sizeof(init)))
+		return -EFAULT;
+
+	dev_priv = DRM(alloc)(sizeof(drm_gamma_private_t),
+			      DRM_MEM_DRIVER);
+	if(!dev_priv) return -ENOMEM;
+
+	memset(dev_priv, 0, sizeof(drm_gamma_private_t));
+
+	DRM_FIND_MAP(dev_priv->mmio0, init.hControlRegs0);
+	DRM_FIND_MAP(dev_priv->mmio1, init.hControlRegs1);
+	DRM_FIND_MAP(dev_priv->mmio2, init.hControlRegs2);
+	DRM_FIND_MAP(dev_priv->mmio3, init.hControlRegs3);
+
 	return 0;
 }
