@@ -151,9 +151,7 @@ void DRM(vm_open)(struct vm_area_struct *vma)
 {
 	drm_file_t	*priv	= vma->vm_file->private_data;
 	drm_device_t	*dev	= priv->dev;
-#if DRM_DEBUG_CODE
 	drm_vma_entry_t *vma_entry;
-#endif
 
 	DRM_DEBUG("0x%08lx,0x%08lx\n",
 		  vma->vm_start, vma->vm_end - vma->vm_start);
@@ -178,9 +176,7 @@ void DRM(vm_close)(struct vm_area_struct *vma)
 {
 	drm_file_t	*priv	= vma->vm_file->private_data;
 	drm_device_t	*dev	= priv->dev;
-#if DRM_DEBUG_CODE
 	drm_vma_entry_t *pt, *prev;
-#endif
 
 	DRM_DEBUG("0x%08lx,0x%08lx\n",
 		  vma->vm_start, vma->vm_end - vma->vm_start);
@@ -334,4 +330,38 @@ int DRM(mmap)(struct file *filp, struct vm_area_struct *vma)
 	vma->vm_file  =	 filp;	/* Needed for drm_vm_open() */
 	DRM(vm_open)(vma);
 	return 0;
+}
+
+/* Support for rmmap so we can safely delete mappings without forcing
+ * them to be unmapped (which isn't possible if the process forked)
+ * before we call rmmap.
+ */
+
+void DRM(rmmap_fixup_vmas)(drm_device_t *dev, drm_map_t *map)
+{
+	drm_vma_entry_t *pt, *prev;
+
+	down(&dev->struct_sem);
+	for (pt = dev->vmalist, prev = NULL; pt; prev = pt, pt = pt->next) {
+#if LINUX_VERSION_CODE >= 0x020300
+		if (pt->vma->vm_private_data == (void *)map)
+#else
+		if (pt->vma->vm_pte == (unsigned long)map)
+#endif
+		{
+			/* Zap the mappings */
+			flush_cache_range(vma->vm_mm,
+					  vma->vm_start,
+					  vma->vm_end - vma->vm_start);
+			zap_page_range(vma->vm_mm,
+				       vma->vm_start,
+				       vma->vm_end - vma->vm_start);
+			flush_tlb_range(vma->vm_mm,
+					vma->vm_start,
+					vma->vm_end - vma->vm_start);
+			/* Change the vm_ops so no page isn't defined */
+			vma->vm_ops = &drm_vm_ops;
+		}
+	}
+	up(&dev->struct_sem);
 }

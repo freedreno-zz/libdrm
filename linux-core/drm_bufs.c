@@ -82,6 +82,14 @@ int DRM(addmap)( struct inode *inode, struct file *filp,
 		return -EFAULT;
 	}
 
+	/* Only allow shared memory to be removable since we only keep enough
+	 * book keeping information about shared memory to allow for removal
+	 * when processes fork.
+	 */
+	if ( (map->flags & _DRM_REMOVABLE) && map->type != _DRM_SHM ) {
+		DRM(free)( map, sizeof(*map), DRM_MEM_MAPS );
+		return -EINVAL;
+	}
 	DRM_DEBUG( "offset = 0x%08lx, size = 0x%08lx, type = %d\n",
 		   map->offset, map->size, map->type );
 	if ( (map->offset & (~PAGE_MASK)) || (map->size & (~PAGE_MASK)) ) {
@@ -157,6 +165,8 @@ int DRM(addmap)( struct inode *inode, struct file *filp,
 	return 0;
 }
 
+void DRM(rmmap_fixup_vmas)(drm_device_t *dev, drm_map_t *map)
+
 /* Remove a map private from list and deallocate resources */
 int DRM(rmmap)(struct inode *inode, struct file *filp, 
 	       unsigned int cmd, unsigned long arg)
@@ -192,10 +202,12 @@ int DRM(rmmap)(struct inode *inode, struct file *filp,
 		return -EINVAL;
 	}
 	map = r_list->map;
-	list_del(list);
+	list_del(list);	
 	up(&dev->struct_sem);
 
 	DRM(free)(list, sizeof(*list), DRM_MEM_MAPS);
+	/* Zap any pages that are still mapped and remove no_page vm_op. */
+	DRM(rmmap_fixup_vmas)(dev, map);
 
 	switch (map->type) {
 	case _DRM_REGISTERS:

@@ -725,6 +725,7 @@ extern void	     DRM(vm_close)(struct vm_area_struct *vma);
 extern int	     DRM(mmap_dma)(struct file *filp,
 				   struct vm_area_struct *vma);
 extern int	     DRM(mmap)(struct file *filp, struct vm_area_struct *vma);
+extern void	     DRM(rmmap_fixup_vmas)(drm_device_t *dev, drm_map_t *map);
 
 
 				/* Proc support (proc.c) */
