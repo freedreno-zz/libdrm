@@ -103,13 +103,14 @@ int drm_remove_magic(drm_device_t *dev, drm_magic_t magic)
 				prev->next = pt->next;
 			}
 			up(&dev->struct_sem);
+			drm_free(pt, sizeof(*pt), DRM_MEM_MAGIC);
 			return 0;
 		}
 	}
 	up(&dev->struct_sem);
 
-	drm_free(pt, sizeof(*pt), DRM_MEM_MAGIC);
-	
+	/* pt is NULL / magic not found */
+
 	return -EINVAL;
 }
 
