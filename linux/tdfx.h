@@ -34,7 +34,6 @@
  */
 #define DRM(x) tdfx_##x
 
-#define __HAVE_AGP		1
 #define __HAVE_MTRR		1
 #define __HAVE_CTX_BITMAP	1
 

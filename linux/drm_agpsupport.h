@@ -33,7 +33,7 @@
 #include "drmP.h"
 #include <linux/module.h>
 
-#if defined(CONFIG_AGP) || defined(CONFIG_AGP_MODULE)
+#if __REALLY_HAVE_AGP
 
 #if LINUX_VERSION_CODE < 0x020400
 #include "agpsupport-pre24.h"
@@ -332,4 +332,4 @@ int DRM(agp_unbind_memory)(agp_memory *handle)
 	return drm_agp->unbind_memory(handle);
 }
 
-#endif /* defined(CONFIG_AGP) || defined(CONFIG_AGP_MODULE) */
+#endif /* __REALLY_HAVE_AGP */
