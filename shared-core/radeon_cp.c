@@ -605,6 +605,8 @@ static int radeon_do_pixcache_flush( drm_radeon_private_t *dev_priv )
 	u32 tmp;
 	int i;
 
+	dev_priv->stats.boxes |= RADEON_BOX_WAIT_IDLE;
+
 	tmp  = RADEON_READ( RADEON_RB2D_DSTCACHE_CTLSTAT );
 	tmp |= RADEON_RB2D_DC_FLUSH_ALL;
 	RADEON_WRITE( RADEON_RB2D_DSTCACHE_CTLSTAT, tmp );
@@ -629,6 +631,8 @@ static int radeon_do_wait_for_fifo( drm_radeon_private_t *dev_priv,
 {
 	int i;
 
+	dev_priv->stats.boxes |= RADEON_BOX_WAIT_IDLE;
+
 	for ( i = 0 ; i < dev_priv->usec_timeout ; i++ ) {
 		int slots = ( RADEON_READ( RADEON_RBBM_STATUS )
 			      & RADEON_RBBM_FIFOCNT_MASK );
@@ -646,6 +650,8 @@ static int radeon_do_wait_for_fifo( drm_radeon_private_t *dev_priv,
 static int radeon_do_wait_for_idle( drm_radeon_private_t *dev_priv )
 {
 	int i, ret;
+
+	dev_priv->stats.boxes |= RADEON_BOX_WAIT_IDLE;
 
 	ret = radeon_do_wait_for_fifo( dev_priv, 64 );
 	if ( ret ) return ret;
@@ -1425,6 +1431,14 @@ int radeon_fullscreen( DRM_IOCTL_ARGS )
  *   completed rendering.  
  *
  * KW:  It's also a good way to find free buffers quickly.
+ *
+ * KW: Ideally this loop wouldn't exist, and freelist_get wouldn't
+ * sleep.  However, bugs in older versions of radeon_accel.c mean that
+ * we essentially have to do this, else old clients will break.
+ * 
+ * However, it does leave open a potential deadlock where all the
+ * buffers are held by other clients, which can't release them because
+ * they can't get the lock.  
  */
 
 drm_buf_t *radeon_freelist_get( drm_device_t *dev )
@@ -1435,41 +1449,70 @@ drm_buf_t *radeon_freelist_get( drm_device_t *dev )
 	drm_buf_t *buf;
 	int i, t;
 	int start;
-	u32 done_age = DRM_READ32(&dev_priv->scratch[1]);
-
-	dev_priv->stats.requested_bufs++;
-	if (done_age == dev_priv->sarea_priv->last_dispatch)
-		dev_priv->stats.boxes |= RADEON_BOX_DMA_IDLE;
 
 	if ( ++dev_priv->last_buf >= dma->buf_count )
 		dev_priv->last_buf = 0;
 
 	start = dev_priv->last_buf;
-	
-/* 	printk("start %d count %d\n", start, dma->buf_count); */
 
 	for ( t = 0 ; t < dev_priv->usec_timeout ; t++ ) {
-		DRM_DEBUG("done_age = %d\n",done_age);
+		u32 done_age = DRM_READ32(&dev_priv->scratch[1]);
+
 		for ( i = start ; i < dma->buf_count ; i++ ) {
 			buf = dma->buflist[i];
 			buf_priv = buf->dev_private;
 			if ( buf->pid == 0 || (buf->pending && 
 					       buf_priv->age <= done_age) ) {
+				dev_priv->stats.requested_bufs++;
 				buf->pending = 0;
-/* 				if (t) printk("wait: %d\n", t); */
 				return buf;
 			}
 			start = 0;
 		}
-		dev_priv->stats.freelist_loops++;
-		if (t) DRM_UDELAY( 1 );
-		done_age = DRM_READ32(&dev_priv->scratch[1]);
+
+		if (t) {
+			DRM_UDELAY( 1 );
+			dev_priv->stats.freelist_loops++;
+		}
 	}
 
-	dev_priv->stats.freelist_timeouts++;
 	DRM_ERROR( "returning NULL!\n" );
 	return NULL;
 }
+#if 0
+drm_buf_t *radeon_freelist_get( drm_device_t *dev )
+{
+	drm_device_dma_t *dma = dev->dma;
+	drm_radeon_private_t *dev_priv = dev->dev_private;
+	drm_radeon_buf_priv_t *buf_priv;
+	drm_buf_t *buf;
+	int i, t;
+	int start;
+	u32 done_age = DRM_READ32(&dev_priv->scratch[1]);
+
+	if ( ++dev_priv->last_buf >= dma->buf_count )
+		dev_priv->last_buf = 0;
+
+	start = dev_priv->last_buf;
+	dev_priv->stats.freelist_loops++;
+	
+	for ( t = 0 ; t < 2 ; t++ ) {
+		for ( i = start ; i < dma->buf_count ; i++ ) {
+			buf = dma->buflist[i];
+			buf_priv = buf->dev_private;
+			if ( buf->pid == 0 || (buf->pending && 
+					       buf_priv->age <= done_age) ) {
+				dev_priv->stats.requested_bufs++;
+				buf->pending = 0;
+				return buf;
+			}
+		}
+		start = 0;
+	}
+
+	return NULL;
+}
+#endif
 
 void radeon_freelist_reset( drm_device_t *dev )
 {
@@ -1496,7 +1539,6 @@ int radeon_wait_ring( drm_radeon_private_t *dev_priv, int n )
 	int i;
 	u32 last_head = GET_RING_HEAD(ring);
 
-
 	for ( i = 0 ; i < dev_priv->usec_timeout ; i++ ) {
 		u32 head = GET_RING_HEAD(ring);
 
@@ -1506,7 +1548,7 @@ int radeon_wait_ring( drm_radeon_private_t *dev_priv, int n )
 		if ( ring->space > n )
 			return 0;
 		
-		dev_priv->stats.boxes |= RADEON_BOX_RING_FULL;
+		dev_priv->stats.boxes |= RADEON_BOX_WAIT_IDLE;
 
 		if (head != last_head)
 			i = 0;
@@ -1530,7 +1572,7 @@ static int radeon_cp_get_buffers( drm_device_t *dev, drm_dma_t *d )
 
 	for ( i = d->granted_count ; i < d->request_count ; i++ ) {
 		buf = radeon_freelist_get( dev );
-		if ( !buf ) return DRM_ERR(EAGAIN);
+		if ( !buf ) return DRM_ERR(EBUSY); /* NOTE: broken client */
 
 		buf->pid = DRM_CURRENTPID;
 
