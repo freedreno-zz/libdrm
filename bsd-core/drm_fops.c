@@ -100,7 +100,7 @@ int DRM(open_helper)(dev_t kdev, int flags, int fmt, DRM_STRUCTPROC *p,
    the circular buffer), is based on Alessandro Rubini's LINUX DEVICE
    DRIVERS (Cambridge: O'Reilly, 1998), pages 111-113. */
 
-ssize_t DRM(read)(dev_t kdev, struct uio *uio, int ioflag)
+int DRM(read)(dev_t kdev, struct uio *uio, int ioflag)
 {
 	DRM_DEVICE;
 	int	      left;

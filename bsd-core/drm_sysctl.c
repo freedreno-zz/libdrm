@@ -203,7 +203,7 @@ static int DRM(_queues_info)DRM_SYSCTL_HANDLER_ARGS
 				     q->read_queue ? 'r':'-',
 				     q->write_queue ? 'w':'-',
 				     q->flush_queue ? 'f':'-',
-				     DRM_BUFCOUNT(&q->waitlist),
+				     (int)DRM_BUFCOUNT(&q->waitlist),
 				     atomic_read(&q->total_flushed),
 				     atomic_read(&q->total_queued),
 				     atomic_read(&q->total_locks));

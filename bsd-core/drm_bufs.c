@@ -107,16 +107,10 @@ int DRM(addmap)( DRM_IOCTL_ARGS )
 	switch ( map->type ) {
 	case _DRM_REGISTERS:
 	case _DRM_FRAME_BUFFER:
-#if !defined(__sparc__) && !defined(__alpha__)
-		if ( map->offset + map->size < map->offset
-		) {
+		if ( map->offset + map->size < map->offset ) {
 			DRM(free)( map, sizeof(*map), DRM_MEM_MAPS );
 			return DRM_ERR(EINVAL);
 		}
-#endif
-#ifdef __alpha__
-		map->offset += dev->hose->mem_space->start;
-#endif
 #if __REALLY_HAVE_MTRR
 		if ( map->type == _DRM_FRAME_BUFFER ||
 		     (map->flags & _DRM_WRITE_COMBINING) ) {
@@ -161,9 +155,6 @@ int DRM(addmap)( DRM_IOCTL_ARGS )
 		break;
 #if __REALLY_HAVE_AGP
 	case _DRM_AGP:
-#ifdef __alpha__
-		map->offset += dev->hose->mem_space->start;
-#endif
 		map->offset += dev->agp->base;
 		map->mtrr   = dev->agp->agp_mtrr; /* for getmap */
 		break;
