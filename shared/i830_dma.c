@@ -144,14 +144,19 @@ int i830_dma_cleanup(drm_device_t *dev)
 }
 
 
+/* Really want an OS-independent resettable timer.  Would like to have
+ * this loop run for (eg) 3 sec, but have the timer reset every time
+ * the head pointer changes, so that EBUSY only happens if the ring
+ * actually stalls for (eg) 3 seconds.
+ */
 int i830_wait_ring( drm_device_t *dev, int n, const char *caller )
 {
    	drm_i830_private_t *dev_priv = dev->dev_private;
    	drm_i830_ring_buffer_t *ring = &(dev_priv->ring);
 	u32 last_head = I830_READ(LP_RING + RING_HEAD) & HEAD_ADDR;
-	int i, j;
+	int i;
 
-	for ( i = j = 0 ; i < 100000 ; i++, j++ ) {
+	for ( i = 0 ; i < 10000 ; i++ ) {
 		ring->head = I830_READ(LP_RING + RING_HEAD) & HEAD_ADDR;
 	   	ring->space = ring->head - (ring->tail+8);
 		if (ring->space < 0) ring->space += ring->Size;
