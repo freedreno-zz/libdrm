@@ -52,6 +52,7 @@ int mga_addbufs_agp(struct inode *inode, struct file *filp, unsigned int cmd,
    int page_order;
    int total;
    int byte_count;
+   int i;
 
    if (!dma) return -EINVAL;
 
@@ -528,7 +529,7 @@ int mga_mapbufs(struct inode *inode, struct file *filp, unsigned int cmd,
 	      }
 	      
 	      virtual = do_mmap(filp, 0, map->size, PROT_READ|PROT_WRITE,
-				MAP_SHARED, map->handle);
+				MAP_SHARED, (unsigned long)map->handle);
 	   }
 	   else {
 	      virtual = do_mmap(filp, 0, dma->byte_count,

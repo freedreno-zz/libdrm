@@ -121,8 +121,7 @@ static inline void mga_prim_overflow(drm_device_t *dev)
 }
 
 static inline void mga_dma_dispatch(drm_device_t *dev, unsigned long address,
-				    unsigned long length, 
-				    transferType_t transferType)
+				    unsigned long length)
 {
 	int use_agp = PDEA_pagpxfer_enable;
 	static int softrap = 1;
@@ -130,7 +129,7 @@ static inline void mga_dma_dispatch(drm_device_t *dev, unsigned long address,
 	CHECK_OVERFLOW(10);
 	DMAOUTREG(MGAREG_DMAPAD, 0);
 	DMAOUTREG(MGAREG_DMAPAD, 0);
-	DMAOUTREG(MGAREG_SECADDRESS, address | transferType);
+	DMAOUTREG(MGAREG_SECADDRESS, address | TT_GENERAL);
 	DMAOUTREG(MGAREG_SECEND, (address + length) | use_agp);
 	DMAOUTREG(MGAREG_DMAPAD, 0);
 	DMAOUTREG(MGAREG_DMAPAD, 0);
@@ -238,6 +237,7 @@ static int mga_do_dma(drm_device_t *dev, int locked)
 	buf	= dma->next_buffer;
 	address = (unsigned long)buf->bus_address;
 	length	= buf->used;
+	
 
 	DRM_DEBUG("context %d, buffer %d (%ld bytes)\n",
 		  buf->context, buf->idx, length);

@@ -260,6 +260,14 @@ typedef struct drm_buf {
 		DRM_LIST_PRIO	 = 4,
 		DRM_LIST_RECLAIM = 5
 	}		  list;	       /* Which list we're on		     */
+#if 0
+	enum {
+		TT_GENERAL,
+		TT_BLIT,
+		TT_VECTOR,
+		TT_VERTEX
+	}		  transfer_type;
+#endif
 #if DRM_DMA_HISTOGRAM
 	cycles_t	  time_queued;	   /* Queued to kernel DMA queue     */
 	cycles_t	  time_dispatched; /* Dispatched to hardware	     */
