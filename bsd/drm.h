@@ -35,7 +35,9 @@
 #ifndef _DRM_H_
 #define _DRM_H_
 
+#undef ioctl
 #include <sys/ioccom.h>
+#define ioctl(a,b,c) xf86ioctl(a,b,c)
 #define DRM_IOCTL_NR(n)	     ((n) & 0xff)
 
 #define XFREE86_VERSION(major,minor,patch,snap) \
