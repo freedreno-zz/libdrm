@@ -29,7 +29,6 @@
  *    Daryll Strauss <daryll@valinux.com>
  *
  */
-/* $XFree86: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/kernel/fops.c,v 1.9 2000/08/28 02:43:14 tsi Exp $ */
 
 #define __NO_VERSION__
 #include "drmP.h"
@@ -177,7 +176,8 @@ ssize_t drm_read(struct file *filp, char *buf, size_t count, loff_t *off)
 		} else {
 			cur = DRM_MIN(send, dev->buf_end - dev->buf_rp);
 		}
-		copy_to_user_ret(buf, dev->buf_rp, cur, -EINVAL);
+		if (copy_to_user(buf, dev->buf_rp, cur))
+			return -EFAULT;
 		dev->buf_rp += cur;
 		if (dev->buf_rp == dev->buf_end) dev->buf_rp = dev->buf;
 		send -= cur;

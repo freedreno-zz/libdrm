@@ -28,7 +28,6 @@
  *    Rickard E. (Rik) Faith <faith@valinux.com>
  *
  */
-/* $XFree86: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/kernel/auth.c,v 1.5 2000/08/28 02:43:14 tsi Exp $ */
 
 #define __NO_VERSION__
 #include "drmP.h"
@@ -138,7 +137,8 @@ int drm_getmagic(struct inode *inode, struct file *filp, unsigned int cmd,
 	}
 	
 	DRM_DEBUG("%u\n", auth.magic);
-	copy_to_user_ret((drm_auth_t *)arg, &auth, sizeof(auth), -EFAULT);
+	if (copy_to_user((drm_auth_t *)arg, &auth, sizeof(auth)))
+		return -EFAULT;
 	return 0;
 }
 
@@ -150,7 +150,8 @@ int drm_authmagic(struct inode *inode, struct file *filp, unsigned int cmd,
 	drm_auth_t	   auth;
 	drm_file_t	   *file;
 
-	copy_from_user_ret(&auth, (drm_auth_t *)arg, sizeof(auth), -EFAULT);
+	if (copy_from_user(&auth, (drm_auth_t *)arg, sizeof(auth)))
+		return -EFAULT;
 	DRM_DEBUG("%u\n", auth.magic);
 	if ((file = drm_find_file(dev, auth.magic))) {
 		file->authenticated = 1;

@@ -27,16 +27,12 @@
  *    Sung-Ching Lin <sclin@sis.com.tw>
  * 
  */
-/* $XFree86: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/kernel/sis_mm.c,v 1.4 2000/09/22 11:35:47 alanh Exp $ */
 
 #define __NO_VERSION__
 #include "drmP.h"
-#include "sis_drm_public.h"
+#include "sis_drm.h"
 #include "sis_ds.h"
 #include "sis_drv.h"
-#include <linux/fb.h>
-#include <linux/sisfb.h>
-#include <linux/interrupt.h>
 
 #define MAX_CONTEXT 100
 #define VIDEO_TYPE 0 
@@ -74,7 +70,7 @@ static int del_alloc_set(int context, int type, unsigned int val)
 }
 
 /* fb management via fb device */ 
-#if 1
+#if 0
 int sis_fb_alloc(struct inode *inode, struct file *filp, unsigned int cmd,
 		  unsigned long arg)
 {

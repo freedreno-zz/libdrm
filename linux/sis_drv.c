@@ -1,5 +1,4 @@
-/* sis_drv.c -- sis driver -*- linux-c -*-
- * Created: Thu Oct  7 10:38:32 1999 by faith@precisioninsight.com
+/* sis.c -- sis driver -*- linux-c -*-
  *
  * Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
  * Copyright 2000 VA Linux Systems, Inc., Sunnyvale, California.
@@ -23,18 +22,12 @@
  * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
- * 
- * Authors:
- *    Rickard E. (Rik) Faith <faith@valinux.com>
- *    Daryll Strauss <daryll@valinux.com>
- *    Sung-Ching Lin <sclin@sis.com.tw>
  *
  */
-/* $XFree86: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/kernel/sis_drv.c,v 1.5 2000/09/22 11:35:47 alanh Exp $ */
 
 #include <linux/config.h>
 #include "drmP.h"
-#include "sis_drm_public.h"
+#include "sis_drm.h"
 #include "sis_drv.h"
 
 #define SIS_NAME	 "sis"
@@ -637,6 +630,15 @@ int sis_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 #endif
 
         if (!ret) {
+		sigemptyset(&dev->sigmask);
+		sigaddset(&dev->sigmask, SIGSTOP);
+		sigaddset(&dev->sigmask, SIGTSTP);
+		sigaddset(&dev->sigmask, SIGTTIN);
+		sigaddset(&dev->sigmask, SIGTTOU);
+		dev->sigdata.context = lock.context;
+		dev->sigdata.lock    = dev->lock.hw_lock;
+		block_all_signals(drm_notifier, &dev->sigdata, &dev->sigmask);
+
                 if (lock.flags & _DRM_LOCK_READY) {
 				/* Wait for space in DMA/FIFO */
 		}
@@ -648,12 +650,6 @@ int sis_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 		}
         }
 
-#if LINUX_VERSION_CODE < 0x020400
-	if (lock.context != sis_res_ctx.handle) {
-		current->counter = 5;
-		current->priority = DEF_PRIORITY/4;
-	}
-#endif
         DRM_DEBUG("%d %s\n", lock.context, ret ? "interrupted" : "has lock");
 
 #if DRM_DMA_HISTOGRAM
@@ -694,12 +690,6 @@ int sis_unlock(struct inode *inode, struct file *filp, unsigned int cmd,
 		}
 	}
 
-#if LINUX_VERSION_CODE < 0x020400
-	if (lock.context != sis_res_ctx.handle) {
-		current->counter = 5;
-		current->priority = DEF_PRIORITY;
-	}
-#endif
-	
+	unblock_all_signals();
 	return 0;
 }

@@ -68,24 +68,8 @@ int R128_READ_PLL(drm_device_t *dev, int addr)
 	return R128_READ(R128_CLOCK_CNTL_DATA);
 }
 
-static void r128_flush_write_combine(void)
-{
-	int xchangeDummy;
+#define r128_flush_write_combine()	mb()
 
-	__asm__ volatile("push %%eax ;"
-			 "xchg %%eax, %0 ;"
-			 "pop %%eax" : : "m" (xchangeDummy));
-	__asm__ volatile("push %%eax ;"
-			 "push %%ebx ;"
-			 "push %%ecx ;"
-			 "push %%edx ;"
-			 "movl $0,%%eax ;"
-			 "cpuid ;"
-			 "pop %%edx ;"
-			 "pop %%ecx ;"
-			 "pop %%ebx ;"
-			 "pop %%eax" : /* no outputs */ :  /* no inputs */ );
-}
 
 static void r128_status(drm_device_t *dev)
 {
@@ -211,8 +195,8 @@ int r128_init_cce(struct inode *inode, struct file *filp,
         drm_device_t      *dev    = priv->dev;
 	drm_r128_init_t    init;
 
-	copy_from_user_ret(&init, (drm_r128_init_t *)arg, sizeof(init),
-			   -EFAULT);
+	if (copy_from_user(&init, (drm_r128_init_t *)arg, sizeof(init)))
+		return -EFAULT;
 
 	switch (init.func) {
 	case R128_INIT_CCE:
@@ -680,8 +664,8 @@ int r128_submit_pkt(struct inode *inode, struct file *filp,
 		return -EINVAL;
 	}
 
-	copy_from_user_ret(&packet, (drm_r128_packet_t *)arg, sizeof(packet),
-			   -EFAULT);
+	if (copy_from_user(&packet, (drm_r128_packet_t *)arg, sizeof(packet)))
+		return -EFAULT;
 
 	c    = packet.count;
 	size = c * sizeof(*buffer);
@@ -696,7 +680,8 @@ int r128_submit_pkt(struct inode *inode, struct file *filp,
 		}
 
 		if ((buffer = kmalloc(size, 0)) == NULL) return -ENOMEM;
-		copy_from_user_ret(buffer, packet.buffer, size, -EFAULT);
+		if (copy_from_user(buffer, packet.buffer, size))
+			return -EFAULT;
 
 		if (dev_priv->cce_secure)
 			ret = r128_submit_packets_ring_secure(dev, buffer, &c);
@@ -706,7 +691,8 @@ int r128_submit_pkt(struct inode *inode, struct file *filp,
 		c += left;
 	} else {
 		if ((buffer = kmalloc(size, 0)) == NULL) return -ENOMEM;
-		copy_from_user_ret(buffer, packet.buffer, size, -EFAULT);
+		if (copy_from_user(buffer, packet.buffer, size))
+			return -EFAULT;
 
 		if (dev_priv->cce_secure)
 			ret = r128_submit_packets_pio_secure(dev, buffer, &c);
@@ -717,8 +703,8 @@ int r128_submit_pkt(struct inode *inode, struct file *filp,
 	kfree(buffer);
 
 	packet.count = c;
-	copy_to_user_ret((drm_r128_packet_t *)arg, &packet, sizeof(packet),
-			 -EFAULT);
+	if (copy_to_user((drm_r128_packet_t *)arg, &packet, sizeof(packet)))
+		return -EFAULT;
 
 	if (ret)        return ret;
 	else if (c > 0) return -EAGAIN;
@@ -855,14 +841,13 @@ static int r128_get_vertbufs(drm_device_t *dev, drm_r128_vertex_t *v)
 		buf = r128_freelist_get(dev);
 		if (!buf) break;
 		buf->pid = current->pid;
-		copy_to_user_ret(&v->request_indices[i],
+		if (copy_to_user(&v->request_indices[i],
 				 &buf->idx,
-				 sizeof(buf->idx),
-				 -EFAULT);
-		copy_to_user_ret(&v->request_sizes[i],
+				 sizeof(buf->idx)) ||
+		    copy_to_user(&v->request_sizes[i],
 				 &buf->total,
-				 sizeof(buf->total),
-				 -EFAULT);
+				 sizeof(buf->total)))
+			return -EFAULT;
 		++v->granted_count;
 	}
 	return 0;
@@ -889,7 +874,8 @@ int r128_vertex_buf(struct inode *inode, struct file *filp, unsigned int cmd,
 		return -EINVAL;
 	}
 
-	copy_from_user_ret(&v, (drm_r128_vertex_t *)arg, sizeof(v), -EFAULT);
+	if (copy_from_user(&v, (drm_r128_vertex_t *)arg, sizeof(v)))
+		return -EFAULT;
 	DRM_DEBUG("%d: %d send, %d req\n",
 		  current->pid, v.send_count, v.request_count);
 
@@ -916,7 +902,8 @@ int r128_vertex_buf(struct inode *inode, struct file *filp, unsigned int cmd,
 
 	DRM_DEBUG("%d returning, granted = %d\n",
 		  current->pid, v.granted_count);
-	copy_to_user_ret((drm_r128_vertex_t *)arg, &v, sizeof(v), -EFAULT);
+	if (copy_to_user((drm_r128_vertex_t *)arg, &v, sizeof(v)))
+		return -EFAULT;
 
 	return retcode;
 }

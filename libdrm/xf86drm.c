@@ -27,7 +27,7 @@
  * Authors: Rickard E. (Rik) Faith <faith@valinux.com>
  *	    Kevin E. Martin <martin@valinux.com>
  *
- * $XFree86: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/xf86drm.c,v 1.16 2000/08/28 16:55:52 dawes Exp $
+ * $XFree86: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/xf86drm.c,v 1.17 2000/09/24 13:51:32 alanh Exp $
  * 
  */
 
@@ -502,7 +502,8 @@ int drmAddMap(int fd,
 
     map.offset  = offset;
 #ifdef __alpha__
-    if (type != DRM_SHM)
+    /* Make sure we add the bus_base to all but shm */
+    if (type != DRM_SHM) 
 	map.offset += BUS_BASE;
 #endif
     map.size    = size;

@@ -1,5 +1,4 @@
 /* sis_drv.h -- Private header for sis driver -*- linux-c -*-
- * Created: Thu Oct  7 10:40:04 1999 by faith@precisioninsight.com
  *
  * Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
  * Copyright 2000 VA Linux Systems, Inc., Sunnyvale, California.
@@ -24,13 +23,7 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
  * 
- * Authors:
- *    Rickard E. (Rik) Faith <faith@valinux.com>
- *    Daryll Strauss <daryll@valinux.com>
- *    Sung-Ching Lin <sclin@sis.com.tw>
- * 
  */
-/* $XFree86: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/kernel/sis_drv.h,v 1.3 2000/09/22 11:35:47 alanh Exp $ */
 
 #ifndef _SIS_DRV_H_
 #define _SIS_DRV_H_

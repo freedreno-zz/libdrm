@@ -24,7 +24,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 # 
-# $XFree86: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/kernel/Makefile.linux,v 1.11 2000/09/01 02:31:38 tsi Exp $
+# $XFree86: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/kernel/Makefile.linux,v 1.13 2000/10/05 21:59:29 tsi Exp $
 #
 # ***** NOTE NOTE NOTE NOTE NOTE *****
 # To override the automatic Linux source tree determination, pass the
@@ -48,13 +48,13 @@
 
 # **** End of SMP/MODVERSIONS detection
 
-MODS=           gamma.o tdfx.o r128.o sis.o
+MODS=           gamma.o tdfx.o r128.o
 LIBS=           libdrm.a
 PROGS=		drmstat
 
 DRMOBJS=	init.o memory.o proc.o auth.o context.o drawable.o bufs.o \
 		lists.o lock.o ioctl.o fops.o vm.o dma.o ctxbitmap.o
-DRMHEADERS=	drm.h drmP.h
+DRMHEADERS=	drm.h drmP.h compat-pre24.h
 
 GAMMAOBJS=      gamma_drv.o gamma_dma.o
 GAMMAHEADERS=   gamma_drv.h $(DRMHEADERS)
@@ -64,9 +64,6 @@ TDFXHEADERS=    tdfx_drv.h $(DRMHEADERS)
 
 R128OBJS=	r128_drv.o r128_dma.o r128_bufs.o r128_context.o
 R128HEADERS=	r128_drv.h r128_drm.h $(DRMHEADERS)
-
-SISOBJS=	sis_drv.o sis_context.o sis_ds.o sis_mm.o
-SISHEADERS=	sis_drv.h sis_ds.h sis_drm_public.h $(DRMHEADERS)
 
 PROGOBJS=       drmstat.po xf86drm.po xf86drmHash.po xf86drmRandom.po sigio.po
 PROGHEADERS=    xf86drm.h $(DRMHEADERS)
@@ -121,14 +118,17 @@ all:; @echo Error: Could not locate kernel tree in $A $B $C
 else
 SMP := $(shell gcc -E -nostdinc -I$(TREE) picker.c 2>/dev/null \
 	| grep -s 'SMP = ' | cut -d' ' -f3)
-MODULES := $(shell gcc -E -nostdinc -I $(TREE) picker.c 2>/dev/null \
+MODULES := $(shell gcc -E -nostdinc -I$(TREE) picker.c 2>/dev/null \
 	| grep -s 'MODULES = ' | cut -d' ' -f3)
-MODVERSIONS := $(shell gcc -E -nostdinc -I $(TREE) picker.c 2>/dev/null \
+MODVERSIONS := $(shell gcc -E -nostdinc -I$(TREE) picker.c 2>/dev/null \
 	| grep -s 'MODVERSIONS = ' | cut -d' ' -f3)
 AGP := $(shell gcc -E -nostdinc -I$(TREE) picker.c 2>/dev/null \
 	| grep -s 'AGP = ' | cut -d' ' -f3)
-PARAMS := $(shell if fgrep kill_fasync $(TREE)/linux/fs.h \
-	| fgrep -q band; then echo 3; else echo 2; fi)
+SIS := $(shell gcc -E -nostdinc -I$(TREE) picker.c 2>/dev/null \
+	| grep -s 'SIS = ' | cut -d' ' -f3)
+PARAMS := $(shell if fgrep kill_fasync $(TREE)/linux/fs.h 2>/dev/null \
+	| egrep -q '(band|int, int)'; then echo 3; else echo 2; fi)
+MACHINE := $(shell echo `uname -m`)
 ifeq ($(AGP),0)
 AGP := $(shell gcc -E -nostdinc -I$(TREE) picker.c 2>/dev/null \
 	| grep -s 'AGP_MODULE = ' | cut -d' ' -f3)
@@ -137,7 +137,11 @@ endif
 ifeq ($(AGP),1)
 MODCFLAGS += -DCONFIG_AGP -DCONFIG_AGP_MODULE
 DRMOBJS += agpsupport.o
-MODS += mga.o i810.o
+MODS += mga.o
+ifeq ($(MACHINE),i386)
+MODS += i810.o
+endif
+
 
 MGAOBJS=	mga_drv.o mga_dma.o mga_bufs.o mga_state.o mga_context.o
 MGAHEADERS=	mga_drv.h $(DRMHEADERS)
@@ -146,9 +150,23 @@ I810OBJS=	i810_drv.o i810_dma.o i810_bufs.o i810_context.o
 I810HEADERS=	i810_drv.h $(DRMHEADERS)
 endif
 
+ifeq ($(SIS),1)
+# It appears that the SiS driver makes calls to sis_malloc and sis_free, and
+# that these calls are only defined if CONFIG_FB_SIS is selected.  So, key
+# off that to determine if we should attempt to build the SiS driver.
+#
+# A better way would be to detect the appropriate definitions in the header
+# file to see if we can, at least, compile the driver.
+MODS += sis.o
+
+SISOBJS=	sis_drv.o sis_context.o sis_ds.o sis_mm.o
+SISHEADERS=	sis_drv.h sis_ds.h sis_drm.h $(DRMHEADERS)
+endif
+
 all::;@echo === KERNEL HEADERS IN $(TREE)
 all::;@echo === SMP=${SMP} MODULES=${MODULES} MODVERSIONS=${MODVERSIONS} AGP=${AGP}
 all::;@echo === kill_fasync has $(PARAMS) parameters
+all::;@echo === Compiling for machine $(MACHINE)
 
 ifeq ($(MODULES),0)
 all::;@echo
