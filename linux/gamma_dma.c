@@ -952,4 +952,7 @@ void gamma_driver_register_fns(drm_device_t *dev)
 	dev->fn_tbl.dma_flush_unblock = gamma_flush_unblock;
 	dev->fn_tbl.dma_schedule = gamma_dma_schedule;
 	dev->fn_tbl.waitlist_destroy = gamma_waitlist_destroy;
+	dev->fn_tbl.freelist_create = gamma_freelist_create;
+	dev->fn_tbl.freelist_put = gamma_freelist_put;
+	dev->fn_tbl.freelist_destroy = gamma_freelist_destroy;
 }

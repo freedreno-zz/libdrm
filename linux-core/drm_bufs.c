@@ -304,7 +304,7 @@ int DRM(rmmap)(struct inode *inode, struct file *filp,
  *
  * Frees any pages and buffers associated with the given entry.
  */
-static void DRM(cleanup_buf_error)(drm_buf_entry_t *entry)
+static void DRM(cleanup_buf_error)(drm_device_t *dev, drm_buf_entry_t *entry)
 {
 	int i;
 
@@ -337,9 +337,8 @@ static void DRM(cleanup_buf_error)(drm_buf_entry_t *entry)
 			  sizeof(*entry->buflist),
 			  DRM_MEM_BUFS);
 
-#if __HAVE_DMA_FREELIST
-	   	DRM(freelist_destroy)(&entry->freelist);
-#endif
+		if (dev->fn_tbl.freelist_destroy)
+			dev->fn_tbl.freelist_destroy(&entry->freelist);
 
 		entry->buf_count = 0;
 	}
@@ -468,7 +467,7 @@ int DRM(addbufs_agp)( struct inode *inode, struct file *filp,
 		if(!buf->dev_private) {
 			/* Set count correctly so we free the proper amount. */
 			entry->buf_count = count;
-			DRM(cleanup_buf_error)(entry);
+			DRM(cleanup_buf_error)(dev,entry);
 			up( &dev->struct_sem );
 			atomic_dec( &dev->buf_alloc );
 			return -ENOMEM;
@@ -492,7 +491,7 @@ int DRM(addbufs_agp)( struct inode *inode, struct file *filp,
 				     DRM_MEM_BUFS );
 	if(!temp_buflist) {
 		/* Free the entry because it isn't valid */
-		DRM(cleanup_buf_error)(entry);
+		DRM(cleanup_buf_error)(dev,entry);
 		up( &dev->struct_sem );
 		atomic_dec( &dev->buf_alloc );
 		return -ENOMEM;
@@ -509,12 +508,14 @@ int DRM(addbufs_agp)( struct inode *inode, struct file *filp,
 	DRM_DEBUG( "dma->buf_count : %d\n", dma->buf_count );
 	DRM_DEBUG( "entry->buf_count : %d\n", entry->buf_count );
 
-#if __HAVE_DMA_FREELIST
-	DRM(freelist_create)( &entry->freelist, entry->buf_count );
-	for ( i = 0 ; i < entry->buf_count ; i++ ) {
-		DRM(freelist_put)( dev, &entry->freelist, &entry->buflist[i] );
+	if (dev->fn_tbl.freelist_create)
+	{
+		dev->fn_tbl.freelist_create( &entry->freelist, entry->buf_count);
+		for ( i = 0 ; i < entry->buf_count ; i++ ) {
+			dev->fn_tbl.freelist_put( dev, &entry->freelist, &entry->buflist[i] );
+		}
 	}
-#endif
+
 	up( &dev->struct_sem );
 
 	request.count = entry->buf_count;
@@ -653,7 +654,7 @@ int DRM(addbufs_pci)( struct inode *inode, struct file *filp,
 			/* Set count correctly so we free the proper amount. */
 			entry->buf_count = count;
 			entry->seg_count = count;
-			DRM(cleanup_buf_error)(entry);
+			DRM(cleanup_buf_error)(dev,entry);
 			DRM(free)( temp_pagelist,
 				   (dma->page_count + (count << page_order))
 				   * sizeof(*dma->pagelist),
@@ -694,7 +695,7 @@ int DRM(addbufs_pci)( struct inode *inode, struct file *filp,
 				/* Set count correctly so we free the proper amount. */
 				entry->buf_count = count;
 				entry->seg_count = count;
-				DRM(cleanup_buf_error)(entry);
+				DRM(cleanup_buf_error)(dev,entry);
 				DRM(free)( temp_pagelist,
 					   (dma->page_count + (count << page_order))
 					   * sizeof(*dma->pagelist),
@@ -718,7 +719,7 @@ int DRM(addbufs_pci)( struct inode *inode, struct file *filp,
 				     DRM_MEM_BUFS );
 	if (!temp_buflist) {
 		/* Free the entry because it isn't valid */
-		DRM(cleanup_buf_error)(entry);
+		DRM(cleanup_buf_error)(dev,entry);
 		DRM(free)( temp_pagelist,
 			   (dma->page_count + (count << page_order))
 			   * sizeof(*dma->pagelist),
@@ -748,12 +749,14 @@ int DRM(addbufs_pci)( struct inode *inode, struct file *filp,
 	dma->page_count += entry->seg_count << page_order;
 	dma->byte_count += PAGE_SIZE * (entry->seg_count << page_order);
 
-#if __HAVE_DMA_FREELIST
-	DRM(freelist_create)( &entry->freelist, entry->buf_count );
-	for ( i = 0 ; i < entry->buf_count ; i++ ) {
-		DRM(freelist_put)( dev, &entry->freelist, &entry->buflist[i] );
+	if (dev->fn_tbl.freelist_create)
+	{
+		dev->fn_tbl.freelist_create( &entry->freelist, entry->buf_count);
+		for ( i = 0 ; i < entry->buf_count ; i++ ) {
+			dev->fn_tbl.freelist_put( dev, &entry->freelist, &entry->buflist[i] );
+		}
 	}
-#endif
+
 	up( &dev->struct_sem );
 
 	request.count = entry->buf_count;
@@ -877,7 +880,7 @@ int DRM(addbufs_sg)( struct inode *inode, struct file *filp,
 		if(!buf->dev_private) {
 			/* Set count correctly so we free the proper amount. */
 			entry->buf_count = count;
-			DRM(cleanup_buf_error)(entry);
+			DRM(cleanup_buf_error)(dev,entry);
 			up( &dev->struct_sem );
 			atomic_dec( &dev->buf_alloc );
 			return -ENOMEM;
@@ -902,7 +905,7 @@ int DRM(addbufs_sg)( struct inode *inode, struct file *filp,
 				     DRM_MEM_BUFS );
 	if(!temp_buflist) {
 		/* Free the entry because it isn't valid */
-		DRM(cleanup_buf_error)(entry);
+		DRM(cleanup_buf_error)(dev,entry);
 		up( &dev->struct_sem );
 		atomic_dec( &dev->buf_alloc );
 		return -ENOMEM;
@@ -919,12 +922,14 @@ int DRM(addbufs_sg)( struct inode *inode, struct file *filp,
 	DRM_DEBUG( "dma->buf_count : %d\n", dma->buf_count );
 	DRM_DEBUG( "entry->buf_count : %d\n", entry->buf_count );
 
-#if __HAVE_DMA_FREELIST
-	DRM(freelist_create)( &entry->freelist, entry->buf_count );
-	for ( i = 0 ; i < entry->buf_count ; i++ ) {
-		DRM(freelist_put)( dev, &entry->freelist, &entry->buflist[i] );
+	if (dev->fn_tbl.freelist_create)
+	{
+		dev->fn_tbl.freelist_create( &entry->freelist, entry->buf_count);
+		for ( i = 0 ; i < entry->buf_count ; i++ ) {
+			dev->fn_tbl.freelist_put( dev, &entry->freelist, &entry->buflist[i] );
+		}
 	}
-#endif
+
 	up( &dev->struct_sem );
 
 	request.count = entry->buf_count;

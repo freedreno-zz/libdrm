@@ -74,8 +74,6 @@
 #define __HAVE_MULTIPLE_DMA_QUEUES	1
 #define __HAVE_DMA_WAITQUEUE		1
 
-#define __HAVE_DMA_FREELIST		1
-
 #define __HAVE_IRQ			1
 #define __HAVE_IRQ_BH			1
 
