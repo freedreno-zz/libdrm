@@ -630,11 +630,9 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 			/* FIXME: Render a rectangle to clear the depth
 			 * buffer.  So much for those "fast Z clears"...
 			 */
-			BEGIN_RING( 27 );
+			BEGIN_RING( 22 );
 
-			RADEON_PURGE_CACHE();
-			RADEON_PURGE_ZCACHE();
-			RADEON_WAIT_UNTIL_IDLE();
+			RADEON_WAIT_UNTIL_2D_IDLE();
 
 			OUT_RING( CP_PACKET0( RADEON_PP_CNTL, 1 ) );
 			OUT_RING( pp_cntl );
@@ -1139,9 +1137,31 @@ static int radeon_cp_dispatch_blit( drm_device_t *dev,
 	return 0;
 }
 
+static void radeon_cp_dispatch_stipple( drm_device_t *dev, u32 *stipple )
+{
+	drm_radeon_private_t *dev_priv = dev->dev_private;
+	int i;
+	RING_LOCALS;
+	DRM_INFO( "%s\n", __FUNCTION__ );
+
+	radeon_update_ring_snapshot( dev_priv );
+
+	BEGIN_RING( 35 );
+
+	OUT_RING( CP_PACKET0( RADEON_RE_STIPPLE_ADDR, 0 ) );
+	OUT_RING( 0x00000000 );
+
+	OUT_RING( CP_PACKET0_TABLE( RADEON_RE_STIPPLE_DATA, 31 ) );
+	for ( i = 0 ; i < 32 ; i++ ) {
+		OUT_RING( stipple[i] );
+	}
+
+	ADVANCE_RING();
+}
+
 
 /* ================================================================
- *
+ * IOCTL functions
  */
 
 int radeon_cp_clear( struct inode *inode, struct file *filp,
@@ -1380,7 +1400,8 @@ int radeon_cp_stipple( struct inode *inode, struct file *filp,
 {
 	drm_file_t *priv = filp->private_data;
 	drm_device_t *dev = priv->dev;
-	DRM_DEBUG( "%s\n", __FUNCTION__ );
+	drm_radeon_stipple_t stipple;
+	u32 mask[32];
 
 	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||
 	     dev->lock.pid != current->pid ) {
@@ -1388,7 +1409,17 @@ int radeon_cp_stipple( struct inode *inode, struct file *filp,
 		return -EINVAL;
 	}
 
-	return -EINVAL;
+	if ( copy_from_user( &stipple, (drm_radeon_stipple_t *)arg,
+			     sizeof(stipple) ) )
+		return -EFAULT;
+
+	if ( copy_from_user( &mask, stipple.mask,
+			     32 * sizeof(u32) ) )
+		return -EFAULT;
+
+	radeon_cp_dispatch_stipple( dev, mask );
+
+	return 0;
 }
 
 int radeon_cp_indirect( struct inode *inode, struct file *filp,

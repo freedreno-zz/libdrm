@@ -1357,7 +1357,7 @@ static void r128_cce_dispatch_stipple( drm_device_t *dev, u32 *stipple )
 
 	BEGIN_RING( 33 );
 
-	OUT_RING(  CCE_PACKET0( R128_BRUSH_DATA0, 31 ) );
+	OUT_RING( CCE_PACKET0( R128_BRUSH_DATA0, 31 ) );
 	for ( i = 0 ; i < 32 ; i++ ) {
 		OUT_RING( stipple[i] );
 	}

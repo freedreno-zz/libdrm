@@ -736,10 +736,9 @@ static int radeon_do_init_cp( drm_device_t *dev, drm_radeon_init_t *init )
 	dev_priv->ring.tail_mask =
 		(dev_priv->ring.size / sizeof(u32)) - 1;
 
-	/* Initialize the scratch register pointer.
-	 * GH: We really want to do this, but it seems to be causing
-	 * some instability.  I'll look into this later on...
-	 * GH: I'll remove the magic numbers when it works.
+	/* Initialize the scratch register pointer.  This will cause
+	 * the scratch register values to be written out to memory
+	 * whenever they are updated.
 	 */
 	RADEON_WRITE( RADEON_SCRATCH_ADDR, (dev_priv->ring_rptr->offset +
 					    RADEON_SCRATCH_REG_OFFSET) );

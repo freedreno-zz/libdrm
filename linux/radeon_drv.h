@@ -335,9 +335,11 @@ extern int  radeon_context_switch_complete(drm_device_t *dev, int new);
 #	define RADEON_RBBM_FIFOCNT_MASK		0x007f
 #	define RADEON_RBBM_ACTIVE		(1 << 31)
 #define RADEON_RE_LINE_PATTERN		0x1cd0
-#define RADEON_RE_TOP_LEFT		0x26c0
 #define RADEON_RE_MISC			0x26c4
+#define RADEON_RE_TOP_LEFT		0x26c0
 #define RADEON_RE_WIDTH_HEIGHT		0x1c44
+#define RADEON_RE_STIPPLE_ADDR		0x1cc8
+#define RADEON_RE_STIPPLE_DATA		0x1ccc
 
 #define RADEON_SCISSOR_TL_0		0x1cd8
 #define RADEON_SCISSOR_BR_0		0x1cdc
@@ -451,6 +453,7 @@ extern int  radeon_context_switch_complete(drm_device_t *dev, int new);
 
 /* CP command packets */
 #define RADEON_CP_PACKET0		0x00000000
+#	define RADEON_ONE_REG_WR		(1 << 15)
 #define RADEON_CP_PACKET1		0x40000000
 #define RADEON_CP_PACKET2		0x80000000
 #define RADEON_CP_PACKET3		0xC0000000
@@ -544,6 +547,8 @@ extern int RADEON_READ_PLL(drm_device_t *dev, int addr);
 
 #define CP_PACKET0( reg, n )						\
 	(RADEON_CP_PACKET0 | ((n) << 16) | ((reg) >> 2))
+#define CP_PACKET0_TABLE( reg, n )					\
+	(RADEON_CP_PACKET0 | RADEON_ONE_REG_WR | ((n) << 16) | ((reg) >> 2))
 #define CP_PACKET1( reg0, reg1 )					\
 	(RADEON_CP_PACKET1 | (((reg1) >> 2) << 15) | ((reg0) >> 2))
 #define CP_PACKET2()							\
