@@ -238,8 +238,8 @@ drm_agp_head_t *drm_agp_init(void)
 	if (agp_available) {
 		if (!(head = drm_alloc(sizeof(*head), DRM_MEM_AGPLISTS)))
 			return NULL;
-		head->agpdev = agpdev;
 		memset((void *)head, 0, sizeof(*head));
+		head->agpdev = agpdev;
 		agp_get_info(agpdev, &head->info);
 		head->memory = NULL;
 #if 0				/* bogus */
