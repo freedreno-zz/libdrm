@@ -463,7 +463,7 @@ do {									\
 	drm_r128_ring_buffer_t *ring = &dev_priv->ring; int i;		\
 	if ( ring->space < ring->high_mark ) {				\
 		for ( i = 0 ; i < dev_priv->usec_timeout ; i++ ) {	\
-			ring->space = GET_RING_HEAD( ring ) - ring->tail;	\
+			ring->space = GET_RING_HEAD( ring ) - ring->tail;\
 			if ( ring->space <= 0 )				\
 				ring->space += ring->size;		\
 			if ( ring->space >= ring->high_mark )		\
