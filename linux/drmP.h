@@ -105,9 +105,6 @@
 #ifndef __HAVE_IRQ
 #define __HAVE_IRQ		0
 #endif
-#ifndef __HAVE_DMA_WAITLIST
-#define __HAVE_DMA_WAITLIST	0
-#endif
 #ifndef __HAVE_DMA_FREELIST
 #define __HAVE_DMA_FREELIST	0
 #endif
@@ -593,6 +590,7 @@ struct drm_driver_fn {
 	int (*kernel_context_switch)(struct drm_device *dev, int old, int new);
 	int (*kernel_context_switch_unlock)(struct drm_device *dev);
 	int (*dma_schedule)(struct drm_device *dev, int locked);
+	int (*waitlist_destroy)(drm_waitlist_t *bl);
 };
 /**
  * DRM device structure.
