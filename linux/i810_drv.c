@@ -43,14 +43,13 @@
 
 /* Interface history
  *
- * 1.0
- * 2.0 - Security fixes.
- * 2.1 - Add i810_dma_vertex2 ioctl,
+ * 1.1 - XFree 4.1
+ * 1.2 - Add i810_dma_vertex2 ioctl,
  *     - Disable copying code (leave stub ioctls for backwards compatibility)
  *
  */
-#define DRIVER_MAJOR		2
-#define DRIVER_MINOR		1
+#define DRIVER_MAJOR		1
+#define DRIVER_MINOR		2
 #define DRIVER_PATCHLEVEL	0
 
 #define DRIVER_IOCTLS							    \
