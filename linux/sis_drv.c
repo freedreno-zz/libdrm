@@ -1,5 +1,4 @@
 /* sis.c -- sis driver -*- linux-c -*-
- * Created: Thu Oct  7 10:38:32 1999 by faith@precisioninsight.com
  *
  * Copyright 1999, 2000 Precision Insight, Inc., Cedar Park, Texas.
  * All Rights Reserved.
@@ -23,15 +22,11 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
  *
- * Authors:
- *    Rickard E. (Rik) Faith <faith@precisioninsight.com>
- *    Daryll Strauss <daryll@precisioninsight.com>
- *
  */
 
 #include <linux/config.h>
 #include "drmP.h"
-#include "sis_drm_public.h"
+#include "sis_drm.h"
 #include "sis_drv.h"
 
 #define SIS_NAME	 "sis"
@@ -631,6 +626,16 @@ int sis_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 #endif
 
         if (!ret) {
+#if LINUX_VERSION_CODE >= 0x020400 /* KERNEL_VERSION(2,4,0) */
+		sigemptyset(&dev->sigmask);
+		sigaddset(&dev->sigmask, SIGSTOP);
+		sigaddset(&dev->sigmask, SIGTSTP);
+		sigaddset(&dev->sigmask, SIGTTIN);
+		sigaddset(&dev->sigmask, SIGTTOU);
+		dev->sigdata.context = lock.context;
+		dev->sigdata.lock    = dev->lock.hw_lock;
+		block_all_signals(drm_notifier, &dev->sigdata, &dev->sigmask);
+#endif
                 if (lock.flags & _DRM_LOCK_READY) {
 				/* Wait for space in DMA/FIFO */
 		}
@@ -681,7 +686,10 @@ int sis_unlock(struct inode *inode, struct file *filp, unsigned int cmd,
 			DRM_ERROR("\n");
 		}
 	}
-	
+
+#if LINUX_VERSION_CODE >= 0x020400 /* KERNEL_VERSION(2,4,0) */
+	unblock_all_signals();
+#endif
 	return 0;
 }
 
