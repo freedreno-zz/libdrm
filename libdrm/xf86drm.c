@@ -71,8 +71,6 @@ extern int xf86RemoveSIGIOHandler(int fd);
 #ifdef __alpha__
 extern unsigned long _bus_base(void);
 #define BUS_BASE _bus_base()
-#else
-#define BUS_BASE (0)
 #endif
 
 /* Not all systems have MAP_FAILED defined */
@@ -504,7 +502,8 @@ int drmAddMap(int fd,
 
     map.offset  = offset;
 #ifdef __alpha__
-    if (!(type & DRM_SHM))
+    /* Make sure we add the bus_base to all but shm */
+    if (type != DRM_SHM) 
 	map.offset += BUS_BASE;
 #endif
     map.size    = size;
