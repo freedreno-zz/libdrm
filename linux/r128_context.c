@@ -1,5 +1,5 @@
-/* tdfx_context.c -- IOCTLs for tdfx contexts -*- linux-c -*-
- * Created: Thu Oct  7 10:50:22 1999 by faith@precisioninsight.com
+/* r128_context.c -- IOCTLs for r128 contexts -*- linux-c -*-
+ * Created: Mon Dec 13 09:51:35 1999 by faith@precisioninsight.com
  *
  * Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
  * All Rights Reserved.
@@ -23,9 +23,8 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
  * 
- * Authors: Rickard E. (Rik) Faith <faith@precisioninsight.com>
- *          Daryll Strauss <daryll@precisioninsight.com>
- * 
+ * Author: Rickard E. (Rik) Faith <faith@precisioninsight.com>
+ *
  * $XFree86$
  *
  */
@@ -34,16 +33,16 @@
 
 #define __NO_VERSION__
 #include "drmP.h"
-#include "tdfx_drv.h"
+#include "r128_drv.h"
 
-extern drm_ctx_t tdfx_res_ctx;
+extern drm_ctx_t r128_res_ctx;
 
-static int tdfx_alloc_queue(drm_device_t *dev)
+static int r128_alloc_queue(drm_device_t *dev)
 {
 	return drm_ctxbitmap_next(dev);
 }
 
-int tdfx_context_switch(drm_device_t *dev, int old, int new)
+int r128_context_switch(drm_device_t *dev, int old, int new)
 {
         char        buf[64];
 
@@ -66,7 +65,7 @@ int tdfx_context_switch(drm_device_t *dev, int old, int new)
         }
         
         if (drm_flags & DRM_FLAG_NOCTX) {
-                tdfx_context_switch_complete(dev, new);
+                r128_context_switch_complete(dev, new);
         } else {
                 sprintf(buf, "C %d %d\n", old, new);
                 drm_write_string(dev, buf);
@@ -75,7 +74,7 @@ int tdfx_context_switch(drm_device_t *dev, int old, int new)
         return 0;
 }
 
-int tdfx_context_switch_complete(drm_device_t *dev, int new)
+int r128_context_switch_complete(drm_device_t *dev, int new)
 {
         dev->last_context = new;  /* PRE/POST: This is the _only_ writer. */
         dev->last_switch  = jiffies;
@@ -99,7 +98,7 @@ int tdfx_context_switch_complete(drm_device_t *dev, int new)
 }
 
 
-int tdfx_resctx(struct inode *inode, struct file *filp, unsigned int cmd,
+int r128_resctx(struct inode *inode, struct file *filp, unsigned int cmd,
 	       unsigned long arg)
 {
 	drm_ctx_res_t	res;
@@ -124,7 +123,7 @@ int tdfx_resctx(struct inode *inode, struct file *filp, unsigned int cmd,
 }
 
 
-int tdfx_addctx(struct inode *inode, struct file *filp, unsigned int cmd,
+int r128_addctx(struct inode *inode, struct file *filp, unsigned int cmd,
 	       unsigned long arg)
 {
 	drm_file_t	*priv	= filp->private_data;
@@ -132,33 +131,32 @@ int tdfx_addctx(struct inode *inode, struct file *filp, unsigned int cmd,
 	drm_ctx_t	ctx;
 
 	copy_from_user_ret(&ctx, (drm_ctx_t *)arg, sizeof(ctx), -EFAULT);
-	if ((ctx.handle = tdfx_alloc_queue(dev)) == DRM_KERNEL_CONTEXT) {
+	if ((ctx.handle = r128_alloc_queue(dev)) == DRM_KERNEL_CONTEXT) {
 				/* Skip kernel's context and get a new one. */
-		ctx.handle = tdfx_alloc_queue(dev);
+		ctx.handle = r128_alloc_queue(dev);
 	}
-	DRM_DEBUG("%d\n", ctx.handle);
-	if (ctx.handle == -1) {
+        if (ctx.handle == -1) {
 		DRM_DEBUG("Not enough free contexts.\n");
 				/* Should this return -EBUSY instead? */
 		return -ENOMEM;
 	}
-   
+	DRM_DEBUG("%d\n", ctx.handle);
 	copy_to_user_ret((drm_ctx_t *)arg, &ctx, sizeof(ctx), -EFAULT);
 	return 0;
 }
 
-int tdfx_modctx(struct inode *inode, struct file *filp, unsigned int cmd,
+int r128_modctx(struct inode *inode, struct file *filp, unsigned int cmd,
 	unsigned long arg)
 {
 	drm_ctx_t ctx;
 
 	copy_from_user_ret(&ctx, (drm_ctx_t*)arg, sizeof(ctx), -EFAULT);
 	if (ctx.flags==_DRM_CONTEXT_PRESERVED)
-		tdfx_res_ctx.handle=ctx.handle;
+		r128_res_ctx.handle=ctx.handle;
 	return 0;
 }
 
-int tdfx_getctx(struct inode *inode, struct file *filp, unsigned int cmd,
+int r128_getctx(struct inode *inode, struct file *filp, unsigned int cmd,
 	unsigned long arg)
 {
 	drm_ctx_t ctx;
@@ -170,7 +168,7 @@ int tdfx_getctx(struct inode *inode, struct file *filp, unsigned int cmd,
 	return 0;
 }
 
-int tdfx_switchctx(struct inode *inode, struct file *filp, unsigned int cmd,
+int r128_switchctx(struct inode *inode, struct file *filp, unsigned int cmd,
 		   unsigned long arg)
 {
 	drm_file_t	*priv	= filp->private_data;
@@ -179,10 +177,10 @@ int tdfx_switchctx(struct inode *inode, struct file *filp, unsigned int cmd,
 
 	copy_from_user_ret(&ctx, (drm_ctx_t *)arg, sizeof(ctx), -EFAULT);
 	DRM_DEBUG("%d\n", ctx.handle);
-	return tdfx_context_switch(dev, dev->last_context, ctx.handle);
+	return r128_context_switch(dev, dev->last_context, ctx.handle);
 }
 
-int tdfx_newctx(struct inode *inode, struct file *filp, unsigned int cmd,
+int r128_newctx(struct inode *inode, struct file *filp, unsigned int cmd,
 		unsigned long arg)
 {
 	drm_file_t	*priv	= filp->private_data;
@@ -191,14 +189,16 @@ int tdfx_newctx(struct inode *inode, struct file *filp, unsigned int cmd,
 
 	copy_from_user_ret(&ctx, (drm_ctx_t *)arg, sizeof(ctx), -EFAULT);
 	DRM_DEBUG("%d\n", ctx.handle);
-	tdfx_context_switch_complete(dev, ctx.handle);
+	r128_context_switch_complete(dev, ctx.handle);
 
 	return 0;
 }
 
-int tdfx_rmctx(struct inode *inode, struct file *filp, unsigned int cmd,
+int r128_rmctx(struct inode *inode, struct file *filp, unsigned int cmd,
 	       unsigned long arg)
 {
+	drm_file_t      *priv   = filp->private_data;
+	drm_device_t    *dev    = priv->dev;
 	drm_ctx_t	ctx;
 
 	copy_from_user_ret(&ctx, (drm_ctx_t *)arg, sizeof(ctx), -EFAULT);

@@ -248,7 +248,12 @@ static int mga_takedown(drm_device_t *dev)
 		}
 		dev->magiclist[i].head = dev->magiclist[i].tail = NULL;
 	}
-	
+   				/* Clear AGP information */
+	if (dev->agp) {
+				/* FIXME -- free other information, too */
+		drm_free(dev->agp, sizeof(*dev->agp), DRM_MEM_AGPLISTS);
+		dev->agp = NULL;
+	}
 				/* Clear vma list (only built for debugging) */
 	if (dev->vmalist) {
 		for (vma = dev->vmalist; vma; vma = vma_next) {
@@ -334,10 +339,6 @@ int mga_init(void)
 	DRM_DEBUG("\n");
 
 	memset((void *)dev, 0, sizeof(*dev));
-	if((retcode = drm_ctxbitmap_init(dev))) {
-		DRM_ERROR("Cannot allocate memory for context bitmap.\n");
-		return retcode;
-	}
 	dev->count_lock	  = SPIN_LOCK_UNLOCKED;
 	sema_init(&dev->struct_sem, 1);
 	
@@ -347,7 +348,6 @@ int mga_init(void)
 
 	if ((retcode = misc_register(&mga_misc))) {
 		DRM_ERROR("Cannot register \"%s\"\n", MGA_NAME);
-		drm_ctxbitmap_cleanup(dev);
 		return retcode;
 	}
 	dev->device = MKDEV(MISC_MAJOR, mga_misc.minor);
@@ -355,6 +355,14 @@ int mga_init(void)
 
 	drm_mem_init();
 	drm_proc_init(dev);
+	dev->agp    = drm_agp_init();
+	if((retcode = drm_ctxbitmap_init(dev))) {
+		DRM_ERROR("Cannot allocate memory for context bitmap.\n");
+		drm_proc_cleanup();
+		misc_deregister(&mga_misc);
+		mga_takedown(dev);
+		return retcode;
+	}
 
 	DRM_INFO("Initialized %s %d.%d.%d %s on minor %d\n",
 		 MGA_NAME,
@@ -363,8 +371,6 @@ int mga_init(void)
 		 MGA_PATCHLEVEL,
 		 MGA_DATE,
 		 mga_misc.minor);
-
-	dev->agp    = drm_agp_init();
 
 	return 0;
 }
@@ -383,8 +389,8 @@ void mga_cleanup(void)
 	} else {
 		DRM_INFO("Module unloaded\n");
 	}
-	mga_takedown(dev);
 	drm_ctxbitmap_cleanup(dev);
+	mga_takedown(dev);
 }
 
 int mga_version(struct inode *inode, struct file *filp, unsigned int cmd,

@@ -229,7 +229,13 @@ static int tdfx_takedown(drm_device_t *dev)
 		}
 		dev->magiclist[i].head = dev->magiclist[i].tail = NULL;
 	}
-	
+				/* Clear AGP information */
+	if (dev->agp) {
+				/* FIXME -- free other information, too */
+		drm_free(dev->agp, sizeof(*dev->agp), DRM_MEM_AGPLISTS);
+		dev->agp = NULL;
+	}
+   
 				/* Clear vma list (only built for debugging) */
 	if (dev->vmalist) {
 		for (vma = dev->vmalist; vma; vma = vma_next) {
@@ -314,6 +320,15 @@ int tdfx_init(void)
 
 	drm_mem_init();
 	drm_proc_init(dev);
+	dev->agp    = drm_agp_init();
+
+	if((retcode = drm_ctxbitmap_init(dev))) {
+		DRM_ERROR("Cannot allocate memory for context bitmap.\n");
+		drm_proc_cleanup();
+		misc_deregister(&tdfx_misc);
+		tdfx_takedown(dev);
+		return retcode;
+	}
 
 	DRM_INFO("Initialized %s %d.%d.%d %s on minor %d\n",
 		 TDFX_NAME,
@@ -340,6 +355,7 @@ void tdfx_cleanup(void)
 	} else {
 		DRM_INFO("Module unloaded\n");
 	}
+	drm_ctxbitmap_cleanup(dev);
 	tdfx_takedown(dev);
 }
 
