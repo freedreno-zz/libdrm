@@ -103,7 +103,8 @@ int DRM(ati_pcigart_init)( drm_device_t *dev,
 
 	for ( i = 0 ; i < pages ; i++ ) {
 		/* we need to support large memory configurations */
-		/* FIXME non-vtophys==vtobus-arches */		entry->busaddr[i] = vtophys( entry->handle + (i*PAGE_SIZE) );
+		/* FIXME non-vtophys==vtobus-arches */
+		entry->busaddr[i] = vtophys( entry->handle + (i*PAGE_SIZE) );
 /*		if (entry->busaddr[i] == 0) {
 			DRM_ERROR( "unable to map PCIGART pages!\n" );
 			DRM(ati_pcigart_cleanup)( dev, (unsigned long)address, bus_address );
