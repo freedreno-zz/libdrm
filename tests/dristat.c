@@ -133,18 +133,18 @@ int drmGetStats(int fd, drmStatsT *stats)
     if (s.count > sizeof(stats->data)/sizeof(stats->data[0]))
 	return -1;
 
-#define SET_VALUE                            \
-    stats->data[i].long_format = "%-9.9s";   \
-    stats->data[i].rate_format = "%8.8s";    \
-    stats->data[i].isvalue     = 1;          \
+#define SET_VALUE                              \
+    stats->data[i].long_format = "%-20.20s";   \
+    stats->data[i].rate_format = "%8.8s";      \
+    stats->data[i].isvalue     = 1;            \
     stats->data[i].verbose     = 0
 
-#define SET_COUNT                            \
-    stats->data[i].long_format = "%-9.9s";   \
-    stats->data[i].rate_format = "%5.5s";    \
-    stats->data[i].isvalue     = 0;          \
-    stats->data[i].mult_names  = "kgm";      \
-    stats->data[i].mult        = 1000;       \
+#define SET_COUNT                              \
+    stats->data[i].long_format = "%-20.20s";     \
+    stats->data[i].rate_format = "%5.5s";      \
+    stats->data[i].isvalue     = 0;            \
+    stats->data[i].mult_names  = "kgm";        \
+    stats->data[i].mult        = 1000;         \
     stats->data[i].verbose     = 0
 
 #define SET_BYTE                             \
@@ -198,13 +198,28 @@ int drmGetStats(int fd, drmStatsT *stats)
 	    SET_COUNT;
 	    break;
 	case _DRM_STAT_PRIMARY:
-	    stats->data[i].long_name = "Primary";
-	    stats->data[i].rate_name = "Pri/s";
-	    SET_COUNT;
+	    stats->data[i].long_name = "Primary Bytes";
+	    stats->data[i].rate_name = "PB/s";
+	    SET_BYTE;
 	    break;
 	case _DRM_STAT_SECONDARY:
-	    stats->data[i].long_name = "Secondary";
-	    stats->data[i].rate_name = "Sec/s";
+	    stats->data[i].long_name = "Secondary Bytes";
+	    stats->data[i].rate_name = "SB/s";
+	    SET_BYTE;
+	    break;
+	case _DRM_STAT_DMA:
+	    stats->data[i].long_name = "DMA";
+	    stats->data[i].rate_name = "DMA/s";
+	    SET_COUNT;
+	    break;
+	case _DRM_STAT_SPECIAL:
+	    stats->data[i].long_name = "Special DMA";
+	    stats->data[i].rate_name = "dma/s";
+	    SET_COUNT;
+	    break;
+	case _DRM_STAT_MISSED:
+	    stats->data[i].long_name = "Miss";
+	    stats->data[i].rate_name = "Ms/s";
 	    SET_COUNT;
 	    break;
 	case _DRM_STAT_VALUE:

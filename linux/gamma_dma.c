@@ -170,16 +170,13 @@ static void gamma_dma_service(int irq, void *device, struct pt_regs *regs)
 	drm_device_t	 *dev = (drm_device_t *)device;
 	drm_device_dma_t *dma = dev->dma;
 	
-	atomic_inc(&dev->counts[_DRM_STAT_IRQ]);
+	atomic_inc(&dev->counts[6]); /* _DRM_STAT_IRQ */
 	GAMMA_WRITE(GAMMA_GDELAYTIMER, 0xc350/2); /* 0x05S */
 	GAMMA_WRITE(GAMMA_GCOMMANDINTFLAGS, 8);
 	GAMMA_WRITE(GAMMA_GINTFLAGS, 0x2001);
 	if (gamma_dma_is_ready(dev)) {
 				/* Free previous buffer */
-		if (test_and_set_bit(0, &dev->dma_flag)) {
-			atomic_inc(&dma->total_missed_free);
-			return;
-		}
+		if (test_and_set_bit(0, &dev->dma_flag)) return;
 		if (dma->this_buffer) {
 			gamma_free_buffer(dev, dma->this_buffer);
 			dma->this_buffer = NULL;
@@ -204,10 +201,7 @@ static int gamma_do_dma(drm_device_t *dev, int locked)
 	cycles_t	 dma_start, dma_stop;
 #endif
 
-	if (test_and_set_bit(0, &dev->dma_flag)) {
-		atomic_inc(&dma->total_missed_dma);
-		return -EBUSY;
-	}
+	if (test_and_set_bit(0, &dev->dma_flag)) return -EBUSY;
 	
 #if DRM_DMA_HISTOGRAM
 	dma_start = get_cycles();
@@ -255,7 +249,6 @@ static int gamma_do_dma(drm_device_t *dev, int locked)
 	} else {
 		if (!locked && !gamma_lock_take(&dev->lock.hw_lock->lock,
 					      DRM_KERNEL_CONTEXT)) {
-			atomic_inc(&dma->total_missed_lock);
 			clear_bit(0, &dev->dma_flag);
 			return -EBUSY;
 		}
@@ -291,8 +284,8 @@ static int gamma_do_dma(drm_device_t *dev, int locked)
 	gamma_free_buffer(dev, dma->this_buffer);
 	dma->this_buffer = buf;
 
-	atomic_add(length, &dma->total_bytes);
-	atomic_inc(&dma->total_dmas);
+	atomic_inc(&dev->counts[7]); /* _DRM_STAT_DMA */
+	atomic_add(length, &dev->counts[8]); /* _DRM_STAT_PRIMARY */
 
 	if (!buf->while_locked && !dev->context_flag && !locked) {
 		if (gamma_lock_free(dev, &dev->lock.hw_lock->lock,
@@ -338,10 +331,10 @@ int gamma_dma_schedule(drm_device_t *dev, int locked)
 
 	if (test_and_set_bit(0, &dev->interrupt_flag)) {
 				/* Not reentrant */
-		atomic_inc(&dma->total_missed_sched);
+		atomic_inc(&dev->counts[10]); /* _DRM_STAT_MISSED */
 		return -EBUSY;
 	}
-	missed = atomic_read(&dma->total_missed_sched);
+	missed = atomic_read(&dev->counts[10]);
 
 #if DRM_DMA_HISTOGRAM
 	schedule_start = get_cycles();
@@ -358,11 +351,7 @@ again:
 				   because the lock could not be obtained
 				   or the DMA engine wasn't ready.  Try
 				   again. */
-		atomic_inc(&dma->total_tried);
-		if (!(retcode = gamma_do_dma(dev, locked))) {
-			atomic_inc(&dma->total_hit);
-			++processed;
-		}
+		if (!(retcode = gamma_do_dma(dev, locked))) ++processed;
 	} else {
 		do {
 			next = gamma_select_queue(dev,
@@ -386,12 +375,10 @@ again:
 	}
 
 	if (--expire) {
-		if (missed != atomic_read(&dma->total_missed_sched)) {
-			atomic_inc(&dma->total_lost);
+		if (missed != atomic_read(&dev->counts[10])) {
 			if (gamma_dma_is_ready(dev)) goto again;
 		}
 		if (processed && gamma_dma_is_ready(dev)) {
-			atomic_inc(&dma->total_lost);
 			processed = 0;
 			goto again;
 		}
@@ -435,7 +422,6 @@ static int gamma_dma_priority(drm_device_t *dev, drm_dma_t *d)
 		}
 		++must_free;
 	}
-	atomic_inc(&dma->total_prio);
 
 	for (i = 0; i < d->send_count; i++) {
 		idx = d->send_indices[i];
@@ -519,8 +505,8 @@ static int gamma_dma_priority(drm_device_t *dev, drm_dma_t *d)
 		buf->time_dispatched = buf->time_queued;
 #endif
 		gamma_dma_dispatch(dev, address, length);
-		atomic_add(length, &dma->total_bytes);
-		atomic_inc(&dma->total_dmas);
+		atomic_inc(&dev->counts[9]); /* _DRM_STAT_SPECIAL */
+		atomic_add(length, &dev->counts[8]); /* _DRM_STAT_PRIMARY */
 		
 		if (last_buf) {
 			gamma_free_buffer(dev, last_buf);

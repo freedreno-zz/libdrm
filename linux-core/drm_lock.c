@@ -142,7 +142,6 @@ static int DRM(flush_queue)(drm_device_t *dev, int context)
 		remove_wait_queue(&q->flush_queue, &entry);
 	}
 	atomic_dec(&q->use_count);
-	atomic_inc(&q->total_flushed);
 
 				/* NOTE: block_write is still incremented!
 				   Use drm_flush_unlock_queue to decrement. */

@@ -175,9 +175,12 @@ typedef enum {
 	_DRM_STAT_BYTE,		/* Generic byte counter (1024bytes/K) */
 	_DRM_STAT_COUNT,	/* Generic non-byte counter (1000/k)  */
 
-	_DRM_STAT_IRQ,
-	_DRM_STAT_PRIMARY,
-	_DRM_STAT_SECONDARY
+	_DRM_STAT_IRQ,		/* IRQ */
+	_DRM_STAT_PRIMARY,	/* Primary DMA bytes */
+	_DRM_STAT_SECONDARY,	/* Secondary DMA bytes */
+	_DRM_STAT_DMA,		/* DMA */
+	_DRM_STAT_SPECIAL,	/* Special DMA (e.g., priority or polled) */
+	_DRM_STAT_MISSED	/* Missed DMA opportunity */
 	
 				/* Add to the *END* of the list */
 } drm_stat_type_t;

@@ -60,7 +60,13 @@
 #define __HAVE_DMA_FREELIST	1
 #define __HAVE_DMA		1
 #define __HAVE_DMA_IRQ		1
-#define __HAVE_COUNTER_6	
+
+#define __HAVE_COUNTERS		10
+#define __HAVE_COUNTER6		_DRM_STAT_IRQ
+#define __HAVE_COUNTER7		_DRM_STAT_DMA
+#define __HAVE_COUNTER8		_DRM_STAT_PRIMARY
+#define __HAVE_COUNTER9		_DRM_STAT_SPECIAL
+#define __HAVE_COUNTER10	_DRM_STAT_MISSED
 
 #define __HAVE_DMA_READY	1
 #define DRIVER_DMA_READY()						\

@@ -847,9 +847,6 @@ int DRM(lock)( struct inode *inode, struct file *filp,
                                 dev->lock.pid       = current->pid;
                                 dev->lock.lock_time = jiffies;
                                 atomic_inc( &dev->counts[_DRM_STAT_LOCKS] );
-#if __HAVE_MULTIPLE_DMA_QUEUES
-				atomic_inc( &q->total_locks );
-#endif
                                 break;  /* Got lock */
                         }
 

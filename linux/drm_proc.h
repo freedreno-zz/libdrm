@@ -242,7 +242,7 @@ static int DRM(_queues_info)(char *buf, char **start, off_t offset,
 		atomic_inc(&q->use_count);
 		DRM_PROC_PRINT_RET(atomic_dec(&q->use_count),
 				   "%5d/0x%03x %5d %5d"
-				   " %5d/%c%c/%c%c%c %5Zd %10d %10d %10d\n",
+				   " %5d/%c%c/%c%c%c %5Zd\n",
 				   i,
 				   q->flags,
 				   atomic_read(&q->use_count),
@@ -253,10 +253,7 @@ static int DRM(_queues_info)(char *buf, char **start, off_t offset,
 				   waitqueue_active(&q->read_queue) ? 'r':'-',
 				   waitqueue_active(&q->write_queue) ? 'w':'-',
 				   waitqueue_active(&q->flush_queue) ? 'f':'-',
-				   DRM_BUFCOUNT(&q->waitlist),
-				   atomic_read(&q->total_flushed),
-				   atomic_read(&q->total_queued),
-				   atomic_read(&q->total_locks));
+				   DRM_BUFCOUNT(&q->waitlist));
 		atomic_dec(&q->use_count);
 	}
 

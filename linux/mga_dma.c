@@ -576,7 +576,6 @@ static int mga_do_init_dma( drm_device_t *dev, drm_mga_init_t *init )
 
 	dev_priv->prim.high_mark = 256 * DMA_BLOCK_SIZE;
 
-	spin_lock_init( &dev_priv->prim.flush_lock );
 	spin_lock_init( &dev_priv->prim.list_lock );
 
 	dev_priv->prim.status[0] = dev_priv->primary->offset;
