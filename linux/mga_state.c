@@ -38,25 +38,6 @@
 #include "mga_drv.h"
 #include "drm.h"
 
-#include <linux/interrupt.h>	/* For task queue support */
-
-
-/* If you change the functions to set state, PLEASE
- * change these values
- */
-
-#define MGAEMITCLIP_SIZE	10
-#define MGAEMITCTX_SIZE		20
-#define MGAG200EMITTEX_SIZE	20
-#define MGAG400EMITTEX0_SIZE	30
-#define MGAG400EMITTEX1_SIZE	25
-#define MGAG400EMITPIPE_SIZE	50
-#define MGAG200EMITPIPE_SIZE	15
-
-#define MAX_STATE_SIZE ((MGAEMITCLIP_SIZE * MGA_NR_SAREA_CLIPRECTS) + \
-			MGAEMITCTX_SIZE + MGAG400EMITTEX0_SIZE + \
-			MGAG400EMITTEX1_SIZE + MGAG400EMITPIPE_SIZE)
-
 
 /* ================================================================
  * DMA hardware state programming functions
@@ -67,7 +48,7 @@ static void mga_emit_clip_rect( drm_mga_private_t *dev_priv,
 {
 	drm_mga_sarea_t *sarea_priv = dev_priv->sarea_priv;
 	drm_mga_context_regs_t *ctx = &sarea_priv->context_state;
-	unsigned int pitch = dev_priv->front_pitch / dev_priv->fb_cpp;
+	unsigned int pitch = dev_priv->front_pitch;
 	DMA_LOCALS;
 
 	BEGIN_DMA( 2 );
@@ -94,7 +75,7 @@ static inline void mga_g200_emit_context( drm_mga_private_t *dev_priv )
 	drm_mga_context_regs_t *ctx = &sarea_priv->context_state;
 	DMA_LOCALS;
 
-	BEGIN_DMA( 2 );
+	BEGIN_DMA( 3 );
 
 	DMA_BLOCK( MGA_DSTORG,		ctx->dstorg,
 		   MGA_MACCESS,		ctx->maccess,
@@ -223,7 +204,7 @@ static inline void mga_g400_emit_tex1( drm_mga_private_t *dev_priv )
 	drm_mga_texture_regs_t *tex = &sarea_priv->tex_state[1];
 	DMA_LOCALS;
 
-	BEGIN_DMA( 6 );
+	BEGIN_DMA( 5 );
 
 	DMA_BLOCK( MGA_TEXCTL2,		(tex->texctl2 |
 					 MGA_MAP1_ENABLE |
@@ -310,16 +291,14 @@ static inline void mga_g400_emit_pipe( drm_mga_private_t *dev_priv )
 			   MGA_WACCEPTSEQ,	0x1e000000 );
 	} else {
 		if ( dev_priv->warp_pipe & MGA_T2 ) {
-			/* Flush the WARP pipe.
-			 */
+			/* Flush the WARP pipe */
 			DMA_BLOCK( MGA_YDST,		0x00000000,
 				   MGA_FXLEFT,		0x00000000,
 				   MGA_FXRIGHT,		0x00000001,
 				   MGA_DWGCTL,		MGA_DWGCTL_FLUSH );
 
 			DMA_BLOCK( MGA_LEN + MGA_EXEC,	0x00000001,
-				   /*MGA_DWGSYNC,	0x00007000,*/
-				   MGA_DMAPAD,		0x00000000,
+				   MGA_DWGSYNC,		0x00007000,
 				   MGA_TEXCTL2,		MGA_G400_TC2_MAGIC,
 				   MGA_LEN + MGA_EXEC,	0x00000000 );
 
@@ -356,8 +335,7 @@ static inline void mga_g400_emit_pipe( drm_mga_private_t *dev_priv )
 		   MGA_WR52,	MGA_G400_WR_MAGIC,	/* tex1 width        */
 		   MGA_WR60,	MGA_G400_WR_MAGIC );	/* tex1 height       */
 
-	/* Padding required to to hardware bug.
-	 */
+	/* Padding required to to hardware bug */
 	DMA_BLOCK( MGA_DMAPAD,	0xffffffff,
 		   MGA_DMAPAD,	0xffffffff,
 		   MGA_DMAPAD,	0xffffffff,
@@ -505,6 +483,16 @@ static int mga_verify_iload( drm_mga_private_t *dev_priv,
 	return 0;
 }
 
+static int mga_verify_blit( drm_mga_private_t *dev_priv,
+			    unsigned int srcorg, unsigned int dstorg )
+{
+	if ( (srcorg & 0x3) == (MGA_SRCACC_PCI | MGA_SRCMAP_SYSMEM) ||
+	     (dstorg & 0x3) == (MGA_SRCACC_PCI | MGA_SRCMAP_SYSMEM) ) {
+		return -EINVAL;
+	}
+	return 0;
+}
+
 
 /* ================================================================
  *
@@ -520,83 +508,75 @@ static void mga_dma_dispatch_clear( drm_device_t *dev,
 	int nbox = sarea_priv->nbox;
 	int i;
 	DMA_LOCALS;
-	DRM_DEBUG( "%s\n", __FUNCTION__ );
+	DRM_DEBUG( __FUNCTION__ ":\n" );
 
-	if ( clear->flags & MGA_FRONT ) {
-		BEGIN_DMA( 1 + nbox );
+	for ( i = 0 ; i < nbox ; i++ ) {
+		drm_clip_rect_t *box = &pbox[i];
+		u32 height = box->y2 - box->y1;
 
-		DMA_BLOCK( MGA_FCOL,	clear->clear_color,
-			   MGA_PLNWT,	clear->color_mask,
-			   MGA_DSTORG,	dev_priv->front_offset,
-			   MGA_DWGCTL,	dev_priv->clear_cmd );
-
-		for ( i = 0 ; i < nbox ; i++ ) {
-			drm_clip_rect_t *box = &pbox[i];
-			u32 height = box->y2 - box->y1;
+		if ( clear->flags & MGA_FRONT ) {
+			BEGIN_DMA( 2 );
 
 			DMA_BLOCK( MGA_DMAPAD,	0x00000000,
-				   MGA_DMAPAD,	0x00000000,
+				   MGA_PLNWT,	clear->color_mask,
 				   MGA_YDSTLEN, (box->y1 << 16) | height,
-				   MGA_FXBNDRY + MGA_EXEC,
-						(box->x2 << 16) | box->x1 );
-		}
-
-		ADVANCE_DMA();
-	}
-
-	if ( clear->flags & MGA_BACK ) {
-		BEGIN_DMA( 1 + nbox );
-
-		DMA_BLOCK( MGA_FCOL,	clear->clear_color,
-			   MGA_PLNWT,	clear->color_mask,
-			   MGA_DSTORG,	dev_priv->back_offset,
-			   MGA_DWGCTL,	dev_priv->clear_cmd );
-
-		for ( i = 0 ; i < nbox ; i++ ) {
-			drm_clip_rect_t *box = &pbox[i];
-			u32 height = box->y2 - box->y1;
+				   MGA_FXBNDRY, (box->x2 << 16) | box->x1 );
 
 			DMA_BLOCK( MGA_DMAPAD,	0x00000000,
-				   MGA_DMAPAD,	0x00000000,
-				   MGA_YDSTLEN, (box->y1 << 16) | height,
-				   MGA_FXBNDRY + MGA_EXEC,
-						(box->x2 << 16) | box->x1 );
+				   MGA_FCOL,	clear->clear_color,
+				   MGA_DSTORG,	dev_priv->front_offset,
+				   MGA_DWGCTL + MGA_EXEC,
+						dev_priv->clear_cmd );
+
+			ADVANCE_DMA();
 		}
 
-		ADVANCE_DMA();
-	}
 
-	if ( clear->flags & MGA_DEPTH ) {
-		BEGIN_DMA( 1 + nbox );
-
-		DMA_BLOCK( MGA_FCOL,	clear->clear_depth,
-			   MGA_PLNWT,	clear->depth_mask,
-			   MGA_DSTORG,	dev_priv->depth_offset,
-			   MGA_DWGCTL,	dev_priv->clear_cmd );
-
-		for ( i = 0 ; i < nbox ; i++ ) {
-			drm_clip_rect_t *box = &pbox[i];
-			u32 height = box->y2 - box->y1;
+		if ( clear->flags & MGA_BACK ) {
+			BEGIN_DMA( 2 );
 
 			DMA_BLOCK( MGA_DMAPAD,	0x00000000,
-				   MGA_DMAPAD,	0x00000000,
+				   MGA_PLNWT,	clear->color_mask,
 				   MGA_YDSTLEN, (box->y1 << 16) | height,
-				   MGA_FXBNDRY + MGA_EXEC,
-						(box->x2 << 16) | box->x1 );
+				   MGA_FXBNDRY, (box->x2 << 16) | box->x1 );
+
+			DMA_BLOCK( MGA_DMAPAD,	0x00000000,
+				   MGA_FCOL,	clear->clear_color,
+				   MGA_DSTORG,	dev_priv->back_offset,
+				   MGA_DWGCTL + MGA_EXEC,
+						dev_priv->clear_cmd );
+
+			ADVANCE_DMA();
 		}
 
-		ADVANCE_DMA();
+		if ( clear->flags & MGA_DEPTH ) {
+			BEGIN_DMA( 2 );
+
+			DMA_BLOCK( MGA_DMAPAD,	0x00000000,
+				   MGA_PLNWT,	clear->depth_mask,
+				   MGA_YDSTLEN, (box->y1 << 16) | height,
+				   MGA_FXBNDRY, (box->x2 << 16) | box->x1 );
+
+			DMA_BLOCK( MGA_DMAPAD,	0x00000000,
+				   MGA_FCOL,	clear->clear_depth,
+				   MGA_DSTORG,	dev_priv->depth_offset,
+				   MGA_DWGCTL + MGA_EXEC,
+						dev_priv->clear_cmd );
+
+			ADVANCE_DMA();
+		}
+
 	}
-#if 0
+
 	BEGIN_DMA( 1 );
 
+	/* Force reset of DWGCTL */
 	DMA_BLOCK( MGA_DMAPAD,	0x00000000,
 		   MGA_DMAPAD,	0x00000000,
 		   MGA_PLNWT,	ctx->plnwt,
 		   MGA_DWGCTL,	ctx->dwgctl );
 
 	ADVANCE_DMA();
-#endif
 
 	FLUSH_DMA();
 }
@@ -608,43 +588,10 @@ static void mga_dma_dispatch_swap( drm_device_t *dev )
 	drm_mga_context_regs_t *ctx = &sarea_priv->context_state;
 	drm_clip_rect_t *pbox = sarea_priv->boxes;
 	int nbox = sarea_priv->nbox;
-	u32 pitch = dev_priv->front_pitch / dev_priv->fb_cpp;
 	int i;
 	DMA_LOCALS;
-	DRM_DEBUG( "%s:\n", __FUNCTION__ );
+	DRM_DEBUG( __FUNCTION__ ":\n" );
 	DRM_DEBUG( "   head = 0x%06x\n", *dev_priv->prim.head );
-
-	BEGIN_DMA( 2 + nbox );
-
-	DMA_BLOCK( MGA_MACCESS,	dev_priv->maccess,
-		   MGA_SRCORG,	dev_priv->back_offset,
-		   MGA_DSTORG,	dev_priv->front_offset,
-		   MGA_AR5,	pitch );
-
-	DMA_BLOCK( MGA_DMAPAD,	0x00000000,
-		   MGA_DMAPAD,	0x00000000,
-		   MGA_DMAPAD,	0x00000000,
-		   MGA_DWGCTL,	MGA_DWGCTL_COPY );
-
-	for ( i = 0 ; i < nbox ; i++ ) {
-		drm_clip_rect_t *box = &pbox[i];
-		u32 height = box->y2 - box->y1;
-		u32 start = box->y1 * pitch;
-
-		DMA_BLOCK( MGA_AR0,	start + box->x2 - 1,
-			   MGA_AR3,	start + box->x1,
-			   MGA_FXBNDRY,	((box->x2 - 1) << 16) | box->x1,
-			   MGA_YDSTLEN + MGA_EXEC,
-					(box->y1 << 16) | height );
-	}
-#if 0
-	DMA_BLOCK( MGA_DMAPAD,	0x00000000,
-		   MGA_PLNWT,	ctx->plnwt,
-		   MGA_SRCORG,	dev_priv->front_offset,
-		   MGA_DWGCTL,	ctx->dwgctl );
-#endif
-
-	ADVANCE_DMA();
 
 	sarea_priv->last_frame.head = dev_priv->prim.tail;
 	sarea_priv->last_frame.wrap = dev_priv->prim.last_wrap;
@@ -652,7 +599,45 @@ static void mga_dma_dispatch_swap( drm_device_t *dev )
 	DRM_DEBUG( "   tail = 0x%06x\n", dev_priv->prim.tail );
 	DRM_DEBUG( "   wrap = 0x%06x\n", dev_priv->prim.last_wrap );
 
+	BEGIN_DMA( 4 + nbox );
+
+	DMA_BLOCK( MGA_DMAPAD,	0x00000000,
+		   MGA_DMAPAD,	0x00000000,
+		   MGA_DWGSYNC,	0x00007100,
+		   MGA_DWGSYNC,	0x00007000 );
+
+	DMA_BLOCK( MGA_DSTORG,	dev_priv->front_offset,
+		   MGA_MACCESS,	dev_priv->maccess,
+		   MGA_SRCORG,	dev_priv->back_offset,
+		   MGA_AR5,	dev_priv->front_pitch );
+
+	DMA_BLOCK( MGA_DMAPAD,	0x00000000,
+		   MGA_DMAPAD,	0x00000000,
+		   MGA_PLNWT,	0xffffffff,
+		   MGA_DWGCTL,	MGA_DWGCTL_COPY );
+
+	for ( i = 0 ; i < nbox ; i++ ) {
+		drm_clip_rect_t *box = &pbox[i];
+		u32 height = box->y2 - box->y1;
+		u32 start = box->y1 * dev_priv->front_pitch;
+
+		DMA_BLOCK( MGA_AR0,	start + box->x2 - 1,
+			   MGA_AR3,	start + box->x1,
+			   MGA_FXBNDRY,	((box->x2 - 1) << 16) | box->x1,
+			   MGA_YDSTLEN + MGA_EXEC,
+					(box->y1 << 16) | height );
+	}
+
+	DMA_BLOCK( MGA_DMAPAD,	0x00000000,
+		   MGA_PLNWT,	ctx->plnwt,
+		   MGA_SRCORG,	dev_priv->front_offset,
+		   MGA_DWGCTL,	ctx->dwgctl );
+
+	ADVANCE_DMA();
+
 	FLUSH_DMA();
+
+	DRM_DEBUG( "%s... done.\n", __FUNCTION__ );
 }
 
 static void mga_dma_dispatch_vertex( drm_device_t *dev, drm_buf_t *buf )
@@ -664,9 +649,7 @@ static void mga_dma_dispatch_vertex( drm_device_t *dev, drm_buf_t *buf )
 	u32 length = (u32) buf->used;
 	int i = 0;
 	DMA_LOCALS;
-
-	DRM_DEBUG( "%s: buf=%d used=%d\n",
-		   __FUNCTION__, buf->idx, buf->used );
+	DRM_DEBUG( "vertex: buf=%d used=%d\n", buf->idx, buf->used );
 
 	if ( buf->used ) {
 		buf_priv->dispatched = 1;
@@ -714,8 +697,7 @@ static void mga_dma_dispatch_indices( drm_device_t *dev, drm_buf_t *buf,
 	u32 address = (u32) buf->bus_address;
 	int i = 0;
 	DMA_LOCALS;
-	DRM_INFO( __FUNCTION__ ": buf=%d start=%d end=%d\n",
-		  buf->idx, start, end );
+	DRM_DEBUG( "indices: buf=%d start=%d end=%d\n", buf->idx, start, end );
 
 	if ( start != end ) {
 		buf_priv->dispatched = 1;
@@ -761,6 +743,7 @@ static void mga_dma_dispatch_iload( drm_device_t *dev, drm_buf_t *buf,
 {
 	drm_mga_private_t *dev_priv = dev->dev_private;
 	drm_mga_buf_priv_t *buf_priv = buf->dev_private;
+	drm_mga_context_regs_t *ctx = &dev_priv->sarea_priv->context_state;
 	u32 srcorg = buf->bus_address | MGA_SRCACC_AGP | MGA_SRCMAP_SYSMEM;
 	u32 y2;
 	DMA_LOCALS;
@@ -778,7 +761,7 @@ static void mga_dma_dispatch_iload( drm_device_t *dev, drm_buf_t *buf,
 		   MGA_AR5,	64 );
 
 	DMA_BLOCK( MGA_PITCH,	64,
-		   MGA_DMAPAD,	0x00000000,
+		   MGA_PLNWT,	0xffffffff,
 		   MGA_DMAPAD,	0x00000000,
 		   MGA_DWGCTL,	MGA_DWGCTL_COPY );
 
@@ -787,9 +770,9 @@ static void mga_dma_dispatch_iload( drm_device_t *dev, drm_buf_t *buf,
 		   MGA_FXBNDRY,	(63 << 16) | 0,
 		   MGA_YDSTLEN + MGA_EXEC, y2 );
 
-	DMA_BLOCK( MGA_DMAPAD,	0x00000000,
+	DMA_BLOCK( MGA_PLNWT,	ctx->plnwt,
 		   MGA_SRCORG,	dev_priv->front_offset,
-		   MGA_PITCH,	dev_priv->front_pitch / dev_priv->fb_cpp,
+		   MGA_PITCH,	dev_priv->front_pitch,
 		   MGA_DWGSYNC,	0x00007000 );
 
 	ADVANCE_DMA();
@@ -802,6 +785,66 @@ static void mga_dma_dispatch_iload( drm_device_t *dev, drm_buf_t *buf,
 	FLUSH_DMA();
 }
 
+static void mga_dma_dispatch_blit( drm_device_t *dev,
+				   drm_mga_blit_t *blit )
+{
+	drm_mga_private_t *dev_priv = dev->dev_private;
+	drm_mga_sarea_t *sarea_priv = dev_priv->sarea_priv;
+	drm_mga_context_regs_t *ctx = &sarea_priv->context_state;
+	drm_clip_rect_t *pbox = sarea_priv->boxes;
+	int nbox = sarea_priv->nbox;
+	u32 scandir = 0, i;
+	DMA_LOCALS;
+
+	BEGIN_DMA( 4 + nbox );
+
+	DMA_BLOCK( MGA_DMAPAD,	0x00000000,
+		   MGA_DMAPAD,	0x00000000,
+		   MGA_DWGSYNC,	0x00007100,
+		   MGA_DWGSYNC,	0x00007000 );
+
+	DMA_BLOCK( MGA_DWGCTL,	MGA_DWGCTL_COPY,
+		   MGA_PLNWT,	blit->planemask,
+		   MGA_SRCORG,	blit->srcorg,
+		   MGA_DSTORG,	blit->dstorg );
+
+	DMA_BLOCK( MGA_SGN,	scandir,
+		   MGA_MACCESS,	dev_priv->maccess,
+		   MGA_AR5,	blit->ydir * blit->src_pitch,
+		   MGA_PITCH,	blit->dst_pitch );
+
+	for ( i = 0 ; i < nbox ; i++ ) {
+		int srcx = pbox[i].x1 + blit->delta_sx;
+		int srcy = pbox[i].y1 + blit->delta_sy;
+		int dstx = pbox[i].x1 + blit->delta_dx;
+		int dsty = pbox[i].y1 + blit->delta_dy;
+		int h = pbox[i].y2 - pbox[i].y1;
+		int w = pbox[i].x2 - pbox[i].x1 - 1;
+		int start;
+
+		if ( blit->ydir == -1 ) {
+			srcy = blit->height - srcy - 1;
+		}
+
+		start = srcy * blit->src_pitch + srcx;
+
+		DMA_BLOCK( MGA_AR0,	start + w,
+			   MGA_AR3,	start,
+			   MGA_FXBNDRY,	((dstx + w) << 16) | (dstx & 0xffff),
+			   MGA_YDSTLEN + MGA_EXEC, (dsty << 16) | h );
+	}
+
+	/* Do something to flush AGP?
+	 */
+
+	/* Force reset of DWGCTL */
+	DMA_BLOCK( MGA_DMAPAD,	0x00000000,
+		   MGA_PLNWT,	ctx->plnwt,
+		   MGA_PITCH,	dev_priv->front_pitch,
+		   MGA_DWGCTL,	ctx->dwgctl );
+
+	ADVANCE_DMA();
+}
 
 
 /* ================================================================
@@ -911,7 +954,6 @@ int mga_dma_indices( struct inode *inode, struct file *filp,
 	drm_buf_t *buf;
 	drm_mga_buf_priv_t *buf_priv;
 	drm_mga_indices_t indices;
-	DRM_INFO( __FUNCTION__ "\n" );
 
 	LOCK_TEST_WITH_RETURN( dev );
 
@@ -952,7 +994,7 @@ int mga_dma_iload( struct inode *inode, struct file *filp,
 	drm_buf_t *buf;
 	drm_mga_buf_priv_t *buf_priv;
 	drm_mga_iload_t iload;
-	DRM_INFO( __FUNCTION__ ":\n" );
+	DRM_DEBUG( __FUNCTION__ ":\n" );
 
 	LOCK_TEST_WITH_RETURN( dev );
 
@@ -977,6 +1019,38 @@ int mga_dma_iload( struct inode *inode, struct file *filp,
 	WRAP_TEST_WITH_RETURN( dev_priv );
 
 	mga_dma_dispatch_iload( dev, buf, iload.dstorg, iload.length );
+
+	/* Make sure we restore the 3D state next time.
+	 */
+	dev_priv->sarea_priv->dirty |= MGA_UPLOAD_CONTEXT;
+
+	return 0;
+}
+
+int mga_dma_blit( struct inode *inode, struct file *filp,
+		  unsigned int cmd, unsigned long arg )
+{
+	drm_file_t *priv = filp->private_data;
+	drm_device_t *dev = priv->dev;
+	drm_mga_private_t *dev_priv = dev->dev_private;
+	drm_mga_sarea_t *sarea_priv = dev_priv->sarea_priv;
+	drm_mga_blit_t blit;
+	DRM_DEBUG( "%s\n", __FUNCTION__ );
+
+	LOCK_TEST_WITH_RETURN( dev );
+
+	if ( copy_from_user( &blit, (drm_mga_blit_t *)arg, sizeof(blit) ) )
+		return -EFAULT;
+
+	if ( sarea_priv->nbox > MGA_NR_SAREA_CLIPRECTS )
+		sarea_priv->nbox = MGA_NR_SAREA_CLIPRECTS;
+
+	if ( mga_verify_blit( dev_priv, blit.srcorg, blit.dstorg ) )
+		return -EINVAL;
+
+	WRAP_TEST_WITH_RETURN( dev_priv );
+
+	mga_dma_dispatch_blit( dev, &blit );
 
 	/* Make sure we restore the 3D state next time.
 	 */

@@ -209,6 +209,10 @@ void mga_do_dma_flush( drm_mga_private_t *dev_priv )
 
 	tail = primary->tail + dev_priv->primary->offset;
 
+	/* We need to pad the stream between flushes, as the card
+	 * actually (partially?) reads the first of these commands.
+	 * See page 4-16 in the G400 manual, middle of the page or so.
+	 */
 	BEGIN_DMA( 1 );
 
 	DMA_BLOCK( MGA_DMAPAD,  0x00000000,
@@ -233,7 +237,7 @@ void mga_do_dma_flush( drm_mga_private_t *dev_priv )
 	DRM_DEBUG( "  space = 0x%06x\n", primary->space );
 
 	mga_flush_write_combine();
-	MGA_WRITE( MGA_PRIMEND, tail | MGA_PRIMNOSTART | MGA_PAGPXFER );
+	MGA_WRITE( MGA_PRIMEND, tail | MGA_PAGPXFER );
 
 	DRM_DEBUG( "%s: done.\n", __FUNCTION__ );
 }
@@ -275,7 +279,7 @@ void mga_do_dma_wrap_start( drm_mga_private_t *dev_priv )
 	DRM_DEBUG( "  space = 0x%06x\n", primary->space );
 
 	mga_flush_write_combine();
-	MGA_WRITE( MGA_PRIMEND, tail | MGA_PRIMNOSTART | MGA_PAGPXFER );
+	MGA_WRITE( MGA_PRIMEND, tail | MGA_PAGPXFER );
 
 	DRM_DEBUG( "%s: done.\n", __FUNCTION__ );
 }
@@ -288,6 +292,7 @@ void mga_do_dma_wrap_end( drm_mga_private_t *dev_priv )
 	DRM_DEBUG( "%s:\n", __FUNCTION__ );
 
 	sarea_priv->last_wrap++;
+	DRM_DEBUG( "   wrap = %d\n", sarea_priv->last_wrap );
 
 	*primary->head = head;
 
@@ -444,9 +449,8 @@ static int mga_freelist_put( drm_device_t *dev, drm_buf_t *buf )
 {
 	drm_mga_private_t *dev_priv = dev->dev_private;
 	drm_mga_buf_priv_t *buf_priv = buf->dev_private;
-	drm_mga_freelist_t *head;
-	drm_mga_freelist_t *next;
-	drm_mga_freelist_t *prev;
+	drm_mga_freelist_t *head, *next, *prev;
+
 	DRM_DEBUG( "%s: age=0x%06lx wrap=%d\n",
 		  __FUNCTION__,
 		  buf_priv->list_entry->age.head -
@@ -454,28 +458,18 @@ static int mga_freelist_put( drm_device_t *dev, drm_buf_t *buf )
 		  buf_priv->list_entry->age.wrap );
 
 	if ( buf_priv->list_entry->age.head == MGA_BUFFER_USED ) {
-		/* Discarded buffer, put it on the tail.
-		 */
-		next = buf_priv->list_entry;
-		next->age.head = MGA_BUFFER_FREE;
-		next->age.wrap = 0;
-		prev = dev_priv->tail;
-		prev->next = next;
-		next->prev = prev;
-		next->next = NULL;
-		dev_priv->tail = next;
-	} else {
-		/* Normally aged buffer, put it on the head + 1,
-		 * as the real head is a sentinal element
-		 */
-		next = buf_priv->list_entry;
-		head = dev_priv->head;
-		prev = head->next;
-		head->next = next;
-		prev->prev = next;
-		next->prev = head;
-		next->next = prev;
+		SET_AGE( &next->age, MGA_BUFFER_FREE, 0 );
 	}
+
+	/* Put buffer on the head + 1, as the head is a sentinal.
+	 */
+	next = buf_priv->list_entry;
+	head = dev_priv->head;
+	prev = head->next;
+	head->next = next;
+	prev->prev = next;
+	next->prev = head;
+	next->next = prev;
 
 	return 0;
 }
@@ -580,7 +574,7 @@ static int mga_do_init_dma( drm_device_t *dev, drm_mga_init_t *init )
 	dev_priv->prim.last_flush = 0;
 	dev_priv->prim.last_wrap = 0;
 
-	dev_priv->prim.high_mark = 128 * DMA_BLOCK_SIZE;
+	dev_priv->prim.high_mark = 256 * DMA_BLOCK_SIZE;
 
 	spin_lock_init( &dev_priv->prim.flush_lock );
 	spin_lock_init( &dev_priv->prim.list_lock );
@@ -667,6 +661,8 @@ int mga_dma_flush( struct inode *inode, struct file *filp,
 		   (lock.flags & _DRM_LOCK_FLUSH) ?	"flush, " : "",
 		   (lock.flags & _DRM_LOCK_FLUSH_ALL) ?	"flush all, " : "",
 		   (lock.flags & _DRM_LOCK_QUIESCENT) ?	"idle, " : "" );
+
+	WRAP_TEST_WITH_RETURN( dev_priv );
 
 	if ( lock.flags & (_DRM_LOCK_FLUSH | _DRM_LOCK_FLUSH_ALL) ) {
 		mga_do_dma_flush( dev_priv );

@@ -178,6 +178,8 @@ extern int  mga_dma_indices( struct inode *inode, struct file *filp,
 			     unsigned int cmd, unsigned long arg );
 extern int  mga_dma_iload( struct inode *inode, struct file *filp,
 			   unsigned int cmd, unsigned long arg );
+extern int  mga_dma_blit( struct inode *inode, struct file *filp,
+			  unsigned int cmd, unsigned long arg );
 
 				/* mga_warp.c */
 extern int mga_warp_install_microcode( drm_device_t *dev );
@@ -246,7 +248,7 @@ do {									\
  * Primary DMA command stream
  */
 
-#define MGA_VERBOSE	( 0 /*dev_priv->prim.space < 0x100*/ )
+#define MGA_VERBOSE	0
 
 #define DMA_LOCALS	unsigned int write; volatile u8 *prim;
 
@@ -260,9 +262,6 @@ do {									\
 		DRM_INFO( "   space=0x%x req=0x%x\n",			\
 			  dev_priv->prim.space, (n) * DMA_BLOCK_SIZE );	\
 	}								\
-	if ( dev_priv->prim.space < (int)((n) * DMA_BLOCK_SIZE +	\
-					  MGA_DMA_SOFTRAP_SIZE) ) {	\
-	}								\
 	prim = dev_priv->prim.start;					\
 	write = dev_priv->prim.tail;					\
 } while (0)
@@ -270,7 +269,7 @@ do {									\
 #define BEGIN_DMA_WRAP()						\
 do {									\
 	if ( MGA_VERBOSE ) {						\
-		DRM_INFO( "BEGIN_DMA_WRAP() in %s\n", __FUNCTION__ );	\
+		DRM_INFO( "BEGIN_DMA() in %s\n", __FUNCTION__ );	\
 		DRM_INFO( "   space=0x%x\n", dev_priv->prim.space );	\
 	}								\
 	prim = dev_priv->prim.start;					\
@@ -454,6 +453,7 @@ do {									\
 #define MGA_SECEND 			0x2c44
 #define MGA_SETUPADDRESS 		0x2cd0
 #define MGA_SETUPEND 			0x2cd4
+#define MGA_SGN				0x1c58
 #define MGA_SOFTRAP			0x2c48
 #define MGA_SRCORG 			0x2cb4
 #	define MGA_SRMMAP_MASK			(1 << 0)

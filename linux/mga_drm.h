@@ -96,9 +96,8 @@
 
 /* 32 buffers of 64k each, total 2 meg.
  */
-#define MGA_DMA_BUF_ORDER	16
-#define MGA_DMA_BUF_SZ		(1 << MGA_DMA_BUF_ORDER)
-#define MGA_DMA_BUF_NR		31
+#define MGA_BUFFER_SIZE		(1 << 16)
+#define MGA_NUM_BUFFERS		32
 
 /* Keep these small for testing.
  */
@@ -159,7 +158,7 @@ typedef struct {
 	unsigned int texorg4;
 } drm_mga_texture_regs_t;
 
-/* General ageing mechanism
+/* General aging mechanism
  */
 typedef struct {
 	unsigned int head;		/* Position of head pointer          */
@@ -279,16 +278,16 @@ typedef struct drm_mga_clear {
 } drm_mga_clear_t;
 
 typedef struct drm_mga_vertex {
-   	int idx;		/* buffer to queue */
-	int used;		/* bytes in use */
-	int discard;		/* client finished with buffer?  */
+   	int idx;			/* buffer to queue */
+	int used;			/* bytes in use */
+	int discard;			/* client finished with buffer?  */
 } drm_mga_vertex_t;
 
 typedef struct drm_mga_indices {
-   	int idx;		/* buffer to queue */
+   	int idx;			/* buffer to queue */
 	unsigned int start;
 	unsigned int end;
-	int discard;		/* client finished with buffer?  */
+	int discard;			/* client finished with buffer?  */
 } drm_mga_indices_t;
 
 typedef struct drm_mga_iload {
@@ -296,5 +295,15 @@ typedef struct drm_mga_iload {
 	unsigned int dstorg;
 	unsigned int length;
 } drm_mga_iload_t;
+
+typedef struct drm_mga_blit {
+	unsigned int planemask;
+	unsigned int srcorg;
+	unsigned int dstorg;
+	int src_pitch, dst_pitch;
+	int delta_sx, delta_sy;
+	int delta_dx, delta_dy;
+	int height, ydir;		/* flip image vertically */
+} drm_mga_blit_t;
 
 #endif
