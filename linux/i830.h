@@ -92,11 +92,4 @@
 /* XXX: Add vblank support? */
 #define USE_IRQS 0
 
-#if USE_IRQS
-#define __HAVE_IRQ		1
-#define __HAVE_SHARED_IRQ	1
-#else
-#define __HAVE_IRQ		0
-#endif
-
 #endif

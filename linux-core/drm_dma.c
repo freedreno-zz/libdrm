@@ -44,8 +44,6 @@
 #define __HAVE_DMA_RECLAIM	0
 #endif
 
-#if __HAVE_DMA
-
 /**
  * Initialize the DMA data.
  * 
@@ -202,27 +200,3 @@ void DRM(reclaim_buffers)( struct file *filp )
 }
 #endif
 
-#if !__HAVE_IRQ
-/* This stub DRM_IOCTL_CONTROL handler is for the drivers that used to require
- * IRQs for DMA but no longer do.  It maintains compatibility with the X Servers
- * that try to use the control ioctl by simply returning success.
- */
-int DRM(control)( struct inode *inode, struct file *filp,
-		  unsigned int cmd, unsigned long arg )
-{
-	drm_control_t ctl;
-
-	if ( copy_from_user( &ctl, (drm_control_t __user *)arg, sizeof(ctl) ) )
-		return -EFAULT;
-
-	switch ( ctl.func ) {
-	case DRM_INST_HANDLER:
-	case DRM_UNINST_HANDLER:
-		return 0;
-	default:
-		return -EINVAL;
-	}
-}
-#endif
-
-#endif /* __HAVE_DMA */

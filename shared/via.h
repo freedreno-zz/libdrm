@@ -31,8 +31,4 @@
  * support for VBL_IRQ.
  */
 
-#define __HAVE_IRQ              1
-#define __HAVE_SHARED_IRQ	1
-#define __HAVE_VBL_IRQ		1
-
 #endif

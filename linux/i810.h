@@ -82,14 +82,7 @@
 
 /* DMA customization:
  */
-#define __HAVE_DMA		1
 #define __HAVE_DMA_QUEUE	1
 #define __HAVE_DMA_RECLAIM	1
-
-/* Don't need an irq any more.  The template code will make sure that
- * a noop stub is generated for compatibility.
- */
-/* XXX: Add vblank support? */
-#define __HAVE_IRQ		0
 
 #endif

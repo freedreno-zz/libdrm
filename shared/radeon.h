@@ -37,7 +37,6 @@
 
 /* General customization:
  */
-#define __HAVE_SG		1
 
 #define DRIVER_AUTHOR		"Gareth Hughes, Keith Whitwell, others."
 
@@ -112,12 +111,5 @@
 
 #define DRIVER_FILE_FIELDS						\
 	int64_t radeon_fb_delta;					\
-
-/* DMA customization:
- */
-#define __HAVE_DMA		1
-#define __HAVE_IRQ		1
-#define __HAVE_VBL_IRQ		1
-#define __HAVE_SHARED_IRQ       1
 
 #endif
