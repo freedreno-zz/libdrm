@@ -1,7 +1,7 @@
-/* mga_drv.c -- Matrox g200/g400 driver -*- linux-c -*-
- * Created: Mon Dec 13 01:56:22 1999 by jhartmann@precisioninsight.com
- * 
- * Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
+/* r128_drv.c -- ATI Rage 128 driver -*- linux-c -*-
+ * Created: Mon Dec 13 09:47:27 1999 by faith@precisioninsight.com
+ *
+ * Copyright 1999, 2000 Precision Insight, Inc., Cedar Park, Texas.
  * All Rights Reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -22,80 +22,70 @@
  * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
- *
- * Authors: Rickard E. (Rik) Faith <faith@precisioninsight.com>
- *	    Jeff Hartmann <jhartmann@precisioninsight.com>
- *
- * $XFree86: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/kernel/mga_drv.c,v 1.1 2000/02/11 17:26:07 dawes Exp $
+ * 
+ * Author: Rickard E. (Rik) Faith <faith@precisioninsight.com>
+ * 
+ * $XFree86$
  *
  */
 
 #define EXPORT_SYMTAB
 #include "drmP.h"
-#include "mga_drv.h"
-EXPORT_SYMBOL(mga_init);
-EXPORT_SYMBOL(mga_cleanup);
+#include "r128_drv.h"
+EXPORT_SYMBOL(r128_init);
+EXPORT_SYMBOL(r128_cleanup);
 
-#define MGA_NAME	 "mga"
-#define MGA_DESC	 "Matrox g200/g400"
-#define MGA_DATE	 "19991213"
-#define MGA_MAJOR	 0
-#define MGA_MINOR	 0
-#define MGA_PATCHLEVEL	 1
+#define R128_NAME	 "r128"
+#define R128_DESC	 "r128"
+#define R128_DATE	 "19991213"
+#define R128_MAJOR	 0
+#define R128_MINOR	 0
+#define R128_PATCHLEVEL  1
 
-static drm_device_t	      mga_device;
-drm_ctx_t		      mga_res_ctx;
+static drm_device_t	      r128_device;
+drm_ctx_t	              r128_res_ctx;
 
-static struct file_operations mga_fops = {
-	open:	 mga_open,
+static struct file_operations r128_fops = {
+	open:	 r128_open,
 	flush:	 drm_flush,
-	release: mga_release,
-	ioctl:	 mga_ioctl,
+	release: r128_release,
+	ioctl:	 r128_ioctl,
 	mmap:	 drm_mmap,
 	read:	 drm_read,
 	fasync:	 drm_fasync,
-   	poll:	 drm_poll,
+	poll:	 drm_poll,
 };
 
-static struct miscdevice      mga_misc = {
+static struct miscdevice      r128_misc = {
 	minor: MISC_DYNAMIC_MINOR,
-	name:  MGA_NAME,
-	fops:  &mga_fops,
+	name:  R128_NAME,
+	fops:  &r128_fops,
 };
 
-static drm_ioctl_desc_t	      mga_ioctls[] = {
-	[DRM_IOCTL_NR(DRM_IOCTL_VERSION)]     = { mga_version,	  0, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_GET_UNIQUE)]  = { drm_getunique,  0, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_GET_MAGIC)]   = { drm_getmagic,	  0, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_IRQ_BUSID)]   = { drm_irq_busid,  0, 1 },
+static drm_ioctl_desc_t	      r128_ioctls[] = {
+	[DRM_IOCTL_NR(DRM_IOCTL_VERSION)]     = { r128_version,	   0, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_GET_UNIQUE)]  = { drm_getunique,   0, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_GET_MAGIC)]   = { drm_getmagic,	   0, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_IRQ_BUSID)]   = { drm_irq_busid,   0, 1 },
 
-	[DRM_IOCTL_NR(DRM_IOCTL_SET_UNIQUE)]  = { drm_setunique,  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_BLOCK)]	      = { drm_block,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_UNBLOCK)]     = { drm_unblock,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_CONTROL)]     = { mga_control,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_AUTH_MAGIC)]  = { drm_authmagic,  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_ADD_MAP)]     = { drm_addmap,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_ADD_BUFS)]    = { mga_addbufs,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_MARK_BUFS)]   = { mga_markbufs,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_INFO_BUFS)]   = { mga_infobufs,	  1, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_MAP_BUFS)]    = { mga_mapbufs,	  1, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_FREE_BUFS)]   = { mga_freebufs,	  1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_SET_UNIQUE)]  = { drm_setunique,   1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_BLOCK)]	      = { drm_block,	   1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_UNBLOCK)]     = { drm_unblock,	   1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_AUTH_MAGIC)]  = { drm_authmagic,   1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_ADD_MAP)]     = { drm_addmap,	   1, 1 },
 
-	[DRM_IOCTL_NR(DRM_IOCTL_ADD_CTX)]     = { mga_addctx,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_RM_CTX)]      = { mga_rmctx,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_MOD_CTX)]     = { mga_modctx,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_GET_CTX)]     = { mga_getctx,	  1, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_SWITCH_CTX)]  = { mga_switchctx,  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_NEW_CTX)]     = { mga_newctx,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_RES_CTX)]     = { mga_resctx,	  1, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_ADD_DRAW)]    = { drm_adddraw,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_RM_DRAW)]     = { drm_rmdraw,	  1, 1 },
-
-	[DRM_IOCTL_NR(DRM_IOCTL_DMA)]	      = { mga_dma,	  1, 0 },
-
-	[DRM_IOCTL_NR(DRM_IOCTL_LOCK)]	      = { mga_lock,	  1, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_UNLOCK)]      = { mga_unlock,	  1, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_FINISH)]      = { drm_finish,	  1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_ADD_CTX)]     = { r128_addctx,	   1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_RM_CTX)]      = { r128_rmctx,	   1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_MOD_CTX)]     = { r128_modctx,	   1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_GET_CTX)]     = { r128_getctx,	   1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_SWITCH_CTX)]  = { r128_switchctx,  1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_NEW_CTX)]     = { r128_newctx,	   1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_RES_CTX)]     = { r128_resctx,	   1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_ADD_DRAW)]    = { drm_adddraw,	   1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_RM_DRAW)]     = { drm_rmdraw,	   1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_LOCK)]	      = { r128_lock,	   1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_UNLOCK)]      = { r128_unlock,	   1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_FINISH)]      = { drm_finish,	   1, 0 },
 
 	[DRM_IOCTL_NR(DRM_IOCTL_AGP_ACQUIRE)] = { drm_agp_acquire, 1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_AGP_RELEASE)] = { drm_agp_release, 1, 1 },
@@ -105,43 +95,35 @@ static drm_ioctl_desc_t	      mga_ioctls[] = {
 	[DRM_IOCTL_NR(DRM_IOCTL_AGP_FREE)]    = { drm_agp_free,    1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_AGP_BIND)]    = { drm_agp_bind,    1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_AGP_UNBIND)]  = { drm_agp_unbind,  1, 1 },
-   	[DRM_IOCTL_NR(DRM_IOCTL_MGA_INIT)]    = { mga_dma_init,    1, 1 },
-   	[DRM_IOCTL_NR(DRM_IOCTL_MGA_SWAP)]    = { mga_swap_bufs,   1, 0 },
-   	[DRM_IOCTL_NR(DRM_IOCTL_MGA_CLEAR)]   = { mga_clear_bufs,  1, 0 },
-   	[DRM_IOCTL_NR(DRM_IOCTL_MGA_ILOAD)]   = { mga_iload,       1, 0 },
-   	[DRM_IOCTL_NR(DRM_IOCTL_MGA_VERTEX)]  = { mga_vertex,      1, 0 },
-   	[DRM_IOCTL_NR(DRM_IOCTL_MGA_FLUSH)]   = { mga_flush_ioctl, 1, 0 },
 };
-
-#define MGA_IOCTL_COUNT DRM_ARRAY_SIZE(mga_ioctls)
+#define R128_IOCTL_COUNT DRM_ARRAY_SIZE(r128_ioctls)
 
 #ifdef MODULE
 int			      init_module(void);
 void			      cleanup_module(void);
-static char		      *mga = NULL;
+static char		      *r128 = NULL;
 
 MODULE_AUTHOR("Precision Insight, Inc., Cedar Park, Texas.");
-MODULE_DESCRIPTION("Matrox g200/g400");
-MODULE_PARM(mga, "s");
+MODULE_DESCRIPTION("r128");
+MODULE_PARM(r128, "s");
 
 /* init_module is called when insmod is used to load the module */
 
 int init_module(void)
 {
-	DRM_DEBUG("doing mga_init()\n");
-	return mga_init();
+	return r128_init();
 }
 
 /* cleanup_module is called when rmmod is used to unload the module */
 
 void cleanup_module(void)
 {
-	mga_cleanup();
+	r128_cleanup();
 }
 #endif
 
 #ifndef MODULE
-/* mga_setup is called by the kernel to parse command-line options passed
+/* r128_setup is called by the kernel to parse command-line options passed
  * via the boot-loader (e.g., LILO).  It calls the insmod option routine,
  * drm_parse_drm.
  *
@@ -149,7 +131,7 @@ void cleanup_module(void)
  * linux/init/main.c. */
  
 
-void __init mga_setup(char *str, int *ints)
+void __init r128_setup(char *str, int *ints)
 {
 	if (ints[0] != 0) {
 		DRM_ERROR("Illegal command line format, ignored\n");
@@ -159,7 +141,7 @@ void __init mga_setup(char *str, int *ints)
 }
 #endif
 
-static int mga_setup(drm_device_t *dev)
+static int r128_setup(drm_device_t *dev)
 {
 	int i;
 	
@@ -167,8 +149,6 @@ static int mga_setup(drm_device_t *dev)
 	atomic_set(&dev->vma_count, 0);
 	dev->buf_use	  = 0;
 	atomic_set(&dev->buf_alloc, 0);
-
-	drm_dma_setup(dev);
 
 	atomic_set(&dev->total_open, 0);
 	atomic_set(&dev->total_close, 0);
@@ -196,6 +176,7 @@ static int mga_setup(drm_device_t *dev)
 	dev->irq	    = 0;
 	dev->context_flag   = 0;
 	dev->interrupt_flag = 0;
+	dev->dma            = 0;
 	dev->dma_flag	    = 0;
 	dev->last_context   = 0;
 	dev->last_switch    = 0;
@@ -212,6 +193,8 @@ static int mga_setup(drm_device_t *dev)
 	dev->buf_async	  = NULL;
 	init_waitqueue_head(&dev->buf_readers);
 	init_waitqueue_head(&dev->buf_writers);
+
+	r128_res_ctx.handle=-1;
 			
 	DRM_DEBUG("\n");
 			
@@ -225,7 +208,7 @@ static int mga_setup(drm_device_t *dev)
 }
 
 
-static int mga_takedown(drm_device_t *dev)
+static int r128_takedown(drm_device_t *dev)
 {
 	int		  i;
 	drm_magic_entry_t *pt, *next;
@@ -234,8 +217,6 @@ static int mga_takedown(drm_device_t *dev)
 
 	DRM_DEBUG("\n");
 
-	if (dev->irq) mga_irq_uninstall(dev);
-	
 	down(&dev->struct_sem);
 	del_timer(&dev->timer);
 	
@@ -257,13 +238,14 @@ static int mga_takedown(drm_device_t *dev)
 		}
 		dev->magiclist[i].head = dev->magiclist[i].tail = NULL;
 	}
-   				/* Clear AGP information */
+
+				/* Clear AGP information */
 	if (dev->agp) {
 		drm_agp_mem_t *entry;
 		drm_agp_mem_t *nexte;
 		
 				/* Remove AGP resources, but leave dev->agp
-                                   intact until cleanup is called. */
+                                   intact until r128_cleanup is called. */
 		for (entry = dev->agp->memory; entry; entry = nexte) {
 			nexte = entry->next;
 			if (entry->bound) drm_unbind_agp(entry->memory);
@@ -278,6 +260,7 @@ static int mga_takedown(drm_device_t *dev)
 		dev->agp->acquired = 0;
 		dev->agp->enabled  = 0;
 	}
+	
 				/* Clear vma list (only built for debugging) */
 	if (dev->vmalist) {
 		for (vma = dev->vmalist; vma; vma = vma_next) {
@@ -312,6 +295,8 @@ static int mga_takedown(drm_device_t *dev)
 					       DRM_MEM_SAREA);
 				break;
 			case _DRM_AGP:
+				/* Do nothing here, because this is all
+                                   handled in the AGP/GART driver. */
 				break;
 			}
 			drm_free(map, sizeof(*map), DRM_MEM_MAPS);
@@ -323,25 +308,6 @@ static int mga_takedown(drm_device_t *dev)
 		dev->map_count = 0;
 	}
 	
-	if (dev->queuelist) {
-		for (i = 0; i < dev->queue_count; i++) {
-			drm_waitlist_destroy(&dev->queuelist[i]->waitlist);
-			if (dev->queuelist[i]) {
-				drm_free(dev->queuelist[i],
-					 sizeof(*dev->queuelist[0]),
-					 DRM_MEM_QUEUES);
-				dev->queuelist[i] = NULL;
-			}
-		}
-		drm_free(dev->queuelist,
-			 dev->queue_slots * sizeof(*dev->queuelist),
-			 DRM_MEM_QUEUES);
-		dev->queuelist	 = NULL;
-	}
-
-	drm_dma_takedown(dev);
-
-	dev->queue_count     = 0;
 	if (dev->lock.hw_lock) {
 		dev->lock.hw_lock    = NULL; /* SHM removed */
 		dev->lock.pid	     = 0;
@@ -352,13 +318,13 @@ static int mga_takedown(drm_device_t *dev)
 	return 0;
 }
 
-/* mga_init is called via init_module at module load time, or via
+/* r128_init is called via init_module at module load time, or via
  * linux/init/main.c (this is not currently supported). */
 
-int mga_init(void)
+int r128_init(void)
 {
 	int		      retcode;
-	drm_device_t	      *dev = &mga_device;
+	drm_device_t	      *dev = &r128_device;
 
 	DRM_DEBUG("\n");
 
@@ -367,91 +333,71 @@ int mga_init(void)
 	sema_init(&dev->struct_sem, 1);
 	
 #ifdef MODULE
-	drm_parse_options(mga);
+	drm_parse_options(r128);
 #endif
-	DRM_DEBUG("doing misc_register\n");
-	if ((retcode = misc_register(&mga_misc))) {
-		DRM_ERROR("Cannot register \"%s\"\n", MGA_NAME);
+
+	if ((retcode = misc_register(&r128_misc))) {
+		DRM_ERROR("Cannot register \"%s\"\n", R128_NAME);
 		return retcode;
 	}
-	dev->device = MKDEV(MISC_MAJOR, mga_misc.minor);
-	dev->name   = MGA_NAME;
+	dev->device = MKDEV(MISC_MAJOR, r128_misc.minor);
+	dev->name   = R128_NAME;
 
-   	DRM_DEBUG("doing mem init\n");
 	drm_mem_init();
-	DRM_DEBUG("doing proc init\n");
 	drm_proc_init(dev);
-	DRM_DEBUG("doing agp init\n");
+
 	dev->agp    = drm_agp_init();
-      	if(dev->agp == NULL) {
-	   	DRM_DEBUG("The mga drm module requires the agpgart module"
-		          " to function correctly\nPlease load the agpgart"
-		          " module before you load the mga module\n");
-	   	drm_proc_cleanup();
-	   	misc_deregister(&mga_misc);
-	   	mga_takedown(dev);
-	   	return -ENOMEM;
-	}
+
 #ifdef CONFIG_MTRR
-   	dev->agp->agp_mtrr = mtrr_add(dev->agp->agp_info.aper_base,
-				      dev->agp->agp_info.aper_size * 1024 * 1024,
+	dev->agp->agp_mtrr = mtrr_add(dev->agp->agp_info.aper_base,
+				      dev->agp->agp_info.aper_size*1024*1024,
 				      MTRR_TYPE_WRCOMB,
 				      1);
 #endif
-	DRM_DEBUG("doing ctxbitmap init\n");
+
 	if((retcode = drm_ctxbitmap_init(dev))) {
 		DRM_ERROR("Cannot allocate memory for context bitmap.\n");
 		drm_proc_cleanup();
-		misc_deregister(&mga_misc);
-		mga_takedown(dev);
+		misc_deregister(&r128_misc);
+		r128_takedown(dev);
 		return retcode;
 	}
 
 	DRM_INFO("Initialized %s %d.%d.%d %s on minor %d\n",
-		 MGA_NAME,
-		 MGA_MAJOR,
-		 MGA_MINOR,
-		 MGA_PATCHLEVEL,
-		 MGA_DATE,
-		 mga_misc.minor);
+		 R128_NAME,
+		 R128_MAJOR,
+		 R128_MINOR,
+		 R128_PATCHLEVEL,
+		 R128_DATE,
+		 r128_misc.minor);
 
 	return 0;
 }
 
-/* mga_cleanup is called via cleanup_module at module unload time. */
+/* r128_cleanup is called via cleanup_module at module unload time. */
 
-void mga_cleanup(void)
+void r128_cleanup(void)
 {
-	drm_device_t	      *dev = &mga_device;
+	drm_device_t	      *dev = &r128_device;
 
 	DRM_DEBUG("\n");
 	
 	drm_proc_cleanup();
-	if (misc_deregister(&mga_misc)) {
+	if (misc_deregister(&r128_misc)) {
 		DRM_ERROR("Cannot unload module\n");
 	} else {
 		DRM_INFO("Module unloaded\n");
 	}
 	drm_ctxbitmap_cleanup(dev);
-	mga_dma_cleanup(dev);
-#ifdef CONFIG_MTRR
-   	if(dev->agp && dev->agp->agp_mtrr) {
-	   	int retval;
-	   	retval = mtrr_del(dev->agp->agp_mtrr, 
-				  dev->agp->agp_info.aper_base,
-				  dev->agp->agp_info.aper_size * 1024*1024);
-	   	DRM_DEBUG("mtrr_del = %d\n", retval);
-	}
-#endif
-
-	mga_takedown(dev);
+	r128_takedown(dev);
 	if (dev->agp) {
+				/* FIXME -- free other information, too */
 		drm_free(dev->agp, sizeof(*dev->agp), DRM_MEM_AGPLISTS);
 		dev->agp = NULL;
 	}
 }
 
-int mga_version(struct inode *inode, struct file *filp, unsigned int cmd,
+int r128_version(struct inode *inode, struct file *filp, unsigned int cmd,
 		  unsigned long arg)
 {
 	drm_version_t version;
@@ -470,13 +416,13 @@ int mga_version(struct inode *inode, struct file *filp, unsigned int cmd,
 		copy_to_user_ret(name, value, len, -EFAULT); \
 	}
 
-	version.version_major	   = MGA_MAJOR;
-	version.version_minor	   = MGA_MINOR;
-	version.version_patchlevel = MGA_PATCHLEVEL;
+	version.version_major	   = R128_MAJOR;
+	version.version_minor	   = R128_MINOR;
+	version.version_patchlevel = R128_PATCHLEVEL;
 
-	DRM_COPY(version.name, MGA_NAME);
-	DRM_COPY(version.date, MGA_DATE);
-	DRM_COPY(version.desc, MGA_DESC);
+	DRM_COPY(version.name, R128_NAME);
+	DRM_COPY(version.date, R128_DATE);
+	DRM_COPY(version.desc, R128_DESC);
 
 	copy_to_user_ret((drm_version_t *)arg,
 			 &version,
@@ -485,9 +431,9 @@ int mga_version(struct inode *inode, struct file *filp, unsigned int cmd,
 	return 0;
 }
 
-int mga_open(struct inode *inode, struct file *filp)
+int r128_open(struct inode *inode, struct file *filp)
 {
-	drm_device_t  *dev    = &mga_device;
+	drm_device_t  *dev    = &r128_device;
 	int	      retcode = 0;
 	
 	DRM_DEBUG("open_count = %d\n", dev->open_count);
@@ -497,14 +443,14 @@ int mga_open(struct inode *inode, struct file *filp)
 		spin_lock(&dev->count_lock);
 		if (!dev->open_count++) {
 			spin_unlock(&dev->count_lock);
-			return mga_setup(dev);
+			return r128_setup(dev);
 		}
 		spin_unlock(&dev->count_lock);
 	}
 	return retcode;
 }
 
-int mga_release(struct inode *inode, struct file *filp)
+int r128_release(struct inode *inode, struct file *filp)
 {
 	drm_file_t    *priv   = filp->private_data;
 	drm_device_t  *dev    = priv->dev;
@@ -524,16 +470,16 @@ int mga_release(struct inode *inode, struct file *filp)
 				return -EBUSY;
 			}
 			spin_unlock(&dev->count_lock);
-			return mga_takedown(dev);
+			return r128_takedown(dev);
 		}
 		spin_unlock(&dev->count_lock);
 	}
 	return retcode;
 }
 
-/* drm_ioctl is called whenever a process performs an ioctl on /dev/drm. */
+/* r128_ioctl is called whenever a process performs an ioctl on /dev/drm. */
 
-int mga_ioctl(struct inode *inode, struct file *filp, unsigned int cmd,
+int r128_ioctl(struct inode *inode, struct file *filp, unsigned int cmd,
 		unsigned long arg)
 {
 	int		 nr	 = DRM_IOCTL_NR(cmd);
@@ -550,10 +496,10 @@ int mga_ioctl(struct inode *inode, struct file *filp, unsigned int cmd,
 	DRM_DEBUG("pid = %d, cmd = 0x%02x, nr = 0x%02x, dev 0x%x, auth = %d\n",
 		  current->pid, cmd, nr, dev->device, priv->authenticated);
 
-	if (nr >= MGA_IOCTL_COUNT) {
+	if (nr >= R128_IOCTL_COUNT) {
 		retcode = -EINVAL;
 	} else {
-		ioctl	  = &mga_ioctls[nr];
+		ioctl	  = &r128_ioctls[nr];
 		func	  = ioctl->func;
 
 		if (!func) {
@@ -571,7 +517,153 @@ int mga_ioctl(struct inode *inode, struct file *filp, unsigned int cmd,
 	return retcode;
 }
 
-int mga_unlock(struct inode *inode, struct file *filp, unsigned int cmd,
+int r128_lock(struct inode *inode, struct file *filp, unsigned int cmd,
+	      unsigned long arg)
+{
+        drm_file_t        *priv   = filp->private_data;
+        drm_device_t      *dev    = priv->dev;
+        DECLARE_WAITQUEUE(entry, current);
+        int               ret   = 0;
+        drm_lock_t        lock;
+#if DRM_DMA_HISTOGRAM
+        cycles_t          start;
+
+        dev->lck_start = start = get_cycles();
+#endif
+
+        copy_from_user_ret(&lock, (drm_lock_t *)arg, sizeof(lock), -EFAULT);
+
+        if (lock.context == DRM_KERNEL_CONTEXT) {
+                DRM_ERROR("Process %d using kernel context %d\n",
+                          current->pid, lock.context);
+                return -EINVAL;
+        }
+
+        DRM_DEBUG("%d (pid %d) requests lock (0x%08x), flags = 0x%08x\n",
+                  lock.context, current->pid, dev->lock.hw_lock->lock,
+                  lock.flags);
+
+#if 0
+				/* dev->queue_count == 0 right now for
+                                   r128.  FIXME? */
+        if (lock.context < 0 || lock.context >= dev->queue_count)
+                return -EINVAL;
+#endif
+        
+        if (!ret) {
+#if 0
+                if (_DRM_LOCKING_CONTEXT(dev->lock.hw_lock->lock)
+                    != lock.context) {
+                        long j = jiffies - dev->lock.lock_time;
+
+                        if (lock.context == r128_res_ctx.handle &&
+				j >= 0 && j < DRM_LOCK_SLICE) {
+                                /* Can't take lock if we just had it and
+                                   there is contention. */
+                                DRM_DEBUG("%d (pid %d) delayed j=%d dev=%d jiffies=%d\n",
+					lock.context, current->pid, j, 
+					dev->lock.lock_time, jiffies);
+                                current->state = TASK_INTERRUPTIBLE;
+				current->policy |= SCHED_YIELD;
+                                schedule_timeout(DRM_LOCK_SLICE-j);
+				DRM_DEBUG("jiffies=%d\n", jiffies);
+                        }
+                }
+#endif
+                add_wait_queue(&dev->lock.lock_queue, &entry);
+                for (;;) {
+                        if (!dev->lock.hw_lock) {
+                                /* Device has been unregistered */
+                                ret = -EINTR;
+                                break;
+                        }
+                        if (drm_lock_take(&dev->lock.hw_lock->lock,
+                                          lock.context)) {
+                                dev->lock.pid       = current->pid;
+                                dev->lock.lock_time = jiffies;
+                                atomic_inc(&dev->total_locks);
+                                break;  /* Got lock */
+                        }
+                        
+                                /* Contention */
+                        atomic_inc(&dev->total_sleeps);
+                        current->state = TASK_INTERRUPTIBLE;
+#if 1
+			current->policy |= SCHED_YIELD;
+#endif
+                        schedule();
+                        if (signal_pending(current)) {
+                                ret = -ERESTARTSYS;
+                                break;
+                        }
+                }
+                current->state = TASK_RUNNING;
+                remove_wait_queue(&dev->lock.lock_queue, &entry);
+        }
+
+#if 0
+	if (!ret && dev->last_context != lock.context &&
+		lock.context != r128_res_ctx.handle &&
+		dev->last_context != r128_res_ctx.handle) {
+		add_wait_queue(&dev->context_wait, &entry);
+	        current->state = TASK_INTERRUPTIBLE;
+                /* PRE: dev->last_context != lock.context */
+	        r128_context_switch(dev, dev->last_context, lock.context);
+		/* POST: we will wait for the context
+                   switch and will dispatch on a later call
+                   when dev->last_context == lock.context
+                   NOTE WE HOLD THE LOCK THROUGHOUT THIS
+                   TIME! */
+		current->policy |= SCHED_YIELD;
+	        schedule();
+	        current->state = TASK_RUNNING;
+	        remove_wait_queue(&dev->context_wait, &entry);
+	        if (signal_pending(current)) {
+	                ret = -EINTR;
+	        } else if (dev->last_context != lock.context) {
+			DRM_ERROR("Context mismatch: %d %d\n",
+                        	dev->last_context, lock.context);
+	        }
+	}
+#endif
+
+        if (!ret) {
+                if (lock.flags & _DRM_LOCK_READY) {
+				/* Wait for space in DMA/FIFO */
+		}
+                if (lock.flags & _DRM_LOCK_QUIESCENT) {
+				/* Make hardware quiescent */
+#if 0
+                        r128_quiescent(dev);
+#endif
+		}
+        }
+
+#if 0
+	DRM_ERROR("pid = %5d, old counter = %5ld\n", 
+		current->pid, current->counter);
+#endif
+	if (lock.context != r128_res_ctx.handle) {
+		current->counter = 5;
+		current->priority = DEF_PRIORITY/4;
+	}
+#if 0
+	while (current->counter > 25)
+		current->counter >>= 1; /* decrease time slice */
+	DRM_ERROR("pid = %5d, new counter = %5ld\n",
+		 current->pid, current->counter);
+#endif
+        DRM_DEBUG("%d %s\n", lock.context, ret ? "interrupted" : "has lock");
+
+#if DRM_DMA_HISTOGRAM
+        atomic_inc(&dev->histo.lacq[drm_histogram_slot(get_cycles() - start)]);
+#endif
+        
+        return ret;
+}
+
+
+int r128_unlock(struct inode *inode, struct file *filp, unsigned int cmd,
 		 unsigned long arg)
 {
 	drm_file_t	  *priv	  = filp->private_data;
@@ -593,12 +685,28 @@ int mga_unlock(struct inode *inode, struct file *filp, unsigned int cmd,
 	if (_DRM_LOCK_IS_CONT(dev->lock.hw_lock->lock))
 		atomic_inc(&dev->total_contends);
 	drm_lock_transfer(dev, &dev->lock.hw_lock->lock, DRM_KERNEL_CONTEXT);
-	mga_dma_schedule(dev, 1);
-
-	if (drm_lock_free(dev, &dev->lock.hw_lock->lock,
-			  DRM_KERNEL_CONTEXT)) {
-	   DRM_ERROR("\n");
+				/* FIXME: Try to send data to card here */
+	if (!dev->context_flag) {
+		if (drm_lock_free(dev, &dev->lock.hw_lock->lock,
+				  DRM_KERNEL_CONTEXT)) {
+			DRM_ERROR("\n");
+		}
 	}
 
+#if 0
+	current->policy |= SCHED_YIELD;
+	current->state = TASK_INTERRUPTIBLE;
+	schedule_timeout(1000);
+#endif
+
+	if (lock.context != r128_res_ctx.handle) {
+		current->counter = 5;
+		current->priority = DEF_PRIORITY;
+	}
+#if 0
+	current->state = TASK_INTERRUPTIBLE;
+	schedule_timeout(10);
+#endif
+	
 	return 0;
 }

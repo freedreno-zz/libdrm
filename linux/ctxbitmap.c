@@ -53,7 +53,7 @@ int drm_ctxbitmap_next(drm_device_t *dev)
 	bit = find_first_zero_bit(dev->ctx_bitmap, DRM_MAX_CTXBITMAP);
 	if (bit < DRM_MAX_CTXBITMAP) {
 		set_bit(bit, dev->ctx_bitmap);
-	   	printk("drm_ctxbitmap_next bit : %d\n", bit);
+	   	DRM_DEBUG("drm_ctxbitmap_next bit : %d\n", bit);
 		return bit;
 	}
 	return -1;
@@ -72,7 +72,7 @@ int drm_ctxbitmap_init(drm_device_t *dev)
 	memset((void *) dev->ctx_bitmap, 0, PAGE_SIZE * 4);
 	for(i = 0; i < DRM_RESERVED_CONTEXTS; i++) {
 		temp = drm_ctxbitmap_next(dev);
-	   	printk("drm_ctxbitmap_init : %d\n", temp);
+	   	DRM_DEBUG("drm_ctxbitmap_init : %d\n", temp);
 	}
 
 	return 0;

@@ -31,6 +31,32 @@
 
 #ifndef _I810_DRV_H_
 #define _I810_DRV_H_
+#include "i810_drm_public.h"
+
+typedef struct _drm_i810_ring_buffer{
+	int tail_mask;
+	unsigned long Start;
+	unsigned long End;
+	unsigned long Size;
+	u8 *virtual_start;
+	int head;
+	int tail;
+	int space;
+} drm_i810_ring_buffer_t;
+
+typedef struct drm_i810_private {
+   	int ring_map_idx;
+   	int buffer_map_idx;
+
+   	drm_i810_ring_buffer_t ring;
+	drm_i810_sarea_t *sarea_priv;
+
+      	unsigned long hw_status_page;
+   	unsigned long counter;
+
+   	atomic_t flush_done;
+   	wait_queue_head_t flush_queue;	/* Processes waiting until flush    */
+} drm_i810_private_t;
 
 				/* i810_drv.c */
 extern int  i810_init(void);
@@ -54,8 +80,13 @@ extern int  i810_control(struct inode *inode, struct file *filp,
 			  unsigned int cmd, unsigned long arg);
 extern int  i810_lock(struct inode *inode, struct file *filp,
 		       unsigned int cmd, unsigned long arg);
-extern void i810_dma_init(drm_device_t *dev);
-extern void i810_dma_cleanup(drm_device_t *dev);
+extern int  i810_dma_init(struct inode *inode, struct file *filp,
+			  unsigned int cmd, unsigned long arg);
+extern int  i810_flush_ioctl(struct inode *inode, struct file *filp,
+			     unsigned int cmd, unsigned long arg);
+extern void i810_reclaim_buffers(drm_device_t *dev, pid_t pid);
+extern int  i810_getage(struct inode *inode, struct file *filp, unsigned int cmd,
+			unsigned long arg);
 
 
 				/* i810_bufs.c */
@@ -71,6 +102,26 @@ extern int  i810_mapbufs(struct inode *inode, struct file *filp,
 			unsigned int cmd, unsigned long arg);
 extern int  i810_addmap(struct inode *inode, struct file *filp,
 		       unsigned int cmd, unsigned long arg);
+
+				/* i810_context.c */
+extern int  i810_resctx(struct inode *inode, struct file *filp,
+		       unsigned int cmd, unsigned long arg);
+extern int  i810_addctx(struct inode *inode, struct file *filp,
+		       unsigned int cmd, unsigned long arg);
+extern int  i810_modctx(struct inode *inode, struct file *filp,
+		       unsigned int cmd, unsigned long arg);
+extern int  i810_getctx(struct inode *inode, struct file *filp,
+		       unsigned int cmd, unsigned long arg);
+extern int  i810_switchctx(struct inode *inode, struct file *filp,
+			  unsigned int cmd, unsigned long arg);
+extern int  i810_newctx(struct inode *inode, struct file *filp,
+		       unsigned int cmd, unsigned long arg);
+extern int  i810_rmctx(struct inode *inode, struct file *filp,
+		      unsigned int cmd, unsigned long arg);
+
+extern int  i810_context_switch(drm_device_t *dev, int old, int new);
+extern int  i810_context_switch_complete(drm_device_t *dev, int new);
+
 
 
 #endif
