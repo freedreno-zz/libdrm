@@ -1,8 +1,8 @@
 /* gamma.c -- 3dlabs GMX 2000 driver -*- linux-c -*-
  * Created: Mon Jan  4 08:58:31 1999 by faith@precisioninsight.com
- * Revised: Tue Oct 12 08:51:36 1999 by faith@precisioninsight.com
  *
  * Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
+ * Copyright 2000 VA Linux Systems, Inc., Sunnyvale, California.
  * All Rights Reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -24,7 +24,8 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
  * 
- * $XFree86: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/kernel/gamma_drv.c,v 1.4 2000/02/23 04:47:28 martin Exp $
+ * Authors:
+ *    Rickard E. (Rik) Faith <faith@valinux.com>
  *
  */
 
@@ -121,7 +122,7 @@ void cleanup_module(void)
 #ifndef MODULE
 /* gamma_setup is called by the kernel to parse command-line options passed
  * via the boot-loader (e.g., LILO).  It calls the insmod option routine,
- * drm_parse_drm.
+ * drm_parse_options.
  *
  * This is not currently supported, since it requires changes to
  * linux/init/main.c. */
@@ -271,10 +272,12 @@ static int gamma_takedown(drm_device_t *dev)
 					       - PAGE_SHIFT,
 					       DRM_MEM_SAREA);
 				break;
+#ifdef DRM_AGP
 			case _DRM_AGP:
 				/* Do nothing here, because this is all
                                    handled in the AGP/GART driver. */
 				break;
+#endif
 			}
 			drm_free(map, sizeof(*map), DRM_MEM_MAPS);
 		}
