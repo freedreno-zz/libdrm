@@ -425,6 +425,8 @@ int drm_dma_enqueue(drm_device_t *dev, drm_dma_t *d)
 				  current->pid, buf->idx, buf->list);
 		}
 		buf->used	  = d->send_sizes[i];
+	   	buf->bus_address  = dev->agp->base + 65536 + 
+	     				(idx * 524288);
 		buf->while_locked = while_locked;
 		buf->context	  = d->context;
 		if (!buf->used) {

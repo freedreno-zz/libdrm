@@ -419,7 +419,8 @@ int drmAddMap(int fd,
     return 0;
 }
 
-int drmAddBufs(int fd, int count, int size, drmBufDescFlags flags)
+int drmAddBufs(int fd, int count, int size, drmBufDescFlags flags,
+	       int agp_offset)
 {
     drm_buf_desc_t request;
     
@@ -428,6 +429,8 @@ int drmAddBufs(int fd, int count, int size, drmBufDescFlags flags)
     request.low_mark  = 0;
     request.high_mark = 0;
     request.flags     = flags;
+    request.agp_start = agp_offset;
+   
     if (ioctl(fd, DRM_IOCTL_ADD_BUFS, &request)) return -errno;
     return request.count;
 }

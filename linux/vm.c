@@ -223,7 +223,7 @@ int drm_mmap(struct file *filp, struct vm_area_struct *vma)
 	drm_map_t	*map	= NULL;
 	int		i;
 	
-	DRM_DEBUG("start = 0x%lx, end = 0x%lx, offset = 0x%lx\n",
+	DRM_INFO("start = 0x%lx, end = 0x%lx, offset = 0x%lx\n",
 		  vma->vm_start, vma->vm_end, VM_OFFSET(vma));
 
 	if (!VM_OFFSET(vma)) return drm_mmap_dma(filp, vma);
