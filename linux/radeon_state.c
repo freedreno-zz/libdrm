@@ -39,61 +39,24 @@
  * CP hardware state programming functions
  */
 
-#undef RADEON_VERBOSE
-#define RADEON_VERBOSE	0
-
-static void radeon_emit_clip_rects( drm_radeon_private_t *dev_priv,
-				    drm_clip_rect_t *boxes, int count )
+static inline void radeon_emit_clip_rect( drm_radeon_private_t *dev_priv,
+					  drm_clip_rect_t *box )
 {
-#if 0
-	u32 aux_scissor_cntl = 0x00000000;
 	RING_LOCALS;
-	DRM_INFO( "    %s: count=%d\n", __FUNCTION__, count );
 
-	BEGIN_RING( 11 );
+	DRM_DEBUG( "   box:  x1=%d y1=%d  x2=%d y2=%d\n",
+		   box->x1, box->y1, box->x2, box->y2 );
 
-	if ( count >= 1 ) {
-		DRM_INFO( "box[0]:  x1=%d y1=%d  x2=%d y2=%d\n",
-			  boxes[0].x1, boxes[0].y1,
-			  boxes[0].x2, boxes[0].y2 );
+	BEGIN_RING( 4 );
 
-		OUT_RING( CP_PACKET0( RADEON_SCISSOR_TL_0, 1 ) );
-		OUT_RING( (boxes[0].y1 << 16) | boxes[0].x1 );
-		OUT_RING( ((boxes[0].y2 - 1) << 16) | (boxes[0].x2 - 1) );
+	OUT_RING( CP_PACKET0( RADEON_RE_TOP_LEFT, 0 ) );
+	OUT_RING( (box->y1 << 16) | box->x1 );
 
-		aux_scissor_cntl |= (RADEON_SCISSOR_0_ENABLE |
-				     0 /* RADEON_EXCLUSIVE_SCISSOR_0 */);
-	}
-	if ( count >= 2 ) {
-		DRM_INFO( "box[1]:  x1=%d y1=%d  x2=%d y2=%d\n",
-			  boxes[1].x1, boxes[1].y1,
-			  boxes[1].x2, boxes[1].y2 );
-
-		OUT_RING( CP_PACKET0( RADEON_SCISSOR_TL_1, 1 ) );
-		OUT_RING( (boxes[1].y1 << 16) | boxes[1].x1 );
-		OUT_RING( ((boxes[1].y2 - 1) << 16) | (boxes[1].x2 - 1) );
-
-		aux_scissor_cntl |= (RADEON_SCISSOR_1_ENABLE |
-				     RADEON_EXCLUSIVE_SCISSOR_1);
-	}
-	if ( count >= 3 ) {
-		OUT_RING( CP_PACKET0( RADEON_SCISSOR_TL_2, 1 ) );
-		OUT_RING( (boxes[2].y1 << 16) | boxes[2].x1 );
-		OUT_RING( ((boxes[2].y2 - 1) << 16) | (boxes[2].x2 - 1) );
-
-		aux_scissor_cntl |= (RADEON_SCISSOR_2_ENABLE |
-				     0 /* RADEON_EXCLUSIVE_SCISSOR_2 */);
-	}
-
-	OUT_RING( CP_PACKET0( RADEON_AUX_SCISSOR_CNTL, 0 ) );
-	OUT_RING( aux_scissor_cntl );
+	OUT_RING( CP_PACKET0( RADEON_RE_WIDTH_HEIGHT, 0 ) );
+	OUT_RING( ((box->y2 - 1) << 16) | (box->x2 - 1) );
 
 	ADVANCE_RING();
-#endif
 }
-
-#undef RADEON_VERBOSE
-#define RADEON_VERBOSE	0
 
 static inline void radeon_emit_context( drm_radeon_private_t *dev_priv )
 {
@@ -113,13 +76,13 @@ static inline void radeon_emit_context( drm_radeon_private_t *dev_priv )
 	OUT_RING( ctx->rb3d_depthpitch );
 	OUT_RING( ctx->rb3d_zstencilcntl );
 
-	OUT_RING( CP_PACKET0( RADEON_PP_CNTL, 5 ) );
+	OUT_RING( CP_PACKET0( RADEON_PP_CNTL, 2 ) );
 	OUT_RING( ctx->pp_cntl );
 	OUT_RING( ctx->rb3d_cntl );
 	OUT_RING( ctx->rb3d_coloroffset );
-	OUT_RING( ctx->re_width_height );
+
+	OUT_RING( CP_PACKET0( RADEON_RB3D_COLORPITCH, 0 ) );
 	OUT_RING( ctx->rb3d_colorpitch );
-	OUT_RING( ctx->se_cntl );
 
 	ADVANCE_RING();
 }
@@ -221,12 +184,6 @@ static inline void radeon_emit_setup( drm_radeon_private_t *dev_priv )
 	RING_LOCALS;
 	DRM_DEBUG( "    %s\n", __FUNCTION__ );
 
-	/* Note this duplicates the uploading of se_cntl, which is part
-	 * of the context, but adding it here optimizes the reduced
-	 * primitive change since we currently render points and lines
-	 * with triangles.  In the future, we probably won't need this
-	 * optimization.
-	 */
 	BEGIN_RING( 4 );
 
 	OUT_RING( CP_PACKET0( RADEON_SE_CNTL, 0 ) );
@@ -289,10 +246,9 @@ static inline void radeon_emit_misc( drm_radeon_private_t *dev_priv )
 	RING_LOCALS;
 	DRM_DEBUG( "    %s\n", __FUNCTION__ );
 
-	BEGIN_RING( 3 );
+	BEGIN_RING( 2 );
 
-	OUT_RING( CP_PACKET0( RADEON_RE_TOP_LEFT, 1 ) );
-	OUT_RING( ctx->re_top_left );
+	OUT_RING( CP_PACKET0( RADEON_RE_MISC, 0 ) );
 	OUT_RING( ctx->re_misc );
 
 	ADVANCE_RING();
@@ -596,6 +552,11 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 			OUT_RING( sarea_priv->context_state.rb3d_planemask );
 
 			ADVANCE_RING();
+
+			/* Make sure we restore the 3D state next time.
+			 */
+			dev_priv->sarea_priv->dirty |= (RADEON_UPLOAD_CONTEXT |
+							RADEON_UPLOAD_MASKS);
 		}
 
 		if ( flags & RADEON_FRONT ) {
@@ -641,6 +602,7 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 		if ( flags & RADEON_DEPTH ) {
 			drm_radeon_context_regs_t *ctx =
 			   &sarea_priv->context_state;
+			u32 pp_cntl = ctx->pp_cntl;
 			u32 rb3d_cntl = ctx->rb3d_cntl;
 			u32 rb3d_zstencilcntl = ctx->rb3d_zstencilcntl;
 			u32 se_cntl = ctx->se_cntl;
@@ -648,6 +610,8 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 			/* FIXME: Do re really need to do this?  Why
 			 * not just precalculate all the values?
 			 */
+			pp_cntl &= ~RADEON_SCISSOR_ENABLE;
+
 			rb3d_cntl |= (RADEON_PLANE_MASK_ENABLE |
 				      RADEON_Z_ENABLE);
 
@@ -662,13 +626,14 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 			/* FIXME: Render a rectangle to clear the depth
 			 * buffer.  So much for those "fast Z clears"...
 			 */
-			BEGIN_RING( 26 );
+			BEGIN_RING( 27 );
 
 			RADEON_PURGE_CACHE();
 			RADEON_PURGE_ZCACHE();
 			RADEON_WAIT_UNTIL_IDLE();
 
-			OUT_RING( CP_PACKET0( RADEON_RB3D_CNTL, 0 ) );
+			OUT_RING( CP_PACKET0( RADEON_PP_CNTL, 1 ) );
+			OUT_RING( pp_cntl );
 			OUT_RING( rb3d_cntl );
 			OUT_RING( CP_PACKET0( RADEON_RB3D_ZSTENCILCNTL, 0 ) );
 			OUT_RING( rb3d_zstencilcntl );
@@ -698,6 +663,12 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 			OUT_RING( clear->rect.ui[CLEAR_DEPTH] );
 
 			ADVANCE_RING();
+
+			/* Make sure we restore the 3D state next time.
+			 */
+			dev_priv->sarea_priv->dirty |= (RADEON_UPLOAD_CONTEXT |
+							RADEON_UPLOAD_SETUP |
+							RADEON_UPLOAD_MASKS);
 		}
 	}
 
@@ -855,11 +826,11 @@ static void radeon_cp_dispatch_vertex( drm_device_t *dev,
 	int prim = buf_priv->prim;
 	int i = 0;
 	RING_LOCALS;
-	DRM_DEBUG( "%s\n", __FUNCTION__ );
+	DRM_DEBUG( "%s: nbox=%d\n", __FUNCTION__, sarea_priv->nbox );
 
 	radeon_update_ring_snapshot( dev_priv );
 
-	if ( 0 )
+	if ( 1 )
 		radeon_print_dirty( "dispatch_vertex", sarea_priv->dirty );
 
 	if ( buf->used ) {
@@ -872,9 +843,8 @@ static void radeon_cp_dispatch_vertex( drm_device_t *dev,
 		do {
 			/* Emit the next set of up to three cliprects */
 			if ( i < sarea_priv->nbox ) {
-				radeon_emit_clip_rects( dev_priv,
-							&sarea_priv->boxes[i],
-							sarea_priv->nbox - i );
+				radeon_emit_clip_rect( dev_priv,
+						       &sarea_priv->boxes[i] );
 			}
 
 			/* Emit the vertex buffer rendering commands */
@@ -891,7 +861,7 @@ static void radeon_cp_dispatch_vertex( drm_device_t *dev,
 
 			ADVANCE_RING();
 
-			i += 3;
+			i++;
 		} while ( i < sarea_priv->nbox );
 	}
 
@@ -1024,14 +994,13 @@ static void radeon_cp_dispatch_indices( drm_device_t *dev,
 		do {
 			/* Emit the next set of up to three cliprects */
 			if ( i < sarea_priv->nbox ) {
-				radeon_emit_clip_rects( dev_priv,
-							&sarea_priv->boxes[i],
-							sarea_priv->nbox - i );
+				radeon_emit_clip_rect( dev_priv,
+						       &sarea_priv->boxes[i] );
 			}
 
 			radeon_cp_dispatch_indirect( dev, buf, start, end );
 
-			i += 3;
+			i++;
 		} while ( i < sarea_priv->nbox );
 	}
 
@@ -1195,11 +1164,6 @@ int radeon_cp_clear( struct inode *inode, struct file *filp,
 		sarea_priv->nbox = RADEON_NR_SAREA_CLIPRECTS;
 
 	radeon_cp_dispatch_clear( dev, &clear );
-
-	/* Make sure we restore the 3D state next time.
-	 */
-	dev_priv->sarea_priv->dirty |= (RADEON_UPLOAD_CONTEXT |
-					RADEON_UPLOAD_MASKS);
 
 	return 0;
 }

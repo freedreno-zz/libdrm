@@ -221,6 +221,7 @@ extern int  radeon_context_switch_complete(drm_device_t *dev, int new);
 #	define RADEON_CRTC_TILE_EN		(1 << 15)
 #	define RADEON_CRTC_OFFSET_FLIP_CNTL	(1 << 16)
 
+#define RADEON_RB3D_COLORPITCH		0x1c48
 #define RADEON_RB3D_DEPTHCLEARVALUE	0x1c30
 #define RADEON_RB3D_DEPTHXY_OFFSET	0x1c60
 
@@ -278,6 +279,7 @@ extern int  radeon_context_switch_complete(drm_device_t *dev, int new);
 #define RADEON_PP_BORDER_COLOR_1	0x1d44
 #define RADEON_PP_BORDER_COLOR_2	0x1d48
 #define RADEON_PP_CNTL			0x1c38
+#	define RADEON_SCISSOR_ENABLE		(1 <<  1)
 #define RADEON_PP_LUM_MATRIX		0x1d00
 #define RADEON_PP_MISC			0x1c14
 #define RADEON_PP_ROT_MATRIX_0		0x1d58
@@ -334,6 +336,8 @@ extern int  radeon_context_switch_complete(drm_device_t *dev, int new);
 #	define RADEON_RBBM_ACTIVE		(1 << 31)
 #define RADEON_RE_LINE_PATTERN		0x1cd0
 #define RADEON_RE_TOP_LEFT		0x26c0
+#define RADEON_RE_MISC			0x26c4
+#define RADEON_RE_WIDTH_HEIGHT		0x1c44
 
 #define RADEON_SCISSOR_TL_0		0x1cd8
 #define RADEON_SCISSOR_BR_0		0x1cdc
