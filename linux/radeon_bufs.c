@@ -1,8 +1,7 @@
-/* r128_bufs.c -- IOCTLs to manage buffers -*- linux-c -*-
- * Created: Wed Apr 12 16:19:08 2000 by kevin@precisioninsight.com
+/* radeon_bufs.c -- IOCTLs to manage buffers -*- linux-c -*-
  *
  * Copyright 2000 Precision Insight, Inc., Cedar Park, Texas.
- * Copyright 2000 VA Linux Systems, Inc., Sunnyvale, California.
+ * Copyright 2000 VA Linux Systems, Inc., Fremont, California.
  * All Rights Reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -33,13 +32,13 @@
 #define __NO_VERSION__
 #include <linux/config.h>
 #include "drmP.h"
-#include "r128_drv.h"
+#include "radeon_drv.h"
 #include "linux/un.h"
 
 
 #if defined(CONFIG_AGP) || defined(CONFIG_AGP_MODULE)
-int r128_addbufs_agp(struct inode *inode, struct file *filp, unsigned int cmd,
-		     unsigned long arg)
+int radeon_addbufs_agp(struct inode *inode, struct file *filp,
+		       unsigned int cmd, unsigned long arg)
 {
 	drm_file_t       *priv = filp->private_data;
 	drm_device_t     *dev  = priv->dev;
@@ -60,9 +59,7 @@ int r128_addbufs_agp(struct inode *inode, struct file *filp, unsigned int cmd,
 
 	if (!dma) return -EINVAL;
 
-	if (copy_from_user(&request,
-			   (drm_buf_desc_t *)arg,
-			   sizeof(request)))
+	if (copy_from_user(&request, (drm_buf_desc_t *)arg, sizeof(request)))
 		return -EFAULT;
 
 	count      = request.count;
@@ -132,8 +129,8 @@ int r128_addbufs_agp(struct inode *inode, struct file *filp, unsigned int cmd,
 		init_waitqueue_head(&buf->dma_wait);
 		buf->pid     = 0;
 
-		buf->dev_priv_size = sizeof(drm_r128_buf_priv_t);
-		buf->dev_private   = drm_alloc(sizeof(drm_r128_buf_priv_t),
+		buf->dev_priv_size = sizeof(drm_radeon_buf_priv_t);
+		buf->dev_private   = drm_alloc(sizeof(drm_radeon_buf_priv_t),
 					       DRM_MEM_BUFS);
 		memset(buf->dev_private, 0, buf->dev_priv_size);
 
@@ -173,9 +170,7 @@ int r128_addbufs_agp(struct inode *inode, struct file *filp, unsigned int cmd,
 	request.count = entry->buf_count;
 	request.size  = size;
 
-	if (copy_to_user((drm_buf_desc_t *)arg,
-			 &request,
-			 sizeof(request)))
+	if (copy_to_user((drm_buf_desc_t *)arg, &request, sizeof(request)))
 		return -EFAULT;
 
 	dma->flags = _DRM_DMA_USE_AGP;
@@ -185,35 +180,33 @@ int r128_addbufs_agp(struct inode *inode, struct file *filp, unsigned int cmd,
 }
 #endif
 
-int r128_addbufs(struct inode *inode, struct file *filp, unsigned int cmd,
-		 unsigned long arg)
+int radeon_addbufs(struct inode *inode, struct file *filp, unsigned int cmd,
+		   unsigned long arg)
 {
 	drm_file_t		*priv		= filp->private_data;
 	drm_device_t		*dev		= priv->dev;
-	drm_r128_private_t	*dev_priv	= dev->dev_private;
+	drm_radeon_private_t	*dev_priv	= dev->dev_private;
 	drm_buf_desc_t		request;
 
 	if (!dev_priv || dev_priv->is_pci) return -EINVAL;
 
-	if (copy_from_user(&request,
-			   (drm_buf_desc_t *)arg,
-			   sizeof(request)))
+	if (copy_from_user(&request, (drm_buf_desc_t *)arg, sizeof(request)))
 		return -EFAULT;
 
 #if defined(CONFIG_AGP) || defined(CONFIG_AGP_MODULE)
 	if (request.flags & _DRM_AGP_BUFFER)
-		return r128_addbufs_agp(inode, filp, cmd, arg);
+		return radeon_addbufs_agp(inode, filp, cmd, arg);
 	else
 #endif
 		return -EINVAL;
 }
 
-int r128_mapbufs(struct inode *inode, struct file *filp, unsigned int cmd,
-		 unsigned long arg)
+int radeon_mapbufs(struct inode *inode, struct file *filp, unsigned int cmd,
+		   unsigned long arg)
 {
 	drm_file_t		*priv		= filp->private_data;
 	drm_device_t		*dev		= priv->dev;
-	drm_r128_private_t	*dev_priv	= dev->dev_private;
+	drm_radeon_private_t	*dev_priv	= dev->dev_private;
 	drm_device_dma_t	*dma		= dev->dma;
 	int			 retcode	= 0;
 	const int		 zero		= 0;
@@ -234,9 +227,7 @@ int r128_mapbufs(struct inode *inode, struct file *filp, unsigned int cmd,
 	++dev->buf_use;		/* Can't allocate more after this call */
 	spin_unlock(&dev->count_lock);
 
-	if (copy_from_user(&request,
-			   (drm_buf_map_t *)arg,
-			   sizeof(request)))
+	if (copy_from_user(&request, (drm_buf_map_t *)arg, sizeof(request)))
 		return -EFAULT;
 
 	if (request.count >= dma->buf_count) {
@@ -300,9 +291,7 @@ int r128_mapbufs(struct inode *inode, struct file *filp, unsigned int cmd,
 	request.count = dma->buf_count;
 	DRM_DEBUG("%d buffers, retcode = %d\n", request.count, retcode);
 
-	if (copy_to_user((drm_buf_map_t *)arg,
-			 &request,
-			 sizeof(request)))
+	if (copy_to_user((drm_buf_map_t *)arg, &request, sizeof(request)))
 		return -EFAULT;
 
 	return retcode;

@@ -38,7 +38,7 @@
 #define MGA_BUF_NEEDS_OVERFLOW 3
 
 typedef struct {
-	u32 buffer_status;
+	long buffer_status; /* long req'd for set_bit() --RR */
    	int num_dwords;
    	int max_dwords;
    	u32 *current_dma_ptr;
@@ -62,7 +62,7 @@ typedef struct _drm_mga_freelist {
 #define MGA_IN_GETBUF	  3
 
 typedef struct _drm_mga_private {
-   	u32 dispatch_status;
+   	long dispatch_status;  /* long req'd for set_bit() --RR */
 	unsigned int next_prim_age;
 	__volatile__ unsigned int last_prim_age;
    	int reserved_map_idx;
@@ -159,6 +159,8 @@ extern int  mga_iload(struct inode *inode, struct file *filp,
 extern int  mga_vertex(struct inode *inode, struct file *filp,
 		      unsigned int cmd, unsigned long arg);
 extern int  mga_indices(struct inode *inode, struct file *filp,
+			unsigned int cmd, unsigned long arg);
+extern int  mga_blit(struct inode *inode, struct file *filp,
 			unsigned int cmd, unsigned long arg);
 				/* mga_context.c */
 extern int  mga_resctx(struct inode *inode, struct file *filp,
@@ -339,6 +341,7 @@ drm_mga_prim_buf_t *tmp_buf = 					\
 #define MGAREG_SECEND 				0x2c44
 #define MGAREG_SETUPADDRESS 			0x2cd0
 #define MGAREG_SETUPEND 			0x2cd4
+#define	MGAREG_SGN		                0x1c58
 #define MGAREG_SOFTRAP				0x2c48
 #define MGAREG_SRCORG 				0x2cb4
 #define MGAREG_STATUS 				0x1e14
@@ -495,6 +498,12 @@ drm_mga_prim_buf_t *tmp_buf = 					\
 #define DC_transc_enable 			0x40000000
 #define DC_clipdis_disable 			0x0
 #define DC_clipdis_enable 			0x80000000
+
+
+#define SO_srcacc_pci 		0x0 		
+#define SO_srcacc_agp 		0x2 		
+#define SO_srcmap_fb 		0x0 		
+#define SO_srcmap_sys 		0x1 		
 
 
 #define SETADD_mode_vertlist                   	0x0
