@@ -458,6 +458,7 @@ extern int radeon_cp_flip( DRM_IOCTL_ARGS );
 #	define RADEON_CNTL_HOSTDATA_BLT		0x00009400
 #	define RADEON_CNTL_PAINT_MULTI		0x00009A00
 #	define RADEON_CNTL_BITBLT_MULTI		0x00009B00
+#	define RADEON_CNTL_SET_SCISSORS		0xC0001E00
 
 #define RADEON_CP_PACKET_MASK		0xC0000000
 #define RADEON_CP_PACKET_COUNT_MASK	0x3fff0000
@@ -712,7 +713,8 @@ do {									\
 } while (0)
 
 #define COMMIT_RING() do {					    \
-	RADEON_WRITE( RADEON_CP_RB_WPTR, dev_priv->ring.tail );		    \
+	radeon_flush_write_combine();					\
+	RADEON_WRITE( RADEON_CP_RB_WPTR, dev_priv->ring.tail );		\
 } while (0)
 
 #define OUT_RING( x ) do {						\

@@ -46,10 +46,9 @@ static __inline__ void radeon_emit_clip_rect( drm_radeon_private_t *dev_priv,
 	DRM_DEBUG( "   box:  x1=%d y1=%d  x2=%d y2=%d\n",
 		   box->x1, box->y1, box->x2, box->y2 );
 
-	BEGIN_RING( 4 );
-	OUT_RING( CP_PACKET0( RADEON_RE_TOP_LEFT, 0 ) );
+	BEGIN_RING( 3 );
+	OUT_RING( CP_PACKET3( RADEON_CNTL_SET_SCISSORS, 1 ));
 	OUT_RING( (box->y1 << 16) | box->x1 );
-	OUT_RING( CP_PACKET0( RADEON_RE_WIDTH_HEIGHT, 0 ) );
 /*	OUT_RING( ((box->y2 - 1) << 16) | (box->x2 - 1) );*/
 	OUT_RING( (box->y2 << 16) | box->x2 );
 	ADVANCE_RING();
@@ -1083,6 +1082,7 @@ static int radeon_do_init_pageflip( drm_device_t *dev )
 
 	dev_priv->page_flipping = 1;
 	dev_priv->current_page = 0;
+	dev_priv->sarea_priv->pfCurrentPage = dev_priv->current_page;
 
 	return 0;
 }
@@ -1097,6 +1097,7 @@ int radeon_do_cleanup_pageflip( drm_device_t *dev )
 
 	dev_priv->page_flipping = 0;
 	dev_priv->current_page = 0;
+	dev_priv->sarea_priv->pfCurrentPage = dev_priv->current_page;
 
 	return 0;
 }
