@@ -215,58 +215,6 @@ void DRM(free)(void *pt, size_t size, int area)
 	}
 }
 
-unsigned long DRM(alloc_pages)(int order, int area)
-{
-	vm_offset_t address;
-	unsigned long bytes	  = PAGE_SIZE << order;
-
-
-	address = (vm_offset_t) contigmalloc(bytes, DRM(M_DRM), M_WAITOK, 0, ~0, 1, 0);
-	if (!address) {
-		DRM_OS_SPINLOCK(&DRM(mem_lock));
-		++DRM(mem_stats)[area].fail_count;
-		DRM_OS_SPINUNLOCK(&DRM(mem_lock));
-		return 0;
-	}
-	DRM_OS_SPINLOCK(&DRM(mem_lock));
-	++DRM(mem_stats)[area].succeed_count;
-	DRM(mem_stats)[area].bytes_allocated += bytes;
-	DRM(ram_used)		             += bytes;
-	DRM_OS_SPINUNLOCK(&DRM(mem_lock));
-
-
-				/* Zero outside the lock */
-	memset((void *)address, 0, bytes);
-
-
-	return address;
-}
-
-void DRM(free_pages)(unsigned long address, int order, int area)
-{
-	unsigned long bytes = PAGE_SIZE << order;
-	int		  alloc_count;
-	int		  free_count;
-
-	if (!address) {
-		DRM_MEM_ERROR(area, "Attempt to free address 0\n");
-	} else {
-		contigfree((void *) address, bytes, DRM(M_DRM));
-	}
-
-	DRM_OS_SPINLOCK(&DRM(mem_lock));
-	free_count  = ++DRM(mem_stats)[area].free_count;
-	alloc_count =	DRM(mem_stats)[area].succeed_count;
-	DRM(mem_stats)[area].bytes_freed += bytes;
-	DRM(ram_used)			 -= bytes;
-	DRM_OS_SPINUNLOCK(&DRM(mem_lock));
-	if (free_count > alloc_count) {
-		DRM_MEM_ERROR(area,
-			      "Excess frees: %d frees, %d allocs\n",
-			      free_count, alloc_count);
-	}
-}
-
 void *DRM(ioremap)(unsigned long offset, unsigned long size)
 {
 	void *pt;

@@ -104,7 +104,6 @@ int DRM(remove_magic)(drm_device_t *dev, drm_magic_t magic)
 				prev->next = pt->next;
 			}
 			DRM_OS_UNLOCK;
-			DRM(free)(pt, sizeof(*pt), DRM_MEM_MAGIC);
 			return 0;
 		}
 	}

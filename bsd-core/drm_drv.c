@@ -231,7 +231,6 @@ static int DRM(probe)(device_t dev)
 	int vendor = (pciid & 0x0000ffff);
 	int device = (pciid & 0xffff0000) >> 16;
 	int i=0, done=0;
-	DRM_INFO("Checking PCI vendor=%d, device=%d\n", vendor, device);
 	while ( !done && (DRM(devicelist)[i].vendor != 0 ) ) {
 		if ( (DRM(devicelist)[i].vendor == vendor) &&
 		     (DRM(devicelist)[i].device == device) ) {
@@ -504,9 +503,8 @@ static int DRM(takedown)( drm_device_t *dev )
 				DRM(ioremapfree)( map->handle, map->size );
 				break;
 			case _DRM_SHM:
-				DRM(free_pages)((unsigned long)map->handle,
-					       DRM(order)(map->size)
-					       - PAGE_SHIFT,
+				DRM(free)(map->handle,
+					       map->size,
 					       DRM_MEM_SAREA);
 				break;
 

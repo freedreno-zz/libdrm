@@ -85,8 +85,8 @@ void DRM(dma_takedown)(drm_device_t *dev)
 				  dma->bufs[i].buf_count,
 				  dma->bufs[i].seg_count);
 			for (j = 0; j < dma->bufs[i].seg_count; j++) {
-				DRM(free_pages)(dma->bufs[i].seglist[j],
-						dma->bufs[i].page_order,
+				DRM(free)((void *)dma->bufs[i].seglist[j],
+						dma->bufs[i].buf_size,
 						DRM_MEM_DMA);
 			}
 			DRM(free)(dma->bufs[i].seglist,
@@ -604,7 +604,6 @@ int DRM(control)( DRM_OS_IOCTL )
 
 int DRM(control)( DRM_OS_IOCTL )
 {
-	DRM_OS_DEVICE;
 	drm_control_t ctl;
 
 	DRM_OS_KRNFROMUSR( ctl, (drm_control_t *) data, sizeof(ctl) );

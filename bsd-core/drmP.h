@@ -511,9 +511,6 @@ extern void	     *DRM(realloc)(void *oldpt, size_t oldsize, size_t size,
 extern char	     *DRM(strdup)(const char *s, int area);
 extern void	     DRM(strfree)(char *s, int area);
 extern void	     DRM(free)(void *pt, size_t size, int area);
-extern unsigned long DRM(alloc_pages)(int order, int area);
-extern void	     DRM(free_pages)(unsigned long address, int order,
-				     int area);
 extern void	     *DRM(ioremap)(unsigned long offset, unsigned long size);
 extern void	     *DRM(ioremap_nocache)(unsigned long offset, unsigned long size);
 extern void	     DRM(ioremapfree)(void *pt, unsigned long size);

@@ -145,8 +145,7 @@ int DRM(addmap)( DRM_OS_IOCTL )
 	case _DRM_SHM:
 		DRM_INFO( "%ld %d %d\n",
 			   map->size, DRM(order)( map->size ), PAGE_SHIFT);
-		map->handle = (void *)DRM(alloc_pages)
-			(DRM(order)(map->size) - PAGE_SHIFT, DRM_MEM_SAREA);
+		map->handle = (void *)DRM(alloc)(map->size, DRM_MEM_SAREA);
 		DRM_DEBUG( "%ld %d %p\n",
 			   map->size, DRM(order)( map->size ), map->handle );
 		if ( !map->handle ) {
@@ -249,7 +248,7 @@ int DRM(rmmap)( DRM_OS_IOCTL )
 			DRM(ioremapfree)(map->handle, map->size);
 			break;
 		case _DRM_SHM:
-			DRM(free_pages)( (unsigned long)map->handle, DRM(order)(map->size), DRM_MEM_SAREA );
+			DRM(free)( map->handle, map->size, DRM_MEM_SAREA );
 			break;
 		case _DRM_AGP:
 		case _DRM_SCATTER_GATHER:
@@ -270,8 +269,8 @@ static void DRM(cleanup_buf_error)(drm_buf_entry_t *entry)
 
 	if (entry->seg_count) {
 		for (i = 0; i < entry->seg_count; i++) {
-			DRM(free_pages)(entry->seglist[i],
-					entry->page_order,
+			DRM(free)((void *)entry->seglist[i],
+					entry->buf_size,
 					DRM_MEM_DMA);
 		}
 		DRM(free)(entry->seglist,
@@ -586,7 +585,7 @@ int DRM(addbufs_pci)( DRM_OS_IOCTL )
 	page_count = 0;
 
 	while ( entry->buf_count < count ) {
-		page = DRM(alloc_pages)( page_order, DRM_MEM_DMA );
+		page = (unsigned long)DRM(alloc)( size, DRM_MEM_DMA );
 		if ( !page ) break;
 		entry->seglist[entry->seg_count++] = page;
 		for ( i = 0 ; i < (1 << page_order) ; i++ ) {
