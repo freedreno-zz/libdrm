@@ -42,25 +42,6 @@
 # define ATI_MAX_PCIGART_PAGES		8192	/* 32 MB aperture, 4K pages */
 # define ATI_PCIGART_PAGE_SIZE		4096	/* PCI GART page size */
 
-static unsigned long DRM(ati_alloc_pcigart_table)( void )
-{
-	unsigned long address;
-
-	DRM_DEBUG( "\n" );
-
-	address = (unsigned long) malloc( (1 << ATI_PCIGART_TABLE_ORDER) * PAGE_SIZE, DRM(M_DRM), M_WAITOK );
-
-	DRM_DEBUG( "returning 0x%08lx\n", address );
-	return address;
-}
-
-static void DRM(ati_free_pcigart_table)( unsigned long address )
-{
-	DRM_DEBUG( "\n" );
-
-	free( (void *)address, DRM(M_DRM));
-}
-
 int DRM(ati_pcigart_init)( drm_device_t *dev,
 			   unsigned long *addr,
 			   dma_addr_t *bus_addr)
@@ -76,7 +57,7 @@ int DRM(ati_pcigart_init)( drm_device_t *dev,
 		goto done;
 	}
 
-	address = DRM(ati_alloc_pcigart_table)();
+	address = malloc( (1 << ATI_PCIGART_TABLE_ORDER) * PAGE_SIZE, DRM(M_DRM), M_WAITOK );
 	if ( !address ) {
 		DRM_ERROR( "cannot allocate PCI GART page!\n" );
 		goto done;
@@ -104,8 +85,6 @@ int DRM(ati_pcigart_init)( drm_device_t *dev,
 
 	ret = 1;
 
-	/*DRM_READMEMORYBARRIER();*/
-
 done:
 	*addr = address;
 	*bus_addr = bus_address;
@@ -124,9 +103,7 @@ int DRM(ati_pcigart_cleanup)( drm_device_t *dev,
 		return 0;
 	}
 
-	if ( addr ) {
-		DRM(ati_free_pcigart_table)( addr );
-	}
+	free( (void *)addr, DRM(M_DRM));
 
 	return 1;
 }
