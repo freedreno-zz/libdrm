@@ -83,37 +83,33 @@ int mga_do_dma_idle( drm_mga_private_t *dev_priv )
 	return -EBUSY;
 }
 
-int mga_do_dma_reset( drm_device_t *dev )
+int mga_do_dma_reset( drm_mga_private_t *dev_priv )
 {
-	drm_mga_private_t *dev_priv = dev->dev_private;
 	drm_mga_sarea_t *sarea_priv = dev_priv->sarea_priv;
 	drm_mga_primary_buffer_t *primary = &dev_priv->prim;
 
-	DRM_INFO( "%s\n", __FUNCTION__ );
+	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
 	/* The primary DMA stream should look like new right about now.
 	 */
 	primary->tail = 0;
 	primary->space = primary->size;
 	primary->last_flush = 0;
-	primary->last_wrap = 0;
-
-	primary->status[0] = dev_priv->primary->offset;
-	primary->status[1] = 0;
 
 	sarea_priv->last_wrap = 0;
-	sarea_priv->last_frame.head = 0;
-	sarea_priv->last_frame.wrap = 0;
 
-	mga_freelist_reset( dev );
+	/* FIXME: Reset counters, buffer ages etc...
+	 */
+
+	/* FIXME: What else do we need to reinitialize?  WARP stuff?
+	 */
 
 	return 0;
 }
 
-int mga_do_engine_reset( drm_device_t *dev )
+int mga_do_engine_reset( drm_mga_private_t *dev_priv )
 {
-	drm_mga_private_t *dev_priv = dev->dev_private;
-	DRM_INFO( "%s\n", __FUNCTION__ );
+	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
 	/* Okay, so we've completely screwed up and locked the engine.
 	 * How about we clean up after ourselves?
@@ -129,21 +125,19 @@ int mga_do_engine_reset( drm_device_t *dev )
 	 * 3D clients should probably die after calling this.  The X
 	 * server should reset the engine state to known values.
 	 */
+#if 0
 	MGA_WRITE( MGA_PRIMPTR,
-		   virt_to_bus((void *)dev_priv->prim.status) |
-		   MGA_PRIMPTREN0 |	/* Soft trap, SECEND, SETUPEND */
-		   MGA_PRIMPTREN1 );	/* DWGSYNC */
+		   virt_to_bus((void *)dev_priv->prim.status_page) |
+		   MGA_PRIMPTREN0 |
+		   MGA_PRIMPTREN1 );
+#endif
+
+	MGA_WRITE( MGA_ICLEAR, MGA_SOFTRAPICLR );
+	MGA_WRITE( MGA_IEN,    MGA_SOFTRAPIEN );
 
 	/* The primary DMA stream should look like new right about now.
 	 */
-	mga_do_dma_reset( dev );
-
-	/* Initialize the WARP engine again.
-	 */
-	if ( mga_warp_init( dev_priv ) < 0 ) {
-		/* Can we do anything else? */
-		DRM_ERROR( "failed to reinit WARP engine!\n" );
-	}
+	mga_do_dma_reset( dev_priv );
 
 	/* This bad boy will never fail.
 	 */
@@ -493,14 +487,14 @@ static int mga_do_init_dma( drm_device_t *dev, drm_mga_init_t *init )
 	DRM_IOREMAP( dev_priv->primary );
 	DRM_IOREMAP( dev_priv->buffers );
 
-	ret = mga_warp_install_microcode( dev_priv );
+	ret = mga_warp_install_microcode( dev );
 	if ( ret < 0 ) {
 		DRM_ERROR( "failed to install WARP ucode!\n" );
 		mga_do_cleanup_dma( dev );
 		return ret;
 	}
 
-	ret = mga_warp_init( dev_priv );
+	ret = mga_warp_init( dev );
 	if ( ret < 0 ) {
 		DRM_ERROR( "failed to init WARP engine!\n" );
 		mga_do_cleanup_dma( dev );
@@ -549,49 +543,6 @@ static int mga_do_init_dma( drm_device_t *dev, drm_mga_init_t *init )
 		mga_do_cleanup_dma( dev );
 		return -ENOMEM;
 	}
-
-
-	if ( 0 ) {
-		drm_mga_primary_buffer_t *primary = &dev_priv->prim;
-		u32 tail;
-		DMA_LOCALS;
-
-		BEGIN_DMA( 4 );
-
-		DMA_BLOCK( MGA_DMAPAD,	0x00000000,
-			   MGA_DMAPAD,	0x00000000,
-			   MGA_DMAPAD,	0x00000000,
-			   MGA_DMAPAD,	0x00000000 );
-
-		DMA_BLOCK( MGA_DMAPAD,	0x00000000,
-			   MGA_DMAPAD,	0x00000000,
-			   MGA_DMAPAD,	0x00000000,
-			   MGA_DMAPAD,	0x00000000 );
-
-		DMA_BLOCK( MGA_DMAPAD,	0x00000000,
-			   MGA_DMAPAD,	0x00000000,
-			   MGA_DMAPAD,	0x00000000,
-			   MGA_DMAPAD,	0x00000000 );
-
-		DMA_BLOCK( MGA_DMAPAD,	0x00000000,
-			   MGA_DMAPAD,	0x00000000,
-			   MGA_DMAPAD,	0x00000000,
-			   MGA_DMAPAD,	0x00000000 );
-
-		ADVANCE_DMA();
-
-		tail = primary->tail + dev_priv->primary->offset - 4096;
-
-		mga_flush_write_combine();
-		MGA_WRITE( MGA_PRIMEND, tail | MGA_PAGPXFER );
-
-
-		if ( mga_do_wait_for_idle( dev_priv ) < 0 ) {
-			DRM_INFO( "cool, we're fucked!\n" );
-			mga_do_engine_reset( dev );
-		}
-	}
-
 
 	return 0;
 }
@@ -681,10 +632,11 @@ int mga_dma_reset( struct inode *inode, struct file *filp,
 {
 	drm_file_t *priv = filp->private_data;
 	drm_device_t *dev = priv->dev;
+	drm_mga_private_t *dev_priv = (drm_mga_private_t *)dev->dev_private;
 
 	LOCK_TEST_WITH_RETURN( dev );
 
-	return mga_do_dma_reset( dev );
+	return mga_do_dma_reset( dev_priv );
 }
 
 

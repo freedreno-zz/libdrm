@@ -114,9 +114,8 @@ extern int mga_dma_buffers( struct inode *inode, struct file *filp,
 
 extern int mga_do_wait_for_idle( drm_mga_private_t *dev_priv );
 extern int mga_do_dma_idle( drm_mga_private_t *dev_priv );
-
-extern int mga_do_dma_reset( drm_device_t *dev );
-extern int mga_do_engine_reset( drm_device_t *dev );
+extern int mga_do_dma_reset( drm_mga_private_t *dev_priv );
+extern int mga_do_engine_reset( drm_mga_private_t *dev_priv );
 extern int mga_do_cleanup_dma( drm_device_t *dev );
 
 extern void mga_do_dma_flush( drm_mga_private_t *dev_priv );
@@ -141,8 +140,8 @@ extern int  mga_dma_blit( struct inode *inode, struct file *filp,
 			  unsigned int cmd, unsigned long arg );
 
 				/* mga_warp.c */
-extern int mga_warp_install_microcode( drm_mga_private_t *dev_priv );
-extern int mga_warp_init( drm_mga_private_t *dev_priv );
+extern int mga_warp_install_microcode( drm_device_t *dev );
+extern int mga_warp_init( drm_device_t *dev );
 
 #define mga_flush_write_combine()	mb()
 
