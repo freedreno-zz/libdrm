@@ -524,11 +524,11 @@ static int gamma_dma_send_buffers(struct file *filp,
 			}
 		}
 		if (retcode) {
-			DRM_ERROR("ctx%d w%d p%d c%d i%d l%d pid:%d\n",
+			DRM_ERROR("ctx%d w%d p%d c%ld i%d l%d pid:%d\n",
 				  d->context,
 				  last_buf->waiting,
 				  last_buf->pending,
-				  DRM_WAITCOUNT(dev, d->context),
+				  (long)DRM_WAITCOUNT(dev, d->context),
 				  last_buf->idx,
 				  last_buf->list,
 				  current->pid);
@@ -593,7 +593,7 @@ static int gamma_do_init_dma( drm_device_t *dev, drm_gamma_init_t *init )
 	drm_buf_t	    *buf;
 	int i;
 	struct list_head    *list;
-	unsigned int	    *pgt;
+	unsigned long	    *pgt;
 
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
@@ -646,7 +646,7 @@ static int gamma_do_init_dma( drm_device_t *dev, drm_gamma_init_t *init )
 
  		for (i = 0; i < GLINT_DRI_BUF_COUNT; i++) {
 			buf = dma->buflist[i];
-			*pgt = (unsigned int)buf->address + 0x07;
+			*pgt = (unsigned long)buf->address + 0x07;
 			pgt++;
 		}
 

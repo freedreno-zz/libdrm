@@ -92,6 +92,11 @@ int DRM(open_helper)(struct inode *inode, struct file *filp, drm_device_t *dev)
 
 int DRM(flush)(struct file *filp)
 {
+	drm_file_t    *priv   = filp->private_data;
+	drm_device_t  *dev    = priv->dev;
+
+	DRM_DEBUG("pid = %d, device = 0x%lx, open_count = %d\n",
+		  current->pid, (long)dev->device, dev->open_count);
 	return 0;
 }
 
@@ -101,7 +106,7 @@ int DRM(fasync)(int fd, struct file *filp, int on)
 	drm_device_t  *dev    = priv->dev;
 	int	      retcode;
 
-	DRM_DEBUG("fd = %d, device = 0x%x\n", fd, dev->device);
+	DRM_DEBUG("fd = %d, device = 0x%lx\n", fd, (long)dev->device);
 	retcode = fasync_helper(fd, filp, on, &dev->buf_async);
 	if (retcode < 0) return retcode;
 	return 0;

@@ -89,7 +89,7 @@ MALLOC_DECLARE(DRM(M_DRM));
 extern const int DRM(M_DRM) = M_DEVBUF;
 #endif /* __NetBSD_Version__ */
 #define DRM_MALLOC(size)	malloc( size, DRM(M_DRM), M_NOWAIT )
-#define DRM_FREE(pt)		free( pt, DRM(M_DRM) )
+#define DRM_FREE(pt,size)		free( pt, DRM(M_DRM) )
 #define DRM_VTOPHYS(addr)	vtophys(addr)
 
 #define DRM_READ8(map, offset)		bus_space_read_1(  (map)->iot, (map)->ioh, (offset) )
@@ -183,7 +183,6 @@ typedef struct drm_chipinfo
 typedef u_int32_t dma_addr_t;
 typedef volatile long atomic_t;
 typedef u_int32_t cycles_t;
-typedef u_int32_t spinlock_t;
 typedef u_int32_t u32;
 typedef u_int16_t u16;
 typedef u_int8_t u8;

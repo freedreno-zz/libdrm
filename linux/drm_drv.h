@@ -766,9 +766,8 @@ int DRM(release)( struct inode *inode, struct file *filp )
 	 * Begin inline drm_release
 	 */
 
-	printk( "%s: pid = %d, device = 0x%x, open_count = %d\n",
-		__FUNCTION__,
-		   current->pid, dev->device, dev->open_count );
+	DRM_DEBUG( "pid = %d, device = 0x%lx, open_count = %d\n",
+		   current->pid, (long)dev->device, dev->open_count );
 
 	printk( "%s: curently hw_lock %p is_held %d lock.filp %p filp %p\n",
 		__FUNCTION__,
@@ -909,8 +908,9 @@ int DRM(ioctl)( struct inode *inode, struct file *filp,
 	atomic_inc( &dev->counts[_DRM_STAT_IOCTLS] );
 	++priv->ioctl_count;
 
-	DRM_DEBUG( "pid=%d, cmd=0x%02x, nr=0x%02x, dev 0x%x, auth=%d\n",
-		   current->pid, cmd, nr, dev->device, priv->authenticated );
+	DRM_DEBUG( "pid=%d, cmd=0x%02x, nr=0x%02x, dev 0x%lx, auth=%d\n",
+		   current->pid, cmd, nr, (long)dev->device, 
+		   priv->authenticated );
 
 	if ( nr >= DRIVER_IOCTL_COUNT ) {
 		retcode = -EINVAL;

@@ -1,3 +1,6 @@
+/*
+ * $FreeBSD: src/sys/dev/drm/drm_os_freebsd.h,v 1.8 2003/03/09 02:08:28 anholt Exp $
+ */
 #include <sys/param.h>
 #include <sys/queue.h>
 #include <sys/malloc.h>
@@ -45,7 +48,11 @@
 #define __REALLY_HAVE_AGP	__HAVE_AGP
 #endif
 
+#ifdef __i386__
 #define __REALLY_HAVE_MTRR	(__HAVE_MTRR)
+#else
+#define __REALLY_HAVE_MTRR	0
+#endif
 #define __REALLY_HAVE_SG	(__HAVE_SG)
 
 #if __REALLY_HAVE_AGP
@@ -88,7 +95,7 @@
 #define DRM_STRUCTPROC		struct proc
 #define DRM_SPINTYPE		struct simplelock
 #define DRM_SPININIT(l,name)	simple_lock_init(&l)
-#define DRM_SPINUNINIT(l,name)
+#define DRM_SPINUNINIT(l)
 #define DRM_SPINLOCK(l)		simple_lock(l)
 #define DRM_SPINUNLOCK(u)	simple_unlock(u);
 #define DRM_CURRENTPID		curproc->p_pid
@@ -102,7 +109,7 @@
 #define DRM_IRQ_ARGS		void *arg
 #define DRM_DEVICE		drm_device_t	*dev	= kdev->si_drv1
 #define DRM_MALLOC(size)	malloc( size, DRM(M_DRM), M_NOWAIT )
-#define DRM_FREE(pt)		free( pt, DRM(M_DRM) )
+#define DRM_FREE(pt,size)		free( pt, DRM(M_DRM) )
 #define DRM_VTOPHYS(addr)	vtophys(addr)
 
 /* Read/write from bus space, with byteswapping to le if necessary */
@@ -211,10 +218,9 @@ typedef struct drm_chipinfo
 
 #define cpu_to_le32(x) (x)	/* FIXME */
 
-typedef u_int32_t dma_addr_t;
+typedef unsigned long dma_addr_t;
 typedef u_int32_t atomic_t;
 typedef u_int32_t cycles_t;
-typedef u_int32_t spinlock_t;
 typedef u_int32_t u32;
 typedef u_int16_t u16;
 typedef u_int8_t u8;
@@ -230,7 +236,7 @@ typedef u_int8_t u8;
 #if __FreeBSD_version < 500000
 /* The extra atomic functions from 5.0 haven't been merged to 4.x */
 static __inline int
-atomic_cmpset_int(int *dst, int old, int new)
+atomic_cmpset_int(volatile int *dst, int old, int new)
 {
 	int s = splhigh();
 	if (*dst==old) {
