@@ -190,11 +190,20 @@ typedef struct
    	unsigned int nbox;
    	xf86drmClipRectRec boxes[MGA_NR_SAREA_CLIPRECTS];
 
+   
+        int last_enqueue;	/* last time a buffer was enqueued */
+	int last_dispatch;	/* age of the most recently dispatched buffer */
+	int last_quiescent;     /*  */
+
+
 	/* kernel doesn't touch from here down */
    	int ctxOwner;		
 	mgaTexRegion texList[MGA_NR_TEX_REGIONS+1];
 	int texAge;	      
                       
+
+   
+
 } drm_mga_sarea_t;	
 
 
@@ -205,11 +214,13 @@ typedef struct {
 	int clear_color;
 	int clear_depth;
 	int flags;
+	int age;
 } drm_mga_clear_t;
 
 
 typedef struct {
    	int idx;
+	int age;
 } drm_mga_swap_t;
 
 typedef struct {
@@ -218,6 +229,7 @@ typedef struct {
    	unsigned int pitch;
 	xf86drmClipRectRec texture;
    	int idx;
+	int age;
 } drm_mga_iload_t;
 
 
@@ -233,6 +245,8 @@ typedef struct {
    	int idx;		/* buffer to queue and free on completion */
    	int real_idx;		/* buffer to execute */
 	int real_used;		/* buf->used in for real buffer */
+   int age;
+   int discard;
 } drm_mga_vertex_t;
 
 

@@ -21,7 +21,10 @@ typedef struct {
 	unsigned short clear_zval;
 	unsigned int   clear_flags;
 
-	unsigned int   vertex_real_idx;
+	unsigned int vertex_real_idx;
+	unsigned int vertex_discard;
+
+        unsigned int age;
 
    	unsigned int nbox;
    	xf86drmClipRectRec boxes[MGA_NR_SAREA_CLIPRECTS];

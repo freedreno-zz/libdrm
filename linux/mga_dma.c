@@ -633,31 +633,38 @@ static void mga_dma_dispatch_vertex(drm_device_t *dev, drm_buf_t *buf)
 	unsigned long address = (unsigned long)real_buf->bus_address;
 	int length = buf->used;	/* this is correct */
 	int use_agp = PDEA_pagpxfer_enable;
-	int i, count;
+	int i = 0;
    	PRIMLOCALS;
 
 	PRIMRESET(dev_priv);
 	
-	count = buf_priv->nbox;
-
-	if (count)
-	   mgaEmitState( dev_priv, buf_priv );
 
    	if (MGA_VERBOSE)
 		printk("dispatch vertex addr 0x%lx, length 0x%x nbox %d\n", 
 		       address, length, buf_priv->nbox);
 
-	for (i = 0 ; i < count ; i++) {		
-		mgaEmitClipRect( dev_priv, &buf_priv->boxes[i] );
+	if (!buf_priv->vertex_discard) {
 
-		PRIMGETPTR(dev_priv);
-		PRIMOUTREG( MGAREG_DMAPAD, 0);
-		PRIMOUTREG( MGAREG_DMAPAD, 0);
-		PRIMOUTREG( MGAREG_SECADDRESS, ((__u32)address) | TT_VERTEX);
-		PRIMOUTREG( MGAREG_SECEND, (((__u32)(address + length)) | 
-					    use_agp));
-		PRIMADVANCE( dev_priv );
+		mgaEmitState( dev_priv, buf_priv );
+
+		do {
+			if (i < buf_priv->nbox) 
+				mgaEmitClipRect( dev_priv, 
+						 &buf_priv->boxes[i] );
+
+
+			PRIMGETPTR(dev_priv);
+			PRIMOUTREG( MGAREG_DMAPAD, 0);
+			PRIMOUTREG( MGAREG_DMAPAD, 0);
+			PRIMOUTREG( MGAREG_SECADDRESS, 
+				    ((__u32)address) | TT_VERTEX);
+			PRIMOUTREG( MGAREG_SECEND, 
+				    (((__u32)(address + length)) | 
+				     use_agp));
+			PRIMADVANCE( dev_priv );	       
+		}  while (++i < buf_priv->nbox);
 	}
+
    
    	dev_priv->last_sync_tag = mga_create_sync_tag(dev_priv);
 
@@ -1043,6 +1050,7 @@ static int mga_do_dma(drm_device_t *dev, int locked)
 	drm_device_dma_t *dma = dev->dma;
       	drm_mga_private_t *dev_priv = (drm_mga_private_t *)dev->dev_private;
 	drm_mga_buf_priv_t *buf_priv;
+	drm_mga_sarea_t *sarea_priv = dev_priv->sarea_priv;
 
    	if (MGA_VERBOSE) printk("mga_do_dma\n");
 	if (test_and_set_bit(0, &dev->dma_flag)) {
@@ -1114,7 +1122,13 @@ static int mga_do_dma(drm_device_t *dev, int locked)
 	buf->list	 = DRM_LIST_PEND;
 
 	buf_priv = buf->dev_private;
-	if (MGA_VERBOSE) printk("mga_do_dma - type %d\n", buf_priv->dma_type);
+   	sarea_priv->last_dispatch = buf_priv->age;
+
+	if (MGA_VERBOSE) 
+		printk("mga_do_dma - type %d age %d\n", 
+		       buf_priv->dma_type,
+		       buf_priv->age);
+
 
 	switch (buf_priv->dma_type) {
 	case MGA_DMA_GENERAL:
