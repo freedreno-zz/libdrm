@@ -837,7 +837,6 @@ extern int	     DRM(waitlist_put)(drm_waitlist_t *bl, drm_buf_t *buf);
 extern drm_buf_t     *DRM(waitlist_get)(drm_waitlist_t *bl);
 #endif
 #if __HAVE_DMA_FREELIST
-#error "wtf???"
 extern int	     DRM(freelist_create)(drm_freelist_t *bl, int count);
 extern int	     DRM(freelist_destroy)(drm_freelist_t *bl);
 extern int	     DRM(freelist_put)(drm_device_t *dev, drm_freelist_t *bl,

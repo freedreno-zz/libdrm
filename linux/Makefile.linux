@@ -60,8 +60,8 @@ DRMTEMPLATES=	drm_init.h drm_memory.h drm_proc.h drm_auth.h drm_context.h \
 		drm_fops.h drm_vm.h drm_dma.h drm_stub.h
 DRMHEADERS=	drm.h drmP.h compat-pre24.h
 
-GAMMAOBJS=      gamma_drv.o gamma_dma.o
-GAMMAHEADERS=   gamma_drv.h $(DRMHEADERS)
+GAMMAOBJS=      gamma_drv.o gamma_drm.o gamma_dma.o
+GAMMAHEADERS=   gamma_drv.h $(DRMHEADERS) $(DRMTEMPLATES)
 
 TDFXOBJS=       tdfx_drv.o tdfx_context.o
 TDFXHEADERS=    tdfx_drv.h $(DRMHEADERS)
@@ -136,11 +136,10 @@ endif
 ifeq ($(AGP),1)
 MODCFLAGS += -DCONFIG_AGP -DCONFIG_AGP_MODULE
 #DRMOBJS += agpsupport.o
-MODS += mga.o
+MODS += mga.o gamma.o
 #ifeq ($(MACHINE),i386)
 #MODS += i810.o
 #endif
-
 
 MGAOBJS=	mga_drv.o mga_drm.o mga_dma.o mga_state.o mga_warp.o
 MGAHEADERS=	mga_drv.h $(DRMHEADERS) $(DRMTEMPLATES)
@@ -212,7 +211,7 @@ dristat: dristat.c
 
 gamma_drv.o: gamma_drv.c
 	$(CC) $(MODCFLAGS) -DEXPORT_SYMTAB -I$(TREE) -c $< -o $@
-gamma.o: $(GAMMAOBJS) $(LIBS)
+gamma.o: $(GAMMAOBJS) 
 	$(LD) -r $^ -o $@
 
 tdfx_drv.o: tdfx_drv.c
