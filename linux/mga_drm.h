@@ -236,6 +236,8 @@ typedef struct _drm_mga_sarea {
 	 */
    	int ctxOwner;
    	int vertexsize;
+
+   	unsigned int wacceptseq;
 } drm_mga_sarea_t;	
 
 /* Device specific ioctls:

@@ -249,6 +249,7 @@ static void mgaG400EmitPipe(drm_mga_private_t * dev_priv)
 {
 	drm_mga_sarea_t *sarea_priv = dev_priv->sarea_priv;
 	unsigned int pipe = sarea_priv->WarpPipe;
+	unsigned int prim = sarea_priv->wacceptseq;
 	PRIMLOCALS;
 
 	PRIMGETPTR(dev_priv);
@@ -271,7 +272,7 @@ static void mgaG400EmitPipe(drm_mga_private_t * dev_priv)
 		PRIMOUTREG(MGAREG_WACCEPTSEQ, 0);
 		PRIMOUTREG(MGAREG_WACCEPTSEQ, 0);
 		PRIMOUTREG(MGAREG_WACCEPTSEQ, 0);
-		PRIMOUTREG(MGAREG_WACCEPTSEQ, 0x1e000000);
+		PRIMOUTREG(MGAREG_WACCEPTSEQ, prim );
 	} else {
 		if (dev_priv->WarpPipe & MGA_T2) {
 			/* Flush the WARP pipe */
@@ -299,7 +300,7 @@ static void mgaG400EmitPipe(drm_mga_private_t * dev_priv)
 		PRIMOUTREG(MGAREG_WACCEPTSEQ, 0);
 		PRIMOUTREG(MGAREG_WACCEPTSEQ, 0);
 		PRIMOUTREG(MGAREG_WACCEPTSEQ, 0);
-		PRIMOUTREG(MGAREG_WACCEPTSEQ, 0x18000000);
+		PRIMOUTREG(MGAREG_WACCEPTSEQ, prim );
 	}
 
 	PRIMOUTREG(MGAREG_WFLAG, 0);
@@ -366,7 +367,7 @@ static void mgaEmitState(drm_mga_private_t * dev_priv)
 	if (dev_priv->chipset == MGA_CARD_TYPE_G400) {
 		int multitex = sarea_priv->WarpPipe & MGA_T2;
 
-		if (sarea_priv->WarpPipe != dev_priv->WarpPipe) {
+		if (dirty & MGA_UPLOAD_PIPE) {
 			mgaG400EmitPipe(dev_priv);
 			dev_priv->WarpPipe = sarea_priv->WarpPipe;
 		}
@@ -386,7 +387,7 @@ static void mgaEmitState(drm_mga_private_t * dev_priv)
 			sarea_priv->dirty &= ~MGA_UPLOAD_TEX1;
 		}
 	} else {
-		if (sarea_priv->WarpPipe != dev_priv->WarpPipe) {
+		if (dirty & MGA_UPLOAD_PIPE) {
 			mgaG200EmitPipe(dev_priv);
 			dev_priv->WarpPipe = sarea_priv->WarpPipe;
 		}
