@@ -53,7 +53,7 @@
 #include <linux/sched.h>
 #include <linux/smp_lock.h>	/* For (un)lock_kernel */
 #include <linux/mm.h>
-#ifdef __alpha__
+#if defined(__alpha__) || defined(__powerpc__)
 #include <asm/pgtable.h> /* For pte_wrprotect */
 #endif
 #include <asm/io.h>
@@ -287,11 +287,42 @@ static inline unsigned long __cmpxchg(volatile void *ptr, unsigned long old,
 	return old;
 }
 
+#elif defined(__powerpc__)
+extern void __cmpxchg_called_with_bad_pointer(void);
+static inline unsigned long __cmpxchg(volatile void *ptr, unsigned long old,
+                                      unsigned long new, int size)
+{
+	unsigned long prev;
+
+	switch (size) {
+	case 4:
+		__asm__ __volatile__(
+			"sync;"
+			"0:    lwarx %0,0,%1 ;"
+			"      cmpl 0,%0,%3;"
+			"      bne 1f;"
+			"      stwcx. %2,0,%1;"
+			"      bne- 0b;"
+			"1:    "
+			"sync;"
+			: "=&r"(prev)
+			: "r"(ptr), "r"(new), "r"(old)
+			: "cr0", "memory");
+		return prev;
+	}
+	__cmpxchg_called_with_bad_pointer();
+	return old;
+}
+
+#endif /* i386, powerpc & alpha */
+
+#ifndef __alpha__
 #define cmpxchg(ptr,o,n)						\
   ((__typeof__(*(ptr)))__cmpxchg((ptr),(unsigned long)(o),		\
 				 (unsigned long)(n),sizeof(*(ptr))))
-#endif /* i386 & alpha */
 #endif
+
+#endif /* !__HAVE_ARCH_CMPXCHG */
 
 				/* Macros to make printk easier */
 #define DRM_ERROR(fmt, arg...) \

@@ -424,7 +424,10 @@ int DRM(mmap)(struct file *filp, struct vm_area_struct *vma)
 			}
 #elif defined(__ia64__)
 			if (map->type != _DRM_AGP)
-				vma->vm_page_prot = pgprot_writecombine(vma->vm_page_prot);
+				vma->vm_page_prot =
+					pgprot_writecombine(vma->vm_page_prot);
+#elif defined(__powerpc__)
+			pgprot_val(vma->vm_page_prot) |= _PAGE_NO_CACHE | _PAGE_GUARDED;
 #endif
 			vma->vm_flags |= VM_IO;	/* not in core dump */
 		}

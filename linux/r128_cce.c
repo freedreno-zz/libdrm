@@ -210,7 +210,7 @@ int r128_do_cce_idle( drm_r128_private_t *dev_priv )
 	int i;
 
 	for ( i = 0 ; i < dev_priv->usec_timeout ; i++ ) {
-		if ( *dev_priv->ring.head == dev_priv->ring.tail ) {
+		if ( GET_RING_HEAD( &dev_priv->ring ) == dev_priv->ring.tail ) {
 			int pm4stat = R128_READ( R128_PM4_STAT );
 			if ( ( (pm4stat & R128_PM4_FIFOCNT_MASK) >=
 			       dev_priv->cce_fifo_size ) &&
@@ -251,7 +251,7 @@ static void r128_do_cce_reset( drm_r128_private_t *dev_priv )
 {
 	R128_WRITE( R128_PM4_BUFFER_DL_WPTR, 0 );
 	R128_WRITE( R128_PM4_BUFFER_DL_RPTR, 0 );
-	*dev_priv->ring.head = 0;
+	SET_RING_HEAD( &dev_priv->ring, 0 );
 	dev_priv->ring.tail = 0;
 }
 
@@ -332,7 +332,7 @@ static void r128_cce_init_ring_buffer( drm_device_t *dev )
 	R128_WRITE( R128_PM4_BUFFER_DL_RPTR, 0 );
 
 	/* DL_RPTR_ADDR is a physical address in AGP space. */
-	*dev_priv->ring.head = 0;
+	SET_RING_HEAD( &dev_priv->ring, 0 );
 
 	if ( !dev_priv->is_pci ) {
 		R128_WRITE( R128_PM4_BUFFER_DL_RPTR_ADDR,

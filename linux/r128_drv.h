@@ -28,10 +28,14 @@
  *    Rickard E. (Rik) Faith <faith@valinux.com>
  *    Kevin E. Martin <martin@valinux.com>
  *    Gareth Hughes <gareth@valinux.com>
+ *    Michel Dänzer <daenzerm@student.ethz.ch>
  */
 
 #ifndef __R128_DRV_H__
 #define __R128_DRV_H__
+
+#define GET_RING_HEAD( ring )		le32_to_cpu( *(ring)->head )
+#define SET_RING_HEAD( ring, val )	*(ring)->head = cpu_to_le32( val )
 
 typedef struct drm_r128_freelist {
    	unsigned int age;
@@ -136,7 +140,7 @@ extern int r128_wait_ring( drm_r128_private_t *dev_priv, int n );
 static inline void
 r128_update_ring_snapshot( drm_r128_ring_buffer_t *ring )
 {
-	ring->space = (*(volatile int *)ring->head - ring->tail) * sizeof(u32);
+	ring->space = (GET_RING_HEAD( ring ) - ring->tail) * sizeof(u32);
 	if ( ring->space <= 0 )
 		ring->space += ring->size;
 }
@@ -368,7 +372,7 @@ extern int r128_cce_indirect( struct inode *inode, struct file *filp,
 
 #define R128_LAST_FRAME_REG		R128_GUI_SCRATCH_REG0
 #define R128_LAST_DISPATCH_REG		R128_GUI_SCRATCH_REG1
-#define R128_MAX_VB_AGE			0xffffffff
+#define R128_MAX_VB_AGE			0x7fffffff
 #define R128_MAX_VB_VERTS		(0xffff)
 
 #define R128_RING_HIGH_MARK		128
@@ -389,8 +393,8 @@ static inline u32 _R128_READ(u32 *addr) {
 #define R128_WRITE(reg,val)	\
 	do { wmb(); R128_DEREF(reg) = val; } while (0)
 #else
-#define R128_READ(reg)		R128_DEREF( reg )
-#define R128_WRITE(reg,val)	do { R128_DEREF( reg ) = val; } while (0)
+#define R128_READ(reg)		le32_to_cpu( R128_DEREF( reg ) )
+#define R128_WRITE(reg,val)	do { R128_DEREF( reg ) = cpu_to_le32( val ); } while (0)
 #endif
 
 #define R128_DEREF8(reg)	*(volatile u8 *)R128_ADDR( reg )
@@ -525,7 +529,7 @@ do {									\
 		DRM_INFO( "   OUT_RING( 0x%08x ) at 0x%x\n",		\
 			   (unsigned int)(x), write );			\
 	}								\
-	ring[write++] = (x);						\
+	ring[write++] = cpu_to_le32( x );				\
 	write &= tail_mask;						\
 } while (0)
 
