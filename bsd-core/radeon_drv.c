@@ -115,7 +115,7 @@ drm_chipinfo_t DRM(devicelist)[] = {
 #include "drm_memory.h"
 #include "drm_vm.h"
 #include "drm_sysctl.h"
-#if __REALLY_HAVE_SG
+#if __HAVE_SG
 #include "drm_scatter.h"
 #endif
 

@@ -119,7 +119,7 @@ do {								\
 } while (0)
 
 #define DRM_OS_RETURN(v)	return v;
-
+#define DRM_OS_ERR(v)		v
 
 #define DRM_OS_KRNTOUSR(arg1, arg2, arg3) \
 	*arg1 = arg2

@@ -963,7 +963,7 @@ int DRM(ioctl)( DRM_OS_IOCTL )
 		if ( !func ) {
 			DRM_DEBUG( "no function\n" );
 			retcode = EINVAL;
-		} else if ( ( ioctl->root_only && DRM_OS_CHECKSUSER ) 
+		} else if ( ( ioctl->root_only && DRM_OS_SUSER(p) ) 
 			 || ( ioctl->auth_needed && !priv->authenticated ) ) {
 			retcode = EACCES;
 		} else {
