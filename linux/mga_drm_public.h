@@ -170,12 +170,12 @@ typedef struct _xf86drmClipRectRec {
 /* Upto 128 regions.  Minimum region size of 256k.
  */
 #define MGA_NR_TEX_REGIONS 128
-#define MGA_MIN_LOG_TEX_GRANULARITY 18
+#define MGA_LOG_MIN_TEX_REGION_SIZE 18
 
 typedef struct {
-   unsigned char next, prev;	
-   unsigned char in_use;	
-   int age;			
+	unsigned char next, prev;	
+	unsigned char in_use;	
+	int age;			
 } mgaTexRegion;
 
 typedef struct 
@@ -200,6 +200,7 @@ typedef struct
 /* Device specific ioctls:
  */
 typedef struct {
+   	int idx;
 	int clear_color;
 	int clear_depth;
 	int flags;
@@ -207,6 +208,7 @@ typedef struct {
 
 
 typedef struct {
+   	int idx;
 	int flags;		/* not actually used? */
 } drm_mga_swap_t;
 

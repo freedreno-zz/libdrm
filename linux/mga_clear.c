@@ -42,33 +42,23 @@
  * With Jeff's ringbuffer idea, it might make sense if there are only
  * one or two cliprects to emit straight to the primary buffer.
  */
-static int mgaClearBuffers(drm_device_t *dev,
-			   int clear_color,
-			   int clear_depth,
-			   int flags)
+static int mgaClearBuffers(drm_device_t *dev, drm_mga_clear_t *args)
 {
 	drm_device_dma_t *dma = dev->dma;
-	drm_freelist_t *freelist = &dma->bufs[MGA_DMA_BUF_ORDER].freelist;
 	drm_mga_private_t *dev_priv = (drm_mga_private_t *)dev->dev_private;
 	drm_mga_buf_priv_t *buf_priv;
 	drm_buf_t *buf;
 	drm_dma_t d;
 
-	buf = drm_freelist_get(freelist, _DRM_DMA_WAIT);
-	if (!buf) return -1;
-
-	buf->pid     = current->pid;
-
+	buf = dma->buflist[ args->idx ];
 	buf_priv = buf->dev_private;
 	buf_priv->dma_type = MGA_DMA_CLEAR;
-	buf_priv->clear_color = clear_color;
-	buf_priv->clear_zval = clear_depth;
-	buf_priv->clear_flags = flags;
+	buf_priv->clear_color = args->clear_color;
+	buf_priv->clear_zval = args->clear_depth;
+	buf_priv->clear_flags = args->flags;
 
-	if (!mgaCopyAndVerifyState(dev_priv, buf_priv, MGA_UPLOAD_CLIPRECTS)) {
-		drm_freelist_put( dev, freelist, buf );
-		return -EINVAL;
-	}
+	if (!mgaCopyAndVerifyState(dev_priv, buf_priv, MGA_UPLOAD_CLIPRECTS)) 
+		buf_priv->dma_type = MGA_DMA_DISCARD;
 	   
 
 	/* Make sure we restore the 3D state next time.
@@ -95,26 +85,25 @@ static int mgaClearBuffers(drm_device_t *dev,
    	return 0;
 }
 
-int mgaSwapBuffers(drm_device_t *dev, int flags) 
+int mgaSwapBuffers(drm_device_t *dev, drm_mga_swap_t *args) 
 {
 	drm_device_dma_t *dma = dev->dma;
-	drm_freelist_t *freelist = &dma->bufs[MGA_DMA_BUF_ORDER].freelist;
 	drm_mga_private_t *dev_priv = (drm_mga_private_t *)dev->dev_private;
 	drm_mga_buf_priv_t *buf_priv;
 	drm_buf_t *buf;
 	drm_dma_t d;
 
-	buf = drm_freelist_get(freelist, _DRM_DMA_WAIT);
-	if (!buf) return -1;
+	printk("swap buf idx %d\n", args->idx);
 
-	buf->pid     = current->pid;
+	buf = dma->buflist[ args->idx ];
 	buf_priv = buf->dev_private;
 	buf_priv->dma_type = MGA_DMA_SWAP;
 
 	if (!mgaCopyAndVerifyState(dev_priv, buf_priv, MGA_UPLOAD_CLIPRECTS)) {
-		drm_freelist_put( dev, freelist, buf );
-		return -EINVAL;
+	   printk("mgaCopyAndVerifyState faild for swap\n");
+		buf_priv->dma_type = MGA_DMA_DISCARD;
 	}
+
 	   
 
 	/* Make sure we restore the 3D state next time.
@@ -133,6 +122,8 @@ int mgaSwapBuffers(drm_device_t *dev, int flags)
 	d.request_indices = NULL;
 	d.request_sizes = NULL;
 	d.granted_count = 0;	 
+
+	printk("enqueue swap buf, idx %d\n", buf->idx);
 
    	atomic_inc(&dev_priv->pending_bufs);
       	if((drm_dma_enqueue(dev, &d)) != 0) 
@@ -209,14 +200,10 @@ int mga_clear_bufs(struct inode *inode, struct file *filp,
 	drm_mga_clear_t clear;
 	int retcode;
    
-	return 0;
-
-	copy_from_user_ret(&clear, (drm_mga_clear_t *)arg,
-			   sizeof(clear), -EFAULT);
+	copy_from_user_ret(&clear, (drm_mga_clear_t *)arg, sizeof(clear), 
+			   -EFAULT);
    
-	retcode = mgaClearBuffers(dev, clear.clear_color,
-				  clear.clear_depth,
-				  clear.flags);
+	retcode = mgaClearBuffers(dev, &clear);
    
 	return retcode;
 }
@@ -229,12 +216,11 @@ int mga_swap_bufs(struct inode *inode, struct file *filp,
 	drm_mga_swap_t swap;
 	int retcode = 0;
 
-	return 0;
-
-	copy_from_user_ret(&swap, (drm_mga_swap_t *)arg,
-			   sizeof(swap), -EFAULT);
+	copy_from_user_ret(&swap, (drm_mga_swap_t *)arg, sizeof(swap), -EFAULT);
    
-	retcode = mgaSwapBuffers(dev, swap.flags);
+	printk("(a) swap buf idx %d\n", swap.idx);
+
+	retcode = mgaSwapBuffers(dev, &swap);
    
 	return retcode;
 }
@@ -247,8 +233,8 @@ int mga_iload(struct inode *inode, struct file *filp,
 	drm_mga_iload_t iload;
 	int retcode = 0;
 
-	copy_from_user_ret(&iload, (drm_mga_iload_t *)arg, 
-			   sizeof(iload), -EFAULT);
+	copy_from_user_ret(&iload, (drm_mga_iload_t *)arg, sizeof(iload),
+			   -EFAULT);
    
 	retcode = mgaIload(dev, &iload);
    

@@ -31,7 +31,7 @@ typedef struct {
 #define MGA_DMA_ILOAD   3
 #define MGA_DMA_CLEAR   4	/* placeholder */
 #define MGA_DMA_SWAP    5	/* placeholder */
-#define MGA_DMA_BAD     6
+#define MGA_DMA_DISCARD 6
 
 
 #define DWGREG0 	0x1c00
