@@ -35,7 +35,7 @@
 
 #define R128_NAME		"r128"
 #define R128_DESC		"ATI Rage 128"
-#define R128_DATE		"20000928"
+#define R128_DATE		"20001010"
 #define R128_MAJOR		1
 #define R128_MINOR		1
 #define R128_PATCHLEVEL		0
@@ -606,6 +606,7 @@ int r128_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 #endif
                 add_wait_queue(&dev->lock.lock_queue, &entry);
                 for (;;) {
+                        current->state = TASK_INTERRUPTIBLE;
                         if (!dev->lock.hw_lock) {
                                 /* Device has been unregistered */
                                 ret = -EINTR;
@@ -621,7 +622,6 @@ int r128_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 
                                 /* Contention */
                         atomic_inc(&dev->total_sleeps);
-                        current->state = TASK_INTERRUPTIBLE;
 #if 1
 			current->policy |= SCHED_YIELD;
 #endif
@@ -670,7 +670,6 @@ int r128_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 		dev->sigdata.context = lock.context;
 		dev->sigdata.lock    = dev->lock.hw_lock;
 		block_all_signals(drm_notifier, &dev->sigdata, &dev->sigmask);
-
                 if (lock.flags & _DRM_LOCK_READY) {
 				/* Wait for space in DMA/FIFO */
 		}
@@ -735,7 +734,6 @@ int r128_unlock(struct inode *inode, struct file *filp, unsigned int cmd,
 		current->priority = DEF_PRIORITY;
 	}
 #endif
-
 	unblock_all_signals();
 	return 0;
 }

@@ -27,7 +27,7 @@
  * Authors: Rickard E. (Rik) Faith <faith@valinux.com>
  *	    Kevin E. Martin <martin@valinux.com>
  *
- * $XFree86: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/xf86drm.c,v 1.15 2000/08/09 14:44:27 alanh Exp $
+ * $XFree86: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/xf86drm.c,v 1.16 2000/08/28 16:55:52 dawes Exp $
  * 
  */
 
@@ -502,7 +502,8 @@ int drmAddMap(int fd,
 
     map.offset  = offset;
 #ifdef __alpha__
-    if (type != DRM_SHM)
+    /* Make sure we add the bus_base to all but shm */
+    if (type != DRM_SHM) 
 	map.offset += BUS_BASE;
 #endif
     map.size    = size;
@@ -596,7 +597,15 @@ int drmMap(int fd,
 	   drmSize size,
 	   drmAddressPtr address)
 {
+    static unsigned long pagesize_mask = 0;
+
     if (fd < 0) return -EINVAL;
+
+    if (!pagesize_mask)
+	pagesize_mask = getpagesize() - 1;
+
+    size = (size + pagesize_mask) & ~pagesize_mask;
+
     *address = mmap(0, size, PROT_READ|PROT_WRITE, MAP_SHARED, fd, handle);
     if (*address == MAP_FAILED) return -errno;
     return 0;
