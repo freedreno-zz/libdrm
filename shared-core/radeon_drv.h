@@ -92,6 +92,8 @@ typedef struct drm_radeon_private {
 		int requested_bufs;
 		int last_frame_reads;
 		int last_clear_reads;
+		int clears;
+		int texture_uploads;
 	} stats;
 
 	int do_boxes;
@@ -163,10 +165,11 @@ extern int radeon_cp_flip( DRM_IOCTL_ARGS );
 
 /* Flags for stats.boxes
  */
-#define RADEON_BOX_DMA_IDLE   0x1
-#define RADEON_BOX_RING_FULL  0x2
-#define RADEON_BOX_FLIP       0x4
-#define RADEON_BOX_WAIT_IDLE  0x8
+#define RADEON_BOX_DMA_IDLE      0x1
+#define RADEON_BOX_RING_FULL     0x2
+#define RADEON_BOX_FLIP          0x4
+#define RADEON_BOX_WAIT_IDLE     0x8
+#define RADEON_BOX_TEXTURE_LOAD  0x10
 
 
 
@@ -682,8 +685,16 @@ do {									\
 	}								\
 } while (0)
 
+
+/* Perfbox functionality only.  
+ */
 #define RING_SPACE_TEST_WITH_RETURN( dev_priv )				\
 do {									\
+	if (!(dev_priv->stats.boxes & RADEON_BOX_DMA_IDLE)) {		\
+		u32 head = GET_RING_HEAD(&dev_priv->ring);		\
+		if (head == dev_priv->ring.tail)			\
+			dev_priv->stats.boxes |= RADEON_BOX_DMA_IDLE;	\
+	}								\
 } while (0)
 
 #define VB_AGE_TEST_WITH_RETURN( dev_priv )				\
