@@ -434,7 +434,7 @@ static void drmCopyVersion(drmVersionPtr d, const drm_version_t *s)
     d->desc               = drmStrdup(s->desc);
 }
 
-/* drmVersion obtains the version information via an ioctl.  Similar
+/* drmGet Version obtains the driver version information via an ioctl.  Similar
  * information is available via /proc/dri. */
 
 drmVersionPtr drmGetVersion(int fd)
@@ -481,6 +481,26 @@ drmVersionPtr drmGetVersion(int fd)
     drmCopyVersion(retval, version);
     drmFreeKernelVersion(version);
     return retval;
+}
+
+/* drmGetLibVersion set version information for the drm user space library.
+ * this version number is driver indepedent */
+
+drmVersionPtr drmGetLibVersion(int fd)
+{
+    drm_version_t *version = drmMalloc(sizeof(*version));
+
+    /* Version history:
+     *   revision 1.0.x = original DRM interface with no drmGetLibVersion
+     *                    entry point and many drm<Device> extensions
+     *   revision 1.1.x = added drmCommand entry points for device extensions
+     *                    added drmGetLibVersion to identify libdrm.a version
+     */
+    version->version_major      = 1;
+    version->version_minor      = 1;
+    version->version_patchlevel = 0;
+
+    return (drmVersionPtr)version;
 }
 
 void drmFreeBusid(const char *busid)
