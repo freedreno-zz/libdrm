@@ -11,11 +11,11 @@
  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
  * and/or sell copies of the Software, and to permit persons to whom the
  * Software is furnished to do so, subject to the following conditions:
- * 
+ *
  * The above copyright notice and this permission notice (including the next
  * paragraph) shall be included in all copies or substantial portions of the
  * Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
@@ -35,7 +35,7 @@
  * defines in the Xserver file (xf86drmR128.h)
  */
 typedef struct drm_r128_init {
-	enum { 
+	enum {
 		R128_INIT_CCE    = 0x01,
 		R128_CLEANUP_CCE = 0x02
 	} func;
@@ -96,9 +96,9 @@ typedef struct drm_r128_vertex {
 #define R128_LOG_TEX_GRANULARITY 16
 
 typedef struct drm_tex_region {
-	unsigned char next, prev;       
-	unsigned char in_use;   
-	int age;                        
+	unsigned char next, prev;
+	unsigned char in_use;
+	int age;
 } drm_tex_region_t;
 
 typedef struct drm_r128_sarea {
@@ -107,5 +107,56 @@ typedef struct drm_r128_sarea {
 	int              ctx_owner;
 	int              ring_write;
 } drm_r128_sarea_t;
+
+
+/* GH: These typedefs are taken from my latest kernel module work, and
+ * needed for the client-side 3D driver.  They will go away (along with
+ * most of the rest of the current kernel module).
+ */
+#define R128_TEX_MAXLEVELS	11
+
+typedef struct {
+	/* Context state - can be written in one large chunk */
+	unsigned long dst_pitch_offset_c;
+	unsigned long dp_gui_master_cntl_c;
+	unsigned long sc_top_left_c;
+	unsigned long sc_bottom_right_c;
+	unsigned long z_offset_c;
+	unsigned long z_pitch_c;
+	unsigned long z_sten_cntl_c;
+	unsigned long tex_cntl_c;
+	unsigned long misc_3d_state_cntl_reg;
+	unsigned long texture_clr_cmp_clr_c;
+	unsigned long texture_clr_cmp_msk_c;
+	unsigned long fog_color_c;
+
+	/* Setup state */
+	unsigned long pm4_vc_fpu_setup;
+	unsigned long setup_cntl;
+
+	/* Texture state */
+	unsigned long tex_size_pitch_c;
+	unsigned long constant_color_c;
+
+	/* Mask state */
+	unsigned long dp_write_mask;
+	unsigned long sten_ref_mask_c;
+	unsigned long plane_3d_mask_c;
+
+	/* Window state */
+	unsigned long window_xy_offset;
+
+	/* Core state */
+	unsigned long scale_3d_cntl;
+} drm_r128_context_regs_t;
+
+/* Setup registers for each texture unit */
+typedef struct {
+	unsigned long tex_cntl;
+	unsigned long tex_combine_cntl;
+	unsigned long tex_size_pitch;
+	unsigned long tex_offset[R128_TEX_MAXLEVELS];
+	unsigned long tex_border_color;
+} drm_r128_texture_regs_t;
 
 #endif
