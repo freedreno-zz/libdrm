@@ -24,10 +24,8 @@
  * DEALINGS IN THE SOFTWARE.
  *
  * Authors:
- *   Rickard E. (Rik) Faith <faith@valinux.com>
- *   Kevin E. Martin <martin@valinux.com>
- *   Gareth Hughes <gareth@valinux.com>
- *
+ *    Kevin E. Martin <martin@valinux.com>
+ *    Gareth Hughes <gareth@valinux.com>
  */
 
 #ifndef __RADEON_DRV_H__
@@ -163,8 +161,8 @@ extern int radeon_cp_vertex( struct inode *inode, struct file *filp,
 			     unsigned int cmd, unsigned long arg );
 extern int radeon_cp_indices( struct inode *inode, struct file *filp,
 			      unsigned int cmd, unsigned long arg );
-extern int radeon_cp_blit( struct inode *inode, struct file *filp,
-			   unsigned int cmd, unsigned long arg );
+extern int radeon_cp_texture( struct inode *inode, struct file *filp,
+			      unsigned int cmd, unsigned long arg );
 extern int radeon_cp_stipple( struct inode *inode, struct file *filp,
 			      unsigned int cmd, unsigned long arg );
 extern int radeon_cp_indirect( struct inode *inode, struct file *filp,
@@ -480,14 +478,14 @@ extern int radeon_cp_indirect( struct inode *inode, struct file *filp,
 #define RADEON_COLOR_FORMAT_RGB8	9
 #define RADEON_COLOR_FORMAT_ARGB4444	15
 
-#define RADEON_TXF_8BPP_I		0
-#define RADEON_TXF_16BPP_AI88		1
-#define RADEON_TXF_8BPP_RGB332		2
-#define RADEON_TXF_16BPP_ARGB1555	3
-#define RADEON_TXF_16BPP_RGB565		4
-#define RADEON_TXF_16BPP_ARGB4444	5
-#define RADEON_TXF_32BPP_ARGB8888	6
-#define RADEON_TXF_32BPP_RGBA8888	7
+#define RADEON_TXFORMAT_I8		0
+#define RADEON_TXFORMAT_AI88		1
+#define RADEON_TXFORMAT_RGB332		2
+#define RADEON_TXFORMAT_ARGB1555	3
+#define RADEON_TXFORMAT_RGB565		4
+#define RADEON_TXFORMAT_ARGB4444	5
+#define RADEON_TXFORMAT_ARGB8888	6
+#define RADEON_TXFORMAT_RGBA8888	7
 
 /* Constants */
 #define RADEON_MAX_USEC_TIMEOUT		100000	/* 100 ms */
@@ -504,25 +502,23 @@ extern int radeon_cp_indirect( struct inode *inode, struct file *filp,
 
 
 #define RADEON_BASE(reg)	((u32)(dev_priv->mmio->handle))
-#define RADEON_ADDR(reg)	(RADEON_BASE(reg) + reg)
+#define RADEON_ADDR(reg)	(RADEON_BASE( reg ) + reg)
 
-#define RADEON_DEREF(reg)	*(volatile u32 *)RADEON_ADDR(reg)
-#define RADEON_READ(reg)	RADEON_DEREF(reg)
-#define RADEON_WRITE(reg,val)	do { RADEON_DEREF(reg) = val; } while (0)
+#define RADEON_DEREF(reg)	*(volatile u32 *)RADEON_ADDR( reg )
+#define RADEON_READ(reg)	RADEON_DEREF( reg )
+#define RADEON_WRITE(reg, val)	do { RADEON_DEREF( reg ) = val; } while (0)
 
-#define RADEON_DEREF8(reg)	*(volatile u8 *)RADEON_ADDR(reg)
-#define RADEON_READ8(reg)	RADEON_DEREF8(reg)
-#define RADEON_WRITE8(reg,val)	do { RADEON_DEREF8(reg) = val; } while (0)
+#define RADEON_DEREF8(reg)	*(volatile u8 *)RADEON_ADDR( reg )
+#define RADEON_READ8(reg)	RADEON_DEREF8( reg )
+#define RADEON_WRITE8(reg, val)	do { RADEON_DEREF8( reg ) = val; } while (0)
 
-#define RADEON_WRITE_PLL(addr,val)                                            \
-do {                                                                          \
-	RADEON_WRITE8(RADEON_CLOCK_CNTL_INDEX,                                \
-		      ((addr) & 0x1f) | RADEON_PLL_WR_EN);                    \
-	RADEON_WRITE(RADEON_CLOCK_CNTL_DATA, (val));                          \
+#define RADEON_WRITE_PLL( addr, val ) do {				\
+	RADEON_WRITE8( RADEON_CLOCK_CNTL_INDEX,				\
+		       ((addr) & 0x1f) | RADEON_PLL_WR_EN );		\
+	RADEON_WRITE( RADEON_CLOCK_CNTL_DATA, (val) );			\
 } while (0)
 
-extern int RADEON_READ_PLL(drm_device_t *dev, int addr);
-
+extern int RADEON_READ_PLL( drm_device_t *dev, int addr );
 
 
 #define CP_PACKET0( reg, n )						\
@@ -541,54 +537,46 @@ extern int RADEON_READ_PLL(drm_device_t *dev, int addr);
  * Engine control helper macros
  */
 
-#define RADEON_WAIT_UNTIL_2D_IDLE()					\
-do {									\
+#define RADEON_WAIT_UNTIL_2D_IDLE() do {				\
 	OUT_RING( CP_PACKET0( RADEON_WAIT_UNTIL, 0 ) );			\
 	OUT_RING( (RADEON_WAIT_2D_IDLECLEAN |				\
 		   RADEON_WAIT_HOST_IDLECLEAN) );			\
 } while (0)
 
-#define RADEON_WAIT_UNTIL_3D_IDLE()					\
-do {									\
+#define RADEON_WAIT_UNTIL_3D_IDLE() do {				\
 	OUT_RING( CP_PACKET0( RADEON_WAIT_UNTIL, 0 ) );			\
 	OUT_RING( (RADEON_WAIT_3D_IDLECLEAN |				\
 		   RADEON_WAIT_HOST_IDLECLEAN) );			\
 } while (0)
 
-#define RADEON_WAIT_UNTIL_IDLE()					\
-do {									\
+#define RADEON_WAIT_UNTIL_IDLE() do {					\
 	OUT_RING( CP_PACKET0( RADEON_WAIT_UNTIL, 0 ) );			\
 	OUT_RING( (RADEON_WAIT_2D_IDLECLEAN |				\
 		   RADEON_WAIT_3D_IDLECLEAN |				\
 		   RADEON_WAIT_HOST_IDLECLEAN) );			\
 } while (0)
 
-#define RADEON_WAIT_UNTIL_PAGE_FLIPPED()				\
-do {									\
+#define RADEON_WAIT_UNTIL_PAGE_FLIPPED() do {				\
 	OUT_RING( CP_PACKET0( RADEON_WAIT_UNTIL, 0 ) );			\
 	OUT_RING( RADEON_WAIT_CRTC_PFLIP );				\
 } while (0)
 
-#define RADEON_FLUSH_CACHE()						\
-do {									\
+#define RADEON_FLUSH_CACHE() do {					\
 	OUT_RING( CP_PACKET0( RADEON_RB2D_DSTCACHE_CTLSTAT, 0 ) );	\
 	OUT_RING( RADEON_RB2D_DC_FLUSH );				\
 } while (0)
 
-#define RADEON_PURGE_CACHE()						\
-do {									\
+#define RADEON_PURGE_CACHE() do {					\
 	OUT_RING( CP_PACKET0( RADEON_RB2D_DSTCACHE_CTLSTAT, 0 ) );	\
 	OUT_RING( RADEON_RB2D_DC_FLUSH_ALL );				\
 } while (0)
 
-#define RADEON_FLUSH_ZCACHE()						\
-do {									\
+#define RADEON_FLUSH_ZCACHE() do {					\
 	OUT_RING( CP_PACKET0( RADEON_RB3D_ZCACHE_CTLSTAT, 0 ) );	\
 	OUT_RING( RADEON_RB3D_ZC_FLUSH );				\
 } while (0)
 
-#define RADEON_PURGE_ZCACHE()						\
-do {									\
+#define RADEON_PURGE_ZCACHE() do {					\
 	OUT_RING( CP_PACKET0( RADEON_RB3D_ZCACHE_CTLSTAT, 0 ) );	\
 	OUT_RING( RADEON_RB3D_ZC_FLUSH_ALL );				\
 } while (0)
@@ -597,6 +585,16 @@ do {									\
 /* ================================================================
  * Misc helper macros
  */
+
+#define LOCK_TEST_WITH_RETURN( dev )					\
+do {									\
+	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||		\
+	     dev->lock.pid != current->pid ) {				\
+		DRM_ERROR( "%s called without lock held\n",		\
+			   __FUNCTION__ );				\
+		return -EINVAL;						\
+	}								\
+} while (0)
 
 #define RING_SPACE_TEST_WITH_RETURN( dev_priv )				\
 do {									\
@@ -627,20 +625,17 @@ do {									\
 	}								\
 } while (0)
 
-#define RADEON_DISPATCH_AGE( age )					\
-do {									\
+#define RADEON_DISPATCH_AGE( age ) do {					\
 	OUT_RING( CP_PACKET0( RADEON_LAST_DISPATCH_REG, 0 ) );		\
 	OUT_RING( age );						\
 } while (0)
 
-#define RADEON_FRAME_AGE( age )						\
-do {									\
+#define RADEON_FRAME_AGE( age ) do {					\
 	OUT_RING( CP_PACKET0( RADEON_LAST_FRAME_REG, 0 ) );		\
 	OUT_RING( age );						\
 } while (0)
 
-#define RADEON_CLEAR_AGE( age )						\
-do {									\
+#define RADEON_CLEAR_AGE( age ) do {					\
 	OUT_RING( CP_PACKET0( RADEON_LAST_CLEAR_REG, 0 ) );		\
 	OUT_RING( age );						\
 } while (0)

@@ -45,6 +45,7 @@
 				/* This is a hack that only works for
                                    this code base -- because we always
                                    call this with dev->tq.* */
+#undef INIT_LIST_HEAD
 #define INIT_LIST_HEAD(pointer) dev->tq.next = NULL
 
 #endif

@@ -25,10 +25,9 @@
  * DEALINGS IN THE SOFTWARE.
  *
  * Authors:
- *   Rickard E. (Rik) Faith <faith@valinux.com>
- *   Kevin E. Martin <martin@valinux.com>
- *   Gareth Hughes <gareth@valinux.com>
- *
+ *    Rickard E. (Rik) Faith <faith@valinux.com>
+ *    Kevin E. Martin <martin@valinux.com>
+ *    Gareth Hughes <gareth@valinux.com>
  */
 
 #ifndef __R128_DRV_H__
@@ -440,8 +439,7 @@ do {									\
 	}								\
 } while (0)
 
-#define R128_WAIT_UNTIL_PAGE_FLIPPED()					\
-do {									\
+#define R128_WAIT_UNTIL_PAGE_FLIPPED() do {				\
 	OUT_RING( CCE_PACKET0( R128_WAIT_UNTIL, 0 ) );			\
 	OUT_RING( R128_EVENT_CRTC_OFFSET );				\
 } while (0)
@@ -456,7 +454,8 @@ do {									\
 
 #define R128_VERBOSE	0
 
-#define RING_LOCALS	int write; unsigned int tail_mask; volatile u32 *ring;
+#define RING_LOCALS							\
+	int write; unsigned int tail_mask; volatile u32 *ring;
 
 #define BEGIN_RING( n ) do {						\
 	if ( R128_VERBOSE ) {						\
@@ -472,10 +471,22 @@ do {									\
 	tail_mask = dev_priv->ring.tail_mask;				\
 } while (0)
 
+/* You can set this to zero if you want.  If the card locks up, you'll
+ * need to keep this set.  It works around a bug in early revs of the
+ * Rage 128 chipset, where the CCE would read 32 dwords past the end of
+ * the ring buffer before wrapping around.
+ */
+#define R128_BROKEN_CCE	1
+
 #define ADVANCE_RING() do {						\
 	if ( R128_VERBOSE ) {						\
 		DRM_INFO( "ADVANCE_RING() tail=0x%06x wr=0x%06x\n",	\
 			  write, dev_priv->ring.tail );			\
+	}								\
+	if ( R128_BROKEN_CCE && write < 32 ) {				\
+		memcpy( dev_priv->ring.end,				\
+			dev_priv->ring.start,				\
+			write * sizeof(u32) );				\
 	}								\
 	r128_flush_write_combine();					\
 	dev_priv->ring.tail = write;					\

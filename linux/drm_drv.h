@@ -492,7 +492,8 @@ static int __init drm_init( void )
 	}
 #endif
 #if __REALLY_HAVE_MTRR
-	dev->agp->agp_mtrr = mtrr_add( dev->agp->agp_info.aper_base,
+	if (dev->agp)
+		dev->agp->agp_mtrr = mtrr_add( dev->agp->agp_info.aper_base,
 				       dev->agp->agp_info.aper_size*1024*1024,
 				       MTRR_TYPE_WRCOMB,
 				       1 );
@@ -646,7 +647,7 @@ int DRM(release)( struct inode *inode, struct file *filp )
 	if ( dev->lock.hw_lock &&
 	     _DRM_LOCK_IS_HELD(dev->lock.hw_lock->lock) &&
 	     dev->lock.pid == current->pid ) {
-		DRM_ERROR( "Process %d dead, freeing lock for context %d\n",
+		DRM_DEBUG( "Process %d dead, freeing lock for context %d\n",
 			   current->pid,
 			   _DRM_LOCKING_CONTEXT(dev->lock.hw_lock->lock) );
 #if __HAVE_RELEASE
@@ -697,7 +698,7 @@ int DRM(release)( struct inode *inode, struct file *filp )
 					DRM_KERNEL_CONTEXT );
 		}
 	}
-#else
+#elif __HAVE_DMA
 	DRM(reclaim_buffers)( dev, priv->pid );
 #endif
 
@@ -804,7 +805,7 @@ int DRM(lock)( struct inode *inode, struct file *filp,
 #if __HAVE_MULTIPLE_DMA_QUEUES
 	drm_queue_t *q;
 #endif
-#if DRM_DMA_HISTOGRAM
+#if __HAVE_DMA_HISTOGRAM
         cycles_t start;
 
         dev->lck_start = start = get_cycles();
@@ -892,7 +893,7 @@ int DRM(lock)( struct inode *inode, struct file *filp,
 
         DRM_DEBUG( "%d %s\n", lock.context, ret ? "interrupted" : "has lock" );
 
-#if DRM_DMA_HISTOGRAM
+#if __HAVE_DMA_HISTOGRAM
         atomic_inc(&dev->histo.lacq[DRM(histogram_slot)(get_cycles()-start)]);
 #endif
         return ret;

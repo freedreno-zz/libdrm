@@ -38,21 +38,19 @@
 
 #define DRIVER_NAME		"tdfx"
 #define DRIVER_DESC		"3dfx Banshee/Voodoo3+"
-#define DRIVER_DATE		"20010215"
+#define DRIVER_DATE		"20010216"
 
 #define DRIVER_MAJOR		1
 #define DRIVER_MINOR		0
 #define DRIVER_PATCHLEVEL	0
 
-#include "drm_drv.h"
 
-
-#include "drm_agpsupport.h"
 #include "drm_auth.h"
 #include "drm_bufs.h"
 #include "drm_context.h"
 #include "drm_dma.h"
 #include "drm_drawable.h"
+#include "drm_drv.h"
 #include "drm_fops.h"
 #include "drm_init.h"
 #include "drm_ioctl.h"

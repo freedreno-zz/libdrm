@@ -57,7 +57,6 @@ int mga_do_wait_for_idle( drm_mga_private_t *dev_priv )
 	for ( i = 0 ; i < dev_priv->usec_timeout ; i++ ) {
 		status = MGA_READ( MGA_STATUS ) & MGA_ENGINE_IDLE_MASK;
 		if ( status == MGA_ENDPRDMASTS ) {
-			/* printk("I'm not busy, flushing pixel cache\n"); */
 			MGA_WRITE8( MGA_CRTC_INDEX, 0 );
 			return 0;
 		}
@@ -273,7 +272,8 @@ static void mga_freelist_print( drm_device_t *dev )
 	DRM_INFO( "\n" );
 	DRM_INFO( "current dispatch: last=0x%x done=0x%x\n",
 		  dev_priv->sarea_priv->last_dispatch,
-		  *dev_priv->prim.head - dev_priv->primary->offset );
+		  (unsigned int)(*dev_priv->prim.head - 
+				 dev_priv->primary->offset) );
 	DRM_INFO( "current freelist:\n" );
 
 	for ( entry = dev_priv->head->next ; entry ; entry = entry->next ) {
@@ -354,7 +354,6 @@ static void mga_freelist_cleanup( drm_device_t *dev )
 static void mga_freelist_reset( drm_device_t *dev )
 {
 	drm_device_dma_t *dma = dev->dma;
-	drm_mga_private_t *dev_priv = dev->dev_private;
 	drm_buf_t *buf;
 	drm_mga_buf_priv_t *buf_priv;
 	int i;
@@ -400,7 +399,7 @@ static drm_buf_t *mga_freelist_get( drm_device_t *dev )
 	return NULL;
 }
 
-static int mga_freelist_put( drm_device_t *dev, drm_buf_t *buf )
+int mga_freelist_put( drm_device_t *dev, drm_buf_t *buf )
 {
 	drm_mga_private_t *dev_priv = dev->dev_private;
 	drm_mga_buf_priv_t *buf_priv = buf->dev_private;
@@ -412,15 +411,17 @@ static int mga_freelist_put( drm_device_t *dev, drm_buf_t *buf )
 		   dev_priv->primary->offset,
 		   buf_priv->list_entry->age.wrap );
 
+	/* Put buffer on the head + 1, as the head is a sentinal.
+	 */
+
+	next = buf_priv->list_entry;
+	head = dev_priv->head;
+	prev = head->next;
+
 	if ( buf_priv->list_entry->age.head == MGA_BUFFER_USED ) {
 		SET_AGE( &next->age, MGA_BUFFER_FREE, 0 );
 	}
 
-	/* Put buffer on the head + 1, as the head is a sentinal.
-	 */
-	next = buf_priv->list_entry;
-	head = dev_priv->head;
-	prev = head->next;
 	head->next = next;
 	prev->prev = next;
 	next->prev = head;

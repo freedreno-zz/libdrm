@@ -44,11 +44,8 @@
 #define DRM_IOCTL_NR(n)	     ((n) & 0xff)
 #endif
 
-#define DRM_DEV_MODE	 (S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP)
-#define DRM_DEV_UID	 0
-#define DRM_DEV_GID	 0
-
 #define DRM_MAJOR       226
+#define DRM_MAX_MINOR   15
 #define DRM_NAME	"drm"	  /* Name in kernel, /dev, and /proc	    */
 #define DRM_MIN_ORDER	5	  /* At least 2^5 bytes = 32 bytes	    */
 #define DRM_MAX_ORDER	22	  /* Up to 2^22 bytes = 4MB		    */
@@ -453,7 +450,7 @@ typedef struct drm_agp_info {
 #define DRM_IOCTL_RADEON_CLEAR		DRM_IOW( 0x48, drm_radeon_clear_t)
 #define DRM_IOCTL_RADEON_VERTEX		DRM_IOW( 0x49, drm_radeon_vertex_t)
 #define DRM_IOCTL_RADEON_INDICES	DRM_IOW( 0x4a, drm_radeon_indices_t)
-#define DRM_IOCTL_RADEON_BLIT		DRM_IOW( 0x4b, drm_radeon_blit_t)
+#define DRM_IOCTL_RADEON_TEXTURE	DRM_IOWR(0x4b, drm_radeon_texture_t)
 #define DRM_IOCTL_RADEON_STIPPLE	DRM_IOW( 0x4c, drm_radeon_stipple_t)
 #define DRM_IOCTL_RADEON_INDIRECT	DRM_IOWR(0x4d, drm_radeon_indirect_t)
 
