@@ -589,23 +589,23 @@ extern void		DRM(pci_free)(drm_device_t *dev, size_t size,
 				      void *vaddr, dma_addr_t busaddr);
 
 /* Inline replacements for DRM_IOREMAP macros */
-static __inline__ void drm_core_ioremap(struct drm_map *map, struct drm_device *dev)
+static __inline__ void drm_core_ioremap(struct drm_local_map *map, struct drm_device *dev)
 {
 	map->handle = DRM(ioremap)( dev, map );
 }
-
+#if 0
 static __inline__ void drm_core_ioremap_nocache(struct drm_map *map, struct drm_device *dev)
 {
 	map->handle = DRM(ioremap_nocache)(dev, map);
 }
-
-static __inline__ void drm_core_ioremapfree(struct drm_map *map, struct drm_device *dev)
+#endif
+static __inline__ void drm_core_ioremapfree(struct drm_local_map *map, struct drm_device *dev)
 {
 	if ( map->handle && map->size )
 		DRM(ioremapfree)( map );
 }
 
-static __inline__ struct drm_map *drm_core_findmap(struct drm_device *dev, unsigned long offset)
+static __inline__ struct drm_local_map *drm_core_findmap(struct drm_device *dev, unsigned long offset)
 {
 	drm_map_list_entry_t *listentry;
 	TAILQ_FOREACH(listentry, dev->maplist, link) {

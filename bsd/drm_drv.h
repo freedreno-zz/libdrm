@@ -631,8 +631,12 @@ static int DRM(init)( device_t nbdev )
 	else
 		dev->device = nbdev;
 
+	/* dev_priv_size can be changed by a driver in driver_register_fns */
+	dev->dev_priv_size = sizeof(u32);
+	DRM(driver_register_fns)(dev);
+	
 	if (dev->fn_tbl.preinit)
-		dev->fn_tbl.preinit(dev);
+		dev->fn_tbl.preinit(dev, 0);
 
 	dev->devnode = make_dev( &DRM(cdevsw),
 			unit,
@@ -646,8 +650,12 @@ static int DRM(init)( device_t nbdev )
 #elif defined(__NetBSD__)
 	unit = minor(dev->device.dv_unit);
 
+	/* dev_priv_size can be changed by a driver in driver_register_fns */
+	dev->dev_priv_size = sizeof(u32);
+	DRM(driver_register_fns)(dev);
+
 	if (dev->fn_tbl.preinit)
-		dev->fn_tbl.preinit(dev);
+		dev->fn_tbl.preinit(dev, 0);
 
 #endif
 
@@ -705,7 +713,7 @@ static int DRM(init)( device_t nbdev )
 	  	unit );
 
 	if (dev->fn_tbl.postinit)
-		dev->fn_tbl.postinit(dev);
+		dev->fn_tbl.postinit(dev, 0);
 
 	return 0;
 
