@@ -25,9 +25,8 @@
  * DEALINGS IN THE SOFTWARE.
  *
  * Authors:
- *    Kevin E. Martin <martin@valinux.com>
  *    Gareth Hughes <gareth@valinux.com>
- *
+ *    Kevin E. Martin <martin@valinux.com>
  */
 
 #ifndef __R128_DRM_H__
@@ -142,12 +141,6 @@ typedef struct {
 } drm_r128_texture_regs_t;
 
 
-typedef struct drm_tex_region {
-	unsigned char next, prev;
-	unsigned char in_use;
-	int age;
-} drm_tex_region_t;
-
 typedef struct drm_r128_sarea {
 	/* The channel for communication of state information to the kernel
 	 * on firing a vertex buffer.
@@ -218,9 +211,10 @@ typedef struct drm_r128_fullscreen {
 
 typedef struct drm_r128_clear {
 	unsigned int flags;
-	int x, y, w, h;
 	unsigned int clear_color;
 	unsigned int clear_depth;
+	unsigned int color_mask;
+	unsigned int depth_mask;
 } drm_r128_clear_t;
 
 typedef struct drm_r128_vertex {
