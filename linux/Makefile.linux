@@ -1,6 +1,6 @@
 # Makefile -- For the Direct Rendering Manager module (drm)
 # Created: Mon Jan  4 09:26:53 1999 by faith@precisioninsight.com
-# Revised: Sun Feb 13 23:15:59 2000 by kevin@precisioninsight.com
+# Revised: Mon May 22 10:41:47 2000 by faith@valinux.com
 #
 # Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
 # All rights reserved.
@@ -25,7 +25,21 @@
 # DEALINGS IN THE SOFTWARE.
 # 
 # $XFree86: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/kernel/Makefile.linux,v 1.6 2000/02/23 04:47:25 martin Exp $
-# 
+#
+# ***** NOTE NOTE NOTE NOTE NOTE *****
+# To override the automatic Linux source tree determination, pass the
+# pathname for the kernel that you want to compile on the command line,
+# like this:
+# 	make TREE=/usr/my-kernel-tree/include
+#
+# ***** NOTE NOTE NOTE NOTE NOTE *****
+# Because some distributions patch 2.2.x kernels to make kill_fasync have
+# three parameters, this script tries to determine, via the examination of
+# header files, if your kernel has been patched.  If this detection is
+# incorrect, you can override the value on the command line, like this:
+# 	make PARAMS=2
+# or
+# 	make PARAMS=3
 
 .SUFFIXES:
 
@@ -94,11 +108,6 @@ endif
 endif
 endif
 
-# To override this determination, pass the path on the make command line:
-# 	make TREE=/usr/my-kernel-tree/include
-# or hardcode a value for TREE here:
-# TREE:=/usr/include
-
 ifeq ($(TREE),0)
 all:; @echo Error: Could not locate kernel tree in $A $B $C
 else
@@ -108,6 +117,8 @@ MODVERSIONS := $(shell gcc -E -I $(TREE) picker.c 2>/dev/null \
 	| grep -s 'MODVERSIONS = ' | cut -d' ' -f3)
 AGP := $(shell gcc -E -nostdinc -I$(TREE) picker.c 2>/dev/null \
 	| grep -s 'AGP = ' | cut -d' ' -f3)
+PARAMS := $(shell if fgrep kill_fasync $(TREE)/linux/fs.h \
+	| fgrep -q band; then echo 3; else echo 2; fi)
 ifeq ($(AGP),0)
 AGP := $(shell gcc -E -nostdinc -I$(TREE) picker.c 2>/dev/null \
 	| grep -s 'AGP_MODULE = ' | cut -d' ' -f3)
@@ -125,8 +136,9 @@ I810OBJS=	i810_drv.o i810_dma.o i810_bufs.o i810_context.o
 I810HEADERS=	i810_drv.h $(DRMHEADERS)
 endif
 
-all::;@echo KERNEL HEADERS IN $(TREE): SMP=${SMP} MODVERSIONS=${MODVERSIONS} \
-	AGP=${AGP}
+all::;@echo === KERNEL HEADERS IN $(TREE)
+all::;@echo === SMP=${SMP} MODVERSIONS=${MODVERSIONS} AGP=${AGP}
+all::;@echo === kill_fasync has $(PARAMS) parameters
 all:: $(LIBS) $(MODS) $(PROGS)
 endif
 
@@ -139,7 +151,9 @@ endif
 ifeq ($(MODVERSIONS),1)
 MODCFLAGS += -DMODVERSIONS -include $(TREE)/linux/modversions.h
 endif
-
+ifeq ($(PARAMS),3)
+MODCFLAGS += -DKILLFASYNCHASTHREEPARAMETERS
+endif
 
 # **** End of configuration
 
@@ -173,7 +187,7 @@ ChangeLog:
 
 # .o files are used for modules
 %.o: %.c
-	$(CC) $(MODCFLAGS) -c $< -o $@
+	$(CC) $(MODCFLAGS) -I$(TREE) -c $< -o $@
 
 %.po: %.c
 	$(CC) $(PRGCFLAGS) -DDRM_USE_MALLOC -c $< -o $@
