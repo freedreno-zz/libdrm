@@ -1156,13 +1156,16 @@ static int i830_dma_dispatch_vertex2(drm_device_t *dev,
 
    	i830_kernel_lost_context(dev);
 
-   	if (nbox > I830_NR_SAREA_CLIPRECTS || (start & 0xff)) {
+   	if (nbox > I830_NR_SAREA_CLIPRECTS || (start & 0x3)) {
 		DRM_ERROR("bad args %d\n", used);
 		goto do_discard;
 	}
 
 	if (sarea_priv->dirty)
 		i830EmitState( dev );
+
+	used -= 4;
+	start += 4;
 
 	/* Calculate vertex size:  (Necessary because original ioctl didn't
 	 * provide this information).
