@@ -302,7 +302,7 @@ static void drmFreeKernelVersion(drm_version_t *v)
     drmFree(v);
 }
 
-static void drmCopyVersion(drmVersionPtr d, drm_version_t *s)
+static void drmCopyVersion(drmVersionPtr d, const drm_version_t *s)
 {
     d->version_major      = s->version_major;
     d->version_minor      = s->version_minor;
