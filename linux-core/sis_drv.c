@@ -30,7 +30,7 @@
  *    Sung-Ching Lin <sclin@sis.com.tw>
  *
  */
-/* $XFree86: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/kernel/sis_drv.c,v 1.6 2000/08/28 02:43:16 tsi Exp $ */
+/* $XFree86: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/kernel/sis_drv.c,v 1.5 2000/09/22 11:35:47 alanh Exp $ */
 
 #include <linux/config.h>
 #include "drmP.h"
