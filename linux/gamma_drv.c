@@ -45,7 +45,9 @@
 #define DRIVER_PATCHLEVEL	0
 
 #define DRIVER_IOCTLS							  \
-	[DRM_IOCTL_NR(DRM_IOCTL_DMA)]	     = { gamma_dma,	  1, 0 }
+	[DRM_IOCTL_NR(DRM_IOCTL_DMA)]	     = { gamma_dma,	  1, 0 }, \
+	[DRM_IOCTL_NR(DRM_IOCTL_GAMMA_INIT)] = { gamma_dma_init,  1, 1 }, \
+	[DRM_IOCTL_NR(DRM_IOCTL_GAMMA_COPY)] = { gamma_dma_copy,  1, 1 }
 
 
 #define __HAVE_COUNTERS		5
@@ -57,6 +59,7 @@
 
 
 #include "drm_auth.h"
+#include "drm_agpsupport.h"
 #include "drm_bufs.h"
 #include "drm_context.h"
 #include "drm_dma.h"
