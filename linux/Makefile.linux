@@ -60,7 +60,7 @@ DRMTEMPLATES=	drm_init.h drm_memory.h drm_proc.h drm_auth.h drm_context.h \
 		drm_fops.h drm_vm.h drm_dma.h drm_stub.h
 DRMHEADERS=	drm.h drmP.h compat-pre24.h
 
-GAMMAOBJS=      gamma_drv.o gamma_drm.o gamma_dma.o
+GAMMAOBJS=      gamma_drv.o gamma_drm.o gamma_dma.o gamma_context.o
 GAMMAHEADERS=   gamma_drv.h $(DRMHEADERS) $(DRMTEMPLATES)
 
 TDFXOBJS=       tdfx_drv.o tdfx_context.o

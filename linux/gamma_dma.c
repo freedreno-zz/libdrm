@@ -258,7 +258,7 @@ static int gamma_do_dma(drm_device_t *dev, int locked)
 	    && !(dev->queuelist[buf->context]->flags
 		 & _DRM_CONTEXT_PRESERVED)) {
 				/* PRE: dev->last_context != buf->context */
-		if (gamma_context_switch(dev, dev->last_context, buf->context)) {
+		if (drm_context_switch(dev, dev->last_context, buf->context)) {
 			gamma_clear_next_buffer(dev);
 			gamma_free_buffer(dev, buf);
 		}
@@ -479,7 +479,7 @@ static int gamma_dma_priority(drm_device_t *dev, drm_dma_t *d)
 			add_wait_queue(&dev->context_wait, &entry);
 			current->state = TASK_INTERRUPTIBLE;
 				/* PRE: dev->last_context != buf->context */
-			gamma_context_switch(dev, dev->last_context,
+			drm_context_switch(dev, dev->last_context,
 					   buf->context);
 				/* POST: we will wait for the context
 				   switch and will dispatch on a later call

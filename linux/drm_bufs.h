@@ -293,7 +293,7 @@ int DRM(addbufs_agp)( struct inode *inode, struct file *filp,
 	DRM_DEBUG( "dma->buf_count : %d\n", dma->buf_count );
 	DRM_DEBUG( "entry->buf_count : %d\n", entry->buf_count );
 
-#if 0
+#if 1
 	/* FIXME: work this mess out...
 	 */
 	DRM(freelist_create)( &entry->freelist, entry->buf_count );
@@ -463,7 +463,7 @@ int DRM(addbufs_pci)( struct inode *inode, struct file *filp,
 	dma->page_count += entry->seg_count << page_order;
 	dma->byte_count += PAGE_SIZE * (entry->seg_count << page_order);
 
-#if 0
+#if 1
 	/* FIXME: work this mess out...
 	 */
 	DRM(freelist_create)( &entry->freelist, entry->buf_count );

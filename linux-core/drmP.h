@@ -469,7 +469,7 @@ typedef struct drm_queue {
 	wait_queue_head_t read_queue;	/* Processes waiting on block_read  */
 	atomic_t	  block_write;	/* Queue blocked for writes	    */
 	wait_queue_head_t write_queue;	/* Processes waiting on block_write */
-#if 0
+#if 1
 	atomic_t	  total_queued;	/* Total queued statistic	    */
 	atomic_t	  total_flushed;/* Total flushes statistic	    */
 	atomic_t	  total_locks;	/* Total locks statistics	    */

@@ -49,7 +49,7 @@
 	[DRM_IOCTL_NR(DRM_IOCTL_DMA)]	     = { gamma_dma,	  1, 0 }
 
 #define __HAVE_MTRR		1
-#define __HAVE_CTX_BITMAP	1
+#define __HAVE_CTX_BITMAP	0
 #define __HAVE_PCI_DMA		1
 #define __HAVE_MULTIPLE_DMA_QUEUES	1
 #define __HAVE_DMA_FLUSH		1
@@ -59,9 +59,10 @@
 #define __HAVE_DMA_WAITLIST	1
 #define __HAVE_DMA_FREELIST	1
 #define __HAVE_DMA		1
+#define __HAVE_OLD_DMA		1
 #define __HAVE_DMA_IRQ		1
 
-#define __HAVE_COUNTERS		10
+#define __HAVE_COUNTERS		5
 #define __HAVE_COUNTER6		_DRM_STAT_IRQ
 #define __HAVE_COUNTER7		_DRM_STAT_DMA
 #define __HAVE_COUNTER8		_DRM_STAT_PRIMARY

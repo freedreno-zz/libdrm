@@ -223,13 +223,14 @@ void DRM(reclaim_buffers)(drm_device_t *dev, pid_t pid)
 
 #if __HAVE_OLD_DMA
 
-#if 0
 int drm_context_switch(drm_device_t *dev, int old, int new)
 {
 	char	    buf[64];
 	drm_queue_t *q;
 
+#if 0
 	atomic_inc(&dev->total_ctx);
+#endif
 
 	if (test_and_set_bit(0, &dev->context_flag)) {
 		DRM_ERROR("Reentering -- FIXME\n");
@@ -300,8 +301,6 @@ int drm_context_switch_complete(drm_device_t *dev, int new)
 
 	return 0;
 }
-#endif
-
 
 void DRM(clear_next_buffer)(drm_device_t *dev)
 {

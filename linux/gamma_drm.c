@@ -3,18 +3,12 @@
 #include "drmP.h"
 #include "gamma_drv.h"
 
-/*
- * This is an early version...
- */
-
 #define DRIVER_DEV_PRIV_T	drm_gamma_private_t
 #define DRIVER_AGP_BUFFER_MAP	dev_priv->buffers
 
 #include "drm_auth.h"
 
 #include "drm_bufs.h"
-
-#include "drm_context.h"
 
 #include "drm_dma.h"
 
