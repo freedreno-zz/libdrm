@@ -607,6 +607,10 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 			u32 rb3d_zstencilcntl = ctx->rb3d_zstencilcntl;
 			u32 se_cntl = ctx->se_cntl;
 
+			if ( sarea_priv->dirty & ~RADEON_UPLOAD_CLIPRECTS ) {
+				radeon_emit_state( dev_priv );
+			}
+
 			/* FIXME: Do re really need to do this?  Why
 			 * not just precalculate all the values?
 			 */
