@@ -77,8 +77,6 @@
 #define __HAVE_DMA_WAITLIST		1
 #define __HAVE_DMA_FREELIST		1
 
-#define __HAVE_DMA_SCHEDULE		1
-
 #define __HAVE_IRQ			1
 #define __HAVE_IRQ_BH			1
 

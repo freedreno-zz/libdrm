@@ -950,4 +950,5 @@ void gamma_driver_register_fns(drm_device_t *dev)
 	dev->fn_tbl.dma_quiescent = gamma_driver_dma_quiescent;
 	dev->fn_tbl.dma_flush_block_and_flush = gamma_flush_block_and_flush;
 	dev->fn_tbl.dma_flush_unblock = gamma_flush_unblock;
+	dev->fn_tbl.dma_schedule = gamma_dma_schedule;
 }

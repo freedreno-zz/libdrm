@@ -592,6 +592,7 @@ struct drm_driver_fn {
 	int (*context_dtor)(struct drm_device *dev, int context);
 	int (*kernel_context_switch)(struct drm_device *dev, int old, int new);
 	int (*kernel_context_switch_unlock)(struct drm_device *dev);
+	int (*dma_schedule)(struct drm_device *dev, int locked);
 };
 /**
  * DRM device structure.
