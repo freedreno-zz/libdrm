@@ -61,7 +61,7 @@ LIBS=           libdrm.a
 PROGS=		drmstat
 
 DRMOBJS=	init.o memory.o proc.o auth.o context.o drawable.o bufs.o \
-		lists.o lock.o ioctl.o fops.o vm.o dma.o
+		lists.o lock.o ioctl.o fops.o vm.o dma.o agpsupport.o
 DRMHEADERS=	drm.h drmP.h
 
 GAMMAOBJS=      gamma_drv.o gamma_dma.o
