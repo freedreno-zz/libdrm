@@ -219,54 +219,6 @@
 
 
 /***********************************************************************/
-/** \name Mapping helper macros */
-/*@{*/
-
-#define DRM_IOREMAP(map, dev)							\
-	(map)->handle = DRM(ioremap)( (map)->offset, (map)->size, (dev) )
-
-#define DRM_IOREMAP_NOCACHE(map, dev)						\
-	(map)->handle = DRM(ioremap_nocache)((map)->offset, (map)->size, (dev))
-
-#define DRM_IOREMAPFREE(map, dev)						\
-	do {									\
-		if ( (map)->handle && (map)->size )				\
-			DRM(ioremapfree)( (map)->handle, (map)->size, (dev) );	\
-	} while (0)
-
-/**
- * Find mapping.
- *
- * \param _map matching mapping if found, untouched otherwise.
- * \param _o offset.
- *
- * Expects the existence of a local variable named \p dev pointing to the
- * drm_device structure.
- */
-#define DRM_FIND_MAP(_map, _o)								\
-do {											\
-	struct list_head *_list;							\
-	list_for_each( _list, &dev->maplist->head ) {					\
-		drm_map_list_t *_entry = list_entry( _list, drm_map_list_t, head );	\
-		if ( _entry->map &&							\
-		     _entry->map->offset == (_o) ) {					\
-			(_map) = _entry->map;						\
-			break;								\
- 		}									\
-	}										\
-} while(0)
-
-/**
- * Drop mapping.
- *
- * \sa #DRM_FIND_MAP.
- */
-#define DRM_DROP_MAP(_map)
-
-/*@}*/
-
-
-/***********************************************************************/
 /** \name Internal types and structures */
 /*@{*/
 
@@ -985,6 +937,40 @@ extern void	      *DRM(pci_alloc)(drm_device_t *dev, size_t size,
 extern void	      DRM(pci_free)(drm_device_t *dev, size_t size, 
 					void *vaddr, dma_addr_t busaddr);
 
+
+/* Inline replacements for DRM_IOREMAP macros */
+static __inline__ void drm_core_ioremap(struct drm_map *map, struct drm_device *dev)
+{
+	map->handle = DRM(ioremap)( map->offset, map->size, dev );
+}
+
+static __inline__ void drm_core_ioremap_nocache(struct drm_map *map, struct drm_device *dev)
+{
+	map->handle = DRM(ioremap_nocache)(map->offset, map->size, dev);
+}
+
+static __inline__ void drm_core_ioremapfree(struct drm_map *map, struct drm_device *dev)
+{
+	if ( map->handle && map->size )
+		DRM(ioremapfree)( map->handle, map->size, dev );
+}
+
+static __inline__ struct drm_map *drm_core_findmap(struct drm_device *dev, unsigned long offset)
+{
+	struct list_head *_list;
+	list_for_each( _list, &dev->maplist->head ) {
+		drm_map_list_t *_entry = list_entry( _list, drm_map_list_t, head );
+		if ( _entry->map &&
+		     _entry->map->offset == offset ) {
+			return _entry->map;
+		}
+	}
+	return NULL;
+}
+
+static __inline__ void drm_core_dropmap(struct drm_map *map)
+{
+}
 /*@}*/
 
 #endif /* __KERNEL__ */
