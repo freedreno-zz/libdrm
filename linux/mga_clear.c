@@ -132,7 +132,7 @@ static int mgaClearBuffers(drm_device_t *dev,
 	d.send_count = 1;
 	d.send_indices = &buf->idx;
 	d.send_sizes = &buf->used;
-   	d.flags = _DRM_DMA_WHILE_LOCKED;
+   	d.flags = 0;
 	d.request_count = 0;
 	d.request_size = 0;
 	d.request_indices = NULL;
@@ -202,7 +202,7 @@ int mgaSwapBuffers(drm_device_t *dev, int flags)
 	d.send_count = 1;
 	d.send_indices = &buf->idx;
 	d.send_sizes = &buf->used;
-   	d.flags = _DRM_DMA_WHILE_LOCKED;
+   	d.flags = 0;
 	d.request_count = 0;
 	d.request_size = 0;
 	d.request_indices = NULL;
@@ -258,7 +258,7 @@ static int mgaIload(drm_device_t *dev, drm_mga_iload_t *args)
 	d.send_count = 1;
 	d.send_indices = &buf->idx;
 	d.send_sizes = &buf->used;
-	d.flags = _DRM_DMA_WHILE_LOCKED;
+	d.flags = 0;
 	d.request_count = 0;
 	d.request_size = 0;
 	d.request_indices = NULL;
