@@ -502,9 +502,6 @@ static int r128_submit_packets_ring_secure(drm_device_t *dev,
 	/* Make sure WC cache has been flushed */
 	r128_flush_write_combine();
 #endif
-#ifdef __alpha
-	mb();
-#endif
 
 	dev_priv->sarea_priv->ring_write = write;
 	R128_WRITE(R128_PM4_BUFFER_DL_WPTR, write);
@@ -609,9 +606,6 @@ static int r128_submit_packets_ring(drm_device_t *dev,
 #ifdef __i386__
 	/* Make sure WC cache has been flushed */
 	r128_flush_write_combine();
-#endif
-#ifdef __alpha__
-	mb();
 #endif
 
 	dev_priv->sarea_priv->ring_write = write;
@@ -778,13 +772,9 @@ static int r128_send_vertbufs(drm_device_t *dev, drm_r128_vertex_t *v)
 		r128_mark_vertbufs_done(dev);
 	}
 
-	/* Make sure WC cache has been flushed (if in PIO mode) */
-	if (!dev_priv->cce_is_bm_mode) 
 #ifdef __i386__
-	    r128_flush_write_combine();
-#endif
-#ifdef __alpha__
-	    mb();
+	/* Make sure WC cache has been flushed (if in PIO mode) */
+	if (!dev_priv->cce_is_bm_mode) r128_flush_write_combine();
 #endif
 
 	/* FIXME: Add support for sending vertex buffer to the CCE here

@@ -27,7 +27,7 @@
  * Authors: Rickard E. (Rik) Faith <faith@valinux.com>
  *	    Kevin E. Martin <martin@valinux.com>
  *
- * $XFree86: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/xf86drm.c,v 1.14 2000/06/27 16:42:07 alanh Exp $
+ * $XFree86: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/xf86drm.c,v 1.15 2000/08/09 14:44:27 alanh Exp $
  * 
  */
 

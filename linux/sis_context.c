@@ -1,8 +1,7 @@
-/* r128_context.c -- IOCTLs for r128 contexts -*- linux-c -*-
- * Created: Mon Dec 13 09:51:35 1999 by faith@precisioninsight.com
+/* sis_context.c -- IOCTLs for sis contexts -*- linux-c -*-
+ * Created: Thu Oct  7 10:50:22 1999 by faith@precisioninsight.com
  *
- * Copyright 1999, 2000 Precision Insight, Inc., Cedar Park, Texas.
- * Copyright 2000 VA Linux Systems, Inc., Sunnyvale, California.
+ * Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
  * All Rights Reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -24,23 +23,28 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
  * 
- * Author: Rickard E. (Rik) Faith <faith@valinux.com>
+ * Authors:
+ *    Rickard E. (Rik) Faith <faith@precisioninsight.com>
  *
  */
+/* $XFree86: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/kernel/sis_context.c,v 1.2 2000/08/04 03:51:47 tsi Exp $ */
+
+#include <linux/sched.h>
 
 #define __NO_VERSION__
 #include "drmP.h"
-#include "r128_drv.h"
-#include <linux/sched.h>
+#include "sis_drv.h"
 
-extern drm_ctx_t r128_res_ctx;
+extern drm_ctx_t sis_res_ctx;
 
-static int r128_alloc_queue(drm_device_t *dev)
+static int sis_alloc_queue(drm_device_t *dev)
 {
-	return drm_ctxbitmap_next(dev);
+	static int context = 0;
+
+	return ++context;	/* Should this reuse contexts in the future? */
 }
 
-int r128_context_switch(drm_device_t *dev, int old, int new)
+int sis_context_switch(drm_device_t *dev, int old, int new)
 {
         char        buf[64];
 
@@ -63,7 +67,7 @@ int r128_context_switch(drm_device_t *dev, int old, int new)
         }
         
         if (drm_flags & DRM_FLAG_NOCTX) {
-                r128_context_switch_complete(dev, new);
+                sis_context_switch_complete(dev, new);
         } else {
                 sprintf(buf, "C %d %d\n", old, new);
                 drm_write_string(dev, buf);
@@ -72,7 +76,7 @@ int r128_context_switch(drm_device_t *dev, int old, int new)
         return 0;
 }
 
-int r128_context_switch_complete(drm_device_t *dev, int new)
+int sis_context_switch_complete(drm_device_t *dev, int new)
 {
         dev->last_context = new;  /* PRE/POST: This is the _only_ writer. */
         dev->last_switch  = jiffies;
@@ -96,7 +100,7 @@ int r128_context_switch_complete(drm_device_t *dev, int new)
 }
 
 
-int r128_resctx(struct inode *inode, struct file *filp, unsigned int cmd,
+int sis_resctx(struct inode *inode, struct file *filp, unsigned int cmd,
 	       unsigned long arg)
 {
 	drm_ctx_res_t	res;
@@ -121,7 +125,7 @@ int r128_resctx(struct inode *inode, struct file *filp, unsigned int cmd,
 }
 
 
-int r128_addctx(struct inode *inode, struct file *filp, unsigned int cmd,
+int sis_addctx(struct inode *inode, struct file *filp, unsigned int cmd,
 	       unsigned long arg)
 {
 	drm_file_t	*priv	= filp->private_data;
@@ -129,33 +133,31 @@ int r128_addctx(struct inode *inode, struct file *filp, unsigned int cmd,
 	drm_ctx_t	ctx;
 
 	copy_from_user_ret(&ctx, (drm_ctx_t *)arg, sizeof(ctx), -EFAULT);
-	if ((ctx.handle = r128_alloc_queue(dev)) == DRM_KERNEL_CONTEXT) {
+	if ((ctx.handle = sis_alloc_queue(dev)) == DRM_KERNEL_CONTEXT) {
 				/* Skip kernel's context and get a new one. */
-		ctx.handle = r128_alloc_queue(dev);
+		ctx.handle = sis_alloc_queue(dev);
 	}
 	DRM_DEBUG("%d\n", ctx.handle);
-	if (ctx.handle == -1) {
-		DRM_DEBUG("Not enough free contexts.\n");
-				/* Should this return -EBUSY instead? */
-		return -ENOMEM;
-	}
-
+	
+	/* new added */
+	sis_init_context(ctx.handle);
+	
 	copy_to_user_ret((drm_ctx_t *)arg, &ctx, sizeof(ctx), -EFAULT);
 	return 0;
 }
 
-int r128_modctx(struct inode *inode, struct file *filp, unsigned int cmd,
+int sis_modctx(struct inode *inode, struct file *filp, unsigned int cmd,
 	unsigned long arg)
 {
 	drm_ctx_t ctx;
 
 	copy_from_user_ret(&ctx, (drm_ctx_t*)arg, sizeof(ctx), -EFAULT);
 	if (ctx.flags==_DRM_CONTEXT_PRESERVED)
-		r128_res_ctx.handle=ctx.handle;
+		sis_res_ctx.handle=ctx.handle;
 	return 0;
 }
 
-int r128_getctx(struct inode *inode, struct file *filp, unsigned int cmd,
+int sis_getctx(struct inode *inode, struct file *filp, unsigned int cmd,
 	unsigned long arg)
 {
 	drm_ctx_t ctx;
@@ -167,7 +169,7 @@ int r128_getctx(struct inode *inode, struct file *filp, unsigned int cmd,
 	return 0;
 }
 
-int r128_switchctx(struct inode *inode, struct file *filp, unsigned int cmd,
+int sis_switchctx(struct inode *inode, struct file *filp, unsigned int cmd,
 		   unsigned long arg)
 {
 	drm_file_t	*priv	= filp->private_data;
@@ -176,10 +178,10 @@ int r128_switchctx(struct inode *inode, struct file *filp, unsigned int cmd,
 
 	copy_from_user_ret(&ctx, (drm_ctx_t *)arg, sizeof(ctx), -EFAULT);
 	DRM_DEBUG("%d\n", ctx.handle);
-	return r128_context_switch(dev, dev->last_context, ctx.handle);
+	return sis_context_switch(dev, dev->last_context, ctx.handle);
 }
 
-int r128_newctx(struct inode *inode, struct file *filp, unsigned int cmd,
+int sis_newctx(struct inode *inode, struct file *filp, unsigned int cmd,
 		unsigned long arg)
 {
 	drm_file_t	*priv	= filp->private_data;
@@ -188,21 +190,24 @@ int r128_newctx(struct inode *inode, struct file *filp, unsigned int cmd,
 
 	copy_from_user_ret(&ctx, (drm_ctx_t *)arg, sizeof(ctx), -EFAULT);
 	DRM_DEBUG("%d\n", ctx.handle);
-	r128_context_switch_complete(dev, ctx.handle);
+	sis_context_switch_complete(dev, ctx.handle);
 
 	return 0;
 }
 
-int r128_rmctx(struct inode *inode, struct file *filp, unsigned int cmd,
+int sis_rmctx(struct inode *inode, struct file *filp, unsigned int cmd,
 	       unsigned long arg)
 {
-	drm_file_t	*priv	= filp->private_data;
-	drm_device_t	*dev	= priv->dev;
 	drm_ctx_t	ctx;
 
 	copy_from_user_ret(&ctx, (drm_ctx_t *)arg, sizeof(ctx), -EFAULT);
 	DRM_DEBUG("%d\n", ctx.handle);
-	drm_ctxbitmap_free(dev, ctx.handle);
+				/* This is currently a noop because we
+				   don't reuse context values.  Perhaps we
+				   should? */
+	
+	/* new added */
+	sis_final_context(ctx.handle);
 
 	return 0;
 }

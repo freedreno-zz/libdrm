@@ -77,8 +77,6 @@ typedef struct drm_i810_private {
 } drm_i810_private_t;
 
 				/* i810_drv.c */
-extern int  i810_init(void);
-extern void i810_cleanup(void);
 extern int  i810_version(struct inode *inode, struct file *filp,
 			  unsigned int cmd, unsigned long arg);
 extern int  i810_open(struct inode *inode, struct file *filp);
@@ -106,7 +104,10 @@ extern void i810_reclaim_buffers(drm_device_t *dev, pid_t pid);
 extern int  i810_getage(struct inode *inode, struct file *filp, unsigned int cmd,
 			unsigned long arg);
 extern int i810_mmap_buffers(struct file *filp, struct vm_area_struct *vma);
-
+extern int i810_copybuf(struct inode *inode, struct file *filp, 
+			unsigned int cmd, unsigned long arg);
+extern int i810_docopy(struct inode *inode, struct file *filp, 
+		       unsigned int cmd, unsigned long arg);
 
 				/* i810_bufs.c */
 extern int  i810_addbufs(struct inode *inode, struct file *filp, 

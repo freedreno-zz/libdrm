@@ -24,6 +24,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 # 
+# $XFree86: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/kernel/Makefile.linux,v 1.9 2000/08/04 03:51:47 tsi Exp $
 #
 # ***** NOTE NOTE NOTE NOTE NOTE *****
 # To override the automatic Linux source tree determination, pass the
@@ -53,7 +54,7 @@ PROGS=		drmstat
 
 DRMOBJS=	init.o memory.o proc.o auth.o context.o drawable.o bufs.o \
 		lists.o lock.o ioctl.o fops.o vm.o dma.o ctxbitmap.o
-DRMHEADERS=	drm.h drmP.h
+DRMHEADERS=	drm.h drmP.h compat-pre24.h
 
 GAMMAOBJS=      gamma_drv.o gamma_dma.o
 GAMMAHEADERS=   gamma_drv.h $(DRMHEADERS)
@@ -71,8 +72,9 @@ INC=		/usr/include
 
 CFLAGS=		-O2 $(WARNINGS)
 WARNINGS=	-Wall -Wwrite-strings -Wpointer-arith -Wcast-align \
-		-Wstrict-prototypes -Wshadow -Wnested-externs \
-		-Winline -Wpointer-arith
+		-Wstrict-prototypes -Wnested-externs \
+		-Wpointer-arith
+# -Wshadow -Winline -- make output too noisy
 MODCFLAGS=      $(CFLAGS) -D__KERNEL__ -DMODULE -fomit-frame-pointer
 PRGCFLAGS=      $(CFLAGS) -g -ansi -pedantic -DPOSIX_C_SOURCE=199309L \
 		-D_POSIX_SOURCE -D_XOPEN_SOURCE -D_BSD_SOURCE -D_SVID_SOURCE \
@@ -120,6 +122,8 @@ MODVERSIONS := $(shell gcc -E -I $(TREE) picker.c 2>/dev/null \
 	| grep -s 'MODVERSIONS = ' | cut -d' ' -f3)
 AGP := $(shell gcc -E -nostdinc -I$(TREE) picker.c 2>/dev/null \
 	| grep -s 'AGP = ' | cut -d' ' -f3)
+SIS := $(shell gcc -E -nostdinc -I$(TREE) picker.c 2>/dev/null \
+	| grep -s 'SIS = ' | cut -d' ' -f3)
 PARAMS := $(shell if fgrep kill_fasync $(TREE)/linux/fs.h \
 	| fgrep -q band; then echo 3; else echo 2; fi)
 MACHINE := $(shell echo `uname -m`)
@@ -129,7 +133,7 @@ AGP := $(shell gcc -E -nostdinc -I$(TREE) picker.c 2>/dev/null \
 endif
 
 ifeq ($(AGP),1)
-MODCFLAGS += -DDRM_AGP
+MODCFLAGS += -DCONFIG_AGP -DCONFIG_AGP_MODULE
 DRMOBJS += agpsupport.o
 MODS += mga.o
 ifeq ($(MACHINE),i386)
@@ -144,8 +148,21 @@ I810OBJS=	i810_drv.o i810_dma.o i810_bufs.o i810_context.o
 I810HEADERS=	i810_drv.h $(DRMHEADERS)
 endif
 
+ifeq ($(SIS),1)
+# It appears that the SiS driver makes calls to sis_malloc and sis_free, and
+# that these calls are only defined if CONFIG_FB_SIS is selected.  So, key
+# off that to determine if we should attempt to build the SiS driver.
+#
+# A better way would be to detect the appropriate definitions in the header
+# file to see if we can, at least, compile the driver.
+MODS += sis.o
+
+SISOBJS=	sis_drv.o sis_context.o sis_ds.o sis_mm.o
+SISHEADERS=	sis_drv.h sis_ds.h sis_drm.h $(DRMHEADERS)
+endif
+
 all::;@echo === KERNEL HEADERS IN $(TREE)
-all::;@echo === SMP=${SMP} MODVERSIONS=${MODVERSIONS} AGP=${AGP}
+all::;@echo === SMP=${SMP} MODVERSIONS=${MODVERSIONS} AGP=${AGP} SIS=${SIS}
 all::;@echo === kill_fasync has $(PARAMS) parameters
 all::;@echo === Compiling for machine $(MACHINE)
 all:: $(LIBS) $(MODS) $(PROGS)
@@ -170,19 +187,32 @@ libdrm.a: $(DRMOBJS)
 	-$(RM) -f $@
 	$(AR) rcs $@ $(DRMOBJS)
 
+gamma_drv.o: gamma_drv.c
+	$(CC) $(MODCFLAGS) -DEXPORT_SYMTAB -I$(TREE) -c $< -o $@
 gamma.o: $(GAMMAOBJS) $(LIBS)
 	$(LD) -r $^ -o $@
 
+tdfx_drv.o: tdfx_drv.c
+	$(CC) $(MODCFLAGS) -DEXPORT_SYMTAB -I$(TREE) -c $< -o $@
 tdfx.o: $(TDFXOBJS) $(LIBS)
 	$(LD) -r $^ -o $@
 
+r128_drv.o: r128_drv.c
+	$(CC) $(MODCFLAGS) -DEXPORT_SYMTAB -I$(TREE) -c $< -o $@
 r128.o: $(R128OBJS) $(LIBS)
 	$(LD) -r $^ -o $@
 
+sis.o: $(SISOBJS) $(LIBS)
+	$(LD) -r $^ -o $@
+
 ifeq ($(AGP),1)
+mga_drv.o: mga_drv.c
+	$(CC) $(MODCFLAGS) -DEXPORT_SYMTAB -I$(TREE) -c $< -o $@
 mga.o: $(MGAOBJS) $(LIBS)
 	$(LD) -r $^ -o $@
 
+i810_drv.o: i810_drv.c
+	$(CC) $(MODCFLAGS) -DEXPORT_SYMTAB -I$(TREE) -c $< -o $@
 i810.o: $(I810OBJS) $(LIBS)
 	$(LD) -r $^ -o $@
 endif
@@ -194,7 +224,9 @@ drmstat: $(PROGOBJS)
 ChangeLog:
 	@rm -f Changelog
 	@rcs2log -i 2 -r -l \
-		| sed 's,@.*alephnull.com,@precisioninsight.com,' > ChangeLog
+		| sed 's,@.*light,,' \
+		| sed 's,/cvsroot/.*/drm/kernel/,,g' \
+		> ChangeLog
 
 
 # .o files are used for modules
@@ -203,7 +235,6 @@ ChangeLog:
 
 %.po: %.c
 	$(CC) $(PRGCFLAGS) -DDRM_USE_MALLOC -c $< -o $@
-
 
 $(DRMOBJS): $(DRMHEADERS)
 $(GAMMAOBJS): $(GAMMAHEADERS)

@@ -39,8 +39,8 @@
 
 typedef struct {
 	u32 buffer_status;
-   	unsigned int num_dwords;
-   	unsigned int max_dwords;
+   	int num_dwords;
+   	int max_dwords;
    	u32 *current_dma_ptr;
    	u32 *head;
    	u32 phys_head;
@@ -82,6 +82,7 @@ typedef struct _drm_mga_private {
 	int use_agp;
    	drm_mga_warp_index_t WarpIndex[MGA_MAX_G400_PIPES];
 	unsigned int WarpPipe;
+	unsigned int vertexsize;
    	atomic_t pending_bufs;
    	void *status_page;
    	unsigned long real_status_page;
@@ -102,8 +103,6 @@ typedef struct _drm_mga_private {
 } drm_mga_private_t;
 
 				/* mga_drv.c */
-extern int  mga_init(void);
-extern void mga_cleanup(void);
 extern int  mga_version(struct inode *inode, struct file *filp,
 			  unsigned int cmd, unsigned long arg);
 extern int  mga_open(struct inode *inode, struct file *filp);
@@ -211,19 +210,26 @@ typedef struct {
 #define PRIMLOCALS	u8 tempIndex[4]; u32 *dma_ptr; u32 phys_head; \
 			int outcount, num_dwords
 
-#define PRIM_OVERFLOW(dev, dev_priv, length) do {			\
-	drm_mga_prim_buf_t *tmp_buf =					\
- 		dev_priv->prim_bufs[dev_priv->current_prim_idx];	\
-	if( test_bit(MGA_BUF_NEEDS_OVERFLOW,				\
-		  &tmp_buf->buffer_status)) {				\
- 		mga_advance_primary(dev);				\
- 		mga_dma_schedule(dev, 1);				\
- 	} else if( tmp_buf->max_dwords - tmp_buf->num_dwords < length ||\
- 	    tmp_buf->sec_used > MGA_DMA_BUF_NR/2) {			\
-		set_bit(MGA_BUF_FORCE_FIRE, &tmp_buf->buffer_status);	\
- 		mga_advance_primary(dev);				\
- 		mga_dma_schedule(dev, 1);				\
-	}								\
+#define PRIM_OVERFLOW(dev, dev_priv, length) do {			   \
+	drm_mga_prim_buf_t *tmp_buf =					   \
+ 		dev_priv->prim_bufs[dev_priv->current_prim_idx];	   \
+	if( test_bit(MGA_BUF_NEEDS_OVERFLOW, &tmp_buf->buffer_status)) {   \
+ 		mga_advance_primary(dev);				   \
+ 		mga_dma_schedule(dev, 1);				   \
+		tmp_buf = dev_priv->prim_bufs[dev_priv->current_prim_idx]; \
+ 	} else if( tmp_buf->max_dwords - tmp_buf->num_dwords < length ||   \
+ 	           tmp_buf->sec_used > MGA_DMA_BUF_NR/2) {		   \
+		set_bit(MGA_BUF_FORCE_FIRE, &tmp_buf->buffer_status);	   \
+ 		mga_advance_primary(dev);				   \
+ 		mga_dma_schedule(dev, 1);				   \
+		tmp_buf = dev_priv->prim_bufs[dev_priv->current_prim_idx]; \
+	}								   \
+	if(MGA_VERBOSE)							   \
+		DRM_DEBUG("PRIMGETPTR in %s\n", __FUNCTION__);		   \
+	dma_ptr = tmp_buf->current_dma_ptr;				   \
+	num_dwords = tmp_buf->num_dwords;				   \
+	phys_head = tmp_buf->phys_head;					   \
+	outcount = 0;							   \
 } while(0)
 
 #define PRIMGETPTR(dev_priv) do {					\

@@ -1,8 +1,6 @@
-/* tdfx.c -- tdfx driver -*- linux-c -*-
- * Created: Thu Oct  7 10:38:32 1999 by faith@precisioninsight.com
+/* sis.c -- sis driver -*- linux-c -*-
  *
- * Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
- * Copyright 2000 VA Linux Systems, Inc., Sunnyvale, California.
+ * Copyright 1999, 2000 Precision Insight, Inc., Cedar Park, Texas.
  * All Rights Reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -23,50 +21,43 @@
  * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
- * 
- * Authors:
- *    Rickard E. (Rik) Faith <faith@valinux.com>
- *    Daryll Strauss <daryll@valinux.com>
  *
  */
 
 #include <linux/config.h>
 #include "drmP.h"
-#include "tdfx_drv.h"
+#include "sis_drm.h"
+#include "sis_drv.h"
 
-#define TDFX_NAME	 "tdfx"
-#define TDFX_DESC	 "3dfx Banshee/Voodoo3+"
-#define TDFX_DATE	 "20000719"
-#define TDFX_MAJOR	 1
-#define TDFX_MINOR	 0
-#define TDFX_PATCHLEVEL  0
+#define SIS_NAME	 "sis"
+#define SIS_DESC	 "sis"
+#define SIS_DATE	 "19991009"
+#define SIS_MAJOR	 0
+#define SIS_MINOR	 0
+#define SIS_PATCHLEVEL  1
 
-static drm_device_t	      tdfx_device;
-drm_ctx_t	              tdfx_res_ctx;
+static drm_device_t	      sis_device;
+drm_ctx_t	              sis_res_ctx;
 
-static struct file_operations tdfx_fops = {
-#if LINUX_VERSION_CODE >= 0x020400
-				/* This started being used during 2.4.0-test */
-	owner:   THIS_MODULE,
-#endif
-	open:	 tdfx_open,
+static struct file_operations sis_fops = {
+	open:	 sis_open,
 	flush:	 drm_flush,
-	release: tdfx_release,
-	ioctl:	 tdfx_ioctl,
+	release: sis_release,
+	ioctl:	 sis_ioctl,
 	mmap:	 drm_mmap,
 	read:	 drm_read,
 	fasync:	 drm_fasync,
 	poll:	 drm_poll,
 };
 
-static struct miscdevice      tdfx_misc = {
+static struct miscdevice      sis_misc = {
 	minor: MISC_DYNAMIC_MINOR,
-	name:  TDFX_NAME,
-	fops:  &tdfx_fops,
+	name:  SIS_NAME,
+	fops:  &sis_fops,
 };
 
-static drm_ioctl_desc_t	      tdfx_ioctls[] = {
-	[DRM_IOCTL_NR(DRM_IOCTL_VERSION)]    = { tdfx_version,	  0, 0 },
+static drm_ioctl_desc_t	      sis_ioctls[] = {
+	[DRM_IOCTL_NR(DRM_IOCTL_VERSION)]    = { sis_version,	  0, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_GET_UNIQUE)] = { drm_getunique,	  0, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_GET_MAGIC)]  = { drm_getmagic,	  0, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_IRQ_BUSID)]  = { drm_irq_busid,	  0, 1 },
@@ -74,58 +65,60 @@ static drm_ioctl_desc_t	      tdfx_ioctls[] = {
 	[DRM_IOCTL_NR(DRM_IOCTL_SET_UNIQUE)] = { drm_setunique,	  1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_BLOCK)]	     = { drm_block,	  1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_UNBLOCK)]    = { drm_unblock,	  1, 1 },
+
 	[DRM_IOCTL_NR(DRM_IOCTL_AUTH_MAGIC)] = { drm_authmagic,	  1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_ADD_MAP)]    = { drm_addmap,	  1, 1 },
-	
-	[DRM_IOCTL_NR(DRM_IOCTL_ADD_CTX)]    = { tdfx_addctx,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_RM_CTX)]     = { tdfx_rmctx,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_MOD_CTX)]    = { tdfx_modctx,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_GET_CTX)]    = { tdfx_getctx,	  1, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_SWITCH_CTX)] = { tdfx_switchctx,  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_NEW_CTX)]    = { tdfx_newctx,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_RES_CTX)]    = { tdfx_resctx,	  1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_ADD_CTX)]    = { sis_addctx,	  1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_RM_CTX)]     = { sis_rmctx,	  1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_MOD_CTX)]    = { sis_modctx,	  1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_GET_CTX)]    = { sis_getctx,	  1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_SWITCH_CTX)] = { sis_switchctx,   1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_NEW_CTX)]    = { sis_newctx,	  1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_RES_CTX)]    = { sis_resctx,	  1, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_ADD_DRAW)]   = { drm_adddraw,	  1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_RM_DRAW)]    = { drm_rmdraw,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_LOCK)]	     = { tdfx_lock,	  1, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_UNLOCK)]     = { tdfx_unlock,	  1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_LOCK)]	     = { sis_lock,	  1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_UNLOCK)]     = { sis_unlock,	  1, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_FINISH)]     = { drm_finish,	  1, 0 },
-#if defined(CONFIG_AGP) || defined(CONFIG_AGP_MODULE)
-	[DRM_IOCTL_NR(DRM_IOCTL_AGP_ACQUIRE)]   = {drm_agp_acquire, 1, 1},
-	[DRM_IOCTL_NR(DRM_IOCTL_AGP_RELEASE)]   = {drm_agp_release, 1, 1},
-	[DRM_IOCTL_NR(DRM_IOCTL_AGP_ENABLE)]    = {drm_agp_enable,  1, 1},
-	[DRM_IOCTL_NR(DRM_IOCTL_AGP_INFO)]      = {drm_agp_info,    1, 1},
-	[DRM_IOCTL_NR(DRM_IOCTL_AGP_ALLOC)]     = {drm_agp_alloc,   1, 1},
-	[DRM_IOCTL_NR(DRM_IOCTL_AGP_FREE)]      = {drm_agp_free,    1, 1},
-	[DRM_IOCTL_NR(DRM_IOCTL_AGP_BIND)]      = {drm_agp_unbind,  1, 1},
-	[DRM_IOCTL_NR(DRM_IOCTL_AGP_UNBIND)]    = {drm_agp_bind,    1, 1},
+
+#ifdef DRM_AGP
+	[DRM_IOCTL_NR(DRM_IOCTL_AGP_ACQUIRE)] = { drm_agp_acquire, 1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_AGP_RELEASE)] = { drm_agp_release, 1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_AGP_ENABLE)]  = { drm_agp_enable,  1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_AGP_INFO)]    = { drm_agp_info,    1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_AGP_ALLOC)]   = { drm_agp_alloc,   1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_AGP_FREE)]    = { drm_agp_free,    1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_AGP_BIND)]    = { drm_agp_bind,    1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_AGP_UNBIND)]  = { drm_agp_unbind,  1, 1 },
+#endif
+
+        /* FB Memory Management */
+        [DRM_IOCTL_NR(SIS_IOCTL_FB_ALLOC)]   = { sis_fb_alloc,	  1, 1 },
+        [DRM_IOCTL_NR(SIS_IOCTL_FB_FREE)]    = { sis_fb_free,	  1, 1 },
+
+        /* AGP Memory Management */
+        [DRM_IOCTL_NR(SIS_IOCTL_AGP_INIT)]   = { sis_agp_init,	  1, 1 },
+        [DRM_IOCTL_NR(SIS_IOCTL_AGP_ALLOC)]  = { sis_agp_alloc,	  1, 1 },
+        [DRM_IOCTL_NR(SIS_IOCTL_AGP_FREE)]   = { sis_agp_free,	  1, 1 },
+        
+#if defined(SIS_STEREO)
+	[DRM_IOCTL_NR(DRM_IOCTL_CONTROL)]    = { sis_control,	  1, 1 },
+        [DRM_IOCTL_NR(SIS_IOCTL_FLIP)]       = { sis_flip,	  1, 1 },
+        [DRM_IOCTL_NR(SIS_IOCTL_FLIP_INIT)]  = { sis_flip_init,	  1, 1 },
+        [DRM_IOCTL_NR(SIS_IOCTL_FLIP_FINAL)] = { sis_flip_final,  1, 1 },
 #endif
 };
-#define TDFX_IOCTL_COUNT DRM_ARRAY_SIZE(tdfx_ioctls)
+#define SIS_IOCTL_COUNT DRM_ARRAY_SIZE(sis_ioctls)
 
 #ifdef MODULE
-static char		      *tdfx = NULL;
+static char		      *sis = NULL;
 #endif
 
-MODULE_AUTHOR("VA Linux Systems, Inc.");
-MODULE_DESCRIPTION("tdfx");
-MODULE_PARM(tdfx, "s");
+MODULE_AUTHOR("Precision Insight, Inc., Cedar Park, Texas.");
+MODULE_DESCRIPTION("sis");
+MODULE_PARM(sis, "s");
 
-#ifndef MODULE
-/* tdfx_options is called by the kernel to parse command-line options
- * passed via the boot-loader (e.g., LILO).  It calls the insmod option
- * routine, drm_parse_drm.
- */
-
-static int __init tdfx_options(char *str)
-{
-	drm_parse_options(str);
-	return 1;
-}
-
-__setup("tdfx=", tdfx_options);
-#endif
-
-static int tdfx_setup(drm_device_t *dev)
+static int sis_setup(drm_device_t *dev)
 {
 	int i;
 	
@@ -178,7 +171,7 @@ static int tdfx_setup(drm_device_t *dev)
 	init_waitqueue_head(&dev->buf_readers);
 	init_waitqueue_head(&dev->buf_writers);
 
-	tdfx_res_ctx.handle=-1;
+	sis_res_ctx.handle=-1;
 			
 	DRM_DEBUG("\n");
 			
@@ -192,7 +185,7 @@ static int tdfx_setup(drm_device_t *dev)
 }
 
 
-static int tdfx_takedown(drm_device_t *dev)
+static int sis_takedown(drm_device_t *dev)
 {
 	int		  i;
 	drm_magic_entry_t *pt, *next;
@@ -200,6 +193,10 @@ static int tdfx_takedown(drm_device_t *dev)
 	drm_vma_entry_t	  *vma, *vma_next;
 
 	DRM_DEBUG("\n");
+
+#if defined(SIS_STEREO)
+	if (dev->irq) sis_irq_uninstall(dev);
+#endif
 
 	down(&dev->struct_sem);
 	del_timer(&dev->timer);
@@ -222,22 +219,30 @@ static int tdfx_takedown(drm_device_t *dev)
 		}
 		dev->magiclist[i].head = dev->magiclist[i].tail = NULL;
 	}
-#if defined(CONFIG_AGP) || defined(CONFIG_AGP_MODULE)
-				/* Clear AGP information */
+#ifdef DRM_AGP
+   				/* Clear AGP information */
 	if (dev->agp) {
-		drm_agp_mem_t *temp;
-		drm_agp_mem_t *temp_next;
-	   
-		temp = dev->agp->memory;
-		while(temp != NULL) {
-			temp_next = temp->next;
-			drm_free_agp(temp->memory, temp->pages);
-			drm_free(temp, sizeof(*temp), DRM_MEM_AGPLISTS);
-			temp = temp_next;
+		drm_agp_mem_t *entry;
+		drm_agp_mem_t *nexte;
+		
+				/* Remove AGP resources, but leave dev->agp
+                                   intact until cleanup is called. */
+		for (entry = dev->agp->memory; entry; entry = nexte) {
+			nexte = entry->next;
+			if (entry->bound) drm_unbind_agp(entry->memory);
+			drm_free_agp(entry->memory, entry->pages);
+			drm_free(entry, sizeof(*entry), DRM_MEM_AGPLISTS);
 		}
-		if (dev->agp->acquired) (*drm_agp.release)();
-	}
+		dev->agp->memory = NULL;
+		
+		if (dev->agp->acquired && drm_agp.release)
+			(*drm_agp.release)();
+		
+		dev->agp->acquired = 0;
+		dev->agp->enabled  = 0;
+	}	
 #endif
+
 				/* Clear vma list (only built for debugging) */
 	if (dev->vmalist) {
 		for (vma = dev->vmalist; vma; vma = vma_next) {
@@ -295,13 +300,13 @@ static int tdfx_takedown(drm_device_t *dev)
 	return 0;
 }
 
-/* tdfx_init is called via init_module at module load time, or via
+/* sis_init is called via init_module at module load time, or via
  * linux/init/main.c (this is not currently supported). */
 
-static int tdfx_init(void)
+int sis_init(void)
 {
 	int		      retcode;
-	drm_device_t	      *dev = &tdfx_device;
+	drm_device_t	      *dev = &sis_device;
 
 	DRM_DEBUG("\n");
 
@@ -310,70 +315,87 @@ static int tdfx_init(void)
 	sema_init(&dev->struct_sem, 1);
 	
 #ifdef MODULE
-	drm_parse_options(tdfx);
+	drm_parse_options(sis);
 #endif
 
-	if ((retcode = misc_register(&tdfx_misc))) {
-		DRM_ERROR("Cannot register \"%s\"\n", TDFX_NAME);
+	if ((retcode = misc_register(&sis_misc))) {
+		DRM_ERROR("Cannot register \"%s\"\n", SIS_NAME);
 		return retcode;
 	}
-	dev->device = MKDEV(MISC_MAJOR, tdfx_misc.minor);
-	dev->name   = TDFX_NAME;
+	dev->device = MKDEV(MISC_MAJOR, sis_misc.minor);
+	dev->name   = SIS_NAME;
 
 	drm_mem_init();
 	drm_proc_init(dev);
-#if defined(CONFIG_AGP) || defined(CONFIG_AGP_MODULE)
+
+#ifdef DRM_AGP
+	DRM_DEBUG("doing agp init\n");
 	dev->agp    = drm_agp_init();
-#endif
-	if((retcode = drm_ctxbitmap_init(dev))) {
-		DRM_ERROR("Cannot allocate memory for context bitmap.\n");
-		drm_proc_cleanup();
-		misc_deregister(&tdfx_misc);
-		tdfx_takedown(dev);
-		return retcode;
+      	if(dev->agp == NULL) {
+	   	/* TODO, if no agp, run MMIO mode */
+	   	DRM_INFO("The sis drm module requires the agpgart module"
+		         " to function correctly\nPlease load the agpgart"
+		         " module before you load the mga module\n");
+	   	drm_proc_cleanup();
+	   	misc_deregister(&sis_misc);
+	   	sis_takedown(dev);
+	   	return -ENOMEM;
 	}
+#ifdef CONFIG_MTRR
+   	dev->agp->agp_mtrr = mtrr_add(dev->agp->agp_info.aper_base,
+				      dev->agp->agp_info.aper_size * 1024 * 1024,
+				      MTRR_TYPE_WRCOMB,
+				      1);
+#endif
+#endif
 
 	DRM_INFO("Initialized %s %d.%d.%d %s on minor %d\n",
-		 TDFX_NAME,
-		 TDFX_MAJOR,
-		 TDFX_MINOR,
-		 TDFX_PATCHLEVEL,
-		 TDFX_DATE,
-		 tdfx_misc.minor);
+		 SIS_NAME,
+		 SIS_MAJOR,
+		 SIS_MINOR,
+		 SIS_PATCHLEVEL,
+		 SIS_DATE,
+		 sis_misc.minor);
 	
 	return 0;
 }
 
-/* tdfx_cleanup is called via cleanup_module at module unload time. */
+/* sis_cleanup is called via cleanup_module at module unload time. */
 
-static void tdfx_cleanup(void)
+void sis_cleanup(void)
 {
-	drm_device_t	      *dev = &tdfx_device;
+	drm_device_t	      *dev = &sis_device;
 
 	DRM_DEBUG("\n");
 	
 	drm_proc_cleanup();
-	if (misc_deregister(&tdfx_misc)) {
+	if (misc_deregister(&sis_misc)) {
 		DRM_ERROR("Cannot unload module\n");
 	} else {
 		DRM_INFO("Module unloaded\n");
 	}
-	drm_ctxbitmap_cleanup(dev);
-	tdfx_takedown(dev);
-#if defined(CONFIG_AGP) || defined(CONFIG_AGP_MODULE)
+#ifdef DRM_AGP
+#ifdef CONFIG_MTRR
+   	if(dev->agp && dev->agp->agp_mtrr) {
+	   	int retval;
+	   	retval = mtrr_del(dev->agp->agp_mtrr, 
+				  dev->agp->agp_info.aper_base,
+				  dev->agp->agp_info.aper_size * 1024*1024);
+	   	DRM_DEBUG("mtrr_del = %d\n", retval);
+	}
+#endif
+#endif
+
+	sis_takedown(dev);
+#ifdef DRM_AGP
 	if (dev->agp) {
-		drm_agp_uninit();
 		drm_free(dev->agp, sizeof(*dev->agp), DRM_MEM_AGPLISTS);
 		dev->agp = NULL;
 	}
 #endif
 }
 
-module_init(tdfx_init);
-module_exit(tdfx_cleanup);
-
-
-int tdfx_version(struct inode *inode, struct file *filp, unsigned int cmd,
+int sis_version(struct inode *inode, struct file *filp, unsigned int cmd,
 		  unsigned long arg)
 {
 	drm_version_t version;
@@ -392,13 +414,13 @@ int tdfx_version(struct inode *inode, struct file *filp, unsigned int cmd,
 		copy_to_user_ret(name, value, len, -EFAULT); \
 	}
 
-	version.version_major	   = TDFX_MAJOR;
-	version.version_minor	   = TDFX_MINOR;
-	version.version_patchlevel = TDFX_PATCHLEVEL;
+	version.version_major	   = SIS_MAJOR;
+	version.version_minor	   = SIS_MINOR;
+	version.version_patchlevel = SIS_PATCHLEVEL;
 
-	DRM_COPY(version.name, TDFX_NAME);
-	DRM_COPY(version.date, TDFX_DATE);
-	DRM_COPY(version.desc, TDFX_DESC);
+	DRM_COPY(version.name, SIS_NAME);
+	DRM_COPY(version.date, SIS_DATE);
+	DRM_COPY(version.desc, SIS_DESC);
 
 	copy_to_user_ret((drm_version_t *)arg,
 			 &version,
@@ -407,41 +429,36 @@ int tdfx_version(struct inode *inode, struct file *filp, unsigned int cmd,
 	return 0;
 }
 
-int tdfx_open(struct inode *inode, struct file *filp)
+int sis_open(struct inode *inode, struct file *filp)
 {
-	drm_device_t  *dev    = &tdfx_device;
+	drm_device_t  *dev    = &sis_device;
 	int	      retcode = 0;
-	
+	       
 	DRM_DEBUG("open_count = %d\n", dev->open_count);
+
 	if (!(retcode = drm_open_helper(inode, filp, dev))) {
-#if LINUX_VERSION_CODE < 0x020333
-		MOD_INC_USE_COUNT; /* Needed before Linux 2.3.51 */
-#endif
+		MOD_INC_USE_COUNT;
 		atomic_inc(&dev->total_open);
 		spin_lock(&dev->count_lock);
 		if (!dev->open_count++) {
 			spin_unlock(&dev->count_lock);
-			return tdfx_setup(dev);
+			return sis_setup(dev);
 		}
 		spin_unlock(&dev->count_lock);
 	}
 	return retcode;
 }
 
-int tdfx_release(struct inode *inode, struct file *filp)
+int sis_release(struct inode *inode, struct file *filp)
 {
 	drm_file_t    *priv   = filp->private_data;
-	drm_device_t  *dev;
+	drm_device_t  *dev    = priv->dev;
 	int	      retcode = 0;
 
-	lock_kernel();
-	dev = priv->dev;
-
 	DRM_DEBUG("open_count = %d\n", dev->open_count);
+
 	if (!(retcode = drm_release(inode, filp))) {
-#if LINUX_VERSION_CODE < 0x020333
-		MOD_DEC_USE_COUNT; /* Needed before Linux 2.3.51 */
-#endif
+		MOD_DEC_USE_COUNT;
 		atomic_inc(&dev->total_close);
 		spin_lock(&dev->count_lock);
 		if (!--dev->open_count) {
@@ -450,23 +467,19 @@ int tdfx_release(struct inode *inode, struct file *filp)
 					  atomic_read(&dev->ioctl_count),
 					  dev->blocked);
 				spin_unlock(&dev->count_lock);
-				unlock_kernel();
 				return -EBUSY;
 			}
 			spin_unlock(&dev->count_lock);
-			unlock_kernel();
-			return tdfx_takedown(dev);
+			return sis_takedown(dev);
 		}
 		spin_unlock(&dev->count_lock);
 	}
-
-	unlock_kernel();
 	return retcode;
 }
 
-/* tdfx_ioctl is called whenever a process performs an ioctl on /dev/drm. */
+/* sis_ioctl is called whenever a process performs an ioctl on /dev/drm. */
 
-int tdfx_ioctl(struct inode *inode, struct file *filp, unsigned int cmd,
+int sis_ioctl(struct inode *inode, struct file *filp, unsigned int cmd,
 		unsigned long arg)
 {
 	int		 nr	 = DRM_IOCTL_NR(cmd);
@@ -483,10 +496,10 @@ int tdfx_ioctl(struct inode *inode, struct file *filp, unsigned int cmd,
 	DRM_DEBUG("pid = %d, cmd = 0x%02x, nr = 0x%02x, dev 0x%x, auth = %d\n",
 		  current->pid, cmd, nr, dev->device, priv->authenticated);
 
-	if (nr >= TDFX_IOCTL_COUNT) {
+	if (nr >= SIS_IOCTL_COUNT) {
 		retcode = -EINVAL;
 	} else {
-		ioctl	  = &tdfx_ioctls[nr];
+		ioctl	  = &sis_ioctls[nr];
 		func	  = ioctl->func;
 
 		if (!func) {
@@ -504,7 +517,7 @@ int tdfx_ioctl(struct inode *inode, struct file *filp, unsigned int cmd,
 	return retcode;
 }
 
-int tdfx_lock(struct inode *inode, struct file *filp, unsigned int cmd,
+int sis_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 	      unsigned long arg)
 {
         drm_file_t        *priv   = filp->private_data;
@@ -532,7 +545,7 @@ int tdfx_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 
 #if 0
 				/* dev->queue_count == 0 right now for
-                                   tdfx.  FIXME? */
+                                   sis.  FIXME? */
         if (lock.context < 0 || lock.context >= dev->queue_count)
                 return -EINVAL;
 #endif
@@ -543,7 +556,7 @@ int tdfx_lock(struct inode *inode, struct file *filp, unsigned int cmd,
                     != lock.context) {
                         long j = jiffies - dev->lock.lock_time;
 
-                        if (lock.context == tdfx_res_ctx.handle &&
+                        if (lock.context == sis_res_ctx.handle &&
 				j >= 0 && j < DRM_LOCK_SLICE) {
                                 /* Can't take lock if we just had it and
                                    there is contention. */
@@ -575,9 +588,7 @@ int tdfx_lock(struct inode *inode, struct file *filp, unsigned int cmd,
                                 /* Contention */
                         atomic_inc(&dev->total_sleeps);
                         current->state = TASK_INTERRUPTIBLE;
-#if 1
 			current->policy |= SCHED_YIELD;
-#endif
                         schedule();
                         if (signal_pending(current)) {
                                 ret = -ERESTARTSYS;
@@ -590,12 +601,12 @@ int tdfx_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 
 #if 0
 	if (!ret && dev->last_context != lock.context &&
-		lock.context != tdfx_res_ctx.handle &&
-		dev->last_context != tdfx_res_ctx.handle) {
+		lock.context != sis_res_ctx.handle &&
+		dev->last_context != sis_res_ctx.handle) {
 		add_wait_queue(&dev->context_wait, &entry);
 	        current->state = TASK_INTERRUPTIBLE;
                 /* PRE: dev->last_context != lock.context */
-	        tdfx_context_switch(dev, dev->last_context, lock.context);
+	        sis_context_switch(dev, dev->last_context, lock.context);
 		/* POST: we will wait for the context
                    switch and will dispatch on a later call
                    when dev->last_context == lock.context
@@ -615,7 +626,6 @@ int tdfx_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 #endif
 
         if (!ret) {
-#if LINUX_VERSION_CODE >= 0x020400 /* KERNEL_VERSION(2,4,0) */
 		sigemptyset(&dev->sigmask);
 		sigaddset(&dev->sigmask, SIGSTOP);
 		sigaddset(&dev->sigmask, SIGTSTP);
@@ -624,24 +634,18 @@ int tdfx_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 		dev->sigdata.context = lock.context;
 		dev->sigdata.lock    = dev->lock.hw_lock;
 		block_all_signals(drm_notifier, &dev->sigdata, &dev->sigmask);
-#endif
+
                 if (lock.flags & _DRM_LOCK_READY) {
 				/* Wait for space in DMA/FIFO */
 		}
                 if (lock.flags & _DRM_LOCK_QUIESCENT) {
 				/* Make hardware quiescent */
 #if 0
-                        tdfx_quiescent(dev);
+                        sis_quiescent(dev);
 #endif
 		}
         }
 
-#if LINUX_VERSION_CODE < 0x020400
-	if (lock.context != tdfx_res_ctx.handle) {
-		current->counter = 5;
-		current->priority = DEF_PRIORITY/4;
-	}
-#endif
         DRM_DEBUG("%d %s\n", lock.context, ret ? "interrupted" : "has lock");
 
 #if DRM_DMA_HISTOGRAM
@@ -652,7 +656,7 @@ int tdfx_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 }
 
 
-int tdfx_unlock(struct inode *inode, struct file *filp, unsigned int cmd,
+int sis_unlock(struct inode *inode, struct file *filp, unsigned int cmd,
 		 unsigned long arg)
 {
 	drm_file_t	  *priv	  = filp->private_data;
@@ -682,15 +686,24 @@ int tdfx_unlock(struct inode *inode, struct file *filp, unsigned int cmd,
 		}
 	}
 
-#if LINUX_VERSION_CODE < 0x020400
-	if (lock.context != tdfx_res_ctx.handle) {
-		current->counter = 5;
-		current->priority = DEF_PRIORITY;
-	}
-#endif
-	
-#if LINUX_VERSION_CODE >= 0x020400 /* KERNEL_VERSION(2,4,0) */
 	unblock_all_signals();
-#endif
 	return 0;
 }
+
+module_init(sis_init);
+module_exit(sis_cleanup);
+
+#ifndef MODULE
+/*
+ * sis_setup is called by the kernel to parse command-line options passed
+ * via the boot-loader (e.g., LILO).  It calls the insmod option routine,
+ * drm_parse_options.
+ */
+static int __init sis_options(char *str)
+{
+	drm_parse_options(str);
+	return 1;
+}
+
+__setup("sis=", sis_options);
+#endif

@@ -804,6 +804,15 @@ int gamma_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 	drm_flush_unblock(dev, lock.context, lock.flags); /* cleanup phase */
 	
 	if (!ret) {
+		sigemptyset(&dev->sigmask);
+		sigaddset(&dev->sigmask, SIGSTOP);
+		sigaddset(&dev->sigmask, SIGTSTP);
+		sigaddset(&dev->sigmask, SIGTTIN);
+		sigaddset(&dev->sigmask, SIGTTOU);
+		dev->sigdata.context = lock.context;
+		dev->sigdata.lock    = dev->lock.hw_lock;
+		block_all_signals(drm_notifier, &dev->sigdata, &dev->sigmask);
+
 		if (lock.flags & _DRM_LOCK_READY)
 			gamma_dma_ready(dev);
 		if (lock.flags & _DRM_LOCK_QUIESCENT) {

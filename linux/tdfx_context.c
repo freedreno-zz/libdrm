@@ -30,7 +30,6 @@
  * 
  */
 
-
 #define __NO_VERSION__
 #include "drmP.h"
 #include "tdfx_drv.h"

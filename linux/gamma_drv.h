@@ -25,7 +25,7 @@
  * DEALINGS IN THE SOFTWARE.
  * 
  * Authors:
- *    Rickard E. (Rik) Faith <faith@precisioninsight.com>
+ *    Rickard E. (Rik) Faith <faith@valinux.com>
  * 
  */
 
@@ -33,8 +33,6 @@
 #define _GAMMA_DRV_H_
 
 				/* gamma_drv.c */
-extern int  gamma_init(void);
-extern void gamma_cleanup(void);
 extern int  gamma_version(struct inode *inode, struct file *filp,
 			  unsigned int cmd, unsigned long arg);
 extern int  gamma_open(struct inode *inode, struct file *filp);

@@ -57,8 +57,8 @@ static unsigned long mga_alloc_page(drm_device_t *dev)
 	if(address == 0UL) {
 		return 0;
 	}
-	atomic_inc(&mem_map[MAP_NR((void *) address)].count);
-	set_bit(PG_locked, &mem_map[MAP_NR((void *) address)].flags);
+	atomic_inc(&virt_to_page(address)->count);
+	set_bit(PG_locked, &virt_to_page(address)->flags);
    
 	return address;
 }
@@ -70,9 +70,9 @@ static void mga_free_page(drm_device_t *dev, unsigned long page)
 	if(page == 0UL) {
 		return;
 	}
-	atomic_dec(&mem_map[MAP_NR((void *) page)].count);
-	clear_bit(PG_locked, &mem_map[MAP_NR((void *) page)].flags);
-	wake_up(&mem_map[MAP_NR((void *) page)].wait);
+	atomic_dec(&virt_to_page(page)->count);
+	clear_bit(PG_locked, &virt_to_page(page)->flags);
+	wake_up(&virt_to_page(page)->wait);
 	free_page(page);
 	return;
 }
@@ -388,7 +388,7 @@ void mga_fire_primary(drm_device_t *dev, drm_mga_prim_buf_t *prim)
  	/* We never check for overflow, b/c there is always room */
     	PRIMPTR(prim);
    	if(num_dwords <= 0) {
-		DRM_DEBUG("num_dwords == 0 when dispatched\n");
+		DRM_ERROR("num_dwords == 0 when dispatched\n");
 		goto out_prim_wait;
 	}
  	PRIMOUTREG( MGAREG_DMAPAD, 0);
@@ -431,9 +431,6 @@ void mga_fire_primary(drm_device_t *dev, drm_mga_prim_buf_t *prim)
 
 #ifdef __i386__
    	mga_flush_write_combine();
-#endif
-#ifdef __alpha__
-	mb();
 #endif
     	atomic_inc(&dev_priv->pending_bufs);
        	MGA_WRITE(MGAREG_PRIMADDRESS, phys_head | TT_GENERAL);
@@ -772,7 +769,8 @@ static int mga_dma_initialize(drm_device_t *dev, drm_mga_init_t *init) {
 	dev_priv->mAccess = init->mAccess;
    	init_waitqueue_head(&dev_priv->flush_queue);
 	init_waitqueue_head(&dev_priv->buf_queue);
-	dev_priv->WarpPipe = -1;
+	dev_priv->WarpPipe = 0xff000000;
+	dev_priv->vertexsize = 0;
 
    	DRM_DEBUG("chipset: %d ucode_size: %d backOffset: %x depthOffset: %x\n",
 		  dev_priv->chipset, dev_priv->warp_ucode_size, 
@@ -833,9 +831,6 @@ static int mga_dma_initialize(drm_device_t *dev, drm_mga_init_t *init) {
 	   
 #ifdef __i386__
 		mga_flush_write_combine();
-#endif
-#ifdef __alpha
-		mb();
 #endif
 	   	MGA_WRITE(MGAREG_PRIMADDRESS, phys_head | TT_GENERAL);
 
@@ -1080,6 +1075,15 @@ int mga_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 	}
 	
 	if (!ret) {
+		sigemptyset(&dev->sigmask);
+		sigaddset(&dev->sigmask, SIGSTOP);
+		sigaddset(&dev->sigmask, SIGTSTP);
+		sigaddset(&dev->sigmask, SIGTTIN);
+		sigaddset(&dev->sigmask, SIGTTOU);
+		dev->sigdata.context = lock.context;
+		dev->sigdata.lock    = dev->lock.hw_lock;
+		block_all_signals(drm_notifier, &dev->sigdata, &dev->sigmask);
+
 		if (lock.flags & _DRM_LOCK_QUIESCENT) {
 		   DRM_DEBUG("_DRM_LOCK_QUIESCENT\n");
 		   mga_flush_queue(dev);

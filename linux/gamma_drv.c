@@ -30,12 +30,8 @@
  */
 
 #include <linux/config.h>
-#define EXPORT_SYMTAB
 #include "drmP.h"
 #include "gamma_drv.h"
-#include <linux/pci.h>
-EXPORT_SYMBOL(gamma_init);
-EXPORT_SYMBOL(gamma_cleanup);
 
 #ifndef PCI_DEVICE_ID_3DLABS_GAMMA
 #define PCI_DEVICE_ID_3DLABS_GAMMA 0x0008
@@ -46,7 +42,7 @@ EXPORT_SYMBOL(gamma_cleanup);
 
 #define GAMMA_NAME	 "gamma"
 #define GAMMA_DESC	 "3dlabs GMX 2000"
-#define GAMMA_DATE	 "20000606"
+#define GAMMA_DATE	 "20000719"
 #define GAMMA_MAJOR	 1
 #define GAMMA_MINOR	 0
 #define GAMMA_PATCHLEVEL 0
@@ -54,6 +50,10 @@ EXPORT_SYMBOL(gamma_cleanup);
 static drm_device_t	      gamma_device;
 
 static struct file_operations gamma_fops = {
+#if LINUX_VERSION_CODE >= 0x020400
+				/* This started being used during 2.4.0-test */
+	owner:   THIS_MODULE,
+#endif
 	open:	 gamma_open,
 	flush:	 drm_flush,
 	release: gamma_release,
@@ -105,49 +105,30 @@ static drm_ioctl_desc_t	      gamma_ioctls[] = {
 #define GAMMA_IOCTL_COUNT DRM_ARRAY_SIZE(gamma_ioctls)
 
 #ifdef MODULE
-int			      init_module(void);
-void			      cleanup_module(void);
 static char		      *gamma = NULL;
+#endif
 static int 		      devices = 0;
 
-MODULE_AUTHOR("Precision Insight, Inc., Cedar Park, Texas.");
+MODULE_AUTHOR("VA Linux Systems, Inc.");
 MODULE_DESCRIPTION("3dlabs GMX 2000");
 MODULE_PARM(gamma, "s");
 MODULE_PARM(devices, "i");
-MODULE_PARM_DESC(devices, "devices=x, where x is the number of MX chips on your card\n");
-
-/* init_module is called when insmod is used to load the module */
-
-int init_module(void)
-{
-	return gamma_init();
-}
-
-/* cleanup_module is called when rmmod is used to unload the module */
-
-void cleanup_module(void)
-{
-	gamma_cleanup();
-}
-#endif
-
+MODULE_PARM_DESC(devices,
+		 "devices=x, where x is the number of MX chips on card\n");
 #ifndef MODULE
-/* gamma_setup is called by the kernel to parse command-line options passed
- * via the boot-loader (e.g., LILO).  It calls the insmod option routine,
- * drm_parse_options.
- *
- * This is not currently supported, since it requires changes to
- * linux/init/main.c. */
+/* gamma_options is called by the kernel to parse command-line options
+ * passed via the boot-loader (e.g., LILO).  It calls the insmod option
+ * routine, drm_parse_options.
+ */
  
 
-void __init gamma_setup(char *str, int *ints)
+static int __init gamma_options(char *str)
 {
-	if (ints[0] != 0) {
-		DRM_ERROR("Illegal command line format, ignored\n");
-		return;
-	}
 	drm_parse_options(str);
+	return 1;
 }
+
+__setup("gamma=", gamma_options);
 #endif
 
 static int gamma_setup(drm_device_t *dev)
@@ -284,12 +265,10 @@ static int gamma_takedown(drm_device_t *dev)
 					       - PAGE_SHIFT,
 					       DRM_MEM_SAREA);
 				break;
-#ifdef DRM_AGP
 			case _DRM_AGP:
 				/* Do nothing here, because this is all
                                    handled in the AGP/GART driver. */
 				break;
-#endif
 			}
 			drm_free(map, sizeof(*map), DRM_MEM_MAPS);
 		}
@@ -360,7 +339,7 @@ int gamma_find_devices(void)
 /* gamma_init is called via init_module at module load time, or via
  * linux/init/main.c (this is not currently supported). */
 
-int gamma_init(void)
+static int gamma_init(void)
 {
 	int		      retcode;
 	drm_device_t	      *dev = &gamma_device;
@@ -401,7 +380,7 @@ int gamma_init(void)
 
 /* gamma_cleanup is called via cleanup_module at module unload time. */
 
-void gamma_cleanup(void)
+static void gamma_cleanup(void)
 {
 	drm_device_t	      *dev = &gamma_device;
 
@@ -415,6 +394,10 @@ void gamma_cleanup(void)
 	}
 	gamma_takedown(dev);
 }
+
+module_init(gamma_init);
+module_exit(gamma_cleanup);
+
 
 int gamma_version(struct inode *inode, struct file *filp, unsigned int cmd,
 		  unsigned long arg)
@@ -457,7 +440,9 @@ int gamma_open(struct inode *inode, struct file *filp)
 	
 	DRM_DEBUG("open_count = %d\n", dev->open_count);
 	if (!(retcode = drm_open_helper(inode, filp, dev))) {
-		MOD_INC_USE_COUNT;
+#if LINUX_VERSION_CODE < 0x020333
+		MOD_INC_USE_COUNT; /* Needed before Linux 2.3.51 */
+#endif
 		atomic_inc(&dev->total_open);
 		spin_lock(&dev->count_lock);
 		if (!dev->open_count++) {
@@ -472,12 +457,17 @@ int gamma_open(struct inode *inode, struct file *filp)
 int gamma_release(struct inode *inode, struct file *filp)
 {
 	drm_file_t    *priv   = filp->private_data;
-	drm_device_t  *dev    = priv->dev;
+	drm_device_t  *dev;
 	int	      retcode = 0;
+
+	lock_kernel();
+	dev = priv->dev;
 
 	DRM_DEBUG("open_count = %d\n", dev->open_count);
 	if (!(retcode = drm_release(inode, filp))) {
-		MOD_DEC_USE_COUNT;
+#if LINUX_VERSION_CODE < 0x020333
+		MOD_DEC_USE_COUNT; /* Needed before Linux 2.3.51 */
+#endif
 		atomic_inc(&dev->total_close);
 		spin_lock(&dev->count_lock);
 		if (!--dev->open_count) {
@@ -486,13 +476,16 @@ int gamma_release(struct inode *inode, struct file *filp)
 					  atomic_read(&dev->ioctl_count),
 					  dev->blocked);
 				spin_unlock(&dev->count_lock);
+				unlock_kernel();
 				return -EBUSY;
 			}
 			spin_unlock(&dev->count_lock);
+			unlock_kernel();
 			return gamma_takedown(dev);
 		}
 		spin_unlock(&dev->count_lock);
 	}
+	unlock_kernel();
 	return retcode;
 }
 
@@ -571,5 +564,6 @@ int gamma_unlock(struct inode *inode, struct file *filp, unsigned int cmd,
 						       - dev->lck_start)]);
 #endif
 	
+	unblock_all_signals();
 	return 0;
 }
