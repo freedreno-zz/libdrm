@@ -710,7 +710,7 @@ do {									\
 
 #define RADEON_VERBOSE	0
 
-#define RING_LOCALS	int write; unsigned int mask; volatile u32 *ring;
+#define RING_LOCALS	int write, _nr; unsigned int mask; volatile u32 *ring;
 
 #define BEGIN_RING( n ) do {						\
 	if ( RADEON_VERBOSE ) {						\
@@ -720,7 +720,7 @@ do {									\
 	if ( dev_priv->ring.space <= (n) * sizeof(u32) ) {		\
 		radeon_wait_ring( dev_priv, (n) * sizeof(u32) );	\
 	}								\
-	dev_priv->ring.space -= (n) * sizeof(u32);			\
+	_nr = n; dev_priv->ring.space -= (n) * sizeof(u32);		\
 	ring = dev_priv->ring.start;					\
 	write = dev_priv->ring.tail;					\
 	mask = dev_priv->ring.tail_mask;				\
@@ -732,7 +732,13 @@ do {									\
 			  write, dev_priv->ring.tail );			\
 	}								\
 	radeon_flush_write_combine();					\
-	dev_priv->ring.tail = write;					\
+	if (((dev_priv->ring.tail + _nr) & mask) != write) {		\
+		DRM_ERROR( 						\
+			"ADVANCE_RING(): mismatch: nr: %x write: %x\n",	\
+			((dev_priv->ring.tail + _nr) & mask),		\
+			write);						\
+	} else								\
+		dev_priv->ring.tail = write;				\
 	RADEON_WRITE( RADEON_CP_RB_WPTR, write );			\
 } while (0)
 

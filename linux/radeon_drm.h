@@ -131,6 +131,17 @@ typedef union {
 
 /* Primitive types
  */
+#define RADEON_CP_VC_CNTL_PRIM_TYPE_NONE            0x00000000
+#define RADEON_CP_VC_CNTL_PRIM_TYPE_POINT           0x00000001
+#define RADEON_CP_VC_CNTL_PRIM_TYPE_LINE            0x00000002
+#define RADEON_CP_VC_CNTL_PRIM_TYPE_LINE_STRIP      0x00000003
+#define RADEON_CP_VC_CNTL_PRIM_TYPE_TRI_LIST        0x00000004
+#define RADEON_CP_VC_CNTL_PRIM_TYPE_TRI_FAN         0x00000005
+#define RADEON_CP_VC_CNTL_PRIM_TYPE_TRI_STRIP       0x00000006
+#define RADEON_CP_VC_CNTL_PRIM_TYPE_TRI_TYPE_2      0x00000007
+#define RADEON_CP_VC_CNTL_PRIM_TYPE_RECT_LIST       0x00000008
+#define RADEON_CP_VC_CNTL_PRIM_TYPE_3VRT_POINT_LIST 0x00000009
+#define RADEON_CP_VC_CNTL_PRIM_TYPE_3VRT_LINE_LIST  0x0000000a
 #define RADEON_POINTS			0x1
 #define RADEON_LINES			0x2
 #define RADEON_LINE_STRIP		0x3
@@ -247,11 +258,19 @@ typedef struct {
 typedef struct {
 	unsigned int start;
 	unsigned int finish;
-	unsigned int prim;
-	unsigned int stateidx:16;
+	unsigned int prim:8;
+	unsigned int stateidx:8;
 	unsigned int numverts:16; /* overloaded as offset/64 for elt prims */
         unsigned int vc_format;   /* vertex format */
 } drm_radeon_prim_t;
+
+typedef struct {
+	unsigned int start;
+	unsigned int finish;
+	unsigned int prim;
+	unsigned int numverts; /* overloaded as offset/64 for elt prims */
+        unsigned int vc_format;   /* vertex format */
+} drm_radeon_tcl_prim_t;
 
 typedef struct {
 	drm_radeon_context_regs_t context;
