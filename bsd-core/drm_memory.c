@@ -253,7 +253,7 @@ void *DRM(ioremap)( drm_device_t *dev, drm_local_map_t *map )
 	if (!(pt = pmap_mapdev(map->offset, map->size))) {
 #elif defined(__NetBSD__)
 	if (bus_space_map(map->iot, map->offset, map->size, 
-		BUS_SPACE_MAP_LINEAR, &ioh)) {
+		BUS_SPACE_MAP_LINEAR, &map->ioh)) {
 #endif
 		DRM_SPINLOCK(&DRM(mem_lock));
 		++DRM(mem_stats)[DRM_MEM_MAPPINGS].fail_count;

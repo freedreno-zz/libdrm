@@ -63,4 +63,6 @@ drm_chipinfo_t DRM(devicelist)[] = {
 
 #ifdef __FreeBSD__
 DRIVER_MODULE(mga, pci, mga_driver, mga_devclass, 0, 0);
+#elif defined(__NetBSD__)
+CFDRIVER_DECL(mga, DV_TTY, NULL);
 #endif

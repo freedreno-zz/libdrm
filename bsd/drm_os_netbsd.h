@@ -34,7 +34,7 @@
  
 #define __REALLY_HAVE_AGP	__HAVE_AGP
 
-#define __REALLY_HAVE_MTRR	0
+#define __REALLY_HAVE_MTRR	1
 #define __REALLY_HAVE_SG	0
 
 #if __REALLY_HAVE_AGP
@@ -44,7 +44,7 @@
 
 typedef drm_device_t *device_t;
 
-extern drm_device_t *DRM(devs)[16];
+extern struct cfdriver DRM(cd);
 
 #if DRM_DEBUG
 #undef  DRM_DEBUG_CODE
@@ -73,11 +73,11 @@ extern drm_device_t *DRM(devs)[16];
 #define DRM_UNLOCK 		lockmgr(&dev->dev_lock, LK_RELEASE, NULL)
 #define DRM_SUSER(p)		suser(p->p_ucred, &p->p_acflag)
 #define DRM_TASKQUEUE_ARGS	void *dev, int pending
-#define DRM_IRQ_ARGS		void *device
-#define DRM_DEVICE		drm_device_t *dev = \
-					(DRM(devs)[minor(kdev)])
+#define DRM_IRQ_ARGS		void *arg
+#define DRM_DEVICE		drm_device_t *dev = device_lookup(&DRM(cd), minor(kdev))
 #define DRM_MALLOC(size)	malloc( size, DRM(M_DRM), M_NOWAIT )
-#define DRM_FREE(pt)		free( pt, DRM(M_DRM) )
+/* XXX Get netbsd to add a M_DRM malloc type. */
+#define DRM_FREE(pt)		free( pt, M_AGP )
 #define DRM_VTOPHYS(addr)	vtophys(addr)
 
 #define DRM_READ8(map, offset)		bus_space_read_1(  (map)->iot, (map)->ioh, (offset) )
@@ -117,6 +117,15 @@ do {								\
 	}							\
 } while (0)
 
+#define DRM_HZ hz
+
+#define DRM_WAIT_ON( ret, queue, timeout, condition )		\
+while (!condition) {						\
+	ret = tsleep( (void *)&(queue), PZERO | PCATCH, "drmwtq", (timeout) ); \
+	if ( ret )						\
+		return ret;					\
+}
+
 #define DRM_ERR(v)		v
 
 #define DRM_COPY_TO_USER_IOCTL(arg1, arg2, arg3) \
@@ -133,7 +142,7 @@ do {								\
 #define DRM_READMEMORYBARRIER( map )					\
 	bus_space_barrier((map)->iot, (map)->ioh, 0, (map)->size, BUS_SPACE_BARRIER_READ);
 
-#define DRM_WAKEUP(w) wakeup(w)
+#define DRM_WAKEUP(w) wakeup((void *)w)
 #define DRM_WAKEUP_INT(w) wakeup(w)
 
 #define PAGE_ALIGN(addr) (((addr)+PAGE_SIZE-1)&PAGE_MASK)
@@ -145,6 +154,8 @@ typedef struct drm_chipinfo
 	int supported;
 	char *name;
 } drm_chipinfo_t;
+
+#define cpu_to_le32(x) (x)	/* FIXME */
 
 typedef u_int32_t dma_addr_t;
 typedef volatile long atomic_t;
@@ -173,7 +184,7 @@ typedef vaddr_t vm_offset_t;
 /* Fake this */
 
 static __inline int
-atomic_cmpset_int(int *dst, int old, int new)
+atomic_cmpset_int(__volatile__ int *dst, int old, int new)
 {
 	int s = splhigh();
 	if (*dst==old) {

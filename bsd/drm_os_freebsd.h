@@ -209,7 +209,7 @@ typedef struct drm_chipinfo
 	char *name;
 } drm_chipinfo_t;
 
-#define cpu_to_le32(x) (x)
+#define cpu_to_le32(x) (x)	/* FIXME */
 
 typedef u_int32_t dma_addr_t;
 typedef u_int32_t atomic_t;

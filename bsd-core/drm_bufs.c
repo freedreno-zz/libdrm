@@ -130,10 +130,8 @@ int DRM(addmap)( DRM_IOCTL_ARGS )
 			mtrrmap.base = map->offset;
 			mtrrmap.len = map->size;
 			mtrrmap.type = MTRR_TYPE_WC;
-			mtrrmap.flags = MTRR_PRIVATE | MTRR_VALID;
-			mtrrmap.owner = p->p_pid;
-			/* USER? KERNEL? XXX */
-			map->mtrr = mtrr_get( &mtrrmap, &one, p, MTRR_GETSET_KERNEL );
+			mtrrmap.flags = MTRR_VALID;
+			map->mtrr = mtrr_set( &mtrrmap, &one, p, MTRR_GETSET_KERNEL );
 #endif
 		}
 #endif /* __REALLY_HAVE_MTRR */
