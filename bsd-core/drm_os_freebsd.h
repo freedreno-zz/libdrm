@@ -220,6 +220,23 @@ typedef u_int8_t u8;
 #define atomic_sub(n, p)	atomic_subtract_int(p, n)
 
 /* Fake this */
+
+#if __FreeBSD_version < 500000
+/* The extra atomic functions from 5.0 haven't been merged to 4.x */
+static __inline int
+atomic_cmpset_int(int *dst, int old, int new)
+{
+	int s = splhigh();
+	if (*dst==old) {
+		*dst = new;
+		splx(s);
+		return 1;
+	}
+	splx(s);
+	return 0;
+}
+#endif
+
 static __inline atomic_t
 test_and_set_bit(int b, volatile void *p)
 {
@@ -280,20 +297,6 @@ find_first_zero_bit(volatile void *p, int max)
 #define MODULE_DEPEND(a,b,c,d,e)	struct __hack
 
 #endif
-
-#define __drm_dummy_lock(lock) (*(__volatile__ unsigned int *)lock)
-#define _DRM_CAS(lock,old,new,__ret)				       \
-	do {							       \
-		int __dummy;	/* Can't mark eax as clobbered */      \
-		__asm__ __volatile__(				       \
-			"lock ; cmpxchg %4,%1\n\t"		       \
-			"setnz %0"				       \
-			: "=d" (__ret),				       \
-			  "=m" (__drm_dummy_lock(lock)),	       \
-			  "=a" (__dummy)			       \
-			: "2" (old),				       \
-			  "r" (new));				       \
-	} while (0)
 
 /* Redefinitions to make templating easy */
 #define wait_queue_head_t	atomic_t

@@ -170,6 +170,20 @@ typedef vaddr_t vm_offset_t;
 #define atomic_clear_int(p, bits) *(p) &= ~(bits)
 
 /* Fake this */
+
+static __inline int
+atomic_cmpset_int(int *dst, int old, int new)
+{
+	int s = splhigh();
+	if (*dst==old) {
+		*dst = new;
+		splx(s);
+		return 1;
+	}
+	splx(s);
+	return 0;
+}
+
 static __inline atomic_t
 test_and_set_bit(int b, atomic_t *p)
 {
@@ -218,20 +232,6 @@ find_first_zero_bit(atomic_t *p, int max)
 
 #define spldrm()		spltty()
 #define jiffies			hardclock_ticks
-
-#define __drm_dummy_lock(lock) (*(__volatile__ unsigned int *)lock)
-#define _DRM_CAS(lock,old,new,__ret)				       \
-	do {							       \
-		int __dummy;	/* Can't mark eax as clobbered */      \
-		__asm__ __volatile__(				       \
-			"lock ; cmpxchg %4,%1\n\t"		       \
-			"setnz %0"				       \
-			: "=d" (__ret),				       \
-			  "=m" (__drm_dummy_lock(lock)),	       \
-			  "=a" (__dummy)			       \
-			: "2" (old),				       \
-			  "r" (new));				       \
-	} while (0)
 
 /* Redefinitions to make templating easy */
 #define wait_queue_head_t	atomic_t
