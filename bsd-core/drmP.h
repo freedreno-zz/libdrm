@@ -53,6 +53,10 @@
 #include <sys/taskqueue.h>
 #endif
 
+#if __FreeBSD_version >= 500006
+#define DRM_AGP
+#endif
+
 #ifdef DRM_AGP
 #include <pci/agpvar.h>
 #endif
