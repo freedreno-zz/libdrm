@@ -1,8 +1,7 @@
 /* drmP.h -- Private header for Direct Rendering Manager -*- linux-c -*-
  * Created: Mon Jan  4 10:05:05 1999 by faith@precisioninsight.com
- * Revised: Thu Apr 13 10:32:41 2000 by kevin@precisioninsight.com
  *
- * Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
+ * Copyright 1999, 2000 Precision Insight, Inc., Cedar Park, Texas.
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
