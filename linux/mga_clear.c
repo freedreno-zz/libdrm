@@ -327,7 +327,8 @@ int mga_dma(struct inode *inode, struct file *filp, unsigned int cmd,
 	}
 
 	if (d.send_count) {
-		drm_mga_buf_priv_t *buf_priv = d.buflist[0]->dev_private;
+		int idx = d.send_indices[0];
+		drm_mga_buf_priv_t *buf_priv = dma->buflist[ idx ]->dev_private;
 		drm_mga_private_t *dev_priv = dev->dev_private;
 
 		buf_priv->dma_type = MGA_DMA_VERTEX;
@@ -337,7 +338,7 @@ int mga_dma(struct inode *inode, struct file *filp, unsigned int cmd,
 
 		/* Snapshot the relevent bits of the sarea... 
 		 */
-		mgaCopyAndVerifyState( dev );
+		mgaCopyAndVerifyState( dev_priv, buf_priv );
 
 		retcode = drm_dma_enqueue(dev, &d);
 		mga_dma_schedule(dev, 1);
