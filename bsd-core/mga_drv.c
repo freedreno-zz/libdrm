@@ -31,8 +31,6 @@
 
 
 #include <sys/types.h>
-#include <sys/bus.h>
-#include <pci/pcivar.h>
 
 #include "mga.h"
 #include "drmP.h"

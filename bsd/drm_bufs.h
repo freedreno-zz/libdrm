@@ -29,14 +29,6 @@
  *    Gareth Hughes <gareth@valinux.com>
  */
 
-#define __NO_VERSION__
-#include <machine/param.h>
-#include <sys/mman.h>
-#include <vm/vm.h>
-#include <vm/pmap.h>
-#include <vm/vm_extern.h>
-#include <vm/vm_map.h>
-#include <vm/vm_param.h>
 #include "drmP.h"
 
 #ifndef __HAVE_PCI_DMA

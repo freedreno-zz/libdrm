@@ -1,5 +1,3 @@
-#include <vm/vm.h>
-#include <vm/pmap.h>
 
 static int DRM(dma_mmap)(dev_t kdev, vm_offset_t offset, int prot)
 {

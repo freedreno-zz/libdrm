@@ -34,9 +34,6 @@
 #include "radeon_drm.h"
 #include "radeon_drv.h"
 
-#include <vm/vm.h>
-#include <vm/pmap.h>
-
 #define RADEON_FIFO_DEBUG	0
 
 #if defined(__alpha__)

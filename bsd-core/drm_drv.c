@@ -116,15 +116,7 @@
 #define DRIVER_IOCTLS
 #endif
 #ifndef DRIVER_FOPS
-#if DRM_LINUX
-#include <sys/file.h>
-#include <sys/proc.h>
-#include <machine/../linux/linux.h>
-#include <machine/../linux/linux_proto.h>
-#include "drm_linux.h"
 #endif
-#endif
-
 
 /*
  * The default number of instances (minor numbers) to initialize.

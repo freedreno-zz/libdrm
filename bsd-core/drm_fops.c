@@ -30,12 +30,7 @@
  *    Gareth Hughes <gareth@valinux.com>
  */
 
-#define __NO_VERSION__
 #include "drmP.h"
-
-
-#include <sys/signalvar.h>
-#include <sys/poll.h>
 
 drm_file_t *DRM(find_file_by_proc)(drm_device_t *dev, DRM_OS_STRUCTPROC *p)
 {

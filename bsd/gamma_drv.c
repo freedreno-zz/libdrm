@@ -30,8 +30,6 @@
  */
 
 #include <sys/types.h>
-#include <sys/bus.h>
-#include <pci/pcivar.h>
 #include "gamma.h"
 #include "drmP.h"
 #include "drm.h"

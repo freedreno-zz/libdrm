@@ -29,13 +29,7 @@
  *    Gareth Hughes <gareth@valinux.com>
  */
 
-#define __NO_VERSION__
 #include "drmP.h"
-#include <vm/vm.h>
-#include <vm/pmap.h>
-#if __REALLY_HAVE_AGP
-#include <sys/agpio.h>
-#endif
 
 #define malloctype DRM(M_DRM)
 /* The macros confliced in the MALLOC_DEFINE */

@@ -32,8 +32,6 @@
 
 
 #include <sys/types.h>
-#include <sys/bus.h>
-#include <pci/pcivar.h>
 
 #include "tdfx.h"
 #include "drmP.h"

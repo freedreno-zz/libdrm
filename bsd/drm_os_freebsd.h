@@ -12,10 +12,21 @@
 #include <sys/uio.h>
 #include <sys/filio.h>
 #include <sys/sysctl.h>
-#include <sys/select.h>
+#include <sys/bus.h>
+#include <sys/signalvar.h>
+#include <sys/poll.h>
 #include <vm/vm.h>
 #include <vm/pmap.h>
+#include <vm/vm_extern.h>
+#include <vm/vm_map.h>
+#include <vm/vm_param.h>
+#include <machine/param.h>
 #include <machine/pmap.h>
+#include <machine/bus.h>
+#include <machine/resource.h>
+#include <sys/mman.h>
+#include <sys/rman.h>
+#include <pci/pcivar.h>
 #if __FreeBSD_version >= 500000
 #include <sys/selinfo.h>
 #endif
@@ -36,6 +47,7 @@
 
 #if __REALLY_HAVE_AGP
 #include <pci/agpvar.h>
+#include <sys/agpio.h>
 #endif
 
 #include <opt_drm.h>
@@ -44,6 +56,14 @@
 #define DRM_DEBUG_CODE 2
 #endif
 #undef DRM_DEBUG
+
+#if DRM_LINUX
+#include <sys/file.h>
+#include <sys/proc.h>
+#include <machine/../linux/linux.h>
+#include <machine/../linux/linux_proto.h>
+#include "drm_linux.h"
+#endif
 
 #define DRM_TIME_SLICE	      (hz/20)  /* Time slice for GLXContexts	  */
 

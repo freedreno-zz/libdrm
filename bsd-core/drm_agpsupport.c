@@ -31,12 +31,6 @@
 
 #include "drmP.h"
 
-#include <vm/vm.h>
-#include <vm/pmap.h>
-#if __REALLY_HAVE_AGP
-#include <sys/agpio.h>
-#endif
-
 int DRM(agp_info)(DRM_OS_IOCTL)
 {
 	drm_device_t	*dev	= kdev->si_drv1;

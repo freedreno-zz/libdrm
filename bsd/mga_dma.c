@@ -33,7 +33,6 @@
  *    Gareth Hughes <gareth@valinux.com>
  */
 
-#define __NO_VERSION__
 #include "mga.h"
 #include "drmP.h"
 #include "drm.h"

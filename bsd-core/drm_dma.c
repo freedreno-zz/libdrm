@@ -29,10 +29,6 @@
  *    Gareth Hughes <gareth@valinux.com>
  */
 
-#include <machine/bus.h>
-#include <machine/resource.h>
-#include <sys/rman.h>
-
 #include "drmP.h"
 
 #ifndef __HAVE_DMA_WAITQUEUE
