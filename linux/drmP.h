@@ -135,6 +135,7 @@
 #define DRM_MEM_TOTALAGP  16
 #define DRM_MEM_BOUNDAGP  17
 #define DRM_MEM_CTXBITMAP 18
+#define DRM_MEM_STUB      19
 
 #define DRM_MAX_CTXBITMAP (PAGE_SIZE * 8)
 
@@ -285,7 +286,7 @@ static inline unsigned long __cmpxchg(volatile void *ptr, unsigned long old,
 	printk(KERN_ERR "[" DRM_NAME ":" __FUNCTION__ "] *ERROR* " fmt , ##arg)
 #define DRM_MEM_ERROR(area, fmt, arg...) \
 	printk(KERN_ERR "[" DRM_NAME ":" __FUNCTION__ ":%s] *ERROR* " fmt , \
-	       drm_mem_stats[area].name , ##arg)
+	       DRM(mem_stats)[area].name , ##arg)
 #define DRM_INFO(fmt, arg...)  printk(KERN_INFO "[" DRM_NAME "] " fmt , ##arg)
 
 #if DRM_DEBUG_CODE
@@ -689,8 +690,13 @@ extern int	     DRM(mmap)(struct file *filp, struct vm_area_struct *vma);
 
 
 				/* Proc support (proc.c) */
-extern int	     DRM(proc_init)(drm_device_t *dev);
-extern int	     DRM(proc_cleanup)(void);
+extern struct proc_dir_entry *drm_proc_init(drm_device_t *dev,
+					    int minor,
+					    struct proc_dir_entry *root,
+					    struct proc_dir_entry **dev_root);
+extern int          drm_proc_cleanup(int minor,
+                                     struct proc_dir_entry *root,
+                                     struct proc_dir_entry *dev_root);
 
 				/* Memory management support (memory.c) */
 extern void	     DRM(mem_init)(void);
@@ -864,6 +870,13 @@ extern agp_memory     *DRM(agp_allocate_memory)(size_t pages, u32 type);
 extern int            DRM(agp_free_memory)(agp_memory *handle);
 extern int            DRM(agp_bind_memory)(agp_memory *handle, off_t start);
 extern int            DRM(agp_unbind_memory)(agp_memory *handle);
+
+				/* Stub support (drm_stub.h) */
+int                   DRM(stub_register)(const char *name,
+					 struct file_operations *fops,
+					 drm_device_t *dev);
+int                   DRM(stub_unregister)(int minor);
+
 #endif
 #endif
 #endif

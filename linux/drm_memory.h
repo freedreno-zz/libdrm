@@ -43,10 +43,10 @@ typedef struct drm_mem_stats {
 	unsigned long	  bytes_freed;
 } drm_mem_stats_t;
 
-static spinlock_t	  drm_mem_lock	    = SPIN_LOCK_UNLOCKED;
-static unsigned long	  drm_ram_available = 0; /* In pages */
-static unsigned long	  drm_ram_used	    = 0;
-static drm_mem_stats_t	  drm_mem_stats[]   = {
+static spinlock_t	  DRM(mem_lock)	     = SPIN_LOCK_UNLOCKED;
+static unsigned long	  DRM(ram_available) = 0; /* In pages */
+static unsigned long	  DRM(ram_used)      = 0;
+static drm_mem_stats_t	  DRM(mem_stats)[]   = {
 	[DRM_MEM_DMA]	    = { "dmabufs"  },
 	[DRM_MEM_SAREA]	    = { "sareas"   },
 	[DRM_MEM_DRIVER]    = { "driver"   },
@@ -66,6 +66,7 @@ static drm_mem_stats_t	  drm_mem_stats[]   = {
 	[DRM_MEM_TOTALAGP]  = { "totalagp" },
 	[DRM_MEM_BOUNDAGP]  = { "boundagp" },
 	[DRM_MEM_CTXBITMAP] = { "ctxbitmap"},
+	[DRM_MEM_STUB]      = { "stub"     },
 	{ NULL, 0, }		/* Last entry must be null */
 };
 
@@ -74,7 +75,7 @@ void DRM(mem_init)(void)
 	drm_mem_stats_t *mem;
 	struct sysinfo	si;
 
-	for (mem = drm_mem_stats; mem->name; ++mem) {
+	for (mem = DRM(mem_stats); mem->name; ++mem) {
 		mem->succeed_count   = 0;
 		mem->free_count	     = 0;
 		mem->fail_count	     = 0;
@@ -85,17 +86,17 @@ void DRM(mem_init)(void)
 	si_meminfo(&si);
 #if LINUX_VERSION_CODE < 0x020317
 				/* Changed to page count in 2.3.23 */
-	drm_ram_available = si.totalram >> PAGE_SHIFT;
+	DRM(ram_available) = si.totalram >> PAGE_SHIFT;
 #else
-	drm_ram_available = si.totalram;
+	DRM(ram_available) = si.totalram;
 #endif
-	drm_ram_used	  = 0;
+	DRM(ram_used)	   = 0;
 }
 
 /* drm_mem_info is called whenever a process reads /dev/drm/mem. */
 
-static int _drm_mem_info(char *buf, char **start, off_t offset,
-			 int len, int *eof, void *data)
+static int DRM(_mem_info)(char *buf, char **start, off_t offset,
+			  int len, int *eof, void *data)
 {
 	drm_mem_stats_t *pt;
 
@@ -108,11 +109,11 @@ static int _drm_mem_info(char *buf, char **start, off_t offset,
 		       " | allocs      bytes\n\n");
 	DRM_PROC_PRINT("%-9.9s %5d %5d %4d %10lu kB         |\n",
 		       "system", 0, 0, 0,
-		       drm_ram_available << (PAGE_SHIFT - 10));
+		       DRM(ram_available) << (PAGE_SHIFT - 10));
 	DRM_PROC_PRINT("%-9.9s %5d %5d %4d %10lu kB         |\n",
-		       "locked", 0, 0, 0, drm_ram_used >> 10);
+		       "locked", 0, 0, 0, DRM(ram_used) >> 10);
 	DRM_PROC_PRINT("\n");
-	for (pt = drm_mem_stats; pt->name; pt++) {
+	for (pt = DRM(mem_stats); pt->name; pt++) {
 		DRM_PROC_PRINT("%-9.9s %5d %5d %4d %10lu %10lu | %6d %10ld\n",
 			       pt->name,
 			       pt->succeed_count,
@@ -133,9 +134,9 @@ int DRM(mem_info)(char *buf, char **start, off_t offset,
 {
 	int ret;
 
-	spin_lock(&drm_mem_lock);
-	ret = _drm_mem_info(buf, start, offset, len, eof, data);
-	spin_unlock(&drm_mem_lock);
+	spin_lock(&DRM(mem_lock));
+	ret = DRM(_mem_info)(buf, start, offset, len, eof, data);
+	spin_unlock(&DRM(mem_lock));
 	return ret;
 }
 
@@ -149,15 +150,15 @@ void *DRM(alloc)(size_t size, int area)
 	}
 
 	if (!(pt = kmalloc(size, GFP_KERNEL))) {
-		spin_lock(&drm_mem_lock);
-		++drm_mem_stats[area].fail_count;
-		spin_unlock(&drm_mem_lock);
+		spin_lock(&DRM(mem_lock));
+		++DRM(mem_stats)[area].fail_count;
+		spin_unlock(&DRM(mem_lock));
 		return NULL;
 	}
-	spin_lock(&drm_mem_lock);
-	++drm_mem_stats[area].succeed_count;
-	drm_mem_stats[area].bytes_allocated += size;
-	spin_unlock(&drm_mem_lock);
+	spin_lock(&DRM(mem_lock));
+	++DRM(mem_stats)[area].succeed_count;
+	DRM(mem_stats)[area].bytes_allocated += size;
+	spin_unlock(&DRM(mem_lock));
 	return pt;
 }
 
@@ -200,11 +201,11 @@ void DRM(free)(void *pt, size_t size, int area)
 
 	if (!pt) DRM_MEM_ERROR(area, "Attempt to free NULL pointer\n");
 	else	 kfree(pt);
-	spin_lock(&drm_mem_lock);
-	drm_mem_stats[area].bytes_freed += size;
-	free_count  = ++drm_mem_stats[area].free_count;
-	alloc_count =	drm_mem_stats[area].succeed_count;
-	spin_unlock(&drm_mem_lock);
+	spin_lock(&DRM(mem_lock));
+	DRM(mem_stats)[area].bytes_freed += size;
+	free_count  = ++DRM(mem_stats)[area].free_count;
+	alloc_count =	DRM(mem_stats)[area].succeed_count;
+	spin_unlock(&DRM(mem_lock));
 	if (free_count > alloc_count) {
 		DRM_MEM_ERROR(area, "Excess frees: %d frees, %d allocs\n",
 			      free_count, alloc_count);
@@ -218,26 +219,26 @@ unsigned long DRM(alloc_pages)(int order, int area)
 	unsigned long addr;
 	unsigned int  sz;
 
-	spin_lock(&drm_mem_lock);
-	if ((drm_ram_used >> PAGE_SHIFT)
-	    > (DRM_RAM_PERCENT * drm_ram_available) / 100) {
-		spin_unlock(&drm_mem_lock);
+	spin_lock(&DRM(mem_lock));
+	if ((DRM(ram_used) >> PAGE_SHIFT)
+	    > (DRM_RAM_PERCENT * DRM(ram_available)) / 100) {
+		spin_unlock(&DRM(mem_lock));
 		return 0;
 	}
-	spin_unlock(&drm_mem_lock);
+	spin_unlock(&DRM(mem_lock));
 
 	address = __get_free_pages(GFP_KERNEL, order);
 	if (!address) {
-		spin_lock(&drm_mem_lock);
-		++drm_mem_stats[area].fail_count;
-		spin_unlock(&drm_mem_lock);
+		spin_lock(&DRM(mem_lock));
+		++DRM(mem_stats)[area].fail_count;
+		spin_unlock(&DRM(mem_lock));
 		return 0;
 	}
-	spin_lock(&drm_mem_lock);
-	++drm_mem_stats[area].succeed_count;
-	drm_mem_stats[area].bytes_allocated += bytes;
-	drm_ram_used		            += bytes;
-	spin_unlock(&drm_mem_lock);
+	spin_lock(&DRM(mem_lock));
+	++DRM(mem_stats)[area].succeed_count;
+	DRM(mem_stats)[area].bytes_allocated += bytes;
+	DRM(ram_used)		             += bytes;
+	spin_unlock(&DRM(mem_lock));
 
 
 				/* Zero outside the lock */
@@ -283,12 +284,12 @@ void DRM(free_pages)(unsigned long address, int order, int area)
 		free_pages(address, order);
 	}
 
-	spin_lock(&drm_mem_lock);
-	free_count  = ++drm_mem_stats[area].free_count;
-	alloc_count =	drm_mem_stats[area].succeed_count;
-	drm_mem_stats[area].bytes_freed += bytes;
-	drm_ram_used			-= bytes;
-	spin_unlock(&drm_mem_lock);
+	spin_lock(&DRM(mem_lock));
+	free_count  = ++DRM(mem_stats)[area].free_count;
+	alloc_count =	DRM(mem_stats)[area].succeed_count;
+	DRM(mem_stats)[area].bytes_freed += bytes;
+	DRM(ram_used)			 -= bytes;
+	spin_unlock(&DRM(mem_lock));
 	if (free_count > alloc_count) {
 		DRM_MEM_ERROR(area,
 			      "Excess frees: %d frees, %d allocs\n",
@@ -307,15 +308,15 @@ void *DRM(ioremap)(unsigned long offset, unsigned long size)
 	}
 
 	if (!(pt = ioremap(offset, size))) {
-		spin_lock(&drm_mem_lock);
-		++drm_mem_stats[DRM_MEM_MAPPINGS].fail_count;
-		spin_unlock(&drm_mem_lock);
+		spin_lock(&DRM(mem_lock));
+		++DRM(mem_stats)[DRM_MEM_MAPPINGS].fail_count;
+		spin_unlock(&DRM(mem_lock));
 		return NULL;
 	}
-	spin_lock(&drm_mem_lock);
-	++drm_mem_stats[DRM_MEM_MAPPINGS].succeed_count;
-	drm_mem_stats[DRM_MEM_MAPPINGS].bytes_allocated += size;
-	spin_unlock(&drm_mem_lock);
+	spin_lock(&DRM(mem_lock));
+	++DRM(mem_stats)[DRM_MEM_MAPPINGS].succeed_count;
+	DRM(mem_stats)[DRM_MEM_MAPPINGS].bytes_allocated += size;
+	spin_unlock(&DRM(mem_lock));
 	return pt;
 }
 
@@ -330,11 +331,11 @@ void DRM(ioremapfree)(void *pt, unsigned long size)
 	else
 		iounmap(pt);
 
-	spin_lock(&drm_mem_lock);
-	drm_mem_stats[DRM_MEM_MAPPINGS].bytes_freed += size;
-	free_count  = ++drm_mem_stats[DRM_MEM_MAPPINGS].free_count;
-	alloc_count =	drm_mem_stats[DRM_MEM_MAPPINGS].succeed_count;
-	spin_unlock(&drm_mem_lock);
+	spin_lock(&DRM(mem_lock));
+	DRM(mem_stats)[DRM_MEM_MAPPINGS].bytes_freed += size;
+	free_count  = ++DRM(mem_stats)[DRM_MEM_MAPPINGS].free_count;
+	alloc_count =	DRM(mem_stats)[DRM_MEM_MAPPINGS].succeed_count;
+	spin_unlock(&DRM(mem_lock));
 	if (free_count > alloc_count) {
 		DRM_MEM_ERROR(DRM_MEM_MAPPINGS,
 			      "Excess frees: %d frees, %d allocs\n",
@@ -354,16 +355,16 @@ agp_memory *DRM(alloc_agp)(int pages, u32 type)
 	}
 
 	if ((handle = DRM(agp_allocate_memory)(pages, type))) {
-		spin_lock(&drm_mem_lock);
-		++drm_mem_stats[DRM_MEM_TOTALAGP].succeed_count;
-		drm_mem_stats[DRM_MEM_TOTALAGP].bytes_allocated
+		spin_lock(&DRM(mem_lock));
+		++DRM(mem_stats)[DRM_MEM_TOTALAGP].succeed_count;
+		DRM(mem_stats)[DRM_MEM_TOTALAGP].bytes_allocated
 			+= pages << PAGE_SHIFT;
-		spin_unlock(&drm_mem_lock);
+		spin_unlock(&DRM(mem_lock));
 		return handle;
 	}
-	spin_lock(&drm_mem_lock);
-	++drm_mem_stats[DRM_MEM_TOTALAGP].fail_count;
-	spin_unlock(&drm_mem_lock);
+	spin_lock(&DRM(mem_lock));
+	++DRM(mem_stats)[DRM_MEM_TOTALAGP].fail_count;
+	spin_unlock(&DRM(mem_lock));
 	return NULL;
 }
 
@@ -380,12 +381,12 @@ int DRM(free_agp)(agp_memory *handle, int pages)
 	}
 
 	if (DRM(agp_free_memory)(handle)) {
-		spin_lock(&drm_mem_lock);
-		free_count  = ++drm_mem_stats[DRM_MEM_TOTALAGP].free_count;
-		alloc_count =   drm_mem_stats[DRM_MEM_TOTALAGP].succeed_count;
-		drm_mem_stats[DRM_MEM_TOTALAGP].bytes_freed
+		spin_lock(&DRM(mem_lock));
+		free_count  = ++DRM(mem_stats)[DRM_MEM_TOTALAGP].free_count;
+		alloc_count =   DRM(mem_stats)[DRM_MEM_TOTALAGP].succeed_count;
+		DRM(mem_stats)[DRM_MEM_TOTALAGP].bytes_freed
 			+= pages << PAGE_SHIFT;
-		spin_unlock(&drm_mem_lock);
+		spin_unlock(&DRM(mem_lock));
 		if (free_count > alloc_count) {
 			DRM_MEM_ERROR(DRM_MEM_TOTALAGP,
 				      "Excess frees: %d frees, %d allocs\n",
@@ -407,16 +408,16 @@ int DRM(bind_agp)(agp_memory *handle, unsigned int start)
 	}
 
 	if (!(retcode = DRM(agp_bind_memory)(handle, start))) {
-		spin_lock(&drm_mem_lock);
-		++drm_mem_stats[DRM_MEM_BOUNDAGP].succeed_count;
-		drm_mem_stats[DRM_MEM_BOUNDAGP].bytes_allocated
+		spin_lock(&DRM(mem_lock));
+		++DRM(mem_stats)[DRM_MEM_BOUNDAGP].succeed_count;
+		DRM(mem_stats)[DRM_MEM_BOUNDAGP].bytes_allocated
 			+= handle->page_count << PAGE_SHIFT;
-		spin_unlock(&drm_mem_lock);
+		spin_unlock(&DRM(mem_lock));
 		return retcode;
 	}
-	spin_lock(&drm_mem_lock);
-	++drm_mem_stats[DRM_MEM_BOUNDAGP].fail_count;
-	spin_unlock(&drm_mem_lock);
+	spin_lock(&DRM(mem_lock));
+	++DRM(mem_stats)[DRM_MEM_BOUNDAGP].fail_count;
+	spin_unlock(&DRM(mem_lock));
 	return retcode;
 }
 
@@ -433,12 +434,12 @@ int DRM(unbind_agp)(agp_memory *handle)
 	}
 
 	if ((retcode = DRM(agp_unbind_memory)(handle))) return retcode;
-	spin_lock(&drm_mem_lock);
-	free_count  = ++drm_mem_stats[DRM_MEM_BOUNDAGP].free_count;
-	alloc_count = drm_mem_stats[DRM_MEM_BOUNDAGP].succeed_count;
-	drm_mem_stats[DRM_MEM_BOUNDAGP].bytes_freed
+	spin_lock(&DRM(mem_lock));
+	free_count  = ++DRM(mem_stats)[DRM_MEM_BOUNDAGP].free_count;
+	alloc_count = DRM(mem_stats)[DRM_MEM_BOUNDAGP].succeed_count;
+	DRM(mem_stats)[DRM_MEM_BOUNDAGP].bytes_freed
 		+= handle->page_count << PAGE_SHIFT;
-	spin_unlock(&drm_mem_lock);
+	spin_unlock(&DRM(mem_lock));
 	if (free_count > alloc_count) {
 		DRM_MEM_ERROR(DRM_MEM_BOUNDAGP,
 			      "Excess frees: %d frees, %d allocs\n",

@@ -91,6 +91,7 @@
 
 
 static drm_device_t	DRM(device);
+static int              DRM(minor);
 
 static struct file_operations	DRM(fops) = {
 #if LINUX_VERSION_CODE >= 0x020400
@@ -105,12 +106,6 @@ static struct file_operations	DRM(fops) = {
 	read:	 DRM(read),
 	fasync:	 DRM(fasync),
 	poll:	 DRM(poll),
-};
-
-static struct miscdevice	DRM(misc) = {
-	minor: MISC_DYNAMIC_MINOR,
-	name:  DRIVER_NAME,
-	fops:  &DRM(fops),
 };
 
 #ifdef MODULE
@@ -367,24 +362,19 @@ static int __init drm_init( void )
 #endif
 	DRIVER_PREINIT();
 
-	retcode = misc_register( &DRM(misc) );
-	if ( retcode ) {
-		DRM_ERROR( "Cannot register \"%s\"\n", DRIVER_NAME );
-		return retcode;
-	}
-	dev->device = MKDEV( MISC_MAJOR, DRM(misc).minor );
-	dev->name = DRIVER_NAME;
-
 	DRM(mem_init)();
-	DRM(proc_init)( dev );
+
+	if ((DRM(minor) = DRM(stub_register)(DRIVER_NAME, &DRM(fops),dev)) < 0)
+		return -EPERM;
+	dev->device = MKDEV(DRM_MAJOR, DRM(minor) );
+	dev->name   = DRIVER_NAME;
 
 #if __REALLY_HAVE_AGP
 	dev->agp = DRM(agp_init)();
 #if __MUST_HAVE_AGP
 	if ( dev->agp == NULL ) {
 		DRM_ERROR( "Cannot initialize the agpgart module.\n" );
-		DRM(proc_cleanup)();
-		misc_deregister( &DRM(misc) );
+		DRM(stub_unregister)(DRM(minor));
 		DRM(takedown)( dev );
 		return -ENOMEM;
 	}
@@ -401,8 +391,7 @@ static int __init drm_init( void )
 	retcode = DRM(ctxbitmap_init)( dev );
 	if( retcode ) {
 		DRM_ERROR( "Cannot allocate memory for context bitmap.\n" );
-		DRM(proc_cleanup)();
-		misc_deregister( &DRM(misc) );
+		DRM(stub_unregister)(DRM(minor));
 		DRM(takedown)( dev );
 		return retcode;
 	}
@@ -416,7 +405,7 @@ static int __init drm_init( void )
 		  DRIVER_MINOR,
 		  DRIVER_PATCHLEVEL,
 		  DRIVER_DATE,
-		  DRM(misc).minor );
+		  DRM(minor) );
 
 	return 0;
 }
@@ -429,8 +418,7 @@ static void __exit drm_cleanup( void )
 
 	DRM_DEBUG( "\n" );
 
-	DRM(proc_cleanup)();
-	if ( misc_deregister( &DRM(misc) ) ) {
+	if ( DRM(stub_unregister)(DRM(minor)) ) {
 		DRM_ERROR( "Cannot unload module\n" );
 	} else {
 		DRM_INFO( "Module unloaded\n" );
