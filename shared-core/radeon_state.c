@@ -27,20 +27,18 @@
  *    Kevin E. Martin <martin@valinux.com>
  */
 
-#define __NO_VERSION__
 #include "radeon.h"
 #include "drmP.h"
 #include "drm.h"
 #include "radeon_drm.h"
 #include "radeon_drv.h"
-#include <linux/delay.h>
 
 
 /* ================================================================
  * CP hardware state programming functions
  */
 
-static inline void radeon_emit_clip_rect( drm_radeon_private_t *dev_priv,
+static __inline__ void radeon_emit_clip_rect( drm_radeon_private_t *dev_priv,
 					  drm_clip_rect_t *box )
 {
 	RING_LOCALS;
@@ -65,7 +63,7 @@ static void radeon_emit_state( drm_radeon_private_t *dev_priv,
 			       unsigned int dirty )
 {
 	RING_LOCALS;
-	DRM_DEBUG( "%s: dirty=0x%08x\n", __FUNCTION__, dirty );
+	DRM_DEBUG( "dirty=0x%08x\n", dirty );
 
 	if ( dirty & RADEON_UPLOAD_CONTEXT ) {
 		BEGIN_RING( 14 );
@@ -369,10 +367,11 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 	u32 rb3d_cntl = 0, rb3d_stencilrefmask= 0;
 	int i;
 	RING_LOCALS;
-	DRM_DEBUG( __FUNCTION__": flags = 0x%x\n", flags );
+	DRM_DEBUG( "flags = 0x%x\n", flags );
 
 	if ( dev_priv->page_flipping && dev_priv->current_page == 1 ) {
 		unsigned int tmp = flags;
+
 		flags &= ~(RADEON_FRONT | RADEON_BACK);
 		if ( tmp & RADEON_FRONT ) flags |= RADEON_BACK;
 		if ( tmp & RADEON_BACK )  flags |= RADEON_FRONT;
@@ -674,7 +673,7 @@ static void radeon_cp_dispatch_swap( drm_device_t *dev )
 	drm_clip_rect_t *pbox = sarea_priv->boxes;
 	int i;
 	RING_LOCALS;
-	DRM_DEBUG( "%s\n", __FUNCTION__ );
+	DRM_DEBUG( "\n" );
 
 #if RADEON_PERFORMANCE_BOXES
 	/* Do some trivial performance monitoring...
@@ -840,8 +839,7 @@ static void radeon_cp_dispatch_vertex( drm_device_t *dev,
 	int i = 0;
 	RING_LOCALS;
 
-	DRM_DEBUG("%s: hwprim 0x%x vfmt 0x%x %d..%d %d verts\n",
-		  __FUNCTION__,
+	DRM_DEBUG("hwprim 0x%x vfmt 0x%x %d..%d %d verts\n",
 		  prim->prim,
 		  prim->vc_format,
 		  prim->start,
@@ -857,7 +855,7 @@ static void radeon_cp_dispatch_vertex( drm_device_t *dev,
 	do {
 		/* Emit the next cliprect */
 		if ( i < nbox ) {
-			if (__copy_from_user( &box, &boxes[i], sizeof(box) ))
+			if (DRM_COPY_FROM_USER_UNCHECKED( &box, &boxes[i], sizeof(box) ))
 				return;
 
 			radeon_emit_clip_rect( dev_priv, &box );
@@ -952,8 +950,7 @@ static void radeon_cp_dispatch_indices( drm_device_t *dev,
 	int start = prim->start + RADEON_INDEX_PRIM_OFFSET;
 	int count = (prim->finish - start) / sizeof(u16);
 
-	DRM_DEBUG("%s: hwprim 0x%x vfmt 0x%x %d..%d offset: %x nr %d\n",
-		  __FUNCTION__,
+	DRM_DEBUG("hwprim 0x%x vfmt 0x%x %d..%d offset: %x nr %d\n",
 		  prim->prim,
 		  prim->vc_format,
 		  prim->start,
@@ -991,7 +988,7 @@ static void radeon_cp_dispatch_indices( drm_device_t *dev,
 
 	do {
 		if ( i < nbox ) {
-			if (__copy_from_user( &box, &boxes[i], sizeof(box) ))
+			if (DRM_COPY_FROM_USER_UNCHECKED( &box, &boxes[i], sizeof(box) ))
 				return;
 			
 			radeon_emit_clip_rect( dev_priv, &box );
@@ -1016,7 +1013,7 @@ static int radeon_cp_dispatch_texture( drm_device_t *dev,
 	drm_buf_t *buf;
 	u32 format;
 	u32 *buffer;
-	u8 *data;
+	const u8 *data;
 	int size, dwords, tex_width, blit_width;
 	u32 y, height;
 	int ret = 0, i;
@@ -1025,7 +1022,7 @@ static int radeon_cp_dispatch_texture( drm_device_t *dev,
 	/* FIXME: Be smarter about this...
 	 */
 	buf = radeon_freelist_get( dev );
-	if ( !buf ) return -EAGAIN;
+	if ( !buf ) return DRM_ERR(EAGAIN);
 
 	DRM_DEBUG( "tex: ofs=0x%x p=%d f=%d x=%hd y=%hd w=%hd h=%hd\n",
 		   tex->offset >> 10, tex->pitch, tex->format,
@@ -1058,7 +1055,7 @@ static int radeon_cp_dispatch_texture( drm_device_t *dev,
 		break;
 	default:
 		DRM_ERROR( "invalid texture format %d\n", tex->format );
-		return -EINVAL;
+		return DRM_ERR(EINVAL);
 	}
 
 	DRM_DEBUG( "   tex=%dx%d  blit=%d\n",
@@ -1090,13 +1087,13 @@ static int radeon_cp_dispatch_texture( drm_device_t *dev,
 	 */
 	y = image->y;
 	height = image->height;
-	data = (u8 *)image->data;
+	data = (const u8 *)image->data;
 
 	size = height * blit_width;
 
 	if ( size > RADEON_MAX_TEXTURE_SIZE ) {
 		/* Texture image is too large, do a multipass upload */
-		ret = -EAGAIN;
+		ret = DRM_ERR(EAGAIN);
 
 		/* Adjust the blit size to fit the indirect buffer */
 		height = RADEON_MAX_TEXTURE_SIZE / blit_width;
@@ -1105,11 +1102,11 @@ static int radeon_cp_dispatch_texture( drm_device_t *dev,
 		/* Update the input parameters for next time */
 		image->y += height;
 		image->height -= height;
-		image->data = (char *)image->data + size;
+		image->data = (const char *)image->data + size;
 
-		if ( copy_to_user( tex->image, image, sizeof(*image) ) ) {
+		if ( DRM_COPY_TO_USER( tex->image, image, sizeof(*image) ) ) {
 			DRM_ERROR( "EFAULT on tex->image\n" );
-			return -EFAULT;
+			return DRM_ERR(EFAULT);
 		}
 	} else if ( size < 4 && size > 0 ) {
 		size = 4;
@@ -1144,9 +1141,9 @@ static int radeon_cp_dispatch_texture( drm_device_t *dev,
 		/* Texture image width is larger than the minimum, so we
 		 * can upload it directly.
 		 */
-		if ( copy_from_user( buffer, data, dwords * sizeof(u32) ) ) {
+		if ( DRM_COPY_FROM_USER( buffer, data, dwords * sizeof(u32) ) ) {
 			DRM_ERROR( "EFAULT on data, %d dwords\n", dwords );
-			return -EFAULT;
+			return DRM_ERR(EFAULT);
 		}
 	} else {
 		/* Texture image width is less than the minimum, so we
@@ -1154,17 +1151,17 @@ static int radeon_cp_dispatch_texture( drm_device_t *dev,
 		 * width.
 		 */
 		for ( i = 0 ; i < tex->height ; i++ ) {
-			if ( copy_from_user( buffer, data, tex_width ) ) {
+			if ( DRM_COPY_FROM_USER( buffer, data, tex_width ) ) {
 				DRM_ERROR( "EFAULT on pad, %d bytes\n",
 					   tex_width );
-				return -EFAULT;
+				return DRM_ERR(EFAULT);
 			}
 			buffer += 8;
 			data += tex_width;
 		}
 	}
 
-	buf->pid = current->pid;
+	buf->pid = DRM_CURRENTPID;
 	buf->used = (dwords + 8) * sizeof(u32);
 
 	radeon_cp_dispatch_indirect( dev, buf, 0, buf->used );
@@ -1189,7 +1186,7 @@ static void radeon_cp_dispatch_stipple( drm_device_t *dev, u32 *stipple )
 	drm_radeon_private_t *dev_priv = dev->dev_private;
 	int i;
 	RING_LOCALS;
-	DRM_DEBUG( "%s\n", __FUNCTION__ );
+	DRM_DEBUG( "\n" );
 
 	BEGIN_RING( 35 );
 
@@ -1209,31 +1206,28 @@ static void radeon_cp_dispatch_stipple( drm_device_t *dev, u32 *stipple )
  * IOCTL functions
  */
 
-int radeon_cp_clear( struct inode *inode, struct file *filp,
-		     unsigned int cmd, unsigned long arg )
+int radeon_cp_clear( DRM_IOCTL_ARGS )
 {
-	drm_file_t *priv = filp->private_data;
-	drm_device_t *dev = priv->dev;
+	DRM_DEVICE;
 	drm_radeon_private_t *dev_priv = dev->dev_private;
 	drm_radeon_sarea_t *sarea_priv = dev_priv->sarea_priv;
 	drm_radeon_clear_t clear;
 	drm_radeon_clear_rect_t depth_boxes[RADEON_NR_SAREA_CLIPRECTS];
-	DRM_DEBUG( "%s\n", __FUNCTION__ );
+	DRM_DEBUG( "\n" );
 
 	LOCK_TEST_WITH_RETURN( dev );
 
-	if ( copy_from_user( &clear, (drm_radeon_clear_t *)arg,
-			     sizeof(clear) ) )
-		return -EFAULT;
+	DRM_COPY_FROM_USER_IOCTL( clear, (drm_radeon_clear_t *)data,
+			     sizeof(clear) );
 
 	RING_SPACE_TEST_WITH_RETURN( dev_priv );
 
 	if ( sarea_priv->nbox > RADEON_NR_SAREA_CLIPRECTS )
 		sarea_priv->nbox = RADEON_NR_SAREA_CLIPRECTS;
 
-	if ( copy_from_user( &depth_boxes, clear.depth_boxes,
+	if ( DRM_COPY_FROM_USER( &depth_boxes, clear.depth_boxes,
 			     sarea_priv->nbox * sizeof(depth_boxes[0]) ) )
-		return -EFAULT;
+		return DRM_ERR(EFAULT);
 
 	radeon_cp_dispatch_clear( dev, &clear, depth_boxes );
 
@@ -1250,7 +1244,7 @@ static int radeon_do_init_pageflip( drm_device_t *dev )
 	drm_radeon_private_t *dev_priv = dev->dev_private;
 	RING_LOCALS;
 
-	DRM_DEBUG( "%s\n", __FUNCTION__ );
+	DRM_DEBUG( "\n" );
 
 	dev_priv->crtc_offset_cntl = RADEON_READ( RADEON_CRTC_OFFSET_CNTL );
 
@@ -1259,7 +1253,6 @@ static int radeon_do_init_pageflip( drm_device_t *dev )
 	OUT_RING( CP_PACKET0( RADEON_CRTC_OFFSET_CNTL, 0 ) );
 	OUT_RING( dev_priv->crtc_offset_cntl | RADEON_CRTC_OFFSET_FLIP_CNTL );
 	ADVANCE_RING();
-
 
 	dev_priv->page_flipping = 1;
 	dev_priv->current_page = 0;
@@ -1271,7 +1264,7 @@ static int radeon_do_init_pageflip( drm_device_t *dev )
 int radeon_do_cleanup_pageflip( drm_device_t *dev )
 {
 	drm_radeon_private_t *dev_priv = dev->dev_private;
-	DRM_DEBUG( "%s\n", __FUNCTION__ );
+	DRM_DEBUG( "\n" );
 
 	if (dev_priv->current_page != 0)
 		radeon_cp_dispatch_flip( dev );
@@ -1287,13 +1280,11 @@ int radeon_do_cleanup_pageflip( drm_device_t *dev )
 /* Swapping and flipping are different operations, need different ioctls.
  * They can & should be intermixed to support multiple 3d windows.  
  */
-int radeon_cp_flip( struct inode *inode, struct file *filp,
-		    unsigned int cmd, unsigned long arg )
+int radeon_cp_flip( DRM_IOCTL_ARGS )
 {
-	drm_file_t *priv = filp->private_data;
-	drm_device_t *dev = priv->dev;
+	DRM_DEVICE;
 	drm_radeon_private_t *dev_priv = dev->dev_private;
-	DRM_DEBUG( "%s\n", __FUNCTION__ );
+	DRM_DEBUG( "\n" );
 
 	LOCK_TEST_WITH_RETURN( dev );
 
@@ -1308,14 +1299,12 @@ int radeon_cp_flip( struct inode *inode, struct file *filp,
 	return 0;
 }
 
-int radeon_cp_swap( struct inode *inode, struct file *filp,
-		    unsigned int cmd, unsigned long arg )
+int radeon_cp_swap( DRM_IOCTL_ARGS )
 {
-	drm_file_t *priv = filp->private_data;
-	drm_device_t *dev = priv->dev;
+	DRM_DEVICE;
 	drm_radeon_private_t *dev_priv = dev->dev_private;
 	drm_radeon_sarea_t *sarea_priv = dev_priv->sarea_priv;
-	DRM_DEBUG( "%s\n", __FUNCTION__ );
+	DRM_DEBUG( "\n" );
 
 	LOCK_TEST_WITH_RETURN( dev );
 
@@ -1331,11 +1320,9 @@ int radeon_cp_swap( struct inode *inode, struct file *filp,
 	return 0;
 }
 
-int radeon_cp_vertex( struct inode *inode, struct file *filp,
-		      unsigned int cmd, unsigned long arg )
+int radeon_cp_vertex( DRM_IOCTL_ARGS )
 {
-	drm_file_t *priv = filp->private_data;
-	drm_device_t *dev = priv->dev;
+	DRM_DEVICE;
 	drm_radeon_private_t *dev_priv = dev->dev_private;
 	drm_radeon_sarea_t *sarea_priv = dev_priv->sarea_priv;
 	drm_device_dma_t *dma = dev->dma;
@@ -1346,27 +1333,26 @@ int radeon_cp_vertex( struct inode *inode, struct file *filp,
 	LOCK_TEST_WITH_RETURN( dev );
 
 	if ( !dev_priv ) {
-		DRM_ERROR( "%s called with no initialization\n", __FUNCTION__ );
-		return -EINVAL;
+		DRM_ERROR( "%s called with no initialization\n", __func__ );
+		return DRM_ERR(EINVAL);
 	}
 
-	if ( copy_from_user( &vertex, (drm_radeon_vertex_t *)arg,
-			     sizeof(vertex) ) )
-		return -EFAULT;
+	DRM_COPY_FROM_USER_IOCTL( vertex, (drm_radeon_vertex_t *)data,
+			     sizeof(vertex) );
 
-	DRM_DEBUG( "%s: pid=%d index=%d count=%d discard=%d\n",
-		   __FUNCTION__, current->pid,
+	DRM_DEBUG( "pid=%d index=%d count=%d discard=%d\n",
+		   DRM_CURRENTPID,
 		   vertex.idx, vertex.count, vertex.discard );
 
 	if ( vertex.idx < 0 || vertex.idx >= dma->buf_count ) {
 		DRM_ERROR( "buffer index %d (of %d max)\n",
 			   vertex.idx, dma->buf_count - 1 );
-		return -EINVAL;
+		return DRM_ERR(EINVAL);
 	}
 	if ( vertex.prim < 0 ||
 	     vertex.prim > RADEON_PRIM_TYPE_3VRT_LINE_LIST ) {
 		DRM_ERROR( "buffer prim %d\n", vertex.prim );
-		return -EINVAL;
+		return DRM_ERR(EINVAL);
 	}
 
 	RING_SPACE_TEST_WITH_RETURN( dev_priv );
@@ -1374,14 +1360,14 @@ int radeon_cp_vertex( struct inode *inode, struct file *filp,
 
 	buf = dma->buflist[vertex.idx];
 
-	if ( buf->pid != current->pid ) {
+	if ( buf->pid != DRM_CURRENTPID ) {
 		DRM_ERROR( "process %d using buffer owned by %d\n",
-			   current->pid, buf->pid );
-		return -EINVAL;
+			   DRM_CURRENTPID, buf->pid );
+		return DRM_ERR(EINVAL);
 	}
 	if ( buf->pending ) {
 		DRM_ERROR( "sending pending buffer %d\n", vertex.idx );
-		return -EINVAL;
+		return DRM_ERR(EINVAL);
 	}
 
 	/* Build up a prim_t record:
@@ -1420,11 +1406,9 @@ int radeon_cp_vertex( struct inode *inode, struct file *filp,
 	return 0;
 }
 
-int radeon_cp_indices( struct inode *inode, struct file *filp,
-		       unsigned int cmd, unsigned long arg )
+int radeon_cp_indices( DRM_IOCTL_ARGS )
 {
-	drm_file_t *priv = filp->private_data;
-	drm_device_t *dev = priv->dev;
+	DRM_DEVICE;
 	drm_radeon_private_t *dev_priv = dev->dev_private;
 	drm_radeon_sarea_t *sarea_priv = dev_priv->sarea_priv;
 	drm_device_dma_t *dma = dev->dma;
@@ -1436,27 +1420,26 @@ int radeon_cp_indices( struct inode *inode, struct file *filp,
 	LOCK_TEST_WITH_RETURN( dev );
 
 	if ( !dev_priv ) {
-		DRM_ERROR( "%s called with no initialization\n", __FUNCTION__ );
-		return -EINVAL;
+		DRM_ERROR( "%s called with no initialization\n", __func__ );
+		return DRM_ERR(EINVAL);
 	}
 
-	if ( copy_from_user( &elts, (drm_radeon_indices_t *)arg,
-			     sizeof(elts) ) )
-		return -EFAULT;
+	DRM_COPY_FROM_USER_IOCTL( elts, (drm_radeon_indices_t *)data,
+			     sizeof(elts) );
 
-	DRM_DEBUG( "%s: pid=%d index=%d start=%d end=%d discard=%d\n",
-		   __FUNCTION__, current->pid,
+	DRM_DEBUG( "pid=%d index=%d start=%d end=%d discard=%d\n",
+		   DRM_CURRENTPID,
 		   elts.idx, elts.start, elts.end, elts.discard );
 
 	if ( elts.idx < 0 || elts.idx >= dma->buf_count ) {
 		DRM_ERROR( "buffer index %d (of %d max)\n",
 			   elts.idx, dma->buf_count - 1 );
-		return -EINVAL;
+		return DRM_ERR(EINVAL);
 	}
 	if ( elts.prim < 0 ||
 	     elts.prim > RADEON_PRIM_TYPE_3VRT_LINE_LIST ) {
 		DRM_ERROR( "buffer prim %d\n", elts.prim );
-		return -EINVAL;
+		return DRM_ERR(EINVAL);
 	}
 
 	RING_SPACE_TEST_WITH_RETURN( dev_priv );
@@ -1464,14 +1447,14 @@ int radeon_cp_indices( struct inode *inode, struct file *filp,
 
 	buf = dma->buflist[elts.idx];
 
-	if ( buf->pid != current->pid ) {
+	if ( buf->pid != DRM_CURRENTPID ) {
 		DRM_ERROR( "process %d using buffer owned by %d\n",
-			   current->pid, buf->pid );
-		return -EINVAL;
+			   DRM_CURRENTPID, buf->pid );
+		return DRM_ERR(EINVAL);
 	}
 	if ( buf->pending ) {
 		DRM_ERROR( "sending pending buffer %d\n", elts.idx );
-		return -EINVAL;
+		return DRM_ERR(EINVAL);
 	}
 
 	count = (elts.end - elts.start) / sizeof(u16);
@@ -1479,11 +1462,11 @@ int radeon_cp_indices( struct inode *inode, struct file *filp,
 
 	if ( elts.start & 0x7 ) {
 		DRM_ERROR( "misaligned buffer 0x%x\n", elts.start );
-		return -EINVAL;
+		return DRM_ERR(EINVAL);
 	}
 	if ( elts.start < buf->used ) {
 		DRM_ERROR( "no header 0x%x - 0x%x\n", elts.start, buf->used );
-		return -EINVAL;
+		return DRM_ERR(EINVAL);
 	}
 
 	buf->used = elts.end;
@@ -1521,11 +1504,9 @@ int radeon_cp_indices( struct inode *inode, struct file *filp,
 	return 0;
 }
 
-int radeon_cp_texture( struct inode *inode, struct file *filp,
-		       unsigned int cmd, unsigned long arg )
+int radeon_cp_texture( DRM_IOCTL_ARGS )
 {
-	drm_file_t *priv = filp->private_data;
-	drm_device_t *dev = priv->dev;
+	DRM_DEVICE;
 	drm_radeon_private_t *dev_priv = dev->dev_private;
 	drm_radeon_texture_t tex;
 	drm_radeon_tex_image_t image;
@@ -1533,18 +1514,17 @@ int radeon_cp_texture( struct inode *inode, struct file *filp,
 
 	LOCK_TEST_WITH_RETURN( dev );
 
-	if ( copy_from_user( &tex, (drm_radeon_texture_t *)arg, sizeof(tex) ) )
-		return -EFAULT;
+	DRM_COPY_FROM_USER_IOCTL( tex, (drm_radeon_texture_t *)data, sizeof(tex) );
 
 	if ( tex.image == NULL ) {
 		DRM_ERROR( "null texture image!\n" );
-		return -EINVAL;
+		return DRM_ERR(EINVAL);
 	}
 
-	if ( copy_from_user( &image,
+	if ( DRM_COPY_FROM_USER( &image,
 			     (drm_radeon_tex_image_t *)tex.image,
 			     sizeof(image) ) )
-		return -EFAULT;
+		return DRM_ERR(EFAULT);
 
 	RING_SPACE_TEST_WITH_RETURN( dev_priv );
 	VB_AGE_TEST_WITH_RETURN( dev_priv );
@@ -1555,23 +1535,20 @@ int radeon_cp_texture( struct inode *inode, struct file *filp,
 	return ret;
 }
 
-int radeon_cp_stipple( struct inode *inode, struct file *filp,
-		       unsigned int cmd, unsigned long arg )
+int radeon_cp_stipple( DRM_IOCTL_ARGS )
 {
-	drm_file_t *priv = filp->private_data;
-	drm_device_t *dev = priv->dev;
+	DRM_DEVICE;
 	drm_radeon_private_t *dev_priv = dev->dev_private;
 	drm_radeon_stipple_t stipple;
 	u32 mask[32];
 
 	LOCK_TEST_WITH_RETURN( dev );
 
-	if ( copy_from_user( &stipple, (drm_radeon_stipple_t *)arg,
-			     sizeof(stipple) ) )
-		return -EFAULT;
+	DRM_COPY_FROM_USER_IOCTL( stipple, (drm_radeon_stipple_t *)data,
+			     sizeof(stipple) );
 
-	if ( copy_from_user( &mask, stipple.mask, 32 * sizeof(u32) ) )
-		return -EFAULT;
+	if ( DRM_COPY_FROM_USER( &mask, stipple.mask, 32 * sizeof(u32) ) )
+		return DRM_ERR(EFAULT);
 
 	RING_SPACE_TEST_WITH_RETURN( dev_priv );
 
@@ -1581,11 +1558,9 @@ int radeon_cp_stipple( struct inode *inode, struct file *filp,
 	return 0;
 }
 
-int radeon_cp_indirect( struct inode *inode, struct file *filp,
-			unsigned int cmd, unsigned long arg )
+int radeon_cp_indirect( DRM_IOCTL_ARGS )
 {
-	drm_file_t *priv = filp->private_data;
-	drm_device_t *dev = priv->dev;
+	DRM_DEVICE;
 	drm_radeon_private_t *dev_priv = dev->dev_private;
 	drm_device_dma_t *dma = dev->dma;
 	drm_buf_t *buf;
@@ -1595,13 +1570,12 @@ int radeon_cp_indirect( struct inode *inode, struct file *filp,
 	LOCK_TEST_WITH_RETURN( dev );
 
 	if ( !dev_priv ) {
-		DRM_ERROR( "%s called with no initialization\n", __FUNCTION__ );
-		return -EINVAL;
+		DRM_ERROR( "%s called with no initialization\n", __func__ );
+		return DRM_ERR(EINVAL);
 	}
 
-	if ( copy_from_user( &indirect, (drm_radeon_indirect_t *)arg,
-			     sizeof(indirect) ) )
-		return -EFAULT;
+	DRM_COPY_FROM_USER_IOCTL( indirect, (drm_radeon_indirect_t *)data,
+			     sizeof(indirect) );
 
 	DRM_DEBUG( "indirect: idx=%d s=%d e=%d d=%d\n",
 		   indirect.idx, indirect.start,
@@ -1610,25 +1584,25 @@ int radeon_cp_indirect( struct inode *inode, struct file *filp,
 	if ( indirect.idx < 0 || indirect.idx >= dma->buf_count ) {
 		DRM_ERROR( "buffer index %d (of %d max)\n",
 			   indirect.idx, dma->buf_count - 1 );
-		return -EINVAL;
+		return DRM_ERR(EINVAL);
 	}
 
 	buf = dma->buflist[indirect.idx];
 
-	if ( buf->pid != current->pid ) {
+	if ( buf->pid != DRM_CURRENTPID ) {
 		DRM_ERROR( "process %d using buffer owned by %d\n",
-			   current->pid, buf->pid );
-		return -EINVAL;
+			   DRM_CURRENTPID, buf->pid );
+		return DRM_ERR(EINVAL);
 	}
 	if ( buf->pending ) {
 		DRM_ERROR( "sending pending buffer %d\n", indirect.idx );
-		return -EINVAL;
+		return DRM_ERR(EINVAL);
 	}
 
 	if ( indirect.start < buf->used ) {
 		DRM_ERROR( "reusing indirect: start=0x%x actual=0x%x\n",
 			   indirect.start, buf->used );
-		return -EINVAL;
+		return DRM_ERR(EINVAL);
 	}
 
 	RING_SPACE_TEST_WITH_RETURN( dev_priv );
@@ -1659,11 +1633,9 @@ int radeon_cp_indirect( struct inode *inode, struct file *filp,
 	return 0;
 }
 
-int radeon_cp_vertex2( struct inode *inode, struct file *filp,
-		      unsigned int cmd, unsigned long arg )
+int radeon_cp_vertex2( DRM_IOCTL_ARGS )
 {
-	drm_file_t *priv = filp->private_data;
-	drm_device_t *dev = priv->dev;
+	DRM_DEVICE;
 	drm_radeon_private_t *dev_priv = dev->dev_private;
 	drm_radeon_sarea_t *sarea_priv = dev_priv->sarea_priv;
 	drm_device_dma_t *dma = dev->dma;
@@ -1675,21 +1647,21 @@ int radeon_cp_vertex2( struct inode *inode, struct file *filp,
 	LOCK_TEST_WITH_RETURN( dev );
 
 	if ( !dev_priv ) {
-		DRM_ERROR( "%s called with no initialization\n", __FUNCTION__ );
-		return -EINVAL;
+		DRM_ERROR( "%s called with no initialization\n", __func__ );
+		return DRM_ERR(EINVAL);
 	}
 
-	if ( copy_from_user( &vertex, (drm_radeon_vertex_t *)arg,
-			     sizeof(vertex) ) )
-		return -EFAULT;
+	DRM_COPY_FROM_USER_IOCTL( vertex, (drm_radeon_vertex2_t *)data,
+			     sizeof(vertex) );
 
-	DRM_DEBUG( __FUNCTION__": pid=%d index=%d discard=%d\n",
-		   current->pid, vertex.idx, vertex.discard );
+	DRM_DEBUG( "pid=%d index=%d discard=%d\n",
+		   DRM_CURRENTPID,
+		   vertex.idx, vertex.discard );
 
 	if ( vertex.idx < 0 || vertex.idx >= dma->buf_count ) {
 		DRM_ERROR( "buffer index %d (of %d max)\n",
 			   vertex.idx, dma->buf_count - 1 );
-		return -EINVAL;
+		return DRM_ERR(EINVAL);
 	}
 
 	RING_SPACE_TEST_WITH_RETURN( dev_priv );
@@ -1697,34 +1669,34 @@ int radeon_cp_vertex2( struct inode *inode, struct file *filp,
 
 	buf = dma->buflist[vertex.idx];
 
-	if ( buf->pid != current->pid ) {
+	if ( buf->pid != DRM_CURRENTPID ) {
 		DRM_ERROR( "process %d using buffer owned by %d\n",
-			   current->pid, buf->pid );
-		return -EINVAL;
+			   DRM_CURRENTPID, buf->pid );
+		return DRM_ERR(EINVAL);
 	}
 
 	if ( buf->pending ) {
 		DRM_ERROR( "sending pending buffer %d\n", vertex.idx );
-		return -EINVAL;
+		return DRM_ERR(EINVAL);
 	}
 	
 	if (sarea_priv->nbox > RADEON_NR_SAREA_CLIPRECTS)
-		return -EINVAL;
+		return DRM_ERR(EINVAL);
 
 	for (laststate = 0xff, i = 0 ; i < vertex.nr_prims ; i++) {
 		drm_radeon_prim_t prim;
 		drm_radeon_tcl_prim_t tclprim;
 		
-		if ( copy_from_user( &prim, &vertex.prim[i], sizeof(prim) ) )
-			return -EFAULT;
+		if ( DRM_COPY_FROM_USER( &prim, &vertex.prim[i], sizeof(prim) ) )
+			return DRM_ERR(EFAULT);
 		
 		if ( prim.stateidx != laststate ) {
 			drm_radeon_state_t state;			       
 				
-			if ( copy_from_user( &state, 
+			if ( DRM_COPY_FROM_USER( &state, 
 					     &vertex.state[prim.stateidx], 
 					     sizeof(state) ) )
-				return -EFAULT;
+				return DRM_ERR(EFAULT);
 
 			radeon_emit_state2( dev_priv, &state );
 
@@ -1777,7 +1749,7 @@ static int radeon_emit_packets(
 	RING_LOCALS;
    
 	if (sz * sizeof(int) > cmdbuf->bufsz) 
-		return -EINVAL;
+		return DRM_ERR(EINVAL);
 
 	BEGIN_RING(sz+1);
 	OUT_RING( CP_PACKET0( reg, (sz-1) ) );
@@ -1789,7 +1761,7 @@ static int radeon_emit_packets(
 	return 0;
 }
 
-static inline int radeon_emit_scalars( 
+static __inline__ int radeon_emit_scalars( 
 	drm_radeon_private_t *dev_priv,
 	drm_radeon_cmd_header_t header,
 	drm_radeon_cmd_buffer_t *cmdbuf )
@@ -1842,7 +1814,7 @@ static inline int radeon_emit_vectors(
 {
 	int sz = header.vectors.count;
 	int *data = (int *)cmdbuf->buf;
-	int start = (unsigned char)header.vectors.offset;
+	int start = header.vectors.offset;
 	int stride = header.vectors.stride;
 	RING_LOCALS;
 
@@ -1868,16 +1840,16 @@ static int radeon_emit_packet3( drm_device_t *dev,
 	RING_LOCALS;
 
 
-	DRM_DEBUG("%s\n", __FUNCTION__);
+	DRM_DEBUG("\n");
 
-	if (__get_user( tmp, &cmd[0]))
-		return -EFAULT;
+	if (DRM_GET_USER_UNCHECKED( tmp, &cmd[0]))
+		return DRM_ERR(EFAULT);
 
 	cmdsz = 2 + ((tmp & RADEON_CP_PACKET_COUNT_MASK) >> 16);
 
 	if ((tmp & 0xc0000000) != RADEON_CP_PACKET3 ||
 	    cmdsz * 4 > cmdbuf->bufsz)
-		return -EINVAL;
+		return DRM_ERR(EINVAL);
 
 	BEGIN_RING( cmdsz );
 	OUT_RING_USER_TABLE( cmd, cmdsz );
@@ -1900,21 +1872,21 @@ static int radeon_emit_packet3_cliprect( drm_device_t *dev,
 	int i = 0;
 	RING_LOCALS;
 
-	DRM_DEBUG("%s\n", __FUNCTION__);
+	DRM_DEBUG("\n");
 
-	if (__get_user( tmp, &cmd[0]))
-		return -EFAULT;
+	if (DRM_GET_USER_UNCHECKED( tmp, &cmd[0]))
+		return DRM_ERR(EFAULT);
 
 	cmdsz = 2 + ((tmp & RADEON_CP_PACKET_COUNT_MASK) >> 16);
 
 	if ((tmp & 0xc0000000) != RADEON_CP_PACKET3 ||
 	    cmdsz * 4 > cmdbuf->bufsz)
-		return -EINVAL;
+		return DRM_ERR(EINVAL);
 
 	do {
 		if ( i < cmdbuf->nbox ) {
-			if (__copy_from_user( &box, &boxes[i], sizeof(box) ))
-				return -EFAULT;
+			if (DRM_COPY_FROM_USER_UNCHECKED( &box, &boxes[i], sizeof(box) ))
+				return DRM_ERR(EFAULT);
 			radeon_emit_clip_rect( dev_priv, &box );
 		}
 		
@@ -1934,11 +1906,9 @@ static int radeon_emit_packet3_cliprect( drm_device_t *dev,
 
 
 
-int radeon_cp_cmdbuf( struct inode *inode, struct file *filp,
-		      unsigned int cmd, unsigned long arg )
+int radeon_cp_cmdbuf( DRM_IOCTL_ARGS )
 {
-	drm_file_t *priv = filp->private_data;
-	drm_device_t *dev = priv->dev;
+	DRM_DEVICE;
 	drm_radeon_private_t *dev_priv = dev->dev_private;
 	drm_device_dma_t *dma = dev->dma;
 	drm_buf_t *buf = 0;
@@ -1946,39 +1916,34 @@ int radeon_cp_cmdbuf( struct inode *inode, struct file *filp,
 	drm_radeon_cmd_buffer_t cmdbuf;
 	drm_radeon_cmd_header_t header;
 
-	DRM_DEBUG( "%s\n", __FUNCTION__ );
-
 	LOCK_TEST_WITH_RETURN( dev );
 
 	if ( !dev_priv ) {
-		DRM_ERROR( "%s called with no initialization\n", __FUNCTION__ );
-		return -EINVAL;
+		DRM_ERROR( "%s called with no initialization\n", __func__ );
+		return DRM_ERR(EINVAL);
 	}
 
-	if ( copy_from_user( &cmdbuf, (drm_radeon_cmd_buffer_t *)arg,
-			     sizeof(cmdbuf) ) ) {
-		DRM_ERROR("copy_from_user\n");
-		return -EFAULT;
-	}
+	DRM_COPY_FROM_USER_IOCTL( cmdbuf, (drm_radeon_cmd_buffer_t *)data,
+			     sizeof(cmdbuf) );
 
-	DRM_DEBUG( __FUNCTION__": pid=%d\n", current->pid );
+	DRM_DEBUG( "pid=%d\n", DRM_CURRENTPID );
 	RING_SPACE_TEST_WITH_RETURN( dev_priv );
 	VB_AGE_TEST_WITH_RETURN( dev_priv );
 
 
-	if (verify_area( VERIFY_READ, cmdbuf.buf, cmdbuf.bufsz ))
-		return -EFAULT;
+	if (DRM_VERIFYAREA_READ( cmdbuf.buf, cmdbuf.bufsz ))
+		return DRM_ERR(EFAULT);
 
 	if (cmdbuf.nbox &&
-	    verify_area( VERIFY_READ, cmdbuf.boxes, 
+	    DRM_VERIFYAREA_READ(cmdbuf.boxes, 
 			 cmdbuf.nbox * sizeof(drm_clip_rect_t)))
-		return -EFAULT;
+		return DRM_ERR(EFAULT);
 
 	while ( cmdbuf.bufsz >= sizeof(header) ) {
 		
-		if (__get_user( header.i, (int *)cmdbuf.buf )) {
+		if (DRM_GET_USER_UNCHECKED( header.i, (int *)cmdbuf.buf )) {
 			DRM_ERROR("__get_user %p\n", cmdbuf.buf);
-			return -EFAULT;
+			return DRM_ERR(EFAULT);
 		}
 
 		cmdbuf.buf += sizeof(header);
@@ -1989,7 +1954,7 @@ int radeon_cp_cmdbuf( struct inode *inode, struct file *filp,
 			DRM_DEBUG("RADEON_CMD_PACKET\n");
 			if (radeon_emit_packets( dev_priv, header, &cmdbuf )) {
 				DRM_ERROR("radeon_emit_packets failed\n");
-				return -EINVAL;
+				return DRM_ERR(EINVAL);
 			}
 			break;
 
@@ -1997,7 +1962,7 @@ int radeon_cp_cmdbuf( struct inode *inode, struct file *filp,
 			DRM_DEBUG("RADEON_CMD_SCALARS\n");
 			if (radeon_emit_scalars( dev_priv, header, &cmdbuf )) {
 				DRM_ERROR("radeon_emit_scalars failed\n");
-				return -EINVAL;
+				return DRM_ERR(EINVAL);
 			}
 			break;
 
@@ -2005,7 +1970,7 @@ int radeon_cp_cmdbuf( struct inode *inode, struct file *filp,
 			DRM_DEBUG("RADEON_CMD_VECTORS\n");
 			if (radeon_emit_vectors( dev_priv, header, &cmdbuf )) {
 				DRM_ERROR("radeon_emit_vectors failed\n");
-				return -EINVAL;
+				return DRM_ERR(EINVAL);
 			}
 			break;
 
@@ -2015,13 +1980,13 @@ int radeon_cp_cmdbuf( struct inode *inode, struct file *filp,
 			if ( idx < 0 || idx >= dma->buf_count ) {
 				DRM_ERROR( "buffer index %d (of %d max)\n",
 					   idx, dma->buf_count - 1 );
-				return -EINVAL;
+				return DRM_ERR(EINVAL);
 			}
 
 			buf = dma->buflist[idx];
-			if ( buf->pid != current->pid || buf->pending ) {
+			if ( buf->pid != DRM_CURRENTPID || buf->pending ) {
 				DRM_ERROR( "bad buffer\n" );
-				return -EINVAL;
+				return DRM_ERR(EINVAL);
 			}
 
 			radeon_cp_discard_buffer( dev, buf );
@@ -2031,7 +1996,7 @@ int radeon_cp_cmdbuf( struct inode *inode, struct file *filp,
 			DRM_DEBUG("RADEON_CMD_PACKET3\n");
 			if (radeon_emit_packet3( dev, &cmdbuf )) {
 				DRM_ERROR("radeon_emit_packet3 failed\n");
-				return -EINVAL;
+				return DRM_ERR(EINVAL);
 			}
 			break;
 
@@ -2039,7 +2004,7 @@ int radeon_cp_cmdbuf( struct inode *inode, struct file *filp,
 			DRM_DEBUG("RADEON_CMD_PACKET3_CLIP\n");
 			if (radeon_emit_packet3_cliprect( dev, &cmdbuf )) {
 				DRM_ERROR("radeon_emit_packet3_clip failed\n");
-				return -EINVAL;
+				return DRM_ERR(EINVAL);
 			}
 			break;
 
@@ -2047,14 +2012,14 @@ int radeon_cp_cmdbuf( struct inode *inode, struct file *filp,
 			DRM_DEBUG("RADEON_CMD_SCALARS2\n");
 			if (radeon_emit_scalars2( dev_priv, header, &cmdbuf )) {
 				DRM_ERROR("radeon_emit_scalars2 failed\n");
-				return -EINVAL;
+				return DRM_ERR(EINVAL);
 			}
 			break;
 		default:
 			DRM_ERROR("bad cmd_type %d at %p\n", 
 				  header.header.cmd_type,
 				  cmdbuf.buf - sizeof(header));
-			return -EINVAL;
+			return DRM_ERR(EINVAL);
 		}
 	}
 
@@ -2066,46 +2031,44 @@ int radeon_cp_cmdbuf( struct inode *inode, struct file *filp,
 
 
 
-int radeon_cp_getparam( struct inode *inode, struct file *filp,
-		      unsigned int cmd, unsigned long arg )
+int radeon_cp_getparam( DRM_IOCTL_ARGS )
 {
-	drm_file_t *priv = filp->private_data;
-	drm_device_t *dev = priv->dev;
+	DRM_DEVICE;
 	drm_radeon_private_t *dev_priv = dev->dev_private;
 	drm_radeon_getparam_t param;
 	int value;
 
 	if ( !dev_priv ) {
-		DRM_ERROR( "%s called with no initialization\n", __FUNCTION__ );
-		return -EINVAL;
+		DRM_ERROR( "%s called with no initialization\n", __func__ );
+		return DRM_ERR(EINVAL);
 	}
 
-	if ( copy_from_user( &param, (drm_radeon_getparam_t *)arg,
-			     sizeof(param) ) ) {
-		DRM_ERROR("copy_from_user\n");
-		return -EFAULT;
-	}
+	DRM_COPY_FROM_USER_IOCTL( param, (drm_radeon_getparam_t *)data,
+			     sizeof(param) );
 
-	DRM_DEBUG( __FUNCTION__": pid=%d\n", current->pid );
+	DRM_DEBUG( "pid=%d\n", DRM_CURRENTPID );
 
 	switch( param.param ) {
 	case RADEON_PARAM_AGP_BUFFER_OFFSET:
 		value = dev_priv->agp_buffers_offset;
 		break;
+	case RADEON_PARAM_LAST_FRAME:
+		value = DRM_READ32(&dev_priv->scratch[0]);
+		break;
+	case RADEON_PARAM_LAST_DISPATCH:
+		value = DRM_READ32(&dev_priv->scratch[1]);
+		break;
+	case RADEON_PARAM_LAST_CLEAR:
+		value = DRM_READ32(&dev_priv->scratch[2]);
+		break;
 	default:
-		return -EINVAL;
+		return DRM_ERR(EINVAL);
 	}
 
-	if ( copy_to_user( param.value, &value, sizeof(int) ) ) {
+	if ( DRM_COPY_TO_USER( param.value, &value, sizeof(int) ) ) {
 		DRM_ERROR( "copy_to_user\n" );
-		return -EFAULT;
+		return DRM_ERR(EFAULT);
 	}
 	
 	return 0;
 }
-
-
-
-
-
-

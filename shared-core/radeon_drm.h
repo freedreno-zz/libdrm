@@ -2,6 +2,7 @@
  *
  * Copyright 2000 Precision Insight, Inc., Cedar Park, Texas.
  * Copyright 2000 VA Linux Systems, Inc., Fremont, California.
+ * Copyright 2002 Tungsten Graphics, Inc., Cedar Park, Texas.
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -38,7 +39,8 @@
 #ifndef __RADEON_SAREA_DEFINES__
 #define __RADEON_SAREA_DEFINES__
 
-/* What needs to be changed for the current vertex buffer?
+/* Old style state flags, required for sarea interface (1.1 and 1.2
+ * clears) and 1.2 drm_vertex2 ioctl.
  */
 #define RADEON_UPLOAD_CONTEXT		0x00000001
 #define RADEON_UPLOAD_VERTFMT		0x00000002
@@ -58,8 +60,109 @@
 #define RADEON_UPLOAD_CLIPRECTS		0x00008000 /* handled client-side */
 #define RADEON_REQUIRE_QUIESCENCE	0x00010000
 #define RADEON_UPLOAD_ZBIAS		0x00020000 /* version 1.2 and newer */
-#define RADEON_UPLOAD_ALL		0x0002ffff
-#define RADEON_UPLOAD_CONTEXT_ALL       0x000201ff
+#define RADEON_UPLOAD_ALL		0x003effff
+#define RADEON_UPLOAD_CONTEXT_ALL       0x003e01ff
+
+
+/* New style per-packet identifiers for use in cmd_buffer ioctl with
+ * the RADEON_EMIT_PACKET command.  Comments relate new packets to old
+ * state bits and the packet size:
+ */
+#define RADEON_EMIT_PP_MISC                         0 /* context/7 */
+#define RADEON_EMIT_PP_CNTL                         1 /* context/3 */
+#define RADEON_EMIT_RB3D_COLORPITCH                 2 /* context/1 */
+#define RADEON_EMIT_RE_LINE_PATTERN                 3 /* line/2 */
+#define RADEON_EMIT_SE_LINE_WIDTH                   4 /* line/1 */
+#define RADEON_EMIT_PP_LUM_MATRIX                   5 /* bumpmap/1 */
+#define RADEON_EMIT_PP_ROT_MATRIX_0                 6 /* bumpmap/2 */
+#define RADEON_EMIT_RB3D_STENCILREFMASK             7 /* masks/3 */
+#define RADEON_EMIT_SE_VPORT_XSCALE                 8 /* viewport/6 */
+#define RADEON_EMIT_SE_CNTL                         9 /* setup/2 */
+#define RADEON_EMIT_SE_CNTL_STATUS                  10 /* setup/1 */
+#define RADEON_EMIT_RE_MISC                         11 /* misc/1 */
+#define RADEON_EMIT_PP_TXFILTER_0                   12 /* tex0/6 */
+#define RADEON_EMIT_PP_BORDER_COLOR_0               13 /* tex0/1 */
+#define RADEON_EMIT_PP_TXFILTER_1                   14 /* tex1/6 */
+#define RADEON_EMIT_PP_BORDER_COLOR_1               15 /* tex1/1 */
+#define RADEON_EMIT_PP_TXFILTER_2                   16 /* tex2/6 */
+#define RADEON_EMIT_PP_BORDER_COLOR_2               17 /* tex2/1 */
+#define RADEON_EMIT_SE_ZBIAS_FACTOR                 18 /* zbias/2 */
+#define RADEON_EMIT_SE_TCL_OUTPUT_VTX_FMT           19 /* tcl/11 */
+#define RADEON_EMIT_SE_TCL_MATERIAL_EMMISSIVE_RED   20 /* material/17 */
+#define R200_EMIT_PP_TXCBLEND_0                     21 /* tex0/4 */
+#define R200_EMIT_PP_TXCBLEND_1                     22 /* tex1/4 */
+#define R200_EMIT_PP_TXCBLEND_2                     23 /* tex2/4 */
+#define R200_EMIT_PP_TXCBLEND_3                     24 /* tex3/4 */
+#define R200_EMIT_PP_TXCBLEND_4                     25 /* tex4/4 */
+#define R200_EMIT_PP_TXCBLEND_5                     26 /* tex5/4 */
+#define R200_EMIT_PP_TXCBLEND_6                     27 /* ???/4 */
+#define R200_EMIT_PP_TXCBLEND_7                     28 /* ???/4 */
+#define R200_EMIT_TCL_LIGHT_MODEL_CTL_0             29 /* tcl/7 */
+#define R200_EMIT_TFACTOR_0                         30 /* tf/7 */
+#define R200_EMIT_VTX_FMT_0                         31 /* vtx/5 */
+#define R200_EMIT_VAP_CTL                           32 /* vap/1 */
+#define R200_EMIT_MATRIX_SELECT_0                   33 /* msl/5 */
+#define R200_EMIT_TEX_PROC_CTL_2                    34 /* tcg/5 */
+#define R200_EMIT_TCL_UCP_VERT_BLEND_CTL            35 /* tcl/1 */
+#define R200_EMIT_PP_TXFILTER_0                     36 /* tex0/6 */
+#define R200_EMIT_PP_TXFILTER_1                     37 /* tex1/6 */
+#define R200_EMIT_PP_TXFILTER_2                     38 /* tex2/6 */
+#define R200_EMIT_PP_TXFILTER_3                     39 /* tex3/6 */
+#define R200_EMIT_PP_TXFILTER_4                     40 /* tex4/6 */
+#define R200_EMIT_PP_TXFILTER_5                     41 /* tex5/6 */
+#define R200_EMIT_PP_TXOFFSET_0                     42 /* tex0/1 */
+#define R200_EMIT_PP_TXOFFSET_1                     43 /* tex1/1 */
+#define R200_EMIT_PP_TXOFFSET_2                     44 /* tex2/1 */
+#define R200_EMIT_PP_TXOFFSET_3                     45 /* tex3/1 */
+#define R200_EMIT_PP_TXOFFSET_4                     46 /* tex4/1 */
+#define R200_EMIT_PP_TXOFFSET_5                     47 /* tex5/1 */
+#define R200_EMIT_VTE_CNTL                          48 /* vte/1 */
+#define R200_EMIT_OUTPUT_VTX_COMP_SEL               49 /* vtx/1 */
+#define R200_EMIT_PP_TAM_DEBUG3                     50 /* tam/1 */
+#define R200_EMIT_PP_CNTL_X                         51 /* cst/1 */
+#define R200_EMIT_RB3D_DEPTHXY_OFFSET               52 /* cst/1 */
+#define R200_EMIT_RE_AUX_SCISSOR_CNTL               53 /* cst/1 */
+#define R200_EMIT_RE_SCISSOR_TL_0                   54 /* cst/2 */
+#define R200_EMIT_RE_SCISSOR_TL_1                   55 /* cst/2 */
+#define R200_EMIT_RE_SCISSOR_TL_2                   56 /* cst/2 */
+#define R200_EMIT_SE_VAP_CNTL_STATUS                57 /* cst/1 */
+#define R200_EMIT_SE_VTX_STATE_CNTL                 58 /* cst/1 */
+#define R200_EMIT_RE_POINTSIZE                      59 /* cst/1 */
+#define R200_EMIT_TCL_INPUT_VTX_VECTOR_ADDR_0       60 /* cst/4 */
+#define RADEON_MAX_STATE_PACKETS                    61
+
+
+/* Commands understood by cmd_buffer ioctl.  More can be added but
+ * obviously these can't be removed or changed:
+ */
+#define RADEON_CMD_PACKET      1 /* emit one of the register packets above */
+#define RADEON_CMD_SCALARS     2 /* emit scalar data */
+#define RADEON_CMD_VECTORS     3 /* emit vector data */
+#define RADEON_CMD_DMA_DISCARD 4 /* discard current dma buf */
+#define RADEON_CMD_PACKET3     5 /* emit hw packet */
+#define RADEON_CMD_PACKET3_CLIP 6 /* emit hw packet wrapped in cliprects */
+#define RADEON_CMD_SCALARS2     7 /* r200 stopgap */
+
+
+typedef union {
+	int i;
+	struct { 
+		unsigned char cmd_type, pad0, pad1, pad2;
+	} header;
+	struct { 
+		unsigned char cmd_type, packet_id, pad0, pad1;
+	} packet;
+	struct { 
+		unsigned char cmd_type, offset, stride, count; 
+	} scalars;
+	struct { 
+		unsigned char cmd_type, offset, stride, count; 
+	} vectors;
+	struct { 
+		unsigned char cmd_type, buf_idx, pad0, pad1; 
+	} dma;
+} drm_radeon_cmd_header_t;
+
 
 #define RADEON_FRONT			0x1
 #define RADEON_BACK			0x2
@@ -82,7 +185,6 @@
 /* Byte offsets for indirect buffer data
  */
 #define RADEON_INDEX_PRIM_OFFSET	20
-#define RADEON_HOSTDATA_BLIT_OFFSET	32
 
 #define RADEON_SCRATCH_REG_OFFSET	32
 
@@ -181,8 +283,6 @@ typedef struct {
 	unsigned int pp_border_color;
 } drm_radeon_texture_regs_t;
 
-/* Space is crucial; there is some redunancy here:
- */
 typedef struct {
 	unsigned int start;
 	unsigned int finish;
@@ -191,6 +291,7 @@ typedef struct {
 	unsigned int numverts:16; /* overloaded as offset/64 for elt prims */
         unsigned int vc_format;   /* vertex format */
 } drm_radeon_prim_t;
+
 
 typedef struct {
 	drm_radeon_context_regs_t context;
@@ -231,6 +332,8 @@ typedef struct {
 	drm_radeon_tex_region_t tex_list[RADEON_NR_TEX_HEAPS][RADEON_NR_TEX_REGIONS+1];
 	int tex_age[RADEON_NR_TEX_HEAPS];
 	int ctx_owner;
+        int pfState;                /* number of 3d windows (0,1,2ormore) */
+        int pfCurrentPage;	    /* which buffer is being displayed? */
 } drm_radeon_sarea_t;
 
 
@@ -258,11 +361,15 @@ typedef struct {
 #define DRM_IOCTL_RADEON_INDIRECT   DRM_IOWR(0x4d, drm_radeon_indirect_t)
 #define DRM_IOCTL_RADEON_TEXTURE    DRM_IOWR(0x4e, drm_radeon_texture_t)
 #define DRM_IOCTL_RADEON_VERTEX2    DRM_IOW( 0x4f, drm_radeon_vertex_t)
+#define DRM_IOCTL_RADEON_CMDBUF     DRM_IOW( 0x50, drm_radeon_cmd_buffer_t)
+#define DRM_IOCTL_RADEON_GETPARAM   DRM_IOWR(0x51, drm_radeon_getparam_t)
+#define DRM_IOCTL_RADEON_FLIP	    DRM_IO(  0x52)
 
 typedef struct drm_radeon_init {
 	enum {
 		RADEON_INIT_CP    = 0x01,
-		RADEON_CLEANUP_CP = 0x02
+		RADEON_CLEANUP_CP = 0x02,
+		RADEON_INIT_R200_CP = 0x03,	
 	} func;
 	unsigned long sarea_priv_offset;
 	int is_pci;
@@ -324,6 +431,18 @@ typedef struct drm_radeon_vertex {
 	int discard;			/* Client finished with buffer? */
 } drm_radeon_vertex_t;
 
+typedef struct drm_radeon_indices {
+	int prim;
+	int idx;
+	int start;
+	int end;
+	int discard;			/* Client finished with buffer? */
+} drm_radeon_indices_t;
+
+/* v1.2 - obsoletes drm_radeon_vertex and drm_radeon_indices
+ *      - allows multiple primitives and state changes in a single ioctl
+ *      - supports driver change to emit native primitives
+ */
 typedef struct drm_radeon_vertex2 {
 	int idx;			/* Index of vertex buffer */
 	int discard;			/* Client finished with buffer? */
@@ -333,13 +452,22 @@ typedef struct drm_radeon_vertex2 {
 	drm_radeon_prim_t *prim;
 } drm_radeon_vertex2_t;
 
-typedef struct drm_radeon_indices {
-	int prim;
-	int idx;
-	int start;
-	int end;
-	int discard;			/* Client finished with buffer? */
-} drm_radeon_indices_t;
+/* v1.3 - obsoletes drm_radeon_vertex2
+ *      - allows arbitarily large cliprect list 
+ *      - allows updating of tcl packet, vector and scalar state
+ *      - allows memory-efficient description of state updates
+ *      - allows state to be emitted without a primitive 
+ *           (for clears, ctx switches)
+ *      - allows more than one dma buffer to be referenced per ioctl
+ *      - supports tcl driver
+ *      - may be extended in future versions with new cmd types, packets
+ */
+typedef struct drm_radeon_cmd_buffer {
+	int bufsz;
+	char *buf;
+	int nbox;
+	drm_clip_rect_t *boxes;
+} drm_radeon_cmd_buffer_t;
 
 typedef struct drm_radeon_tex_image {
 	unsigned int x, y;		/* Blit coordinates */
@@ -366,5 +494,19 @@ typedef struct drm_radeon_indirect {
 	int end;
 	int discard;
 } drm_radeon_indirect_t;
+
+
+/* 1.3: An ioctl to get parameters that aren't available to the 3d
+ * client any other way.  
+ */
+#define RADEON_PARAM_AGP_BUFFER_OFFSET 0x1
+#define RADEON_PARAM_LAST_FRAME 0x2
+#define RADEON_PARAM_LAST_DISPATCH 0x3
+#define RADEON_PARAM_LAST_CLEAR 0x4
+
+typedef struct drm_radeon_getparam {
+	int param;
+	int *value;
+} drm_radeon_getparam_t;
 
 #endif

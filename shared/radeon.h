@@ -1,5 +1,5 @@
-/* radeon_drv.c -- ATI Radeon driver -*- linux-c -*-
- * Created: Wed Feb 14 17:10:04 2001 by gareth@valinux.com
+/* radeon.h -- ATI Radeon DRM template customization -*- linux-c -*-
+ * Created: Wed Feb 14 17:07:34 2001 by gareth@valinux.com
  *
  * Copyright 2000 VA Linux Systems, Inc., Sunnyvale, California.
  * All Rights Reserved.
@@ -25,54 +25,49 @@
  *
  * Authors:
  *    Gareth Hughes <gareth@valinux.com>
+ *    Keith Whitwell <keith@tungstengraphics.com>
  */
 
+#ifndef __RADEON_H__
+#define __RADEON_H__
 
+/* This remains constant for all DRM template files.
+ */
+#define DRM(x) radeon_##x
 
-#include <sys/types.h>
-#include <sys/bus.h>
-#include <pci/pcivar.h>
-#include <opt_drm_linux.h>
+/* General customization:
+ */
+#define __HAVE_AGP		1
+#define __MUST_HAVE_AGP		0
+#define __HAVE_MTRR		1
+#define __HAVE_CTX_BITMAP	1
+#define __HAVE_SG		1
+#define __HAVE_PCI_DMA		1
 
-#include "radeon.h"
-#include "drmP.h"
-#include "drm.h"
-#include "radeon_drm.h"
-#include "radeon_drv.h"
-#if __REALLY_HAVE_SG
-#include "ati_pcigart.h"
-#endif
-
-#define DRIVER_AUTHOR		"Gareth Hughes, VA Linux Systems Inc."
+#define DRIVER_AUTHOR		"Gareth Hughes, Keith Whitwell, others."
 
 #define DRIVER_NAME		"radeon"
 #define DRIVER_DESC		"ATI Radeon"
-#define DRIVER_DATE		"20010405"
+#define DRIVER_DATE		"20020611"
 
 #define DRIVER_MAJOR		1
-#define DRIVER_MINOR		2
+#define DRIVER_MINOR		4
 #define DRIVER_PATCHLEVEL	0
-  
+
 /* Interface history:
  *
  * 1.1 - ??
  * 1.2 - Add vertex2 ioctl (keith)
  *     - Add stencil capability to clear ioctl (gareth, keith)
  *     - Increase MAX_TEXTURE_LEVELS (brian)
+ * 1.3 - Add cmdbuf ioctl (keith)
+ *     - Add support for new radeon packets (keith)
+ *     - Add getparam ioctl (keith)
+ *     - Add flip-buffers ioctl, deprecate fullscreen foo (keith).
+ * 1.4 - Add r200 packets to cmdbuf ioctl
+ *     - Add r200 function to init ioctl
+ *     - Add 'scalar2' hack to cmdbuf ioctl (must die)
  */
-
-/* List acquired from http://www.yourvote.com/pci/pcihdr.h and xc/xc/programs/Xserver/hw/xfree86/common/xf86PciInfo.h
- * Please report to anholt@teleport.com inaccuracies or if a chip you have works that is marked unsupported here.
- */
-drm_chipinfo_t DRM(devicelist)[] = {
-	{0x1002, 0x5144, 1, "ATI Radeon QD"},
-	{0x1002, 0x5145, 1, "ATI Radeon QE"},
-	{0x1002, 0x5146, 1, "ATI Radeon QF"},
-	{0x1002, 0x5147, 1, "ATI Radeon QG"},
-	{0x1002, 0x5159, 1, "ATI Radeon VE"},
-	{0, 0, 0, NULL}
-};
-
 #define DRIVER_IOCTLS							     \
  [DRM_IOCTL_NR(DRM_IOCTL_DMA)]               = { radeon_cp_buffers,  1, 0 }, \
  [DRM_IOCTL_NR(DRM_IOCTL_RADEON_CP_INIT)]    = { radeon_cp_init,     1, 1 }, \
@@ -89,37 +84,35 @@ drm_chipinfo_t DRM(devicelist)[] = {
  [DRM_IOCTL_NR(DRM_IOCTL_RADEON_TEXTURE)]    = { radeon_cp_texture,  1, 0 }, \
  [DRM_IOCTL_NR(DRM_IOCTL_RADEON_STIPPLE)]    = { radeon_cp_stipple,  1, 0 }, \
  [DRM_IOCTL_NR(DRM_IOCTL_RADEON_INDIRECT)]   = { radeon_cp_indirect, 1, 1 }, \
- [DRM_IOCTL_NR(DRM_IOCTL_RADEON_VERTEX2)]    = { radeon_cp_vertex2,  1, 0 },
+ [DRM_IOCTL_NR(DRM_IOCTL_RADEON_VERTEX2)]    = { radeon_cp_vertex2,  1, 0 }, \
+ [DRM_IOCTL_NR(DRM_IOCTL_RADEON_CMDBUF)]     = { radeon_cp_cmdbuf,   1, 0 }, \
+ [DRM_IOCTL_NR(DRM_IOCTL_RADEON_GETPARAM)]   = { radeon_cp_getparam, 1, 0 }, \
+ [DRM_IOCTL_NR(DRM_IOCTL_RADEON_FLIP)]       = { radeon_cp_flip,     1, 0 }, 
 
-
-#if 0
-/* GH: Count data sent to card via ring or vertex/indirect buffers.
+/* Driver customization:
  */
-#define __HAVE_COUNTERS         3
-#define __HAVE_COUNTER6         _DRM_STAT_IRQ
-#define __HAVE_COUNTER7         _DRM_STAT_PRIMARY
-#define __HAVE_COUNTER8         _DRM_STAT_SECONDARY
+#define DRIVER_PRERELEASE() do {					\
+	if ( dev->dev_private ) {					\
+		drm_radeon_private_t *dev_priv = dev->dev_private;	\
+		if ( dev_priv->page_flipping ) {			\
+			radeon_do_cleanup_pageflip( dev );		\
+		}							\
+	}								\
+} while (0)
+
+#define DRIVER_PRETAKEDOWN() do {					\
+	if ( dev->dev_private ) radeon_do_cleanup_cp( dev );		\
+} while (0)
+
+/* DMA customization:
+ */
+#define __HAVE_DMA		1
+
+/* Buffer customization:
+ */
+#define DRIVER_BUF_PRIV_T	drm_radeon_buf_priv_t
+
+#define DRIVER_AGP_BUFFERS_MAP( dev )					\
+	((drm_radeon_private_t *)((dev)->dev_private))->buffers
+
 #endif
-
-
-#include "drm_agpsupport.h"
-#include "drm_auth.h"
-#include "drm_bufs.h"
-#include "drm_context.h"
-#include "drm_dma.h"
-#include "drm_drawable.h"
-#include "drm_drv.h"
-
-
-#include "drm_fops.h"
-#include "drm_init.h"
-#include "drm_ioctl.h"
-#include "drm_lock.h"
-#include "drm_memory.h"
-#include "drm_vm.h"
-#include "drm_sysctl.h"
-#if __REALLY_HAVE_SG
-#include "drm_scatter.h"
-#endif
-
-DRIVER_MODULE(radeon, pci, radeon_driver, radeon_devclass, 0, 0);
