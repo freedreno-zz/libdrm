@@ -11,11 +11,11 @@
  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
  * and/or sell copies of the Software, and to permit persons to whom the
  * Software is furnished to do so, subject to the following conditions:
- *
+ * 
  * The above copyright notice and this permission notice (including the next
  * paragraph) shall be included in all copies or substantial portions of the
  * Software.
- *
+ * 
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
@@ -23,7 +23,7 @@
  * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
- *
+ * 
  * Authors:
  *    Rickard E. (Rik) Faith <faith@valinux.com>
  *    Daryll Strauss <daryll@valinux.com>
@@ -69,7 +69,7 @@ int drm_open_helper(struct inode *inode, struct file *filp, drm_device_t *dev)
 		dev->file_last	     = priv;
 	}
 	up(&dev->struct_sem);
-
+	
 	return 0;
 }
 
@@ -103,7 +103,7 @@ int drm_release(struct inode *inode, struct file *filp)
 		drm_lock_free(dev,
 			      &dev->lock.hw_lock->lock,
 			      _DRM_LOCKING_CONTEXT(dev->lock.hw_lock->lock));
-
+		
 				/* FIXME: may require heavy-handed reset of
                                    hardware at this point, possibly
                                    processed via a callback to the X
@@ -119,9 +119,9 @@ int drm_release(struct inode *inode, struct file *filp)
 	if (priv->next) priv->next->prev = priv->prev;
 	else		dev->file_last	 = priv->prev;
 	up(&dev->struct_sem);
-
+	
 	drm_free(priv, sizeof(*priv), DRM_MEM_FILES);
-
+	
 	return 0;
 }
 
@@ -130,7 +130,7 @@ int drm_fasync(int fd, struct file *filp, int on)
 	drm_file_t    *priv   = filp->private_data;
 	drm_device_t  *dev    = priv->dev;
 	int	      retcode;
-
+	
 	DRM_DEBUG("fd = %d, device = 0x%x\n", fd, dev->device);
 	retcode = fasync_helper(fd, filp, on, &dev->buf_async);
 	if (retcode < 0) return retcode;
@@ -152,7 +152,7 @@ ssize_t drm_read(struct file *filp, char *buf, size_t count, loff_t *off)
 	int	      cur;
 
 	DRM_DEBUG("%p, %p\n", dev->buf_rp, dev->buf_wp);
-
+	
 	while (dev->buf_rp == dev->buf_wp) {
 		DRM_DEBUG("  sleeping\n");
 		if (filp->f_flags & O_NONBLOCK) {
@@ -182,7 +182,7 @@ ssize_t drm_read(struct file *filp, char *buf, size_t count, loff_t *off)
 		if (dev->buf_rp == dev->buf_end) dev->buf_rp = dev->buf;
 		send -= cur;
 	}
-
+	
 	wake_up_interruptible(&dev->buf_writers);
 	return DRM_MIN(avail, count);;
 }
@@ -195,7 +195,7 @@ int drm_write_string(drm_device_t *dev, const char *s)
 
 	DRM_DEBUG("%d left, %d to send (%p, %p)\n",
 		  left, send, dev->buf_rp, dev->buf_wp);
-
+	
 	if (left == 1 || dev->buf_wp != dev->buf_rp) {
 		DRM_ERROR("Buffer not empty (%d left, wp = %p, rp = %p)\n",
 			  left,

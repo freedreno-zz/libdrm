@@ -11,11 +11,11 @@
  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
  * and/or sell copies of the Software, and to permit persons to whom the
  * Software is furnished to do so, subject to the following conditions:
- *
+ * 
  * The above copyright notice and this permission notice (including the next
  * paragraph) shall be included in all copies or substantial portions of the
  * Software.
- *
+ * 
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
@@ -23,10 +23,10 @@
  * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
- *
+ * 
  * Authors:
  *    Rickard E. (Rik) Faith <faith@valinux.com>
- *
+ * 
  */
 
 #ifndef _DRM_P_H_
@@ -304,7 +304,7 @@ typedef struct drm_ioctl_desc {
 
 typedef struct drm_devstate {
 	pid_t		  owner;	/* X server pid holding x_lock */
-
+	
 } drm_devstate_t;
 
 typedef struct drm_magic_entry {
@@ -365,14 +365,14 @@ typedef struct drm_buf {
 #define DRM_DMA_HISTOGRAM_NEXT(current)	 ((current)*10)
 typedef struct drm_histogram {
 	atomic_t	  total;
-
+	
 	atomic_t	  queued_to_dispatched[DRM_DMA_HISTOGRAM_SLOTS];
 	atomic_t	  dispatched_to_completed[DRM_DMA_HISTOGRAM_SLOTS];
 	atomic_t	  completed_to_freed[DRM_DMA_HISTOGRAM_SLOTS];
-
+	
 	atomic_t	  queued_to_completed[DRM_DMA_HISTOGRAM_SLOTS];
 	atomic_t	  queued_to_freed[DRM_DMA_HISTOGRAM_SLOTS];
-
+	
 	atomic_t	  dma[DRM_DMA_HISTOGRAM_SLOTS];
 	atomic_t	  schedule[DRM_DMA_HISTOGRAM_SLOTS];
 	atomic_t	  ctx[DRM_DMA_HISTOGRAM_SLOTS];
@@ -396,7 +396,7 @@ typedef struct drm_freelist {
 	int		  initialized; /* Freelist in use		   */
 	atomic_t	  count;       /* Number of free buffers	   */
 	drm_buf_t	  *next;       /* End pointer			   */
-
+	
 	wait_queue_head_t waiting;     /* Processes waiting on free bufs   */
 	int		  low_mark;    /* Low water mark		   */
 	int		  high_mark;   /* High water mark		   */
@@ -462,7 +462,7 @@ typedef struct drm_device_dma {
 	atomic_t	  total_prio;	/* Total DRM_DMA_PRIORITY	   */
 	atomic_t	  total_bytes;	/* Total bytes DMA'd		   */
 	atomic_t	  total_dmas;	/* Total DMA buffers dispatched	   */
-
+	
 	atomic_t	  total_missed_dma;  /* Missed drm_do_dma	    */
 	atomic_t	  total_missed_lock; /* Missed lock in drm_do_dma   */
 	atomic_t	  total_missed_free; /* Missed drm_free_this_buffer */
@@ -475,7 +475,7 @@ typedef struct drm_device_dma {
 	drm_buf_entry_t	  bufs[DRM_MAX_ORDER+1];
 	int		  buf_count;
 	drm_buf_t	  **buflist;	/* Vector of pointers info bufs	   */
-	int		  seg_count;
+	int		  seg_count; 
 	int		  page_count;
 	unsigned long	  *pagelist;
 	unsigned long	  byte_count;
@@ -523,7 +523,7 @@ typedef struct drm_device {
 	int		  unique_len;	/* Length of unique field	   */
 	dev_t		  device;	/* Device number for mknod	   */
 	char		  *devname;	/* For /proc/interrupts		   */
-
+	
 	int		  blocked;	/* Blocked due to VC switch?	   */
 	struct proc_dir_entry *root;	/* Root for this device's entries  */
 
@@ -544,7 +544,7 @@ typedef struct drm_device {
 	atomic_t	  total_ioctl;
 	atomic_t	  total_irq;	/* Total interruptions		   */
 	atomic_t	  total_ctx;	/* Total context switches	   */
-
+	
 	atomic_t	  total_locks;
 	atomic_t	  total_unlocks;
 	atomic_t	  total_contends;
@@ -585,7 +585,7 @@ typedef struct drm_device {
 #if DRM_DMA_HISTOGRAM
 	drm_histogram_t	  histo;
 #endif
-
+	
 				/* Callback to X server for context switch
 				   and for heavy-handed reset. */
 	char		  buf[DRM_BSZ]; /* Output buffer		   */
@@ -595,7 +595,7 @@ typedef struct drm_device {
 	struct fasync_struct *buf_async;/* Processes waiting for SIGIO	   */
 	wait_queue_head_t buf_readers;	/* Processes waiting to read	   */
 	wait_queue_head_t buf_writers;	/* Processes waiting to ctx switch */
-
+	
 #if defined(CONFIG_AGP) || defined(CONFIG_AGP_MODULE)
 	drm_agp_head_t    *agp;
 #endif

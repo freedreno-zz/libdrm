@@ -255,7 +255,7 @@ static void mgaG400EmitPipe(drm_mga_private_t * dev_priv)
 
 	/* This takes 50 dwords */
 
-	/* Establish vertex size.
+	/* Establish vertex size.  
 	 */
 	PRIMOUTREG(MGAREG_WIADDR2, WIA_wmode_suspend);
 	PRIMOUTREG(MGAREG_DMAPAD, 0);

@@ -11,11 +11,11 @@
  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
  * and/or sell copies of the Software, and to permit persons to whom the
  * Software is furnished to do so, subject to the following conditions:
- *
+ * 
  * The above copyright notice and this permission notice (including the next
  * paragraph) shall be included in all copies or substantial portions of the
  * Software.
- *
+ * 
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
@@ -23,7 +23,7 @@
  * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
- *
+ * 
  * Author: Rickard E. (Rik) Faith <faith@valinux.com>
  *
  */
@@ -89,7 +89,7 @@ int drm_agp_release(struct inode *inode, struct file *filp, unsigned int cmd,
 	drm_agp->release();
 	dev->agp->acquired = 0;
 	return 0;
-
+	
 }
 
 void _drm_agp_release(void)
@@ -131,7 +131,7 @@ int drm_agp_alloc(struct inode *inode, struct file *filp, unsigned int cmd,
 		return -EFAULT;
 	if (!(entry = drm_alloc(sizeof(*entry), DRM_MEM_AGPLISTS)))
 		return -ENOMEM;
-
+   
    	memset(entry, 0, sizeof(*entry));
 
 	pages = (request.size + PAGE_SIZE - 1) / PAGE_SIZE;
@@ -141,7 +141,7 @@ int drm_agp_alloc(struct inode *inode, struct file *filp, unsigned int cmd,
 		drm_free(entry, sizeof(*entry), DRM_MEM_AGPLISTS);
 		return -ENOMEM;
 	}
-
+	
 	entry->handle    = (unsigned long)memory->memory;
 	entry->memory    = memory;
 	entry->bound     = 0;
@@ -211,7 +211,7 @@ int drm_agp_bind(struct inode *inode, struct file *filp, unsigned int cmd,
 	page = (request.offset + PAGE_SIZE - 1) / PAGE_SIZE;
 	if ((retcode = drm_bind_agp(entry->memory, page))) return retcode;
 	entry->bound = dev->agp->base + (page << PAGE_SHIFT);
-	DRM_DEBUG("base = 0x%lx entry->bound = 0x%lx\n",
+	DRM_DEBUG("base = 0x%lx entry->bound = 0x%lx\n", 
 		  dev->agp->base, entry->bound);
 	return 0;
 }
@@ -223,14 +223,14 @@ int drm_agp_free(struct inode *inode, struct file *filp, unsigned int cmd,
 	drm_device_t	 *dev	 = priv->dev;
 	drm_agp_buffer_t request;
 	drm_agp_mem_t    *entry;
-
+	
 	if (!dev->agp->acquired) return -EINVAL;
 	if (copy_from_user(&request, (drm_agp_buffer_t *)arg, sizeof(request)))
 		return -EFAULT;
 	if (!(entry = drm_agp_lookup_entry(dev, request.handle)))
 		return -EINVAL;
 	if (entry->bound) drm_unbind_agp(entry->memory);
-
+   
 	if (entry->prev) entry->prev->next = entry->next;
 	else             dev->agp->memory  = entry->next;
 	if (entry->next) entry->next->prev = entry->prev;
