@@ -1415,10 +1415,9 @@ int mga_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 		return -EINVAL;
 	}
    
-   	if (MGA_VERBOSE)
-		printk("%d (pid %d) requests lock (0x%08x), flags = 0x%08x\n",
-		       lock.context, current->pid, dev->lock.hw_lock->lock,
-		       lock.flags);
+   	printk("%d (pid %d) requests lock (0x%08x), flags = 0x%08x\n",
+	       lock.context, current->pid, dev->lock.hw_lock->lock,
+	       lock.flags);
 
 
 	if (lock.context < 0) {
@@ -1426,6 +1425,8 @@ int mga_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 	}
    
    	atomic_inc(&dev_priv->in_flush);
+      	printk("dev_priv->in_flush : %d\n", atomic_read(&dev_priv->in_flush));
+
    	if(atomic_read(&dev_priv->in_flush) != 1) {
 	   atomic_dec(&dev_priv->in_flush);
 	   add_wait_queue(&dev->lock.lock_queue, &entry);
@@ -1435,11 +1436,15 @@ int mga_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 	      current->state = TASK_INTERRUPTIBLE;
 	      current->policy |= SCHED_YIELD;
 	      atomic_inc(&dev_priv->in_flush);
+	      printk("dev_priv->in_flush : %d\n", atomic_read(&dev_priv->in_flush));
+
 	      if(atomic_read(&dev_priv->in_flush) == 1) {
 		 break;
 	      }
+	      printk("dev_priv->in_flush : %d\n", atomic_read(&dev_priv->in_flush));
 	      atomic_dec(&dev_priv->in_flush);
-	      if (MGA_VERBOSE) printk("Calling lock schedule\n");
+	      printk("dev_priv->in_flush : %d\n", atomic_read(&dev_priv->in_flush));
+	      printk("Calling lock schedule\n");
 	      schedule();
 	      if (signal_pending(current)) {
 		 ret = -ERESTARTSYS;
@@ -1450,13 +1455,21 @@ int mga_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 	   remove_wait_queue(&dev->lock.lock_queue, &entry);
 	}
    
+   	printk("dev_priv->in_flush : %d\n", atomic_read(&dev_priv->in_flush));
    	if ((lock.flags & _DRM_LOCK_QUIESCENT) && (ret == 0)) {
+	   printk("lock_quiescent\n");
 	   ret = mga_flush_queue(dev);
-	   if(ret != 0) atomic_dec(&dev_priv->in_flush);
-	   wake_up_interruptible(&dev->lock.lock_queue);
-	   goto out_lock;
+	   if(ret != 0) {
+	      atomic_dec(&dev_priv->in_flush);
+	      printk("dev_priv->in_flush : %d\n", atomic_read(&dev_priv->in_flush));
+	      wake_up_interruptible(&dev->lock.lock_queue);
+	      goto out_lock;
+	   }
 	} else if (ret == 0) {
+	   printk("Regular lock\n");
+	   printk("dev_priv->in_flush : %d\n", atomic_read(&dev_priv->in_flush));
 	   atomic_dec(&dev_priv->in_flush);
+	   printk("dev_priv->in_flush : %d\n", atomic_read(&dev_priv->in_flush));
 	}
 	/* Only one queue:
 	 */
@@ -1481,7 +1494,7 @@ int mga_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 			atomic_inc(&dev->total_sleeps);
 			current->state = TASK_INTERRUPTIBLE;
 		   	current->policy |= SCHED_YIELD;
-		   	if (MGA_VERBOSE) printk("Calling lock schedule\n");
+		   	printk("Calling lock schedule\n");
 			schedule();
 			if (signal_pending(current)) {
 				ret = -ERESTARTSYS;
@@ -1496,14 +1509,16 @@ int mga_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 		if (lock.flags & _DRM_LOCK_QUIESCENT) {
 		   printk("_DRM_LOCK_QUIESCENT\n");
 		   mga_dma_quiescent(dev);
-/*		   atomic_set(&dev_priv->pending_bufs, 0); */
+		   printk("dev_priv->in_flush : %d\n", atomic_read(&dev_priv->in_flush));
 		   atomic_dec(&dev_priv->in_flush);
 		   wake_up_interruptible(&dev->lock.lock_queue);
 		}
 	} else {
 	   if (lock.flags & _DRM_LOCK_QUIESCENT) {
-		   atomic_dec(&dev_priv->in_flush);
-		   wake_up_interruptible(&dev->lock.lock_queue);	      
+	      printk("_DRM_LOCK_QUIESCENT and ret != 0\n");
+	      printk("dev_priv->in_flush : %d\n", atomic_read(&dev_priv->in_flush));
+	      atomic_dec(&dev_priv->in_flush);
+	      wake_up_interruptible(&dev->lock.lock_queue);	      
 	   }
 	}
    
