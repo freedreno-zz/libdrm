@@ -101,9 +101,6 @@ typedef struct drm_mga_init {
 	int mAccess;
 } drm_mga_init_t;
 
-
-
-
 typedef struct _xf86drmClipRectRec {
    	unsigned short x1;
    	unsigned short y1;
@@ -128,8 +125,8 @@ typedef struct {
 typedef struct {
 	unsigned int destOrg;
 	unsigned int mAccess;
-	unsigned int pitch;
-	unsigned int x,y,width,height;
+	xf86drmClipRectRec texture;
+   	int idx;
 } drm_mga_iload_t;
 
 /* Each context has a state:

@@ -132,7 +132,7 @@ static int mgaClearBuffers(drm_device_t *dev,
 	d.send_count = 1;
 	d.send_indices = &buf->idx;
 	d.send_sizes = &buf->used;
-	d.flags = _DRM_DMA_GENERAL;
+   	d.flags = _DRM_DMA_WHILE_LOCKED;
 	d.request_count = 0;
 	d.request_size = 0;
 	d.request_indices = NULL;
@@ -202,7 +202,7 @@ int mgaSwapBuffers(drm_device_t *dev, int flags)
 	d.send_count = 1;
 	d.send_indices = &buf->idx;
 	d.send_sizes = &buf->used;
-	d.flags = _DRM_DMA_GENERAL;
+   	d.flags = _DRM_DMA_WHILE_LOCKED;
 	d.request_count = 0;
 	d.request_size = 0;
 	d.request_indices = NULL;
@@ -215,19 +215,49 @@ int mgaSwapBuffers(drm_device_t *dev, int flags)
 }
 
 
-static int mgaIload( drm_device_t *dev, drm_mga_iload_t *args )
+static int mgaIload(drm_device_t *dev, drm_mga_iload_t *args)
 {
+	drm_device_dma_t *dma = dev->dma;
+   	drm_buf_t *buf = dma->buflist[ args->idx ];
+	drm_mga_buf_priv_t *buf_priv = (drm_mga_buf_priv_t *)buf->dev_private;
+   	drm_mga_private_t *dev_priv = (drm_mga_private_t *)dev->dev_private;
+	drm_mga_sarea_t *sarea_priv = dev_priv->sarea_priv;
+	drm_dma_t d;
+   	
+   	buf_priv->dma_type = MGA_DMA_ILOAD;
+   	buf_priv->boxes[0].y1 = args->texture.y1;
+   	buf_priv->boxes[0].y2 = args->texture.y2;
+   	buf_priv->boxes[0].x1 = args->texture.x1;
+   	buf_priv->boxes[0].x2 = args->texture.x2;
+   	buf_priv->ContextState[MGA_CTXREG_DSTORG] = args->destOrg;
+   	buf_priv->ContextState[MGA_CTXREG_MACCESS] = args->mAccess;
+	buf_priv->nbox = 1;   
+   	sarea_priv->dirty |= MGASAREA_NEW_CONTEXT;
+   
+	d.context = DRM_KERNEL_CONTEXT;
+	d.send_count = 1;
+	d.send_indices = &buf->idx;
+	d.send_sizes = &buf->used;
+	d.flags = _DRM_DMA_WHILE_LOCKED;
+	d.request_count = 0;
+	d.request_size = 0;
+	d.request_indices = NULL;
+	d.request_sizes = NULL;
+	d.granted_count = 0;	 
+   
+	drm_dma_enqueue(dev, &d);
+	mga_dma_schedule(dev, 1);
+
 	return 0; 
 }
 
 
 /* Necessary?  Not necessary??
  */
-static int check_lock( void )
+static int check_lock(void)
 {
 	return 1;
 }
-
 
 int mga_clear_bufs(struct inode *inode, struct file *filp,
 		   unsigned int cmd, unsigned long arg)

@@ -218,48 +218,106 @@ int mga_dma_init(struct inode *inode, struct file *filp,
 	return -EINVAL;
 }
 
-
 #define MGA_ILOAD_CMD (DC_opcod_iload | DC_atype_rpl |          	\
 		       DC_linear_linear | DC_bltmod_bfcol |       	\
 		       (0xC << DC_bop_SHIFT) | DC_sgnzero_enable |	\
 		       DC_shftzero_enable | DC_clipdis_enable)
 
-/* This needs a lot of work (see mgatex.c)
- */
-static void mga_dma_dispatch_iload(drm_device_t *dev, drm_buf_t *buf)
+static void __mga_iload_small(drm_device_t *dev,
+			      drm_buf_t *buf,
+			      int use_agp) 
 {
    	drm_mga_private_t *dev_priv = dev->dev_private;
    	drm_mga_buf_priv_t *buf_priv = buf->dev_private;
-	unsigned long address = (unsigned long)buf->bus_address;
+      	drm_mga_sarea_t *sarea_priv = dev_priv->sarea_priv;
+   	unsigned long address = (unsigned long)buf->bus_address;
 	int length = buf->used;
-	int use_agp = PDEA_pagpxfer_enable;
 	int y1 = buf_priv->boxes[0].y1;
 	int x1 = buf_priv->boxes[0].x1;
 	int y2 = buf_priv->boxes[0].y2;
 	int x2 = buf_priv->boxes[0].x2;
+   	int dstorg = buf_priv->ContextState[MGA_CTXREG_DSTORG];
+   	int maccess = buf_priv->ContextState[MGA_CTXREG_MACCESS];
    	PRIMLOCALS;
 
 	PRIMRESET(dev_priv);		
    	PRIMGETPTR(dev_priv);
-
-	PRIMOUTREG( MGAREG_YDSTLEN, (y1 << 16) | (y2 - y1));      
-        PRIMOUTREG( MGAREG_FXBNDRY, (x2 << 16) | x1);
-   	PRIMOUTREG( MGAREG_AR0, (x2 - x1) * (y2 - y1 - 1));
-   	PRIMOUTREG( MGAREG_AR3, 0 );
-   	PRIMOUTREG( MGAREG_DMAPAD, 0);
-   	PRIMOUTREG( MGAREG_DMAPAD, 0);
-   	PRIMOUTREG( MGAREG_DMAPAD, 0);
-        PRIMOUTREG( MGAREG_DWGCTL+MGAREG_MGA_EXEC, MGA_ILOAD_CMD);
-	PRIMOUTREG( MGAREG_DMAPAD, 0);
-	PRIMOUTREG( MGAREG_DMAPAD, 0);
-	PRIMOUTREG( MGAREG_SECADDRESS, address | TT_BLIT);
-	PRIMOUTREG( MGAREG_SECEND, (address + length) | use_agp);
-	PRIMOUTREG( MGAREG_DMAPAD, 0);
-	PRIMOUTREG( MGAREG_DMAPAD, 0);
-      	PRIMOUTREG( MGAREG_DWGSYNC, 0);
-   	PRIMOUTREG( MGAREG_SOFTRAP, 0);
+   
+   	PRIMOUTREG(MGAREG_DSTORG, dstorg | use_agp);
+   	PRIMOUTREG(MGAREG_MACCESS, maccess);
+   	PRIMOUTREG(MGAREG_PITCH, (1 << 15));
+   	PRIMOUTREG(MGAREG_YDST, y1 * (x2 - x1));   
+   	PRIMOUTREG(MGAREG_LEN, 1);
+   	PRIMOUTREG(MGAREG_FXBNDRY, ((x2 - x1) * (y2 - y1) - 1) << 16);
+   	PRIMOUTREG(MGAREG_AR0, (x2 - x1) * (y2 - y1) - 1);
+   	PRIMOUTREG(MGAREG_AR3, 0);
+   	PRIMOUTREG(MGAREG_DMAPAD, 0);
+   	PRIMOUTREG(MGAREG_DMAPAD, 0);
+   	PRIMOUTREG(MGAREG_DMAPAD, 0);
+   	PRIMOUTREG(MGAREG_DWGCTL+MGAREG_MGA_EXEC, MGA_ILOAD_CMD);
+   	PRIMOUTREG(MGAREG_DMAPAD, 0);
+   	PRIMOUTREG(MGAREG_DMAPAD, 0);
+   	PRIMOUTREG(MGAREG_SECADDRESS, address | TT_BLIT);
+   	PRIMOUTREG(MGAREG_SECEND, (address + length) | use_agp);
+   	PRIMOUTREG(MGAREG_DMAPAD, 0);
+   	PRIMOUTREG(MGAREG_DMAPAD, 0);
+   	PRIMOUTREG(MGAREG_DWGSYNC, 0);
+   	PRIMOUTREG(MGAREG_SOFTRAP, 0);
    	PRIMADVANCE(dev_priv);
+#if 0
+   	/* For now we need to set this in the ioctl */
+	sarea_priv->dirty |= MGASAREA_NEW_CONTEXT;
+#endif
+   	MGA_WRITE(MGAREG_DWGSYNC, MGA_SYNC_TAG);
+   	while(MGA_READ(MGAREG_DWGSYNC) != MGA_SYNC_TAG) ;
 
+      	MGA_WRITE(MGAREG_PRIMADDRESS, dev_priv->prim_phys_head | TT_GENERAL);
+	MGA_WRITE(MGAREG_PRIMEND, (phys_head + num_dwords * 4) | use_agp);   
+}
+
+static void __mga_iload_xy(drm_device_t *dev,
+			   drm_buf_t *buf,
+			   int use_agp) 
+{
+      	drm_mga_private_t *dev_priv = dev->dev_private;
+   	drm_mga_buf_priv_t *buf_priv = buf->dev_private;
+      	drm_mga_sarea_t *sarea_priv = dev_priv->sarea_priv;
+	unsigned long address = (unsigned long)buf->bus_address;
+   	int length = buf->used;
+	int y1 = buf_priv->boxes[0].y1;
+	int x1 = buf_priv->boxes[0].x1;
+	int y2 = buf_priv->boxes[0].y2;
+	int x2 = buf_priv->boxes[0].x2;
+   	int dstorg = buf_priv->ContextState[MGA_CTXREG_DSTORG];
+   	int maccess = buf_priv->ContextState[MGA_CTXREG_MACCESS];
+   	PRIMLOCALS;
+
+	PRIMRESET(dev_priv);		
+   	PRIMGETPTR(dev_priv);
+   	PRIMOUTREG(MGAREG_DSTORG, dstorg | use_agp);
+   	PRIMOUTREG(MGAREG_MACCESS, maccess);
+   	PRIMOUTREG(MGAREG_PITCH, (x2 - x1));
+   	PRIMOUTREG(MGAREG_YDSTLEN, (y1 << 16) | (y2 - y1));
+	   
+   	PRIMOUTREG(MGAREG_FXBNDRY, (x2 << 16) | x1);
+   	PRIMOUTREG(MGAREG_AR0, (x2 - x1) * (y2 - y1 - 1));
+   	PRIMOUTREG(MGAREG_AR3, 0 );
+   	PRIMOUTREG(MGAREG_DWGCTL+MGAREG_MGA_EXEC, MGA_ILOAD_CMD);
+	   	   
+   	PRIMOUTREG(MGAREG_DMAPAD, 0);
+   	PRIMOUTREG(MGAREG_DMAPAD, 0);
+   	PRIMOUTREG(MGAREG_SECADDRESS, address | TT_BLIT);
+   	PRIMOUTREG(MGAREG_SECEND, (address + length) | use_agp);
+	   
+   	PRIMOUTREG(MGAREG_DMAPAD, 0);
+   	PRIMOUTREG(MGAREG_DMAPAD, 0);
+   	PRIMOUTREG(MGAREG_DWGSYNC, 0);
+   	PRIMOUTREG(MGAREG_SOFTRAP, 0);
+   	PRIMADVANCE(dev_priv);
+#if 0
+   	/* For now we need to set this in the ioctl */
+	sarea_priv->dirty |= MGASAREA_NEW_CONTEXT;
+#endif
    	MGA_WRITE(MGAREG_DWGSYNC, MGA_SYNC_TAG);
    	while(MGA_READ(MGAREG_DWGSYNC) != MGA_SYNC_TAG) ;
 
@@ -267,6 +325,20 @@ static void mga_dma_dispatch_iload(drm_device_t *dev, drm_buf_t *buf)
 	MGA_WRITE(MGAREG_PRIMEND, (phys_head + num_dwords * 4) | use_agp);
 }
 
+static void mga_dma_dispatch_iload(drm_device_t *dev, drm_buf_t *buf)
+{
+   	drm_mga_buf_priv_t *buf_priv = buf->dev_private;
+
+	int use_agp = PDEA_pagpxfer_enable;
+	int x1 = buf_priv->boxes[0].x1;
+	int x2 = buf_priv->boxes[0].x2;
+   
+   	if((x2 - x1) < 32) {
+	   	__mga_iload_small(dev, buf, use_agp);
+	} else {
+	   	__mga_iload_xy(dev, buf, use_agp); 
+	}   
+}
 
 static void mga_dma_dispatch_vertex(drm_device_t *dev, drm_buf_t *buf)
 {
@@ -344,7 +416,6 @@ static void mga_dma_dispatch_general(drm_device_t *dev, drm_buf_t *buf)
       	MGA_WRITE(MGAREG_PRIMADDRESS, dev_priv->prim_phys_head | TT_GENERAL);
 	MGA_WRITE(MGAREG_PRIMEND, (phys_head + num_dwords * 4) | use_agp);
 }
-
 
 /* Frees dispatch lock */
 static inline void mga_dma_quiescent(drm_device_t *dev)

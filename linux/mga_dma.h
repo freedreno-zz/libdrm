@@ -17,7 +17,6 @@ typedef struct {
 
    	unsigned int nbox;
    	xf86drmClipRectRec boxes[MGA_NR_SAREA_CLIPRECTS];
-
 } drm_mga_buf_priv_t;
 
 
