@@ -49,7 +49,9 @@
 #include <sys/sysctl.h>
 #include <sys/select.h>
 #include <sys/bus.h>
+#if __FreeBSD_version >= 500005
 #include <sys/taskqueue.h>
+#endif
 
 #ifdef DRM_AGP
 #include <pci/agpvar.h>
@@ -115,6 +117,17 @@ find_first_zero_bit(volatile u_int32_t *p, int max)
 #define spldrm()		spltty()
 
 #define memset(p, v, s)		bzero(p, s)
+
+/*
+ * Fake out the module macros for versions of FreeBSD where they don't
+ * exist.
+ */
+#if __FreeBSD_version < 500002
+
+#define MODULE_VERSION(a,b)		struct __hack
+#define MODULE_DEPEND(a,b,c,d,e)	struct __hack
+
+#endif
 
 /*
  * Software interrupts for DMA pipe feeding. The FreeBSD kernel apis
@@ -504,7 +517,9 @@ typedef struct drm_device {
 	int		  last_checked;	/* Last context checked for DMA	   */
 	int		  last_context;	/* Last current context		   */
 	int		  last_switch;	/* Time at last context switch  */
+#if __FreeBSD_version >= 500005
 	struct task	  task;
+#endif
 	struct timespec	  ctx_start;
 	struct timespec	  lck_start;
 #if DRM_DMA_HISTOGRAM

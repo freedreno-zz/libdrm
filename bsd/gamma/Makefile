@@ -4,7 +4,7 @@ KMOD	= gamma
 SRCS    = gamma_drv.c gamma_dma.c
 SRCS   += device_if.h bus_if.h pci_if.h
 CFLAGS += ${DEBUG_FLAGS} -I..
-KERN    = /usr/src/sys
+KMODDEPS = drm
 
 @:
 	ln -sf /sys @

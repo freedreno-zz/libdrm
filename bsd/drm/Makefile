@@ -6,7 +6,6 @@ SRCS	= init.c memory.c auth.c context.c drawable.c bufs.c \
 	  agpsupport.c ctxbitmap.c
 SRCS   += device_if.h bus_if.h pci_if.h
 CFLAGS += ${DEBUG_FLAGS} -I.. # -DDRM_AGP
-KERN    = /usr/src/sys
 
 @:
 	ln -sf /sys @
