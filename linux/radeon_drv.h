@@ -480,6 +480,7 @@ extern int radeon_cp_cmdbuf( struct inode *inode, struct file *filp,
 #define RADEON_CP_PACKET1_REG1_MASK	0x003ff800
 
 #define RADEON_VTX_Z_PRESENT			(1 << 31)
+#define RADEON_VTX_PKCOLOR_PRESENT		(1 << 3)
 
 #define RADEON_PRIM_TYPE_NONE			(0 << 0)
 #define RADEON_PRIM_TYPE_POINT			(1 << 0)

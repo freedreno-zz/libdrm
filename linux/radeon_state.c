@@ -431,7 +431,7 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 			radeon_emit_clip_rect( dev_priv,
 					       &sarea_priv->boxes[i] );
 
-			BEGIN_RING( 25 );
+			BEGIN_RING( 28 );
 
 			RADEON_WAIT_UNTIL_2D_IDLE();
 
@@ -448,8 +448,12 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 			OUT_RING_REG( RADEON_SE_CNTL,
 				      depth_clear->se_cntl );
 
-			OUT_RING( CP_PACKET3( RADEON_3D_DRAW_IMMD, 10 ) );
-			OUT_RING( RADEON_VTX_Z_PRESENT );
+			/* Radeon 7500 doesn't like vertices without
+			 * color.
+			 */
+			OUT_RING( CP_PACKET3( RADEON_3D_DRAW_IMMD, 13 ) );
+			OUT_RING( RADEON_VTX_Z_PRESENT |
+				  RADEON_VTX_PKCOLOR_PRESENT);
 			OUT_RING( (RADEON_PRIM_TYPE_RECT_LIST |
 				   RADEON_PRIM_WALK_RING |
 				   RADEON_MAOS_ENABLE |
@@ -459,14 +463,17 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 			OUT_RING( depth_boxes[i].ui[CLEAR_X1] );
 			OUT_RING( depth_boxes[i].ui[CLEAR_Y1] );
 			OUT_RING( depth_boxes[i].ui[CLEAR_DEPTH] );
+			OUT_RING( 0x0 );
 
 			OUT_RING( depth_boxes[i].ui[CLEAR_X1] );
 			OUT_RING( depth_boxes[i].ui[CLEAR_Y2] );
 			OUT_RING( depth_boxes[i].ui[CLEAR_DEPTH] );
+			OUT_RING( 0x0 );
 
 			OUT_RING( depth_boxes[i].ui[CLEAR_X2] );
 			OUT_RING( depth_boxes[i].ui[CLEAR_Y2] );
 			OUT_RING( depth_boxes[i].ui[CLEAR_DEPTH] );
+			OUT_RING( 0x0 );
 
 			ADVANCE_RING();
 
