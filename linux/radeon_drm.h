@@ -38,27 +38,31 @@
 #ifndef __RADEON_SAREA_DEFINES__
 #define __RADEON_SAREA_DEFINES__
 
-/* What needs to be changed for the current vertex buffer?
- */
-#define RADEON_UPLOAD_CONTEXT		0x001
-#define RADEON_UPLOAD_SETUP		0x002
-#define RADEON_UPLOAD_TEX0		0x004
-#define RADEON_UPLOAD_TEX1		0x008
-#define RADEON_UPLOAD_TEX0IMAGES	0x010
-#define RADEON_UPLOAD_TEX1IMAGES	0x020
-#define RADEON_UPLOAD_CORE		0x040
-#define RADEON_UPLOAD_MASKS		0x080
-#define RADEON_UPLOAD_WINDOW		0x100
-#define RADEON_UPLOAD_CLIPRECTS		0x200	/* handled client-side */
-#define RADEON_REQUIRE_QUIESCENCE	0x400
-#define RADEON_UPLOAD_ALL		0x7ff
+/* What needs to be changed for the current vertex buffer? */
+#define RADEON_UPLOAD_CONTEXT		0x00000001
+#define RADEON_UPLOAD_VERTFMT		0x00000002
+#define RADEON_UPLOAD_LINE		0x00000004
+#define RADEON_UPLOAD_BUMPMAP		0x00000008
+#define RADEON_UPLOAD_MASKS		0x00000010
+#define RADEON_UPLOAD_VIEWPORT		0x00000020
+#define RADEON_UPLOAD_SETUP		0x00000040
+#define RADEON_UPLOAD_TCL		0x00000080
+#define RADEON_UPLOAD_MISC		0x00000100
+#define RADEON_UPLOAD_TEX0		0x00000200
+#define RADEON_UPLOAD_TEX1		0x00000400
+#define RADEON_UPLOAD_TEX2		0x00000800
+#define RADEON_UPLOAD_TEX0IMAGES	0x00001000
+#define RADEON_UPLOAD_TEX1IMAGES	0x00002000
+#define RADEON_UPLOAD_TEX2IMAGES	0x00004000
+#define RADEON_UPLOAD_CLIPRECTS		0x00008000 /* handled client-side */
+#define RADEON_REQUIRE_QUIESCENCE	0x00010000
+#define RADEON_UPLOAD_ALL		0x0001ffff
 
 #define RADEON_FRONT			0x1
 #define RADEON_BACK			0x2
 #define RADEON_DEPTH			0x4
 
-/* Primitive types
- */
+/* Primitive types */
 #define RADEON_POINTS			0x1
 #define RADEON_LINES			0x2
 #define RADEON_LINE_STRIP		0x3
@@ -66,29 +70,25 @@
 #define RADEON_TRIANGLE_FAN		0x5
 #define RADEON_TRIANGLE_STRIP		0x6
 
-/* Vertex/indirect buffer size
- */
+/* Vertex/indirect buffer size */
 #if 1
 #define RADEON_BUFFER_SIZE		16384
 #else
 #define RADEON_BUFFER_SIZE		(128 * 1024)
 #endif
 
-/* Byte offsets for indirect buffer data
- */
+/* Byte offsets for indirect buffer data */
 #define RADEON_INDEX_PRIM_OFFSET	20
 #define RADEON_HOSTDATA_BLIT_OFFSET	32
 
-/* 2048x2048 @ 32bpp texture requires this many indirect buffers
- */
+/* 2048x2048 @ 32bpp texture requires this many indirect buffers */
 #define RADEON_MAX_BLIT_BUFFERS		((2048 * 2048 * 4)/RADEON_BUFFER_SIZE)
 
-/* Keep these small for testing.
- */
+/* Keep these small for testing. */
 #define RADEON_NR_SAREA_CLIPRECTS	12
 
 /* There are 2 heaps (local/AGP).  Each region within a heap is a
- *  minimum of 64k, and there are at most 64 of them per heap.
+ * minimum of 64k, and there are at most 64 of them per heap.
  */
 #define RADEON_LOCAL_TEX_HEAP		0
 #define RADEON_AGP_TEX_HEAP		1
@@ -102,57 +102,105 @@
 #endif /* __RADEON_SAREA_DEFINES__ */
 
 typedef struct {
-	/* Context state - can be written in one large chunk */
-	unsigned int dst_pitch_offset_c;
-	unsigned int dp_gui_master_cntl_c;
-	unsigned int sc_top_left_c;
-	unsigned int sc_bottom_right_c;
-	unsigned int z_offset_c;
-	unsigned int z_pitch_c;
-	unsigned int z_sten_cntl_c;
-	unsigned int tex_cntl_c;
-	unsigned int misc_3d_state_cntl_reg;
-	unsigned int texture_clr_cmp_clr_c;
-	unsigned int texture_clr_cmp_msk_c;
-	unsigned int fog_color_c;
+	unsigned int red;
+	unsigned int green;
+	unsigned int blue;
+	unsigned int alpha;
+} radeon_color_regs_t;
 
-	/* Texture state */
-	unsigned int tex_size_pitch_c;
-	unsigned int constant_color_c;
+typedef struct {
+	/* Context state */
+	unsigned int pp_misc; /* 0x1c14 */
+	unsigned int pp_fog_color;
+	unsigned int re_solid_color;
+	unsigned int rb3d_blendcntl;
+	unsigned int rb3d_depthoffset;
+	unsigned int rb3d_depthpitch;
+	unsigned int rb3d_zstencilcntl;
 
-	/* Setup state */
-	unsigned int pm4_vc_fpu_setup;
-	unsigned int setup_cntl;
+	unsigned int pp_cntl; /* 0x1c38 */
+	unsigned int rb3d_cntl;
+	unsigned int rb3d_coloroffset;
+	unsigned int re_width_height;
+	unsigned int rb3d_colorpitch;
+	unsigned int se_cntl;
+
+	/* Vertex format state */
+	unsigned int se_coord_fmt; /* 0x1c50 */
+
+	/* Line state */
+	unsigned int re_line_pattern; /* 0x1cd0 */
+	unsigned int re_line_state;
+
+	unsigned int se_line_width; /* 0x1db8 */
+
+	/* Bumpmap state */
+	unsigned int pp_lum_matrix; /* 0x1d00 */
+
+	unsigned int pp_rot_matrix_0; /* 0x1d58 */
+	unsigned int pp_rot_matrix_1;
 
 	/* Mask state */
-	unsigned int dp_write_mask;
-	unsigned int sten_ref_mask_c;
-	unsigned int plane_3d_mask_c;
+	unsigned int rb3d_stencilrefmask; /* 0x1d7c */
+	unsigned int rb3d_ropcntl;
+	unsigned int rb3d_planemask;
 
-	/* Window state */
-	unsigned int window_xy_offset;
+	/* Viewport state */
+	unsigned int se_vport_xscale; /* 0x1d98 */
+	unsigned int se_vport_xoffset;
+	unsigned int se_vport_yscale;
+	unsigned int se_vport_yoffset;
+	unsigned int se_vport_zscale;
+	unsigned int se_vport_zoffset;
 
-	/* Core state */
-	unsigned int scale_3d_cntl;
+	/* Setup state */
+	unsigned int se_cntl_status; /* 0x2140 */
+
+#ifdef TCL_ENABLE
+	/* TCL state */
+	radeon_color_regs_t se_tcl_material_emmissive; /* 0x2210 */
+	radeon_color_regs_t se_tcl_material_ambient;
+	radeon_color_regs_t se_tcl_material_diffuse;
+	radeon_color_regs_t se_tcl_material_specular;
+	unsigned int se_tcl_shininess;
+	unsigned int se_tcl_output_vtx_fmt;
+	unsigned int se_tcl_output_vtx_sel;
+	unsigned int se_tcl_matrix_select_0;
+	unsigned int se_tcl_matrix_select_1;
+	unsigned int se_tcl_ucp_vert_blend_ctl;
+	unsigned int se_tcl_texture_proc_ctl;
+	unsigned int se_tcl_light_model_ctl;
+	unsigned int se_tcl_per_light_ctl[4];
+#endif
+
+	/* Misc state */
+	unsigned int re_top_left; /* 0x26c0 */
+	unsigned int re_misc;
 } drm_radeon_context_regs_t;
 
 /* Setup registers for each texture unit */
 typedef struct {
-	unsigned int tex_cntl;
-	unsigned int tex_combine_cntl;
-	unsigned int tex_size_pitch;
-	unsigned int tex_offset[RADEON_TEX_MAXLEVELS];
-	unsigned int tex_border_color;
+	unsigned int pp_txfilter;
+	unsigned int pp_txformat;
+	unsigned int pp_txoffset;
+	unsigned int pp_txcblend;
+	unsigned int pp_txablend;
+	unsigned int pp_tfactor;
+
+	unsigned int pp_cubic_faces;
+
+	unsigned int pp_border_color;
+
+	unsigned int pp_cubic_offset[5];
 } drm_radeon_texture_regs_t;
 
-
-typedef struct drm_radeon_tex_region {
+typedef struct {
 	unsigned char next, prev;
 	unsigned char in_use;
 	int age;
 } drm_radeon_tex_region_t;
 
-typedef struct drm_radeon_sarea {
+typedef struct {
 	/* The channel for communication of state information to the kernel
 	 * on firing a vertex buffer.
 	 */
@@ -179,7 +227,7 @@ typedef struct drm_radeon_sarea {
 
 
 /* WARNING: If you change any of these defines, make sure to change the
- * defines in the Xserver file (xf86drmRADEON.h)
+ * defines in the Xserver file (xf86drmRadeon.h)
  */
 typedef struct drm_radeon_init {
 	enum {
@@ -209,6 +257,8 @@ typedef struct drm_radeon_init {
 	unsigned int ring_rptr_offset;
 	unsigned int buffers_offset;
 	unsigned int agp_textures_offset;
+
+	unsigned int agp_vm_start;
 } drm_radeon_init_t;
 
 typedef struct drm_radeon_cp_stop {

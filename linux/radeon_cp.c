@@ -445,30 +445,7 @@ static void radeon_do_cp_flush( drm_radeon_private_t *dev_priv )
  */
 static int radeon_do_cp_idle( drm_radeon_private_t *dev_priv )
 {
-#if 1
 	return radeon_do_wait_for_idle( dev_priv );
-#else
-	int i;
-
-	for ( i = 0 ; i < dev_priv->usec_timeout ; i++ ) {
-		if ( *dev_priv->ring.head == dev_priv->ring.tail ) {
-			int pm4stat = RADEON_READ( RADEON_PM4_STAT );
-			if ( ( (pm4stat & RADEON_PM4_FIFOCNT_MASK) >=
-			       dev_priv->cp_fifo_size ) &&
-			     !(pm4stat & (RADEON_PM4_BUSY |
-					  RADEON_PM4_GUI_ACTIVE)) ) {
-				return radeon_do_pixcache_flush( dev_priv );
-			}
-		}
-		udelay( 1 );
-	}
-
-#if 0
-	DRM_ERROR( "failed!\n" );
-	radeon_status( dev_priv );
-#endif
-	return -EBUSY;
-#endif
 }
 
 /* Start the Concurrent Command Engine.
@@ -565,21 +542,20 @@ static int radeon_do_engine_reset( drm_device_t *dev )
 static void radeon_cp_init_ring_buffer( drm_device_t *dev )
 {
 	drm_radeon_private_t *dev_priv = dev->dev_private;
-	u32 ring_start, agp_vm_start, cur_read_ptr;
+	u32 ring_start, cur_read_ptr;
 	u32 tmp;
-
-	agp_vm_start = RADEON_READ( RADEON_CONFIG_APER_SIZE );
 
 	/* Initialize the memory controller */
 	RADEON_WRITE( RADEON_MC_FB_LOCATION,
-		      ( agp_vm_start-1 ) & 0xffff0000);
+		      ( dev_priv->agp_vm_start-1 ) & 0xffff0000);
 	RADEON_WRITE( RADEON_MC_AGP_LOCATION,
-		      ( ( ( agp_vm_start-1 + dev_priv->agp_size ) & 0xffff0000)
-			| ( agp_vm_start >> 16 ) ) );
+		      ( ( ( dev_priv->agp_vm_start-1 +
+			    dev_priv->agp_size ) & 0xffff0000)
+			| ( dev_priv->agp_vm_start >> 16 ) ) );
 
 	ring_start = dev_priv->cp_ring->offset - dev->agp->base;
 
-	RADEON_WRITE( RADEON_CP_RB_BASE, ring_start + agp_vm_start );
+	RADEON_WRITE( RADEON_CP_RB_BASE, ring_start + dev_priv->agp_vm_start );
 
 	/* Set the write pointer delay */
 	RADEON_WRITE( RADEON_CP_RB_WPTR_DELAY, 0 );
@@ -706,6 +682,7 @@ static int radeon_do_init_cp( drm_device_t *dev, drm_radeon_init_t *init )
 	}
 #endif
 
+	dev_priv->agp_vm_start = init->agp_vm_start;
 	dev_priv->agp_size = init->agp_size;
 
 	dev_priv->ring.head = ((__volatile__ u32 *)
