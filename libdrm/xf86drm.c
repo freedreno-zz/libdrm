@@ -217,6 +217,7 @@ static int drmOpenByName(const char *name)
     group = xf86ConfigDRI.group ? xf86ConfigDRI.group : DRM_DEV_GID;
 #endif
 
+#if defined(XFree86Server)
     if (!drmAvailable()) {
         /* try to load the kernel module now */
         char filename[1000];
@@ -230,6 +231,10 @@ static int drmOpenByName(const char *name)
             return -1;
         }
     }
+#else
+    if (!drmAvailable())
+       return -1;
+#endif
 
     if (!geteuid()) {
 	dirmode = mode;
