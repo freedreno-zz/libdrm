@@ -523,7 +523,7 @@ static void mga_dma_dispatch_clear( drm_device_t *dev,
 	int nbox = sarea_priv->nbox;
 	int i;
 	DMA_LOCALS;
-	DRM_DEBUG( __FUNCTION__ ":\n" );
+	DRM_DEBUG( "%s:\n", __FUNCTION__ );
 
 	BEGIN_DMA( 1 );
 
@@ -617,7 +617,7 @@ static void mga_dma_dispatch_swap( drm_device_t *dev )
 	int nbox = sarea_priv->nbox;
 	int i;
 	DMA_LOCALS;
-	DRM_DEBUG( __FUNCTION__ ":\n" );
+	DRM_DEBUG( "%s:\n", __FUNCTION__ );
 
 	sarea_priv->last_frame.head = dev_priv->prim.tail;
 	sarea_priv->last_frame.wrap = dev_priv->prim.last_wrap;
@@ -826,7 +826,7 @@ static void mga_dma_dispatch_blit( drm_device_t *dev,
 	int nbox = sarea_priv->nbox;
 	u32 scandir = 0, i;
 	DMA_LOCALS;
-	DRM_DEBUG( __FUNCTION__ ":\n" );
+	DRM_DEBUG( "%s:\n", __FUNCTION__ );
 
 	BEGIN_DMA( 4 + nbox );
 
@@ -1012,7 +1012,7 @@ int mga_dma_iload( DRM_OS_IOCTL )
 	drm_buf_t *buf;
 	drm_mga_buf_priv_t *buf_priv;
 	drm_mga_iload_t iload;
-	DRM_DEBUG( __FUNCTION__ ":\n" );
+	DRM_DEBUG( "%s:\n", __FUNCTION__ );
 
 	LOCK_TEST_WITH_RETURN( dev );
 

@@ -445,7 +445,7 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 	u32 rb3d_cntl = 0, rb3d_stencilrefmask= 0;
 	int i;
 	RING_LOCALS;
-	DRM_DEBUG( __FUNCTION__": flags = 0x%x\n", flags );
+	DRM_DEBUG( "%s: flags = 0x%x\n", __FUNCTION__, flags );
 
 	if ( dev_priv->page_flipping && dev_priv->current_page == 1 ) {
 		unsigned int tmp = flags;
@@ -741,8 +741,8 @@ static void radeon_cp_dispatch_vertex( drm_device_t *dev,
 	int i = 0;
 	RING_LOCALS;
 
-	DRM_DEBUG( __FUNCTION__": nbox=%d %d..%d prim %x nvert %d\n",
-		   sarea_priv->nbox, prim->start, prim->finish,
+	DRM_DEBUG( "%s: nbox=%d %d..%d prim %x nvert %d\n",
+		   __FUNCTION__, sarea_priv->nbox, prim->start, prim->finish,
 		   prim->prim, numverts );
 
 	buf_priv->dispatched = 1;
@@ -1483,8 +1483,8 @@ int radeon_cp_vertex2( DRM_OS_IOCTL )
 
 	DRM_OS_KRNFROMUSR(vertex, (drm_radeon_vertex2_t *)data, sizeof(vertex));
 
-	DRM_DEBUG( __FUNCTION__": pid=%d index=%d discard=%d\n",
-		   current->pid, vertex.idx, vertex.discard );
+	DRM_DEBUG( "%s: pid=%d index=%d discard=%d\n", __FUNCTION__, 
+		   DRM_OS_CURRENTPID, vertex.idx, vertex.discard );
 
 	if ( vertex.idx < 0 || vertex.idx >= dma->buf_count ) {
 		DRM_ERROR( "buffer index %d (of %d max)\n",
