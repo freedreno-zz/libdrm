@@ -661,18 +661,6 @@ static int gamma_do_init_dma( drm_device_t *dev, drm_gamma_init_t *init )
 	DRM_FIND_MAP( dev_priv->mmio2, init->mmio2 );
 	DRM_FIND_MAP( dev_priv->mmio3, init->mmio3 );
 
-printk("dma map is 0x%x 0x%x 0x%x 0x%x\n",	
-dev_priv->mmio0,
-dev_priv->mmio1,
-dev_priv->mmio2,
-dev_priv->mmio3);
-
-printk("dma map is 0x%x 0x%x 0x%x 0x%x\n",	
-dev_priv->mmio0->handle, 
-dev_priv->mmio1->handle, 
-dev_priv->mmio2->handle, 
-dev_priv->mmio3->handle); 
-
 	if (init->pcimode) {
 		buf = dma->buflist[GLINT_DRI_BUF_COUNT];
 		pgt = buf->address;
