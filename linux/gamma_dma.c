@@ -37,6 +37,7 @@
 #include <linux/interrupt.h>	/* For task queue support */
 #include <linux/delay.h>
 
+#if 0
 #define DO_IOREMAP( _map )						\
 do {									\
 	(_map)->handle = DRM(ioremap)( (_map)->offset, (_map)->size );	\
@@ -58,6 +59,7 @@ do {									\
 		}							\
 	}								\
 } while (0)
+#endif
 
 /* WARNING!!! MAGIC NUMBER!!!  The number of regions already added to the
    kernel must be specified here.  Currently, the number is 2.	This must

@@ -45,39 +45,8 @@
 #define DRIVER_PATCHLEVEL	0
 
 
-static drm_ioctl_desc_t	      gamma_ioctls[] = {
-	[DRM_IOCTL_NR(DRM_IOCTL_VERSION)]    = { gamma_version,	  0, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_GET_UNIQUE)] = { gamma_getunique,	  0, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_GET_MAGIC)]  = { gamma_getmagic,	  0, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_IRQ_BUSID)]  = { gamma_irq_busid,	  0, 1 },
-
-	[DRM_IOCTL_NR(DRM_IOCTL_SET_UNIQUE)] = { gamma_setunique,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_BLOCK)]	     = { gamma_block,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_UNBLOCK)]    = { gamma_unblock,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_CONTROL)]    = { gamma_control,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_AUTH_MAGIC)] = { gamma_authmagic,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_ADD_MAP)]    = { gamma_addmap,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_ADD_BUFS)]   = { gamma_addbufs,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_MARK_BUFS)]  = { gamma_markbufs,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_INFO_BUFS)]  = { gamma_infobufs,	  1, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_MAP_BUFS)]   = { gamma_mapbufs,	  1, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_FREE_BUFS)]  = { gamma_freebufs,	  1, 0 },
-
-	[DRM_IOCTL_NR(DRM_IOCTL_ADD_CTX)]    = { gamma_addctx,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_RM_CTX)]     = { gamma_rmctx,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_MOD_CTX)]    = { gamma_modctx,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_GET_CTX)]    = { gamma_getctx,	  1, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_SWITCH_CTX)] = { gamma_switchctx,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_NEW_CTX)]    = { gamma_newctx,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_RES_CTX)]    = { gamma_resctx,	  1, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_ADD_DRAW)]   = { gamma_adddraw,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_RM_DRAW)]    = { gamma_rmdraw,	  1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_DMA)]	     = { gamma_dma,	  1, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_LOCK)]	     = { gamma_lock,	  1, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_UNLOCK)]     = { gamma_unlock,	  1, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_FINISH)]     = { gamma_finish,	  1, 0 },
-};
-#define DRIVER_IOCTL_COUNT DRM_ARRAY_SIZE(gamma_ioctls)
+#define DRIVER_IOCTLS							  \
+	[DRM_IOCTL_NR(DRM_IOCTL_DMA)]	     = { gamma_dma,	  1, 0 }
 
 #define __HAVE_MTRR		1
 #define __HAVE_CTX_BITMAP	1
@@ -91,6 +60,7 @@ static drm_ioctl_desc_t	      gamma_ioctls[] = {
 #define __HAVE_DMA_FREELIST	1
 #define __HAVE_DMA		1
 #define __HAVE_DMA_IRQ		1
+#define __HAVE_COUNTER_6	
 
 #define __HAVE_DMA_READY	1
 #define DRIVER_DMA_READY()						\

@@ -136,7 +136,7 @@ endif
 ifeq ($(AGP),1)
 MODCFLAGS += -DCONFIG_AGP -DCONFIG_AGP_MODULE
 #DRMOBJS += agpsupport.o
-MODS += mga.o
+MODS += mga.o gamma.o
 #ifeq ($(MACHINE),i386)
 #MODS += i810.o
 #endif
