@@ -1597,7 +1597,6 @@ int i830_setparam( DRM_IOCTL_ARGS )
 
 	DRM_COPY_FROM_USER_IOCTL( param, (drm_i830_setparam_t *)data, 
 				  sizeof(param) );
-		return DRM_ERR(EFAULT);
 
 	switch( param.param ) {
 	case I830_SETPARAM_USE_MI_BATCHBUFFER_START:
@@ -1610,8 +1609,10 @@ int i830_setparam( DRM_IOCTL_ARGS )
 		dev_priv->tex_lru_nr_regions = param.value;
 		break;
 	default:
+		DRM_ERROR("unknown parameter %d\n", param.param);
 		return DRM_ERR(EINVAL);
 	}
+
 
 	return 0;
 }
