@@ -43,15 +43,15 @@
 
 /* Interface history
  *
- * 1.1 - XFree86 4.1
- * 1.2 - XvMC interfaces
- *     - XFree86 4.2
- * 1.3 - Disable copying code (leave stub ioctls for backwards compatibility)
- *     - Remove requirement for interrupt (leave stubs again)
+ * 1.1   - XFree86 4.1
+ * 1.2   - XvMC interfaces
+ *       - XFree86 4.2
+ * 1.2.1 - Disable copying code (leave stub ioctls for backwards compatibility)
+ *       - Remove requirement for interrupt (leave stubs again)
  */
 #define DRIVER_MAJOR		1
-#define DRIVER_MINOR		3
-#define DRIVER_PATCHLEVEL	0
+#define DRIVER_MINOR		2
+#define DRIVER_PATCHLEVEL	1
 
 #define DRIVER_IOCTLS							    \
 	[DRM_IOCTL_NR(DRM_IOCTL_I810_INIT)]   = { i810_dma_init,    1, 1 }, \
