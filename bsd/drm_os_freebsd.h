@@ -93,7 +93,7 @@
 #define DRM_OS_IOCTL		dev_t kdev, u_long cmd, caddr_t data, int flags, DRM_OS_STRUCTPROC *p
 #define DRM_OS_LOCK		lockmgr(&dev->dev_lock, LK_EXCLUSIVE, 0, DRM_OS_CURPROC)
 #define DRM_OS_UNLOCK 		lockmgr(&dev->dev_lock, LK_RELEASE, 0, DRM_OS_CURPROC)
-#define DRM_OS_CHECKSUSER	suser(p)
+#define DRM_OS_SUSER(p)		suser(p)
 #define DRM_OS_TASKQUEUE_ARGS	void *dev, int pending
 #define DRM_OS_IRQ_ARGS		void *device
 #define DRM_OS_DEVICE		drm_device_t	*dev	= kdev->si_drv1

@@ -1,7 +1,15 @@
 
+#ifdef __FreeBSD__
 static int DRM(dma_mmap)(dev_t kdev, vm_offset_t offset, int prot)
+#elif defined(__NetBSD__)
+static paddr_t DRM(dma_mmap)(dev_t kdev, vm_offset_t offset, int prot)
+#endif
 {
-	drm_device_t	 *dev	 = kdev->si_drv1;
+#ifdef __FreeBSD__
+	drm_device_t *dev = kdev->si_drv1;
+#elif defined(__NetBSD__)
+	drm_device_t *dev = &DRM(softcs)[0]; /* FIXME: multiple instances */
+#endif
 	drm_device_dma_t *dma	 = dev->dma;
 	unsigned long	 physical;
 	unsigned long	 page;
@@ -16,9 +24,17 @@ static int DRM(dma_mmap)(dev_t kdev, vm_offset_t offset, int prot)
 	return atop(physical);
 }
 
+#ifdef __FreeBSD__
 int DRM(mmap)(dev_t kdev, vm_offset_t offset, int prot)
+#elif defined(__NetBSD__)
+paddr_t DRM(mmap)(dev_t kdev, vm_offset_t offset, int prot)
+#endif
 {
-	drm_device_t	*dev	= kdev->si_drv1;
+#ifdef __FreeBSD__
+	drm_device_t *dev = kdev->si_drv1;
+#elif defined(__NetBSD__)
+	drm_device_t *dev = &DRM(softcs)[0]; /* FIXME: multiple instances */
+#endif
 	drm_map_t	*map	= NULL;
 	drm_map_list_entry_t *listentry=NULL;
 	drm_file_t *priv;
@@ -56,7 +72,7 @@ int DRM(mmap)(dev_t kdev, vm_offset_t offset, int prot)
 		DRM_DEBUG("can't find map\n");
 		return -1;
 	}
-	if (((map->flags&_DRM_RESTRICTED) && suser(DRM_OS_CURPROC))) {
+	if (((map->flags&_DRM_RESTRICTED) && DRM_OS_SUSER(DRM_OS_CURPROC))) {
 		DRM_DEBUG("restricted map\n");
 		return -1;
 	}

@@ -69,7 +69,11 @@ typedef struct drm_file drm_file_t;
 
 /* There's undoubtably more of this file to go into these OS dependent ones. */
 
+#ifdef __FreeBSD__
 #include "drm_os_freebsd.h"
+#elif defined __NetBSD__
+#include "drm_os_netbsd.h"
+#endif
 
 #include "drm.h"
 
@@ -389,10 +393,15 @@ typedef struct drm_map_list_entry {
 } drm_map_list_entry_t;
 
 struct drm_device {
+#ifdef __NetBSD__
+	struct device	  device;	/* NetBSD's softc is an extension of struct device */
+#endif
 	const char	  *name;	/* Simple driver name		   */
 	char		  *unique;	/* Unique identifier: e.g., busid  */
 	int		  unique_len;	/* Length of unique field	   */
+#ifdef __FreeBSD__
 	device_t	  device;	/* Device instance from newbus     */
+#endif
 	dev_t		  devnode;	/* Device number for mknod	   */
 	char		  *devname;	/* For /proc/interrupts		   */
 

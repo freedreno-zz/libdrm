@@ -84,15 +84,14 @@ int DRM(open_helper)(dev_t kdev, int flags, int fmt, DRM_OS_STRUCTPROC *p,
 		priv->minor		= m;
 		priv->devXX		= dev;
 		priv->ioctl_count 	= 0;
-		priv->authenticated	= !DRM_OS_CHECKSUSER;
-		lockmgr(&dev->dev_lock, LK_EXCLUSIVE, 0, p);
+		priv->authenticated	= !DRM_OS_SUSER(p);
+		DRM_OS_LOCK;
 		TAILQ_INSERT_TAIL(&dev->files, priv, link);
-		lockmgr(&dev->dev_lock, LK_RELEASE, 0, p);
+		DRM_OS_UNLOCK;
 	}
-
+#ifdef __FreeBSD__
 	kdev->si_drv1 = dev;
-
-
+#endif
 	return 0;
 }
 
@@ -197,7 +196,11 @@ int DRM(write_string)(drm_device_t *dev, const char *s)
 
 int DRM(poll)(dev_t kdev, int events, DRM_OS_STRUCTPROC *p)
 {
-	drm_device_t  *dev    = kdev->si_drv1;
+#ifdef __FreeBSD__
+	drm_device_t *dev = kdev->si_drv1;
+#elif defined(__NetBSD__)
+	drm_device_t *dev = &DRM(softcs)[0]; /* FIXME: multiple instances */
+#endif
 	int           s;
 	int	      revents = 0;
 
@@ -216,7 +219,14 @@ int DRM(poll)(dev_t kdev, int events, DRM_OS_STRUCTPROC *p)
 
 int DRM(write)(dev_t kdev, struct uio *uio, int ioflag)
 {
-        DRM_DEBUG("pid = %d, device = %p, open_count = %d\n",
-                  curproc->p_pid, ((drm_device_t *)kdev->si_drv1)->device, ((drm_device_t *)kdev->si_drv1)->open_count);
+#if DRM_DEBUG_CODE
+#ifdef __FreeBSD__
+	drm_device_t *dev = kdev->si_drv1;
+#elif defined(__NetBSD__)
+	drm_device_t *dev = &DRM(softcs)[0]; /* FIXME: multiple instances */
+#endif
+#endif
+	DRM_DEBUG("pid = %d, device = %p, open_count = %d\n",
+                  curproc->p_pid, dev->device, dev->open_count);
         return 0;
 }

@@ -33,6 +33,7 @@
 
 int DRM(irq_busid)( DRM_OS_IOCTL )
 {
+#ifdef __FreeBSD__
 	drm_irq_busid_t id;
 	devclass_t pci;
 	device_t bus, dev;
@@ -71,6 +72,10 @@ int DRM(irq_busid)( DRM_OS_IOCTL )
 	DRM_OS_KRNTOUSR( (drm_irq_busid_t *)data, id, sizeof(id) );
 
 	return 0;
+#else
+	/* don't support interrupt-driven drivers on Net yet */
+	return ENOENT;
+#endif
 }
 
 int DRM(getunique)( DRM_OS_IOCTL )

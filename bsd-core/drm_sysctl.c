@@ -1,3 +1,5 @@
+
+#ifdef __FreeBSD__
 SYSCTL_NODE(_hw, OID_AUTO, dri, CTLFLAG_RW, 0, "DRI Graphics");
 
 static int	   DRM(name_info)DRM_SYSCTL_HANDLER_ARGS;
@@ -519,5 +521,18 @@ static int DRM(histo_info)DRM_SYSCTL_HANDLER_ARGS
 	ret = _drm_histo_info(oidp, arg1, arg2, req);
 	DRM_OS_UNLOCK;
 	return ret;
+}
+#endif
+
+#elif defined(__NetBSD__)
+/* stub it out for now, sysctl is only for debugging */
+int DRM(sysctl_init)(drm_device_t *dev)
+{
+	return 0;
+}
+
+int DRM(sysctl_cleanup)(drm_device_t *dev)
+{
+	return 0;
 }
 #endif
