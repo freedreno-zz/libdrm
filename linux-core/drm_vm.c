@@ -32,25 +32,25 @@
 #define __NO_VERSION__
 #include "drmP.h"
 
-struct vm_operations_struct   drm_vm_ops = {
+struct vm_operations_struct   DRM(vm_ops) = {
 	nopage:	 DRM(vm_nopage),
 	open:	 DRM(vm_open),
 	close:	 DRM(vm_close),
 };
 
-struct vm_operations_struct   drm_vm_shm_ops = {
+struct vm_operations_struct   DRM(vm_shm_ops) = {
 	nopage:	 DRM(vm_shm_nopage),
 	open:	 DRM(vm_open),
 	close:	 DRM(vm_shm_close),
 };
 
-struct vm_operations_struct   drm_vm_dma_ops = {
+struct vm_operations_struct   DRM(vm_dma_ops) = {
 	nopage:	 DRM(vm_dma_nopage),
 	open:	 DRM(vm_open),
 	close:	 DRM(vm_close),
 };
 
-struct vm_operations_struct   drm_vm_sg_ops = {
+struct vm_operations_struct   DRM(vm_sg_ops) = {
 	nopage:  DRM(vm_sg_nopage),
 	open:    DRM(vm_open),
 	close:   DRM(vm_close),
@@ -67,6 +67,68 @@ struct page *DRM(vm_nopage)(struct vm_area_struct *vma,
 			    int write_access)
 #endif
 {
+#if defined(__alpha__) && __REALLY_HAVE_AGP
+	drm_file_t *priv  = vma->vm_file->private_data;
+	drm_device_t *dev = priv->dev;
+	drm_map_t *map    = NULL;
+	drm_map_list_t  *r_list;
+	struct list_head *list;
+
+	/*
+         * Find the right map
+         */
+	list_for_each(list, &dev->maplist->head) {
+		r_list = (drm_map_list_t *)list;
+		map = r_list->map;
+		if (!map) continue;
+		if (map->offset == VM_OFFSET(vma)) break;
+	}
+
+	if (map && map->type == _DRM_AGP) {
+		unsigned long offset = address - vma->vm_start;
+		unsigned long baddr = VM_OFFSET(vma) + offset;
+		struct drm_agp_mem *agpmem;
+		struct page *page;
+
+		/*
+                 * Make it a bus-relative address
+                 */
+		baddr -= dev->hose->mem_space->start;
+
+		/*
+                 * It's AGP memory - find the real physical page to map
+                 */
+		for(agpmem = dev->agp->memory; agpmem; agpmem = agpmem->next) {
+			if (agpmem->bound <= baddr &&
+			    agpmem->bound + agpmem->pages * PAGE_SIZE > baddr) 
+				break;
+		}
+
+		if (!agpmem) {
+			/*
+                         * Oops - no memory found
+                         */
+			return NOPAGE_SIGBUS;   /* couldn't find it */
+                }
+
+		/*
+                 * Get the page, inc the use count, and return it
+                 */
+		offset = (baddr - agpmem->bound) >> PAGE_SHIFT;
+		agpmem->memory->memory[offset] &= ~1UL; /* HACK */
+		page = virt_to_page(__va(agpmem->memory->memory[offset]));
+#if 0
+		DRM_ERROR("baddr = 0x%lx page = 0x%lx, offset = 0x%lx\n",
+			  baddr, __va(agpmem->memory->memory[offset]), offset);
+#endif
+		get_page(page);
+#if LINUX_VERSION_CODE < 0x020317
+		return page_address(page);
+#else
+		return page;
+#endif
+        }
+#endif
 	return NOPAGE_SIGBUS;		/* Disallow mremap */
 }
 
@@ -86,12 +148,12 @@ struct page *DRM(vm_shm_nopage)(struct vm_area_struct *vma,
 #else
 	drm_map_t	 *map	 = (drm_map_t *)vma->vm_pte;
 #endif
-	unsigned long	 physical;
 	unsigned long	 offset;
 	unsigned long	 i;
 	pgd_t		 *pgd;
 	pmd_t		 *pmd;
 	pte_t		 *pte;
+	struct page	 *page;
 
 	if (address > vma->vm_end) return NOPAGE_SIGBUS; /* Disallow mremap */
 	if (!map)    		   return NOPAGE_OOM;  /* Nothing allocated */
@@ -107,14 +169,15 @@ struct page *DRM(vm_shm_nopage)(struct vm_area_struct *vma,
 	if( !pmd_present( *pmd ) ) return NOPAGE_OOM;
 	pte = pte_offset( pmd, i );
 	if( !pte_present( *pte ) ) return NOPAGE_OOM;
-	physical = (unsigned long)pte_page( *pte )->virtual;
-	atomic_inc(&virt_to_page(physical)->count); /* Dec. by kernel */
 
-	DRM_DEBUG("0x%08lx => 0x%08lx\n", address, physical);
+	page = pte_page(*pte);
+	get_page(page);
+
+	DRM_DEBUG("0x%08lx => 0x%08x\n", address, page_to_bus(page));
 #if LINUX_VERSION_CODE < 0x020317
-	return physical;
+	return page_address(page);
 #else
-	return virt_to_page(physical);
+	return page;
 #endif
 }
 
@@ -126,7 +189,7 @@ void DRM(vm_shm_close)(struct vm_area_struct *vma)
 {
 	drm_file_t	*priv	= vma->vm_file->private_data;
 	drm_device_t	*dev	= priv->dev;
-	drm_vma_entry_t *pt, *prev;
+	drm_vma_entry_t *pt, *prev, *next;
 	drm_map_t *map;
 	drm_map_list_t *r_list;
 	struct list_head *list;
@@ -146,7 +209,8 @@ void DRM(vm_shm_close)(struct vm_area_struct *vma)
 #endif
 
 	down(&dev->struct_sem);
-	for (pt = dev->vmalist, prev = NULL; pt; prev = pt, pt = pt->next) {
+	for (pt = dev->vmalist, prev = NULL; pt; pt = next) {
+		next = pt->next;
 #if LINUX_VERSION_CODE >= 0x020300
 		if (pt->vma->vm_private_data == map) found_maps++;
 #else
@@ -159,6 +223,8 @@ void DRM(vm_shm_close)(struct vm_area_struct *vma)
 				dev->vmalist = pt->next;
 			}
 			DRM(free)(pt, sizeof(*pt), DRM_MEM_VMAS);
+		} else {
+			prev = pt;
 		}
 	}
 	/* We were the only map that was found */
@@ -216,24 +282,27 @@ struct page *DRM(vm_dma_nopage)(struct vm_area_struct *vma,
 	drm_file_t	 *priv	 = vma->vm_file->private_data;
 	drm_device_t	 *dev	 = priv->dev;
 	drm_device_dma_t *dma	 = dev->dma;
-	unsigned long	 physical;
 	unsigned long	 offset;
-	unsigned long	 page;
+	unsigned long	 page_nr;
+	struct page	 *page;
 
 	if (!dma)		   return NOPAGE_SIGBUS; /* Error */
 	if (address > vma->vm_end) return NOPAGE_SIGBUS; /* Disallow mremap */
 	if (!dma->pagelist)	   return NOPAGE_OOM ; /* Nothing allocated */
 
 	offset	 = address - vma->vm_start; /* vm_[pg]off[set] should be 0 */
-	page	 = offset >> PAGE_SHIFT;
-	physical = dma->pagelist[page] + (offset & (~PAGE_MASK));
-	atomic_inc(&virt_to_page(physical)->count); /* Dec. by kernel */
+	page_nr  = offset >> PAGE_SHIFT;
+	page = virt_to_page((dma->pagelist[page_nr] + 
+			     (offset & (~PAGE_MASK))));
 
-	DRM_DEBUG("0x%08lx (page %lu) => 0x%08lx\n", address, page, physical);
+	get_page(page);
+
+	DRM_DEBUG("0x%08lx (page %lu) => 0x%08x\n", address, page_nr, 
+		  page_to_bus(page));
 #if LINUX_VERSION_CODE < 0x020317
-	return physical;
+	return page_address(page);
 #else
-	return virt_to_page(physical);
+	return page;
 #endif
 }
 
@@ -270,10 +339,10 @@ struct page *DRM(vm_sg_nopage)(struct vm_area_struct *vma,
 	map_offset = map->offset - dev->sg->handle;
 	page_offset = (offset >> PAGE_SHIFT) + (map_offset >> PAGE_SHIFT);
 	page = entry->pagelist[page_offset];
-	atomic_inc(&page->count);                       /* Dec. by kernel */
+	get_page(page);
 
 #if LINUX_VERSION_CODE < 0x020317
-	return (unsigned long)virt_to_phys(page->virtual);
+	return page_address(page);
 #else
 	return page;
 #endif
@@ -352,7 +421,7 @@ int DRM(mmap_dma)(struct file *filp, struct vm_area_struct *vma)
 	}
 	unlock_kernel();
 
-	vma->vm_ops   = &drm_vm_dma_ops;
+	vma->vm_ops   = &DRM(vm_dma_ops);
 	vma->vm_flags |= VM_LOCKED | VM_SHM; /* Don't swap */
 
 #if LINUX_VERSION_CODE < 0x020203 /* KERNEL_VERSION(2,2,3) */
@@ -364,6 +433,19 @@ int DRM(mmap_dma)(struct file *filp, struct vm_area_struct *vma)
 	DRM(vm_open)(vma);
 	return 0;
 }
+
+#ifndef DRIVER_GET_MAP_OFS
+#define DRIVER_GET_MAP_OFS()	(map->offset)
+#endif
+
+#ifndef DRIVER_GET_REG_OFS
+#ifdef __alpha__
+#define DRIVER_GET_REG_OFS()	(dev->hose->dense_mem_base -	\
+				 dev->hose->mem_space->start)
+#else
+#define DRIVER_GET_REG_OFS()	0
+#endif
+#endif
 
 int DRM(mmap)(struct file *filp, struct vm_area_struct *vma)
 {
@@ -389,10 +471,13 @@ int DRM(mmap)(struct file *filp, struct vm_area_struct *vma)
 				   for performance, even if the list was a
 				   bit longer. */
 	list_for_each(list, &dev->maplist->head) {
+		unsigned long off;
+
 		r_list = (drm_map_list_t *)list;
 		map = r_list->map;
 		if (!map) continue;
-		if (map->offset == VM_OFFSET(vma)) break;
+		off = DRIVER_GET_MAP_OFS();
+		if (off == VM_OFFSET(vma)) break;
 	}
 
 	if (!map || ((map->flags&_DRM_RESTRICTED) && !capable(CAP_SYS_ADMIN)))
@@ -415,9 +500,20 @@ int DRM(mmap)(struct file *filp, struct vm_area_struct *vma)
 	}
 
 	switch (map->type) {
+        case _DRM_AGP:
+#if defined(__alpha__)
+                /*
+                 * On Alpha we can't talk to bus dma address from the
+                 * CPU, so for memory of type DRM_AGP, we'll deal with
+                 * sorting out the real physical pages and mappings
+                 * in nopage()
+                 */
+                vma->vm_ops = &DRM(vm_ops);
+                break;
+#endif
+                /* fall through to _DRM_FRAME_BUFFER... */        
 	case _DRM_FRAME_BUFFER:
 	case _DRM_REGISTERS:
-	case _DRM_AGP:
 		if (VM_OFFSET(vma) >= __pa(high_memory)) {
 #if defined(__i386__)
 			if (boot_cpu_data.x86 > 3 && map->type != _DRM_AGP) {
@@ -433,10 +529,7 @@ int DRM(mmap)(struct file *filp, struct vm_area_struct *vma)
 #endif
 			vma->vm_flags |= VM_IO;	/* not in core dump */
 		}
-#ifdef __alpha__
-                offset = dev->hose->dense_mem_base -
-		         dev->hose->mem_space->start;
-#endif
+		offset = DRIVER_GET_REG_OFS();
 		if (remap_page_range(vma->vm_start,
 				     VM_OFFSET(vma) + offset,
 				     vma->vm_end - vma->vm_start,
@@ -446,10 +539,10 @@ int DRM(mmap)(struct file *filp, struct vm_area_struct *vma)
 			  " offset = 0x%lx\n",
 			  map->type,
 			  vma->vm_start, vma->vm_end, VM_OFFSET(vma) + offset);
-		vma->vm_ops = &drm_vm_ops;
+		vma->vm_ops = &DRM(vm_ops);
 		break;
 	case _DRM_SHM:
-		vma->vm_ops = &drm_vm_shm_ops;
+		vma->vm_ops = &DRM(vm_shm_ops);
 #if LINUX_VERSION_CODE >= 0x020300
 		vma->vm_private_data = (void *)map;
 #else
@@ -460,7 +553,7 @@ int DRM(mmap)(struct file *filp, struct vm_area_struct *vma)
 		vma->vm_flags |= VM_LOCKED;
 		break;
 	case _DRM_SCATTER_GATHER:
-		vma->vm_ops = &drm_vm_sg_ops;
+		vma->vm_ops = &DRM(vm_sg_ops);
 #if LINUX_VERSION_CODE >= 0x020300
 		vma->vm_private_data = (void *)map;
 #else
