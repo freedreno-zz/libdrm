@@ -34,9 +34,6 @@
 #include "drm.h"
 #include <linux/delay.h>
 
-/* This must be defined to 1 for now */
-#define USE_OLD_BLITS	0
-
 
 /* ================================================================
  * CP hardware state programming functions
@@ -235,9 +232,9 @@ static inline void radeon_emit_setup( drm_radeon_private_t *dev_priv )
 	ADVANCE_RING();
 }
 
-#ifdef TCL_ENABLE
 static inline void radeon_emit_tcl( drm_radeon_private_t *dev_priv )
 {
+#ifdef TCL_ENABLE
 	drm_radeon_sarea_t *sarea_priv = dev_priv->sarea_priv;
 	drm_radeon_context_regs_t *ctx = &sarea_priv->context_state;
 	RING_LOCALS;
@@ -275,8 +272,10 @@ static inline void radeon_emit_tcl( drm_radeon_private_t *dev_priv )
 	}
 
 	ADVANCE_RING();
-}
+#else
+	DRM_ERROR( "TCL not enabled!\n" );
 #endif
+}
 
 static inline void radeon_emit_misc( drm_radeon_private_t *dev_priv )
 {
@@ -297,7 +296,6 @@ static inline void radeon_emit_misc( drm_radeon_private_t *dev_priv )
 static inline void radeon_emit_tex0( drm_radeon_private_t *dev_priv )
 {
 	drm_radeon_sarea_t *sarea_priv = dev_priv->sarea_priv;
-	drm_radeon_context_regs_t *ctx = &sarea_priv->context_state;
 	drm_radeon_texture_regs_t *tex = &sarea_priv->tex_state[0];
 	RING_LOCALS;
 	DRM_DEBUG( "    %s: offset=0x%x\n", __FUNCTION__, tex->pp_txoffset );
@@ -310,7 +308,7 @@ static inline void radeon_emit_tex0( drm_radeon_private_t *dev_priv )
 	OUT_RING( tex->pp_txoffset );
 	OUT_RING( tex->pp_txcblend );
 	OUT_RING( tex->pp_txablend );
-	OUT_RING( ctx->pp_tfactor );
+	OUT_RING( tex->pp_tfactor );
 
 	OUT_RING( CP_PACKET0( RADEON_PP_BORDER_COLOR_0, 0 ) );
 	OUT_RING( tex->pp_border_color );
@@ -321,7 +319,6 @@ static inline void radeon_emit_tex0( drm_radeon_private_t *dev_priv )
 static inline void radeon_emit_tex1( drm_radeon_private_t *dev_priv )
 {
 	drm_radeon_sarea_t *sarea_priv = dev_priv->sarea_priv;
-	drm_radeon_context_regs_t *ctx = &sarea_priv->context_state;
 	drm_radeon_texture_regs_t *tex = &sarea_priv->tex_state[1];
 	RING_LOCALS;
 	DRM_DEBUG( "    %s: offset=0x%x\n", __FUNCTION__, tex->pp_txoffset );
@@ -334,7 +331,7 @@ static inline void radeon_emit_tex1( drm_radeon_private_t *dev_priv )
 	OUT_RING( tex->pp_txoffset );
 	OUT_RING( tex->pp_txcblend );
 	OUT_RING( tex->pp_txablend );
-	OUT_RING( ctx->pp_tfactor );
+	OUT_RING( tex->pp_tfactor );
 
 	OUT_RING( CP_PACKET0( RADEON_PP_BORDER_COLOR_1, 0 ) );
 	OUT_RING( tex->pp_border_color );
@@ -345,7 +342,6 @@ static inline void radeon_emit_tex1( drm_radeon_private_t *dev_priv )
 static inline void radeon_emit_tex2( drm_radeon_private_t *dev_priv )
 {
 	drm_radeon_sarea_t *sarea_priv = dev_priv->sarea_priv;
-	drm_radeon_context_regs_t *ctx = &sarea_priv->context_state;
 	drm_radeon_texture_regs_t *tex = &sarea_priv->tex_state[2];
 	RING_LOCALS;
 	DRM_DEBUG( "    %s\n", __FUNCTION__ );
@@ -358,7 +354,7 @@ static inline void radeon_emit_tex2( drm_radeon_private_t *dev_priv )
 	OUT_RING( tex->pp_txoffset );
 	OUT_RING( tex->pp_txcblend );
 	OUT_RING( tex->pp_txablend );
-	OUT_RING( ctx->pp_tfactor );
+	OUT_RING( tex->pp_tfactor );
 
 	OUT_RING( CP_PACKET0( RADEON_PP_BORDER_COLOR_2, 0 ) );
 	OUT_RING( tex->pp_border_color );
@@ -408,12 +404,12 @@ static inline void radeon_emit_state( drm_radeon_private_t *dev_priv )
 		sarea_priv->dirty &= ~RADEON_UPLOAD_SETUP;
 	}
 
-#ifdef TCL_ENABLE
 	if ( dirty & RADEON_UPLOAD_TCL ) {
+#ifdef TCL_ENABLE
 		radeon_emit_tcl( dev_priv );
+#endif
 		sarea_priv->dirty &= ~RADEON_UPLOAD_TCL;
 	}
-#endif
 
 	if ( dirty & RADEON_UPLOAD_MISC ) {
 		radeon_emit_misc( dev_priv );
@@ -436,11 +432,6 @@ static inline void radeon_emit_state( drm_radeon_private_t *dev_priv )
 #endif
 		sarea_priv->dirty &= ~RADEON_UPLOAD_TEX2;
 	}
-
-#if 0
-	/* Turn off the texture cache flushing */
-	sarea_priv->context_state.tex_cntl_c &= ~RADEON_TEX_CACHE_FLUSH;
-#endif
 
 	sarea_priv->dirty &= ~(RADEON_UPLOAD_TEX0IMAGES |
 			       RADEON_UPLOAD_TEX1IMAGES |
@@ -576,16 +567,11 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 		unsigned int tmp = flags;
 
 		flags &= ~(RADEON_FRONT | RADEON_BACK);
-		if ( tmp & RADEON_FRONT )
-			flags |= RADEON_BACK;
-		if ( tmp & RADEON_BACK )
-			flags |= RADEON_FRONT;
+		if ( tmp & RADEON_FRONT ) flags |= RADEON_BACK;
+		if ( tmp & RADEON_BACK )  flags |= RADEON_FRONT;
 	}
 
 	RADEON_WAIT_UNTIL_IDLE();
-#if 0
-	RADEON_FLUSH_CACHE();
-#endif
 
 	for ( i = 0 ; i < nbox ; i++ ) {
 		int x = pbox[i].x1;
@@ -817,21 +803,12 @@ static void radeon_cp_dispatch_swap( drm_device_t *dev )
 			  RADEON_GMC_CLR_CMP_CNTL_DIS |
 			  RADEON_GMC_WR_MSK_DIS );
 
-#if 0
 		OUT_RING( dev_priv->back_pitch_offset );
 		OUT_RING( dev_priv->front_pitch_offset );
 
 		OUT_RING( (x << 16) | y );
 		OUT_RING( (x << 16) | y );
 		OUT_RING( (w << 16) | h );
-#else
-		OUT_RING( dev_priv->depth_pitch_offset );
-		OUT_RING( dev_priv->front_pitch_offset );
-
-		OUT_RING( (0 << 16) | 0 );
-		OUT_RING( (0 << 16) | 0 );
-		OUT_RING( (832 << 16) | 600 );
-#endif
 
 		ADVANCE_RING();
 	}
@@ -1498,4 +1475,69 @@ int radeon_cp_stipple( struct inode *inode, struct file *filp,
 	}
 
 	return -EINVAL;
+}
+
+int radeon_cp_indirect( struct inode *inode, struct file *filp,
+			unsigned int cmd, unsigned long arg )
+{
+	drm_file_t *priv = filp->private_data;
+	drm_device_t *dev = priv->dev;
+	drm_radeon_private_t *dev_priv = dev->dev_private;
+	drm_device_dma_t *dma = dev->dma;
+	drm_buf_t *buf;
+	drm_radeon_buf_priv_t *buf_priv;
+	drm_radeon_indirect_t indirect;
+	RING_LOCALS;
+
+	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||
+	     dev->lock.pid != current->pid ) {
+		DRM_ERROR( "%s called without lock held\n", __FUNCTION__ );
+		return -EINVAL;
+	}
+	if ( !dev_priv || dev_priv->is_pci ) {
+		DRM_ERROR( "%s called with a PCI card\n", __FUNCTION__ );
+		return -EINVAL;
+	}
+
+	if ( copy_from_user( &indirect, (drm_radeon_indirect_t *)arg,
+			     sizeof(indirect) ) )
+		return -EFAULT;
+
+	DRM_DEBUG( "indirect: idx=%d s=%d e=%d d=%d\n",
+		   indirect.idx, indirect.start,
+		   indirect.end, indirect.discard );
+
+	if ( indirect.idx < 0 || indirect.idx >= dma->buf_count ) {
+		DRM_ERROR( "buffer index %d (of %d max)\n",
+			   indirect.idx, dma->buf_count - 1 );
+		return -EINVAL;
+	}
+
+	buf = dma->buflist[indirect.idx];
+	buf_priv = buf->dev_private;
+
+	if ( buf->pid != current->pid ) {
+		DRM_ERROR( "process %d using buffer owned by %d\n",
+			   current->pid, buf->pid );
+		return -EINVAL;
+	}
+	if ( buf->pending ) {
+		DRM_ERROR( "sending pending buffer %d\n", indirect.idx );
+		return -EINVAL;
+	}
+
+	if ( indirect.start < buf->used ) {
+		DRM_ERROR( "reusing indirect: start=0x%x actual=0x%x\n",
+			   indirect.start, buf->used );
+		return -EINVAL;
+	}
+
+	buf->used = indirect.end;
+	buf_priv->discard = indirect.discard;
+
+	RADEON_WAIT_UNTIL_3D_IDLE();
+
+	radeon_cp_dispatch_indirect( dev, buf, indirect.start, indirect.end );
+
+	return 0;
 }

@@ -132,9 +132,6 @@ typedef struct {
 
 	unsigned int se_line_width;			/* 0x1db8 */
 
-	/* Texture state */
-	unsigned int pp_tfactor;
-
 	/* Bumpmap state */
 	unsigned int pp_lum_matrix;			/* 0x1d00 */
 
@@ -187,6 +184,7 @@ typedef struct {
 	unsigned int pp_txoffset;
 	unsigned int pp_txcblend;
 	unsigned int pp_txablend;
+	unsigned int pp_tfactor;
 
 	unsigned int pp_border_color;
 
@@ -262,12 +260,12 @@ typedef struct drm_radeon_cp_stop {
 	int idle;
 } drm_radeon_cp_stop_t;
 
-typedef struct drm_radeon_pageflip {
+typedef struct drm_radeon_fullscreen {
 	enum {
-		RADEON_INIT_PAGEFLIP    = 0x01,
-		RADEON_CLEANUP_PAGEFLIP = 0x02
+		RADEON_INIT_FULLSCREEN    = 0x01,
+		RADEON_CLEANUP_FULLSCREEN = 0x02
 	} func;
-} drm_radeon_pageflip_t;
+} drm_radeon_fullscreen_t;
 
 typedef struct drm_radeon_clear {
 	unsigned int flags;
@@ -304,10 +302,11 @@ typedef struct drm_radeon_stipple {
 	unsigned int *mask;
 } drm_radeon_stipple_t;
 
-typedef struct drm_radeon_packet {
-	unsigned int *buffer;
-	int count;
-	int flags;
-} drm_radeon_packet_t;
+typedef struct drm_radeon_indirect {
+	int idx;
+	int start;
+	int end;
+	int discard;
+} drm_radeon_indirect_t;
 
 #endif

@@ -36,6 +36,8 @@
 #include <linux/interrupt.h>	/* For task queue support */
 #include <linux/delay.h>
 
+#define RADEON_FIFO_DEBUG	0
+
 
 /* CP microcode (from ATI) */
 static u32 radeon_cp_microcode[][2] = {
@@ -326,24 +328,9 @@ int RADEON_READ_PLL(drm_device_t *dev, int addr)
 	return RADEON_READ(RADEON_CLOCK_CNTL_DATA);
 }
 
-
+#if RADEON_FIFO_DEBUG
 static void radeon_status( drm_radeon_private_t *dev_priv )
 {
-#if 0
-	printk( "GUI_STAT           = 0x%08x\n",
-		(unsigned int)RADEON_READ( RADEON_GUI_STAT ) );
-	printk( "PM4_STAT           = 0x%08x\n",
-		(unsigned int)RADEON_READ( RADEON_PM4_STAT ) );
-	printk( "PM4_BUFFER_DL_WPTR = 0x%08x\n",
-		(unsigned int)RADEON_READ( RADEON_PM4_BUFFER_DL_WPTR ) );
-	printk( "PM4_BUFFER_DL_RPTR = 0x%08x\n",
-		(unsigned int)RADEON_READ( RADEON_PM4_BUFFER_DL_RPTR ) );
-	printk( "PM4_MICRO_CNTL     = 0x%08x\n",
-		(unsigned int)RADEON_READ( RADEON_PM4_MICRO_CNTL ) );
-	printk( "PM4_BUFFER_CNTL    = 0x%08x\n",
-		(unsigned int)RADEON_READ( RADEON_PM4_BUFFER_CNTL ) );
-#endif
-
 	printk( "%s:\n", __FUNCTION__ );
 	printk( "RBBM_STATUS = 0x%08x\n",
 		(unsigned int)RADEON_READ( RADEON_RBBM_STATUS ) );
@@ -352,6 +339,7 @@ static void radeon_status( drm_radeon_private_t *dev_priv )
 	printk( "CP_RB_WTPR = 0x%08x\n",
 		(unsigned int)RADEON_READ( RADEON_CP_RB_WPTR ) );
 }
+#endif
 
 
 /* ================================================================
@@ -375,7 +363,10 @@ static int radeon_do_pixcache_flush( drm_radeon_private_t *dev_priv )
 		udelay( 1 );
 	}
 
+#if RADEON_FIFO_DEBUG
 	DRM_ERROR( "failed!\n" );
+	radeon_status( dev_priv );
+#endif
 	return -EBUSY;
 }
 
@@ -391,7 +382,7 @@ static int radeon_do_wait_for_fifo( drm_radeon_private_t *dev_priv,
 		udelay( 1 );
 	}
 
-#if 1
+#if RADEON_FIFO_DEBUG
 	DRM_ERROR( "failed!\n" );
 	radeon_status( dev_priv );
 #endif
@@ -414,8 +405,9 @@ static int radeon_do_wait_for_idle( drm_radeon_private_t *dev_priv )
 		udelay( 1 );
 	}
 
-#if 0
+#if RADEON_FIFO_DEBUG
 	DRM_ERROR( "failed!\n" );
+	radeon_status( dev_priv );
 #endif
 	return -EBUSY;
 }
@@ -459,12 +451,6 @@ static void radeon_do_cp_flush( drm_radeon_private_t *dev_priv )
  */
 static int radeon_do_cp_idle( drm_radeon_private_t *dev_priv )
 {
-	RING_LOCALS;
-
-	RADEON_WAIT_UNTIL_IDLE();
-	RADEON_FLUSH_CACHE();
-	RADEON_FLUSH_ZCACHE();
-
 	return radeon_do_wait_for_idle( dev_priv );
 }
 
@@ -505,14 +491,6 @@ static void radeon_do_cp_reset( drm_radeon_private_t *dev_priv )
  */
 static void radeon_do_cp_stop( drm_radeon_private_t *dev_priv )
 {
-	if ( dev_priv->cp_running ) {
-		RING_LOCALS;
-
-		RADEON_WAIT_UNTIL_IDLE();
-		RADEON_FLUSH_CACHE();
-		RADEON_FLUSH_ZCACHE();
-	}
-
 	RADEON_WRITE( RADEON_CP_CSQ_CNTL, RADEON_CSQ_PRIDIS_INDDIS );
 
 	dev_priv->cp_running = 0;
@@ -524,6 +502,7 @@ static int radeon_do_engine_reset( drm_device_t *dev )
 {
 	drm_radeon_private_t *dev_priv = dev->dev_private;
 	u32 clock_cntl_index, mclk_cntl, rbbm_soft_reset;
+	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
 	radeon_do_pixcache_flush( dev_priv );
 
@@ -618,10 +597,11 @@ static void radeon_cp_init_ring_buffer( drm_device_t *dev )
 	RADEON_WRITE( RADEON_BUS_CNTL, tmp );
 
 	/* Sync everything up */
-	RADEON_WRITE( RADEON_ISYNC_CNTL, (RADEON_ISYNC_ANY2D_IDLE3D |
-					  RADEON_ISYNC_ANY3D_IDLE2D |
-					  RADEON_ISYNC_WAIT_IDLEGUI |
-					  RADEON_ISYNC_CPSCRATCH_IDLEGUI) );
+	RADEON_WRITE( RADEON_ISYNC_CNTL,
+		      (RADEON_ISYNC_ANY2D_IDLE3D |
+		       RADEON_ISYNC_ANY3D_IDLE2D |
+		       RADEON_ISYNC_WAIT_IDLEGUI |
+		       RADEON_ISYNC_CPSCRATCH_IDLEGUI) );
 }
 
 static int radeon_do_init_cp( drm_device_t *dev, drm_radeon_init_t *init )
@@ -943,20 +923,21 @@ int radeon_engine_reset( struct inode *inode, struct file *filp,
 
 
 /* ================================================================
- * Page flipping
+ * Fullscreen mode
  */
 
 static int radeon_do_init_pageflip( drm_device_t *dev )
 {
 	drm_radeon_private_t *dev_priv = dev->dev_private;
-	u32 crtc_offset_cntl;
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
-	RADEON_WRITE( RADEON_CRTC_OFFSET, dev_priv->front_offset );
+	dev_priv->crtc_offset =      RADEON_READ( RADEON_CRTC_OFFSET );
+	dev_priv->crtc_offset_cntl = RADEON_READ( RADEON_CRTC_OFFSET_CNTL );
 
-	crtc_offset_cntl = RADEON_READ( RADEON_CRTC_OFFSET_CNTL );
+	RADEON_WRITE( RADEON_CRTC_OFFSET, dev_priv->front_offset );
 	RADEON_WRITE( RADEON_CRTC_OFFSET_CNTL,
-		      crtc_offset_cntl | RADEON_CRTC_OFFSET_FLIP_CNTL );
+		      dev_priv->crtc_offset_cntl |
+		      RADEON_CRTC_OFFSET_FLIP_CNTL );
 
 	dev_priv->page_flipping = 1;
 	dev_priv->current_page = 0;
@@ -967,14 +948,10 @@ static int radeon_do_init_pageflip( drm_device_t *dev )
 int radeon_do_cleanup_pageflip( drm_device_t *dev )
 {
 	drm_radeon_private_t *dev_priv = dev->dev_private;
-	u32 crtc_offset_cntl;
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
-	RADEON_WRITE( RADEON_CRTC_OFFSET, dev_priv->front_offset );
-
-	crtc_offset_cntl = RADEON_READ( RADEON_CRTC_OFFSET_CNTL );
-	RADEON_WRITE( RADEON_CRTC_OFFSET_CNTL,
-		      crtc_offset_cntl & ~RADEON_CRTC_OFFSET_FLIP_CNTL );
+	RADEON_WRITE( RADEON_CRTC_OFFSET,      dev_priv->crtc_offset );
+	RADEON_WRITE( RADEON_CRTC_OFFSET_CNTL, dev_priv->crtc_offset_cntl );
 
 	dev_priv->page_flipping = 0;
 	dev_priv->current_page = 0;
@@ -982,12 +959,12 @@ int radeon_do_cleanup_pageflip( drm_device_t *dev )
 	return 0;
 }
 
-int radeon_cp_pageflip( struct inode *inode, struct file *filp,
-			unsigned int cmd, unsigned long arg )
+int radeon_fullscreen( struct inode *inode, struct file *filp,
+		       unsigned int cmd, unsigned long arg )
 {
         drm_file_t *priv = filp->private_data;
         drm_device_t *dev = priv->dev;
-	drm_radeon_pageflip_t p;
+	drm_radeon_fullscreen_t fs;
 
 	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||
 	     dev->lock.pid != current->pid ) {
@@ -995,13 +972,14 @@ int radeon_cp_pageflip( struct inode *inode, struct file *filp,
 		return -EINVAL;
 	}
 
-	if ( copy_from_user( &p, (drm_radeon_pageflip_t *)arg, sizeof(p) ) )
+	if ( copy_from_user( &fs, (drm_radeon_fullscreen_t *)arg,
+			     sizeof(fs) ) )
 		return -EFAULT;
 
-	switch ( p.func ) {
-	case RADEON_INIT_PAGEFLIP:
+	switch ( fs.func ) {
+	case RADEON_INIT_FULLSCREEN:
 		return radeon_do_init_pageflip( dev );
-	case RADEON_CLEANUP_PAGEFLIP:
+	case RADEON_CLEANUP_FULLSCREEN:
 		return radeon_do_cleanup_pageflip( dev );
 	}
 
@@ -1015,6 +993,7 @@ int radeon_cp_pageflip( struct inode *inode, struct file *filp,
 #define RADEON_BUFFER_USED	0xffffffff
 #define RADEON_BUFFER_FREE	0
 
+#if 0
 static int radeon_freelist_init( drm_device_t *dev )
 {
 	drm_device_dma_t *dma = dev->dma;
@@ -1060,6 +1039,7 @@ static int radeon_freelist_init( drm_device_t *dev )
 	return 0;
 
 }
+#endif
 
 drm_buf_t *radeon_freelist_get( drm_device_t *dev )
 {
@@ -1142,7 +1122,7 @@ void radeon_freelist_reset( drm_device_t *dev )
 
 
 /* ================================================================
- * CP packet submission
+ * CP command submission
  */
 
 int radeon_wait_ring( drm_radeon_private_t *dev_priv, int n )
@@ -1175,333 +1155,7 @@ void radeon_update_ring_snapshot( drm_radeon_private_t *dev_priv )
 		atomic_inc( &dev_priv->idle_count );
 	if ( ring->space <= 0 )
 		ring->space += ring->size;
-
-	if ( 0 ) {
-		DRM_INFO( "update_ring:  size=0x%x space=%d\n",
-			  ring->size, ring->space );
-		DRM_INFO( "tail=0x%04x\n", ring->tail );
-		DRM_INFO( "head=0x%04x\n", *ring->head );
-	}
 }
-
-#if 0
-static int radeon_verify_command( drm_radeon_private_t *dev_priv,
-				  u32 cmd, int *size )
-{
-	int writing = 1;
-
-	*size = 0;
-
-	switch ( cmd & RADEON_CP_PACKET_MASK ) {
-	case RADEON_CP_PACKET0:
-		if ( (cmd & RADEON_CP_PACKET0_REG_MASK) <= (0x1004 >> 2) &&
-		     (cmd & RADEON_CP_PACKET0_REG_MASK) !=
-		     (RADEON_PM4_VC_FPU_SETUP >> 2) ) {
-			writing = 0;
-		}
-		*size = ((cmd & RADEON_CP_PACKET_COUNT_MASK) >> 16) + 2;
-		break;
-
-	case RADEON_CP_PACKET1:
-		if ( (cmd & RADEON_CP_PACKET1_REG0_MASK) <= (0x1004 >> 2) &&
-		     (cmd & RADEON_CP_PACKET1_REG0_MASK) !=
-		     (RADEON_PM4_VC_FPU_SETUP >> 2) ) {
-			writing = 0;
-		}
-		if ( (cmd & RADEON_CP_PACKET1_REG1_MASK) <= (0x1004 << 9) &&
-		     (cmd & RADEON_CP_PACKET1_REG1_MASK) !=
-		     (RADEON_PM4_VC_FPU_SETUP << 9) ) {
-			writing = 0;
-		}
-		*size = 3;
-		break;
-
-	case RADEON_CP_PACKET2:
-		break;
-
-	case RADEON_CP_PACKET3:
-		*size = ((cmd & RADEON_CP_PACKET_COUNT_MASK) >> 16) + 2;
-		break;
-
-	}
-
-	return writing;
-}
-
-static int radeon_submit_packet_ring_secure( drm_radeon_private_t *dev_priv,
-					     u32 *commands, int *count )
-{
-#if 0
-	int write = dev_priv->sarea_priv->ring_write;
-	int *write_ptr = dev_priv->ring_start + write;
-	int c = *count;
-	u32 tmp = 0;
-	int psize = 0;
-	int writing = 1;
-	int timeout;
-
-	while ( c > 0 ) {
-		tmp = *commands++;
-		if ( !psize ) {
-			writing = radeon_verify_command( dev_priv, tmp, &psize );
-		}
-		psize--;
-
-		if ( writing ) {
-			write++;
-			*write_ptr++ = tmp;
-		}
-		if ( write >= dev_priv->ring_entries ) {
-			write = 0;
-			write_ptr = dev_priv->ring_start;
-		}
-		timeout = 0;
-		while ( write == *dev_priv->ring_read_ptr ) {
-			RADEON_READ( RADEON_PM4_BUFFER_DL_RPTR );
-			if ( timeout++ >= dev_priv->usec_timeout )
-				return -EBUSY;
-			udelay( 1 );
-		}
-		c--;
-	}
-
-	/* Make sure WC cache has been flushed */
-	radeon_flush_write_combine();
-
-	dev_priv->sarea_priv->ring_write = write;
-	RADEON_WRITE( RADEON_PM4_BUFFER_DL_WPTR, write );
-
-	*count = 0;
-#endif
-	return 0;
-}
-
-static int radeon_submit_packet_ring_insecure( drm_radeon_private_t *dev_priv,
-					       u32 *commands, int *count )
-{
-#if 0
-	int write = dev_priv->sarea_priv->ring_write;
-	int *write_ptr = dev_priv->ring_start + write;
-	int c = *count;
-	int timeout;
-
-	while ( c > 0 ) {
-		write++;
-		*write_ptr++ = *commands++;
-		if ( write >= dev_priv->ring_entries ) {
-			write = 0;
-			write_ptr = dev_priv->ring_start;
-		}
-
-		timeout = 0;
-		while ( write == *dev_priv->ring_read_ptr ) {
-			RADEON_READ( RADEON_PM4_BUFFER_DL_RPTR );
-			if ( timeout++ >= dev_priv->usec_timeout )
-				return -EBUSY;
-			udelay( 1 );
-		}
-		c--;
-	}
-
-	/* Make sure WC cache has been flushed */
-	radeon_flush_write_combine();
-
-	dev_priv->sarea_priv->ring_write = write;
-	RADEON_WRITE( RADEON_PM4_BUFFER_DL_WPTR, write );
-
-	*count = 0;
-#endif
-	return 0;
-}
-#endif
-
-/* Internal packet submission routine.  This uses the insecure versions
- * of the packet submission functions, and thus should only be used for
- * packets generated inside the kernel module.
- */
-int radeon_do_submit_packet( drm_radeon_private_t *dev_priv,
-			     u32 *buffer, int count )
-{
-	int c = count;
-	int ret = 0;
-
-#if 0
-	int left = 0;
-
-	if ( c >= dev_priv->ring_entries ) {
-		c = dev_priv->ring_entries - 1;
-		left = count - c;
-	}
-
-	/* Since this is only used by the kernel we can use the
-	 * insecure ring buffer submit packet routine.
-	 */
-	ret = radeon_submit_packet_ring_insecure( dev_priv, buffer, &c );
-	c += left;
-#endif
-
-	return ( ret < 0 ) ? ret : c;
-}
-
-static int radeon_do_cp_packet( drm_radeon_private_t *dev_priv,
-				u32 *commands, int count )
-{
-	int c;
-	RING_LOCALS;
-
-	/* FIXME: Optimize!!! GH: Why bother? */
-	for ( c = 0 ; c < count ; c++ ) {
-		BEGIN_RING( 1 );
-		OUT_RING( commands[c] );
-		ADVANCE_RING();
-	}
-
-	return 0;
-}
-
-/* External packet submission routine.  This uses the secure versions
- * by default, and can thus submit packets received from user space.
- */
-int radeon_cp_packet( struct inode *inode, struct file *filp,
-		      unsigned int cmd, unsigned long arg )
-{
-        drm_file_t *priv = filp->private_data;
-        drm_device_t *dev = priv->dev;
-	drm_radeon_private_t *dev_priv = dev->dev_private;
-	drm_radeon_packet_t packet;
-	u32 *buffer;
-	int ret;
-
-	if ( !capable( CAP_SYS_ADMIN ) ) {
-		DRM_ERROR( "radeon_cp_packet called without permission\n" );
-		return -EACCES;
-	}
-
-	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||
-	     dev->lock.pid != current->pid ) {
-		DRM_ERROR( "%s called without lock held\n", __FUNCTION__ );
-		return -EINVAL;
-	}
-
-	if ( copy_from_user( &packet, (drm_radeon_packet_t *)arg,
-			     sizeof(packet) ) )
-		return -EFAULT;
-
-	buffer = kmalloc( packet.count * sizeof(*buffer), 0 );
-	if ( buffer == NULL)
-		return -ENOMEM;
-	if ( copy_from_user( buffer, packet.buffer,
-			     packet.count * sizeof(*buffer) ) )
-		return -EFAULT;
-
-	ret = radeon_do_cp_packet( dev_priv, buffer, packet.count );
-
-	kfree( buffer );
-
-	packet.count = 0;
-	if ( copy_to_user( (drm_radeon_packet_t *)arg, &packet,
-			   sizeof(packet) ) )
-		return -EFAULT;
-
-	return ret;
-}
-
-#if 0
-static int radeon_send_vertbufs( drm_device_t *dev, drm_radeon_vertex_t *v )
-{
-	drm_device_dma_t    *dma      = dev->dma;
-	drm_radeon_private_t  *dev_priv = dev->dev_private;
-	drm_radeon_buf_priv_t *buf_priv;
-	drm_buf_t           *buf;
-	int                  i, ret;
-	RING_LOCALS;
-
-	/* Make sure we have valid data */
-	for (i = 0; i < v->send_count; i++) {
-		int idx = v->send_indices[i];
-
-		if (idx < 0 || idx >= dma->buf_count) {
-			DRM_ERROR("Index %d (of %d max)\n",
-				  idx, dma->buf_count - 1);
-			return -EINVAL;
-		}
-		buf = dma->buflist[idx];
-		if (buf->pid != current->pid) {
-			DRM_ERROR("Process %d using buffer owned by %d\n",
-				  current->pid, buf->pid);
-			return -EINVAL;
-		}
-		if (buf->pending) {
-			DRM_ERROR("Sending pending buffer:"
-				  " buffer %d, offset %d\n",
-				  v->send_indices[i], i);
-			return -EINVAL;
-		}
-	}
-
-	/* Wait for idle, if we've wrapped to make sure that all pending
-           buffers have been processed */
-	if (dev_priv->submit_age == RADEON_MAX_VBUF_AGE) {
-		if ((ret = radeon_do_cp_idle(dev)) < 0) return ret;
-		dev_priv->submit_age = 0;
-		radeon_freelist_reset(dev);
-	}
-
-	/* Make sure WC cache has been flushed (if in PIO mode) */
-	if (!dev_priv->cp_is_bm_mode) radeon_flush_write_combine();
-
-	/* FIXME: Add support for sending vertex buffer to the CP here
-	   instead of in client code.  The v->prim holds the primitive
-	   type that should be drawn.  Loop over the list buffers in
-	   send_indices[] and submit a packet for each VB.
-
-	   This will require us to loop over the clip rects here as
-	   well, which implies that we extend the kernel driver to allow
-	   cliprects to be stored here.  Note that the cliprects could
-	   possibly come from the X server instead of the client, but
-	   this will require additional changes to the DRI to allow for
-	   this optimization. */
-
-	/* Submit a CP packet that writes submit_age to RADEON_VB_AGE_REG */
-#if 0
-	cp_buffer[0] = RADEONCP0(RADEON_CP_PACKET0, RADEON_VB_AGE_REG, 0);
-	cp_buffer[1] = dev_priv->submit_age;
-
-	if ((ret = radeon_do_submit_packet(dev, cp_buffer, 2)) < 0) {
-		/* Until we add support for sending VBs to the CP in
-		   this routine, we can recover from this error.  After
-		   we add that support, we won't be able to easily
-		   recover, so we will probably have to implement
-		   another mechanism for handling timeouts from packets
-		   submitted directly by the kernel. */
-		return ret;
-	}
-#else
-	BEGIN_RING( 2 );
-
-	OUT_RING( CP_PACKET0( RADEON_VB_AGE_REG, 0 ) );
-	OUT_RING( dev_priv->submit_age );
-
-	ADVANCE_RING();
-#endif
-	/* Now that the submit packet request has succeeded, we can mark
-           the buffers as pending */
-	for (i = 0; i < v->send_count; i++) {
-		buf = dma->buflist[v->send_indices[i]];
-		buf->pending = 1;
-
-		buf_priv      = buf->dev_private;
-		buf_priv->age = dev_priv->submit_age;
-	}
-
-	dev_priv->submit_age++;
-
-	return 0;
-}
-#endif
-
-
-
 
 static int radeon_cp_get_buffers( drm_device_t *dev, drm_dma_t *d )
 {

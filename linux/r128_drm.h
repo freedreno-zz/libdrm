@@ -30,8 +30,8 @@
  *
  */
 
-#ifndef _R128_DRM_H_
-#define _R128_DRM_H_
+#ifndef __R128_DRM_H__
+#define __R128_DRM_H__
 
 /* WARNING: If you change any of these defines, make sure to change the
  * defines in the X server file (r128_sarea.h)
@@ -69,20 +69,12 @@
 
 /* Vertex/indirect buffer size
  */
-#if 1
 #define R128_BUFFER_SIZE		16384
-#else
-#define R128_BUFFER_SIZE		(128 * 1024)
-#endif
 
 /* Byte offsets for indirect buffer data
  */
 #define R128_INDEX_PRIM_OFFSET		20
 #define R128_HOSTDATA_BLIT_OFFSET	32
-
-/* 2048x2048 @ 32bpp texture requires this many indirect buffers
- */
-#define R128_MAX_BLIT_BUFFERS		((2048 * 2048 * 4) / R128_BUFFER_SIZE)
 
 /* Keep these small for testing.
  */
@@ -139,7 +131,8 @@ typedef struct {
 	unsigned int scale_3d_cntl;
 } drm_r128_context_regs_t;
 
-/* Setup registers for each texture unit */
+/* Setup registers for each texture unit
+ */
 typedef struct {
 	unsigned int tex_cntl;
 	unsigned int tex_combine_cntl;
@@ -216,6 +209,13 @@ typedef struct drm_r128_cce_stop {
 	int idle;
 } drm_r128_cce_stop_t;
 
+typedef struct drm_r128_fullscreen {
+	enum {
+		R128_INIT_FULLSCREEN    = 0x01,
+		R128_CLEANUP_FULLSCREEN = 0x02
+	} func;
+} drm_r128_fullscreen_t;
+
 typedef struct drm_r128_clear {
 	unsigned int flags;
 	int x, y, w, h;
@@ -265,10 +265,11 @@ typedef struct drm_r128_stipple {
 	unsigned int *mask;
 } drm_r128_stipple_t;
 
-typedef struct drm_r128_packet {
-	unsigned int *buffer;
-	int count;
-	int flags;
-} drm_r128_packet_t;
+typedef struct drm_r128_indirect {
+	int idx;
+	int start;
+	int end;
+	int discard;
+} drm_r128_indirect_t;
 
 #endif

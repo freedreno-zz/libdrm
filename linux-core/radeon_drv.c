@@ -34,7 +34,7 @@
 
 #define RADEON_NAME		"radeon"
 #define RADEON_DESC		"ATI Radeon"
-#define RADEON_DATE		"20001228"
+#define RADEON_DATE		"20001230"
 #define RADEON_MAJOR		1
 #define RADEON_MINOR		0
 #define RADEON_PATCHLEVEL	0
@@ -105,20 +105,21 @@ static drm_ioctl_desc_t	      radeon_ioctls[] = {
 	[DRM_IOCTL_NR(DRM_IOCTL_AGP_UNBIND)]    = { drm_agp_unbind,	1, 1 },
 #endif
 
-	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_CP_INIT)] = { radeon_cp_init,    1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_CP_START)]= { radeon_cp_start,   1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_CP_STOP)] = { radeon_cp_stop,    1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_CP_RESET)]= { radeon_cp_reset,   1, 1 },
-	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_CP_IDLE)] = { radeon_cp_idle,    1, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_RESET)]   = { radeon_engine_reset,1,0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_PAGEFLIP)]= { radeon_cp_pageflip,1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_CP_INIT)]  = { radeon_cp_init,   1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_CP_START)] = { radeon_cp_start,  1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_CP_STOP)]  = { radeon_cp_stop,   1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_CP_RESET)] = { radeon_cp_reset,  1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_CP_IDLE)]  = { radeon_cp_idle,   1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_RESET)] = { radeon_engine_reset, 1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_FULLSCREEN)] = { radeon_fullscreen, 1, 0 },
+
 	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_SWAP)]    = { radeon_cp_swap,    1, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_CLEAR)]   = { radeon_cp_clear,   1, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_VERTEX)]  = { radeon_cp_vertex,  1, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_INDICES)] = { radeon_cp_indices, 1, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_BLIT)]    = { radeon_cp_blit,    1, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_STIPPLE)] = { radeon_cp_stipple, 1, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_PACKET)]  = { radeon_cp_packet,  1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_INDIRECT)]= { radeon_cp_indirect,1, 1 },
 };
 #define RADEON_IOCTL_COUNT DRM_ARRAY_SIZE(radeon_ioctls)
 
@@ -612,9 +613,6 @@ int radeon_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 
                                 /* Contention */
                         atomic_inc(&dev->total_sleeps);
-#if 1
-			current->policy |= SCHED_YIELD;
-#endif
                         schedule();
                         if (signal_pending(current)) {
                                 ret = -ERESTARTSYS;
@@ -624,32 +622,6 @@ int radeon_lock(struct inode *inode, struct file *filp, unsigned int cmd,
                 current->state = TASK_RUNNING;
                 remove_wait_queue(&dev->lock.lock_queue, &entry);
         }
-
-#if 0
-	if (!ret && dev->last_context != lock.context &&
-		lock.context != radeon_res_ctx.handle &&
-		dev->last_context != radeon_res_ctx.handle) {
-		add_wait_queue(&dev->context_wait, &entry);
-	        current->state = TASK_INTERRUPTIBLE;
-                /* PRE: dev->last_context != lock.context */
-	        radeon_context_switch(dev, dev->last_context, lock.context);
-		/* POST: we will wait for the context
-                   switch and will dispatch on a later call
-                   when dev->last_context == lock.context
-                   NOTE WE HOLD THE LOCK THROUGHOUT THIS
-                   TIME! */
-		current->policy |= SCHED_YIELD;
-	        schedule();
-	        current->state = TASK_RUNNING;
-	        remove_wait_queue(&dev->context_wait, &entry);
-	        if (signal_pending(current)) {
-	                ret = -EINTR;
-	        } else if (dev->last_context != lock.context) {
-			DRM_ERROR("Context mismatch: %d %d\n",
-                        	dev->last_context, lock.context);
-	        }
-	}
-#endif
 
         if (!ret) {
 		sigemptyset(&dev->sigmask);
