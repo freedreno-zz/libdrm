@@ -1,5 +1,6 @@
 # $FreeBSD$
 
+.PATH:	${.CURDIR}/..
 KMOD	= r128
 NOMAN=	YES
 SRCS    = r128_cce.c r128_drv.c r128_state.c

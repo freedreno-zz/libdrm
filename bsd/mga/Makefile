@@ -1,5 +1,6 @@
 # $FreeBSD$
 
+.PATH:	${.CURDIR}/..
 KMOD= 	mga
 NOMAN=	YES
 SRCS=		mga_drv.c mga_state.c mga_warp.c mga_dma.c

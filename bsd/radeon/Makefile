@@ -1,5 +1,6 @@
 # $FreeBSD$
 
+.PATH:	${.CURDIR}/..
 KMOD	= radeon
 NOMAN=	YES
 SRCS    = radeon_cp.c radeon_drv.c radeon_state.c

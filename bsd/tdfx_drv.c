@@ -1,4 +1,5 @@
-/* sis.c -- sis driver -*- linux-c -*-
+/* tdfx_drv.c -- tdfx driver -*- linux-c -*-
+ * Created: Thu Oct  7 10:38:32 1999 by faith@precisioninsight.com
  *
  * Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
  * Copyright 2000 VA Linux Systems, Inc., Sunnyvale, California.
@@ -10,11 +11,11 @@
  * the rights to use, copy, modify, merge, publish, distribute, sublicense,
  * and/or sell copies of the Software, and to permit persons to whom the
  * Software is furnished to do so, subject to the following conditions:
- * 
+ *
  * The above copyright notice and this permission notice (including the next
  * paragraph) shall be included in all copies or substantial portions of the
  * Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
@@ -23,6 +24,10 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
  *
+ * Authors:
+ *    Rickard E. (Rik) Faith <faith@valinux.com>
+ *    Daryll Strauss <daryll@valinux.com>
+ *    Gareth Hughes <gareth@valinux.com>
  */
 
 
@@ -31,60 +36,65 @@
 #include <pci/pcivar.h>
 #include <opt_drm_linux.h>
 
-#include "sis.h"
+#include "tdfx.h"
 #include "drmP.h"
-#include "sis_drm.h"
-#include "sis_drv.h"
 
-#define DRIVER_AUTHOR	 "SIS"
-#define DRIVER_NAME	 "sis"
-#define DRIVER_DESC	 "SIS 300/630/540"
-#define DRIVER_DATE	 "20010503"
-#define DRIVER_MAJOR	 1
-#define DRIVER_MINOR	 0
-#define DRIVER_PATCHLEVEL  0
+#define DRIVER_AUTHOR		"VA Linux Systems Inc."
+
+#define DRIVER_NAME		"tdfx"
+#define DRIVER_DESC		"3dfx Banshee/Voodoo3+"
+#define DRIVER_DATE		"20010216"
+
+#define DRIVER_MAJOR		1
+#define DRIVER_MINOR		0
+#define DRIVER_PATCHLEVEL	0
+
+#ifndef PCI_VENDOR_ID_3DFX
+#define PCI_VENDOR_ID_3DFX 0x121A
+#endif
+#ifndef PCI_DEVICE_ID_3DFX_VOODOO5
+#define PCI_DEVICE_ID_3DFX_VOODOO5 0x0009
+#endif
+#ifndef PCI_DEVICE_ID_3DFX_VOODOO4
+#define PCI_DEVICE_ID_3DFX_VOODOO4 0x0007
+#endif
+#ifndef PCI_DEVICE_ID_3DFX_VOODOO3_3000 /* Voodoo3 3000 */
+#define PCI_DEVICE_ID_3DFX_VOODOO3_3000 0x0005
+#endif
+#ifndef PCI_DEVICE_ID_3DFX_VOODOO3_2000 /* Voodoo3 3000 */
+#define PCI_DEVICE_ID_3DFX_VOODOO3_2000 0x0004
+#endif
+#ifndef PCI_DEVICE_ID_3DFX_BANSHEE
+#define PCI_DEVICE_ID_3DFX_BANSHEE 0x0003
+#endif
 
 /* List acquired from http://www.yourvote.com/pci/pcihdr.h and xc/xc/programs/Xserver/hw/xfree86/common/xf86PciInfo.h
  * Please report to anholt@teleport.com inaccuracies or if a chip you have works that is marked unsupported here.
  */
 drm_chipinfo_t DRM(devicelist)[] = {
-	{0x1039, 0x0300, 1, "SIS 300"},
-	{0x1039, 0x0540, 1, "SIS 540"},
-	{0x1039, 0x0630, 1, "SIS 630"},
+	{0x121a, 0x0003, 1, "3dfx Voodoo Banshee"},
+	{0x121a, 0x0004, 1, "3dfx Voodoo3 2000"},
+	{0x121a, 0x0005, 1, "3dfx Voodoo3 3000"},
+	{0x121a, 0x0007, 1, "3dfx Voodoo4"},
+	{0x121a, 0x0009, 1, "3dfx Voodoo5"},
 	{0, 0, 0, NULL}
 };
 
-#define DRIVER_IOCTLS \
-        [DRM_IOCTL_NR(SIS_IOCTL_FB_ALLOC)]   = { sis_fb_alloc,	  1, 1 }, \
-        [DRM_IOCTL_NR(SIS_IOCTL_FB_FREE)]    = { sis_fb_free,	  1, 1 }, \
-        /* AGP Memory Management */					  \
-        [DRM_IOCTL_NR(SIS_IOCTL_AGP_INIT)]   = { sisp_agp_init,	  1, 1 }, \
-        [DRM_IOCTL_NR(SIS_IOCTL_AGP_ALLOC)]  = { sisp_agp_alloc,  1, 1 }, \
-        [DRM_IOCTL_NR(SIS_IOCTL_AGP_FREE)]   = { sisp_agp_free,	  1, 1 }
-#if 0 /* these don't appear to be defined */
-	/* SIS Stereo */						 
-	[DRM_IOCTL_NR(DRM_IOCTL_CONTROL)]    = { sis_control,	  1, 1 }, 
-        [DRM_IOCTL_NR(SIS_IOCTL_FLIP)]       = { sis_flip,	  1, 1 }, 
-        [DRM_IOCTL_NR(SIS_IOCTL_FLIP_INIT)]  = { sis_flip_init,	  1, 1 }, 
-        [DRM_IOCTL_NR(SIS_IOCTL_FLIP_FINAL)] = { sis_flip_final,  1, 1 }
-#endif
-
-#define __HAVE_COUNTERS		5
 
 #include "drm_auth.h"
-#include "drm_agpsupport.h"
 #include "drm_bufs.h"
 #include "drm_context.h"
 #include "drm_dma.h"
 #include "drm_drawable.h"
 #include "drm_drv.h"
+
+
 #include "drm_fops.h"
 #include "drm_init.h"
 #include "drm_ioctl.h"
-#include "drm_lists.h"
 #include "drm_lock.h"
 #include "drm_memory.h"
 #include "drm_vm.h"
 #include "drm_sysctl.h"
 
-DRIVER_MODULE(sis, pci, sis_driver, sis_devclass, 0, 0);
+DRIVER_MODULE(tdfx, pci, tdfx_driver, tdfx_devclass, 0, 0);

@@ -1,5 +1,6 @@
 # $FreeBSD$
 
+.PATH:	${.CURDIR}/../
 KMOD=	tdfx
 NOMAN=	YES
 SRCS=	tdfx_drv.c

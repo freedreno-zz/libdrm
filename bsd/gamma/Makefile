@@ -1,5 +1,6 @@
 # $FreeBSD$
 
+.PATH:	${.CURDIR}/..
 KMOD	= gamma
 NOMAN=	YES
 SRCS    = gamma_drv.c gamma_dma.c
