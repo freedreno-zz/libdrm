@@ -38,6 +38,12 @@
 
 #define RADEON_FIFO_DEBUG	0
 
+#if defined(__alpha__)
+# define PCIGART_ENABLED
+#else
+# undef PCIGART_ENABLED
+#endif
+
 
 /* CP microcode (from ATI) */
 static u32 radeon_cp_microcode[][2] = {
@@ -520,8 +526,13 @@ static int radeon_do_engine_reset( drm_device_t *dev )
 	clock_cntl_index = RADEON_READ( RADEON_CLOCK_CNTL_INDEX );
 	mclk_cntl = RADEON_READ_PLL( dev, RADEON_MCLK_CNTL );
 
-	/* FIXME: remove magic number here and in radeon ddx driver!!! */
-	RADEON_WRITE_PLL( RADEON_MCLK_CNTL, mclk_cntl | 0x003f00000 );
+	RADEON_WRITE_PLL( RADEON_MCLK_CNTL, ( mclk_cntl |
+					      RADEON_FORCEON_MCLKA |
+					      RADEON_FORCEON_MCLKB |
+ 					      RADEON_FORCEON_YCLKA |
+					      RADEON_FORCEON_YCLKB |
+					      RADEON_FORCEON_MC |
+					      RADEON_FORCEON_AIC ) );
 
 	rbbm_soft_reset = RADEON_READ( RADEON_RBBM_SOFT_RESET );
 
@@ -654,7 +665,7 @@ static int radeon_do_init_cp( drm_device_t *dev, drm_radeon_init_t *init )
 
 	dev_priv->is_pci = init->is_pci;
 
-#if 1
+#if !defined(PCIGART_ENABLED)
 	/* PCI support is not 100% working, so we disable it here.
 	 */
 	if ( dev_priv->is_pci ) {
@@ -666,7 +677,6 @@ static int radeon_do_init_cp( drm_device_t *dev, drm_radeon_init_t *init )
 #endif
 
 	if ( dev_priv->is_pci && !dev->sg ) {
-		DRM_DEBUG( "PCI GART memory not allocated!\n" );
 		DRM_ERROR( "PCI GART memory not allocated!\n" );
 		DRM(free)( dev_priv, sizeof(*dev_priv), DRM_MEM_DRIVER );
 		dev->dev_private = NULL;
@@ -873,7 +883,6 @@ static int radeon_do_init_cp( drm_device_t *dev, drm_radeon_init_t *init )
 	if ( dev_priv->is_pci ) {
 		dev_priv->phys_pci_gart = DRM(ati_pcigart_init)( dev );
 		if ( !dev_priv->phys_pci_gart ) {
-			DRM_DEBUG( "failed to init PCI GART!\n" );
 			DRM_ERROR( "failed to init PCI GART!\n" );
 			DRM(free)( dev_priv, sizeof(*dev_priv),
 				   DRM_MEM_DRIVER );
@@ -899,7 +908,8 @@ static int radeon_do_init_cp( drm_device_t *dev, drm_radeon_init_t *init )
 
 		/* Turn off AGP aperture -- is this required for PCIGART?
 		 */
-		RADEON_WRITE( RADEON_MC_AGP_LOCATION, 0 );
+		RADEON_WRITE( RADEON_MC_AGP_LOCATION, 0xffffffc0 ); /* ?? */
+		RADEON_WRITE( RADEON_AGP_COMMAND, 0 ); /* clear AGP_COMMAND */
 	} else {
 		/* Turn off PCI GART
 		 */

@@ -59,7 +59,7 @@ GAMMAOBJS =	gamma_drv.o gamma_dma.o
 GAMMAHEADERS =	gamma_drv.h $(DRMHEADERS) $(DRMTEMPLATES)
 
 TDFXOBJS =	tdfx_drv.o
-TDFXHEADERS =	tdfx.h $(DRMHEADERS)
+TDFXHEADERS =	tdfx.h $(DRMHEADERS) $(DRMTEMPLATES)
 
 R128OBJS =	r128_drv.o r128_cce.o r128_state.o
 R128HEADERS =	r128.h r128_drv.h r128_drm.h $(DRMHEADERS) $(DRMTEMPLATES)
@@ -175,8 +175,8 @@ ifeq ($(SIS),1)
 # file to see if we can, at least, compile the driver.
 MODS += sis.o
 
-SISOBJS=	sis_drv.o sis_context.o sis_ds.o sis_mm.o
-SISHEADERS=	sis_drv.h sis_ds.h sis_drm.h $(DRMHEADERS)
+SISOBJS=	sis_drv.o sis_mm.o sis_ds.o 
+SISHEADERS=	sis_drv.h sis_drm.h $(DRMHEADERS)
 MODCFLAGS += -DCONFIG_DRM_SIS
 endif
 
@@ -215,6 +215,9 @@ endif
 
 dristat: dristat.c
 	$(CC) $(PRGCFLAGS) $< -o $@
+
+DRIsetup: DRIsetup.c
+	$(CC) $(PRGCFLAGS) $< -o $@ -L/usr/X11R6/lib -lGL -lm ../../../../parser/libxf86config.a ../libdrm.a
 
 gamma_drv.o: gamma_drv.c
 	$(CC) $(MODCFLAGS) -DEXPORT_SYMTAB -I$(TREE) -c $< -o $@
