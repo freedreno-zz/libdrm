@@ -310,6 +310,7 @@ extern int  radeon_context_switch_complete(drm_device_t *dev, int new);
 #define RADEON_RB3D_ZCACHE_CTLSTAT	0x3254
 #	define RADEON_RB3D_ZC_FLUSH		(1 << 0)
 #	define RADEON_RB3D_ZC_FREE		(1 << 2)
+#	define RADEON_RB3D_ZC_FLUSH_ALL		0x5
 #	define RADEON_RB3D_ZC_BUSY		(1 << 31)
 #define RADEON_RB3D_ZSTENCILCNTL	0x1c2c
 #	define RADEON_Z_TEST_MASK		(7 << 4)
@@ -595,6 +596,12 @@ do {									\
 do {									\
 	OUT_RING( CP_PACKET0( RADEON_RB3D_ZCACHE_CTLSTAT, 0 ) );	\
 	OUT_RING( RADEON_RB3D_ZC_FLUSH );				\
+} while (0)
+
+#define RADEON_PURGE_ZCACHE()						\
+do {									\
+	OUT_RING( CP_PACKET0( RADEON_RB3D_ZCACHE_CTLSTAT, 0 ) );	\
+	OUT_RING( RADEON_RB3D_ZC_FLUSH_ALL );				\
 } while (0)
 
 

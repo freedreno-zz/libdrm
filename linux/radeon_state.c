@@ -662,7 +662,12 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 			/* FIXME: Render a rectangle to clear the depth
 			 * buffer.  So much for those "fast Z clears"...
 			 */
-			BEGIN_RING( 20 );
+			BEGIN_RING( 50 );
+
+			RADEON_WAIT_UNTIL_IDLE();
+			RADEON_PURGE_CACHE();
+			RADEON_PURGE_ZCACHE();
+			RADEON_WAIT_UNTIL_IDLE();
 
 			OUT_RING( CP_PACKET0( RADEON_RB3D_CNTL, 0 ) );
 			OUT_RING( rb3d_cntl );
@@ -692,8 +697,6 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 			OUT_RING( clear->rect.ui[CLEAR_X2] );
 			OUT_RING( clear->rect.ui[CLEAR_Y2] );
 			OUT_RING( clear->rect.ui[CLEAR_DEPTH] );
-
-			ADVANCE_RING();
 		}
 	}
 
@@ -706,7 +709,7 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 	BEGIN_RING( 4 );
 
 	RADEON_CLEAR_AGE( dev_priv->sarea_priv->last_clear );
-	RADEON_WAIT_UNTIL_2D_IDLE();
+	RADEON_WAIT_UNTIL_IDLE();
 
 	ADVANCE_RING();
 }
@@ -743,6 +746,9 @@ static void radeon_cp_dispatch_swap( drm_device_t *dev )
 		break;
 	}
 
+	/* Wait for the 3D stream to idle before dispatching the bitblt.
+	 * This will prevent data corruption between the two streams.
+	 */
 	BEGIN_RING( 2 );
 
 	RADEON_WAIT_UNTIL_3D_IDLE();
@@ -1098,7 +1104,7 @@ static int radeon_cp_dispatch_blit( drm_device_t *dev,
 	BEGIN_RING( 4 );
 
 	RADEON_FLUSH_CACHE();
-	RADEON_WAIT_UNTIL_3D_IDLE();
+	RADEON_WAIT_UNTIL_IDLE();
 
 	ADVANCE_RING();
 

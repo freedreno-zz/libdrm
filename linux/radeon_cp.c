@@ -451,10 +451,20 @@ static void radeon_do_cp_flush( drm_radeon_private_t *dev_priv )
  */
 int radeon_do_cp_idle( drm_radeon_private_t *dev_priv )
 {
+	RING_LOCALS;
+
+	BEGIN_RING( 6 );
+
+	RADEON_PURGE_CACHE();
+	RADEON_PURGE_ZCACHE();
+	RADEON_WAIT_UNTIL_IDLE();
+
+	ADVANCE_RING();
+
 	return radeon_do_wait_for_idle( dev_priv );
 }
 
-/* Start the Concurrent Command Engine.
+/* Start the Command Processor.
  */
 static void radeon_do_cp_start( drm_radeon_private_t *dev_priv )
 {
@@ -468,15 +478,15 @@ static void radeon_do_cp_start( drm_radeon_private_t *dev_priv )
 
 	BEGIN_RING( 6 );
 
-	RADEON_FLUSH_CACHE();
-	RADEON_FLUSH_ZCACHE();
+	RADEON_PURGE_CACHE();
+	RADEON_PURGE_ZCACHE();
 	RADEON_WAIT_UNTIL_IDLE();
 
 	ADVANCE_RING();
 }
 
-/* Reset the Concurrent Command Engine.  This will not flush any pending
- * commangs, so you must wait for the CP command stream to complete
+/* Reset the Command Processor.  This will not flush any pending
+ * commands, so you must wait for the CP command stream to complete
  * before calling this routine.
  */
 static void radeon_do_cp_reset( drm_radeon_private_t *dev_priv )
@@ -489,8 +499,8 @@ static void radeon_do_cp_reset( drm_radeon_private_t *dev_priv )
 	dev_priv->ring.tail = cur_read_ptr;
 }
 
-/* Stop the Concurrent Command Engine.  This will not flush any pending
- * commangs, so you must flush the command stream and wait for the CP
+/* Stop the Command Processor.  This will not flush any pending
+ * commands, so you must flush the command stream and wait for the CP
  * to go idle before calling this routine.
  */
 static void radeon_do_cp_stop( drm_radeon_private_t *dev_priv )

@@ -262,7 +262,7 @@ static void r128_do_cce_start( drm_r128_private_t *dev_priv )
 }
 
 /* Reset the Concurrent Command Engine.  This will not flush any pending
- * commangs, so you must wait for the CCE command stream to complete
+ * commands, so you must wait for the CCE command stream to complete
  * before calling this routine.
  */
 static void r128_do_cce_reset( drm_r128_private_t *dev_priv )
@@ -274,7 +274,7 @@ static void r128_do_cce_reset( drm_r128_private_t *dev_priv )
 }
 
 /* Stop the Concurrent Command Engine.  This will not flush any pending
- * commangs, so you must flush the command stream and wait for the CCE
+ * commands, so you must flush the command stream and wait for the CCE
  * to go idle before calling this routine.
  */
 static void r128_do_cce_stop( drm_r128_private_t *dev_priv )
