@@ -44,12 +44,10 @@
 /* Interface history
  *
  * 1.1 - XFree86 4.1
- * 1.2 - Disable copying code (leave stub ioctls for backwards compatibility)
- *     - Remove requirement for interrupt (leave stubs again)
- *     - XvMC interfaces
+ * 1.2 - XvMC interfaces
  *     - XFree86 4.2
- * 1.3 - Add VERTEX2 ioctl. (?)
- *
+ * 1.3 - Disable copying code (leave stub ioctls for backwards compatibility)
+ *     - Remove requirement for interrupt (leave stubs again)
  */
 #define DRIVER_MAJOR		1
 #define DRIVER_MINOR		3

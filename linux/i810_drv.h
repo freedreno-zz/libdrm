@@ -114,15 +114,7 @@ extern int i810_dma_mc(struct inode *inode, struct file *filp,
 
 extern void i810_dma_quiescent(drm_device_t *dev);
 
-/* Obsolete
- */
 int i810_dma_vertex(struct inode *inode, struct file *filp,
-		    unsigned int cmd, unsigned long arg);
-
-/* Handles multiple prims/ioctl, does any necessary copying in this
- * ioctl: 
- */
-int i810_dma_vertex2(struct inode *inode, struct file *filp,
 		    unsigned int cmd, unsigned long arg);
 
 int i810_swap_bufs(struct inode *inode, struct file *filp,
