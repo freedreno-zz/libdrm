@@ -89,7 +89,7 @@ int r128_pcigart_init( drm_device_t *dev )
 	drm_sg_mem_t *entry = dev->sg;
 	unsigned long address;
 	unsigned long pages;
-	u32 *pci_gart;
+	unsigned long *pci_gart;
 	int i;
 	DRM_INFO( "%s\n", __FUNCTION__ );
 
@@ -117,13 +117,14 @@ int r128_pcigart_init( drm_device_t *dev )
 		return -ENOMEM;
 	}
 
-	dev_priv->pci_gart_page = dev_priv->phys_pci_gart_page = address;
+	dev_priv->phys_pci_gart_page = address;
+	dev_priv->pci_gart_page = (unsigned long *)address;
 
 	DRM_INFO( "%s: phys=0x%08lx virt=%p\n",
 		  __FUNCTION__, dev_priv->phys_pci_gart_page,
 		  dev_priv->pci_gart_page );
 
-	pci_gart = (u32 *)dev_priv->pci_gart_page;
+	pci_gart = (unsigned long *)dev_priv->pci_gart_page;
 
 	for ( i = 0; i < 8192 ; i++) pci_gart[i] = 0;
 	for ( i = 0 ; i < pages ; i++ ) {
