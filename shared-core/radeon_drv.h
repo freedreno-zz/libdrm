@@ -166,6 +166,7 @@ extern int radeon_cp_flip( DRM_IOCTL_ARGS );
 #define RADEON_BOX_DMA_IDLE   0x1
 #define RADEON_BOX_RING_FULL  0x2
 #define RADEON_BOX_FLIP       0x4
+#define RADEON_BOX_WAIT_IDLE  0x8
 
 
 
@@ -558,7 +559,7 @@ extern int radeon_cp_flip( DRM_IOCTL_ARGS );
 #define R200_RE_AUX_SCISSOR_CNTL          0x26f0
 #define R200_SE_VTX_STATE_CNTL            0x2180
 #define R200_RE_POINTSIZE                 0x2648
-#define R200_SE_TCL_INPUT_VTX_VECTOR_ADDR_0 0x2554
+#define R200_SE_TCL_INPUT_VTX_VECTOR_ADDR_0 0x2254
 
 
 #define SE_VAP_CNTL__TCL_ENA_MASK                          0x00000001
