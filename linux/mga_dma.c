@@ -238,7 +238,6 @@ static void __mga_iload_small(drm_device_t *dev,
 {
    	drm_mga_private_t *dev_priv = dev->dev_private;
    	drm_mga_buf_priv_t *buf_priv = buf->dev_private;
-      	drm_mga_sarea_t *sarea_priv = dev_priv->sarea_priv;
    	unsigned long address = (unsigned long)buf->bus_address;
 	int length = buf->used;
 	int y1 = buf_priv->boxes[0].y1;
@@ -290,7 +289,6 @@ static void __mga_iload_xy(drm_device_t *dev,
 {
       	drm_mga_private_t *dev_priv = dev->dev_private;
    	drm_mga_buf_priv_t *buf_priv = buf->dev_private;
-      	drm_mga_sarea_t *sarea_priv = dev_priv->sarea_priv;
 	unsigned long address = (unsigned long)buf->bus_address;
    	int length = buf->used;
 	int y1 = buf_priv->boxes[0].y1;
@@ -631,10 +629,12 @@ static int mga_do_dma(drm_device_t *dev, int locked)
 	return retcode;
 }
 
+/*
 static void mga_dma_schedule_timer_wrapper(unsigned long dev)
 {
 	mga_dma_schedule((drm_device_t *)dev, 0);
 }
+*/
 
 static void mga_dma_schedule_tq_wrapper(void *dev)
 {
@@ -696,7 +696,6 @@ again:
 	}
 	
 	clear_bit(0, &dev->interrupt_flag);
-	
 	return retcode;
 }
 
@@ -802,7 +801,6 @@ int mga_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 	DECLARE_WAITQUEUE(entry, current);
 	int		  ret	= 0;
 	drm_lock_t	  lock;
-	drm_queue_t	  *q;
 
 	copy_from_user_ret(&lock, (drm_lock_t *)arg, sizeof(lock), -EFAULT);
 
@@ -821,57 +819,38 @@ int mga_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 		return -EINVAL;
 	}
 
-	/* Only one queue:
-	 */
-	q = dev->queuelist[DRM_KERNEL_CONTEXT];       
-	ret = drm_flush_queue(dev, DRM_KERNEL_CONTEXT);
-
-	if (!ret) {
-		if (_DRM_LOCKING_CONTEXT(dev->lock.hw_lock->lock)
-		    != lock.context) {
-			long j = jiffies - dev->lock.lock_time;
-
-			if (j > 0 && j <= DRM_LOCK_SLICE) {
-				/* Can't take lock if we just had it and
-				   there is contention. */
-				current->state = TASK_INTERRUPTIBLE;
-				schedule_timeout(j);
-			}
+	
+	for (;;) {				
+		if (!dev->lock.hw_lock) { /* Device has been unregistered */
+			ret = -EINTR;
+			break;
 		}
-		add_wait_queue(&dev->lock.lock_queue, &entry);
-		for (;;) {
-			if (!dev->lock.hw_lock) {
-				/* Device has been unregistered */
-				ret = -EINTR;
-				break;
-			}
-			if (drm_lock_take(&dev->lock.hw_lock->lock,
-					  lock.context)) {
-				dev->lock.pid	    = current->pid;
-				dev->lock.lock_time = jiffies;
-				atomic_inc(&dev->total_locks);
-				atomic_inc(&q->total_locks);
-				break;	/* Got lock */
-			}
+
+		if (drm_lock_take(&dev->lock.hw_lock->lock, lock.context)) {
+			dev->lock.pid	    = current->pid;
+			dev->lock.lock_time = jiffies;
+			atomic_inc(&dev->total_locks);
+			break;	/* Got lock */
+		}
 			
-				/* Contention */
-			atomic_inc(&dev->total_sleeps);
-			current->state = TASK_INTERRUPTIBLE;
-			schedule();
-			if (signal_pending(current)) {
-				ret = -ERESTARTSYS;
-				break;
-			}
+			       /* Contention */
+		atomic_inc(&dev->total_sleeps);
+		current->state = TASK_INTERRUPTIBLE;
+		schedule();
+		if (signal_pending(current)) {
+			ret = -ERESTARTSYS;
+			break;
 		}
-		current->state = TASK_RUNNING;
-		remove_wait_queue(&dev->lock.lock_queue, &entry);
 	}
 
-	drm_flush_unblock_queue(dev, DRM_KERNEL_CONTEXT); /* cleanup phase */
+	current->state = TASK_RUNNING;
+	remove_wait_queue(&dev->lock.lock_queue, &entry);
 	
 	if (!ret) {
 		if (lock.flags & _DRM_LOCK_QUIESCENT) {
 		   	DRM_DEBUG("_DRM_LOCK_QUIESCENT\n");
+			drm_flush_queue(dev, DRM_KERNEL_CONTEXT); 
+			drm_flush_unblock_queue(dev, DRM_KERNEL_CONTEXT); 
 			mga_dma_quiescent(dev);
 		}
 	}

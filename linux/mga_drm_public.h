@@ -108,27 +108,10 @@ typedef struct _xf86drmClipRectRec {
    	unsigned short y2;
 } xf86drmClipRectRec;
 
-#define MGA_CLEAR_FRONTBUFFER 0x1
-#define MGA_CLEAR_BACKBUFFER  0x2
-#define MGA_CLEAR_DEPTHBUFFER 0x4
+#define MGA_CLEAR_FRONT 0x1
+#define MGA_CLEAR_BACK  0x2
+#define MGA_CLEAR_DEPTH 0x4
 
-typedef struct {
-	int clear_color;
-	int clear_depth;
-	int flags;
-} drm_mga_clear_t;
-
-typedef struct {
-	int flags;		/* not actually used? */
-} drm_mga_swap_t;
-
-typedef struct {
-	unsigned int destOrg;
-	unsigned int mAccess;
-   	unsigned int pitch;
-	xf86drmClipRectRec texture;
-   	int idx;
-} drm_mga_iload_t;
 
 /* Each context has a state:
  */
@@ -204,6 +187,29 @@ typedef struct
 	mgaTexRegion texList[MGA_NR_TEX_REGIONS+1];
 	int texAge;	                            
 } drm_mga_sarea_t;	
+
+
+/* Device specific ioctls:
+ */
+typedef struct {
+	int clear_color;
+	int clear_depth;
+	int flags;
+} drm_mga_clear_t;
+
+
+typedef struct {
+	int flags;		/* not actually used? */
+} drm_mga_swap_t;
+
+typedef struct {
+	unsigned int destOrg;
+	unsigned int mAccess;
+   	unsigned int pitch;
+	xf86drmClipRectRec texture;
+   	int idx;
+} drm_mga_iload_t;
+
 
 #define DRM_IOCTL_MGA_INIT    DRM_IOW( 0x40, drm_mga_init_t)
 #define DRM_IOCTL_MGA_SWAP    DRM_IOW( 0x41, drm_mga_swap_t)
