@@ -27,6 +27,7 @@
  * Authors:
  *    Rickard E. (Rik) Faith <faith@valinux.com>
  */
+/* $XFree86$ */
 
 #define __NO_VERSION__
 #include "drmP.h"
@@ -228,7 +229,7 @@ static int _drm_queues_info(char *buf, char **start, off_t offset, int len,
 		atomic_inc(&q->use_count);
 		DRM_PROC_PRINT_RET(atomic_dec(&q->use_count),
 				   "%5d/0x%03x %5d %5d"
-				   " %5d/%c%c/%c%c%c %5d %10d %10d %10d\n",
+				   " %5d/%c%c/%c%c%c %5Zd %10d %10d %10d\n",
 				   i,
 				   q->flags,
 				   atomic_read(&q->use_count),
@@ -351,17 +352,21 @@ static int drm_clients_info(char *buf, char **start, off_t offset, int len,
 
 #if DRM_DEBUG_CODE
 
+#define DRM_VMA_VERBOSE 0
+
 static int _drm_vma_info(char *buf, char **start, off_t offset, int len,
 			 int *eof, void *data)
 {
 	drm_device_t	      *dev = (drm_device_t *)data;
 	drm_vma_entry_t	      *pt;
+	struct vm_area_struct *vma;
+#if DRM_VMA_VERBOSE
+	unsigned long	      i;
+	unsigned long	      address;
 	pgd_t		      *pgd;
 	pmd_t		      *pmd;
 	pte_t		      *pte;
-	unsigned long	      i;
-	struct vm_area_struct *vma;
-	unsigned long	      address;
+#endif
 #if defined(__i386__)
 	unsigned int	      pgprot;
 #endif
@@ -517,9 +522,9 @@ static int _drm_histo_info(char *buf, char **start, off_t offset, int len,
 	} else {
 		DRM_PROC_PRINT("lock		     none\n");
 	}
-	DRM_PROC_PRINT("context_flag   0x%08x\n", dev->context_flag);
-	DRM_PROC_PRINT("interrupt_flag 0x%08x\n", dev->interrupt_flag);
-	DRM_PROC_PRINT("dma_flag       0x%08x\n", dev->dma_flag);
+	DRM_PROC_PRINT("context_flag   0x%08lx\n", dev->context_flag);
+	DRM_PROC_PRINT("interrupt_flag 0x%08lx\n", dev->interrupt_flag);
+	DRM_PROC_PRINT("dma_flag       0x%08lx\n", dev->dma_flag);
 
 	DRM_PROC_PRINT("queue_count    %10d\n",	 dev->queue_count);
 	DRM_PROC_PRINT("last_context   %10d\n",	 dev->last_context);

@@ -28,17 +28,15 @@
  *          Kevin E. Martin <martin@valinux.com>
  *
  */
+/* $XFree86$ */
 
 #include <linux/config.h>
-#define EXPORT_SYMTAB
 #include "drmP.h"
 #include "r128_drv.h"
-EXPORT_SYMBOL(r128_init);
-EXPORT_SYMBOL(r128_cleanup);
 
 #define R128_NAME	 "r128"
-#define R128_DESC	 "r128"
-#define R128_DATE	 "20000607"
+#define R128_DESC	 "ATI Rage 128"
+#define R128_DATE	 "20000719"
 #define R128_MAJOR	 1
 #define R128_MINOR	 0
 #define R128_PATCHLEVEL  0
@@ -47,6 +45,10 @@ static drm_device_t	      r128_device;
 drm_ctx_t	              r128_res_ctx;
 
 static struct file_operations r128_fops = {
+#if LINUX_VERSION_CODE >= 0x020400
+				/* This started being used during 2.4.0-test */
+	owner:   THIS_MODULE,
+#endif
 	open:	 r128_open,
 	flush:	 drm_flush,
 	release: r128_release,
@@ -93,7 +95,7 @@ static drm_ioctl_desc_t	      r128_ioctls[] = {
 	[DRM_IOCTL_NR(DRM_IOCTL_UNLOCK)]      = { r128_unlock,	   1, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_FINISH)]      = { drm_finish,	   1, 0 },
 
-#ifdef DRM_AGP
+#if defined(CONFIG_AGP) || defined(CONFIG_AGP_MODULE)
 	[DRM_IOCTL_NR(DRM_IOCTL_AGP_ACQUIRE)] = { drm_agp_acquire, 1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_AGP_RELEASE)] = { drm_agp_release, 1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_AGP_ENABLE)]  = { drm_agp_enable,  1, 1 },
@@ -114,46 +116,26 @@ static drm_ioctl_desc_t	      r128_ioctls[] = {
 #define R128_IOCTL_COUNT DRM_ARRAY_SIZE(r128_ioctls)
 
 #ifdef MODULE
-int			      init_module(void);
-void			      cleanup_module(void);
 static char		      *r128 = NULL;
+#endif
 
-MODULE_AUTHOR("Precision Insight, Inc., Cedar Park, Texas.");
+MODULE_AUTHOR("VA Linux Systems, Inc.");
 MODULE_DESCRIPTION("r128");
 MODULE_PARM(r128, "s");
 
-/* init_module is called when insmod is used to load the module */
-
-int init_module(void)
-{
-	return r128_init();
-}
-
-/* cleanup_module is called when rmmod is used to unload the module */
-
-void cleanup_module(void)
-{
-	r128_cleanup();
-}
-#endif
-
 #ifndef MODULE
-/* r128_setup is called by the kernel to parse command-line options passed
- * via the boot-loader (e.g., LILO).  It calls the insmod option routine,
- * drm_parse_drm.
- *
- * This is not currently supported, since it requires changes to
- * linux/init/main.c. */
+/* r128_options is called by the kernel to parse command-line options
+ * passed via the boot-loader (e.g., LILO).  It calls the insmod option
+ * routine, drm_parse_drm.
+ */
 
-
-void __init r128_setup(char *str, int *ints)
+static int __init r128_options(char *str)
 {
-	if (ints[0] != 0) {
-		DRM_ERROR("Illegal command line format, ignored\n");
-		return;
-	}
 	drm_parse_options(str);
+	return 1;
 }
+
+__setup("r128=", r128_options);
 #endif
 
 static int r128_setup(drm_device_t *dev)
@@ -255,7 +237,7 @@ static int r128_takedown(drm_device_t *dev)
 		dev->magiclist[i].head = dev->magiclist[i].tail = NULL;
 	}
 
-#ifdef DRM_AGP
+#if defined(CONFIG_AGP) || defined(CONFIG_AGP_MODULE)
 				/* Clear AGP information */
 	if (dev->agp) {
 		drm_agp_mem_t *entry;
@@ -342,7 +324,7 @@ static int r128_takedown(drm_device_t *dev)
 /* r128_init is called via init_module at module load time, or via
  * linux/init/main.c (this is not currently supported). */
 
-int r128_init(void)
+static int r128_init(void)
 {
 	int		      retcode;
 	drm_device_t	      *dev = &r128_device;
@@ -367,8 +349,15 @@ int r128_init(void)
 	drm_mem_init();
 	drm_proc_init(dev);
 
-#ifdef DRM_AGP
+#if defined(CONFIG_AGP) || defined(CONFIG_AGP_MODULE)
 	dev->agp    = drm_agp_init();
+      	if (dev->agp == NULL) {
+	   	DRM_ERROR("Cannot initialize agpgart module.\n");
+	   	drm_proc_cleanup();
+	   	misc_deregister(&r128_misc);
+	   	r128_takedown(dev);
+	   	return -ENOMEM;
+	}
 
 #ifdef CONFIG_MTRR
 	dev->agp->agp_mtrr = mtrr_add(dev->agp->agp_info.aper_base,
@@ -399,7 +388,7 @@ int r128_init(void)
 
 /* r128_cleanup is called via cleanup_module at module unload time. */
 
-void r128_cleanup(void)
+static void r128_cleanup(void)
 {
 	drm_device_t	      *dev = &r128_device;
 
@@ -413,14 +402,18 @@ void r128_cleanup(void)
 	}
 	drm_ctxbitmap_cleanup(dev);
 	r128_takedown(dev);
-#ifdef DRM_AGP
+#if defined(CONFIG_AGP) || defined(CONFIG_AGP_MODULE)
 	if (dev->agp) {
-				/* FIXME -- free other information, too */
+		drm_agp_uninit();
 		drm_free(dev->agp, sizeof(*dev->agp), DRM_MEM_AGPLISTS);
 		dev->agp = NULL;
 	}
 #endif
 }
+
+module_init(r128_init);
+module_exit(r128_cleanup);
+
 
 int r128_version(struct inode *inode, struct file *filp, unsigned int cmd,
 		  unsigned long arg)
@@ -463,7 +456,9 @@ int r128_open(struct inode *inode, struct file *filp)
 
 	DRM_DEBUG("open_count = %d\n", dev->open_count);
 	if (!(retcode = drm_open_helper(inode, filp, dev))) {
-		MOD_INC_USE_COUNT;
+#if LINUX_VERSION_CODE < 0x020333
+		MOD_INC_USE_COUNT; /* Needed before Linux 2.3.51 */
+#endif
 		atomic_inc(&dev->total_open);
 		spin_lock(&dev->count_lock);
 		if (!dev->open_count++) {
@@ -472,18 +467,23 @@ int r128_open(struct inode *inode, struct file *filp)
 		}
 		spin_unlock(&dev->count_lock);
 	}
+	
 	return retcode;
 }
 
 int r128_release(struct inode *inode, struct file *filp)
 {
 	drm_file_t    *priv   = filp->private_data;
-	drm_device_t  *dev    = priv->dev;
+	drm_device_t  *dev;
 	int	      retcode = 0;
 
+	lock_kernel();
+	dev = priv->dev;
 	DRM_DEBUG("open_count = %d\n", dev->open_count);
 	if (!(retcode = drm_release(inode, filp))) {
-		MOD_DEC_USE_COUNT;
+#if LINUX_VERSION_CODE < 0x020333
+		MOD_DEC_USE_COUNT; /* Needed before Linux 2.3.51 */
+#endif
 		atomic_inc(&dev->total_close);
 		spin_lock(&dev->count_lock);
 		if (!--dev->open_count) {
@@ -492,13 +492,17 @@ int r128_release(struct inode *inode, struct file *filp)
 					  atomic_read(&dev->ioctl_count),
 					  dev->blocked);
 				spin_unlock(&dev->count_lock);
+				unlock_kernel();
 				return -EBUSY;
 			}
 			spin_unlock(&dev->count_lock);
+			unlock_kernel();
 			return r128_takedown(dev);
 		}
 		spin_unlock(&dev->count_lock);
 	}
+	
+	unlock_kernel();
 	return retcode;
 }
 
@@ -664,19 +668,11 @@ int r128_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 		}
         }
 
-#if 0
-	DRM_ERROR("pid = %5d, old counter = %5ld\n",
-		current->pid, current->counter);
-#endif
+#if LINUX_VERSION_CODE < 0x020400
 	if (lock.context != r128_res_ctx.handle) {
 		current->counter = 5;
 		current->priority = DEF_PRIORITY/4;
 	}
-#if 0
-	while (current->counter > 25)
-		current->counter >>= 1; /* decrease time slice */
-	DRM_ERROR("pid = %5d, new counter = %5ld\n",
-		 current->pid, current->counter);
 #endif
         DRM_DEBUG("%d %s\n", lock.context, ret ? "interrupted" : "has lock");
 
@@ -718,19 +714,11 @@ int r128_unlock(struct inode *inode, struct file *filp, unsigned int cmd,
 		}
 	}
 
-#if 0
-	current->policy |= SCHED_YIELD;
-	current->state = TASK_INTERRUPTIBLE;
-	schedule_timeout(1000);
-#endif
-
+#if LINUX_VERSION_CODE < 0x020400
 	if (lock.context != r128_res_ctx.handle) {
 		current->counter = 5;
 		current->priority = DEF_PRIORITY;
 	}
-#if 0
-	current->state = TASK_INTERRUPTIBLE;
-	schedule_timeout(10);
 #endif
 
 	return 0;

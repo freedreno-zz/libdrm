@@ -28,9 +28,12 @@
  *    Rickard E. (Rik) Faith <faith@valinux.com>
  *
  */
+/* $XFree86$ */
 
 #define __NO_VERSION__
+#include <linux/config.h>
 #include "drmP.h"
+#include <linux/wrapper.h>
 
 typedef struct drm_mem_stats {
 	const char	  *name;
@@ -197,7 +200,7 @@ void drm_free(void *pt, size_t size, int area)
 	int free_count;
 	
 	if (!pt) DRM_MEM_ERROR(area, "Attempt to free NULL pointer\n");
-	else	 kfree_s(pt, size);
+	else	 kfree(pt);
 	spin_lock(&drm_mem_lock);
 	drm_mem_stats[area].bytes_freed += size;
 	free_count  = ++drm_mem_stats[area].free_count;
@@ -245,7 +248,12 @@ unsigned long drm_alloc_pages(int order, int area)
 	for (addr = address, sz = bytes;
 	     sz > 0;
 	     addr += PAGE_SIZE, sz -= PAGE_SIZE) {
+#if LINUX_VERSION_CODE >= 0x020400
+				/* Argument type changed in 2.4.0-test6/pre8 */
+		mem_map_reserve(virt_to_page(addr));
+#else
 		mem_map_reserve(MAP_NR(addr));
+#endif
 	}
 	
 	return address;
@@ -266,7 +274,12 @@ void drm_free_pages(unsigned long address, int order, int area)
 		for (addr = address, sz = bytes;
 		     sz > 0;
 		     addr += PAGE_SIZE, sz -= PAGE_SIZE) {
+#if LINUX_VERSION_CODE >= 0x020400
+				/* Argument type changed in 2.4.0-test6/pre8 */
+			mem_map_unreserve(virt_to_page(addr));
+#else
 			mem_map_unreserve(MAP_NR(addr));
+#endif
 		}
 		free_pages(address, order);
 	}
@@ -330,7 +343,7 @@ void drm_ioremapfree(void *pt, unsigned long size)
 	}
 }
 
-#ifdef DRM_AGP
+#if defined(CONFIG_AGP) || defined(CONFIG_AGP_MODULE)
 agp_memory *drm_alloc_agp(int pages, u32 type)
 {
 	agp_memory *handle;

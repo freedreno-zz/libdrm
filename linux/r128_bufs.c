@@ -29,14 +29,16 @@
  *	    Jeff Hartmann <jhartmann@valinux.com>
  * 
  */
+/* $XFree86$ */
 
 #define __NO_VERSION__
+#include <linux/config.h>
 #include "drmP.h"
 #include "r128_drv.h"
 #include "linux/un.h"
 
 
-#ifdef DRM_AGP
+#if defined(CONFIG_AGP) || defined(CONFIG_AGP_MODULE)
 int r128_addbufs_agp(struct inode *inode, struct file *filp, unsigned int cmd,
 		     unsigned long arg)
 {
@@ -199,7 +201,7 @@ int r128_addbufs(struct inode *inode, struct file *filp, unsigned int cmd,
 			   sizeof(request),
 			   -EFAULT);
 
-#ifdef DRM_AGP
+#if defined(CONFIG_AGP) || defined(CONFIG_AGP_MODULE)
 	if (request.flags & _DRM_AGP_BUFFER)
 		return r128_addbufs_agp(inode, filp, cmd, arg);
 	else

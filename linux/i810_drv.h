@@ -28,6 +28,7 @@
  * 	    Jeff Hartmann <jhartmann@valinux.com>
  *
  */
+/* $XFree86$ */
 
 #ifndef _I810_DRV_H_
 #define _I810_DRV_H_
@@ -77,8 +78,6 @@ typedef struct drm_i810_private {
 } drm_i810_private_t;
 
 				/* i810_drv.c */
-extern int  i810_init(void);
-extern void i810_cleanup(void);
 extern int  i810_version(struct inode *inode, struct file *filp,
 			  unsigned int cmd, unsigned long arg);
 extern int  i810_open(struct inode *inode, struct file *filp);

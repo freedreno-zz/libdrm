@@ -29,17 +29,15 @@
  *    Daryll Strauss <daryll@valinux.com>
  *
  */
+/* $XFree86$ */
 
 #include <linux/config.h>
-#define EXPORT_SYMTAB
 #include "drmP.h"
 #include "tdfx_drv.h"
-EXPORT_SYMBOL(tdfx_init);
-EXPORT_SYMBOL(tdfx_cleanup);
 
 #define TDFX_NAME	 "tdfx"
-#define TDFX_DESC	 "tdfx"
-#define TDFX_DATE	 "19991009"
+#define TDFX_DESC	 "3dfx Banshee/Voodoo3+"
+#define TDFX_DATE	 "20000719"
 #define TDFX_MAJOR	 1
 #define TDFX_MINOR	 0
 #define TDFX_PATCHLEVEL  0
@@ -48,6 +46,10 @@ static drm_device_t	      tdfx_device;
 drm_ctx_t	              tdfx_res_ctx;
 
 static struct file_operations tdfx_fops = {
+#if LINUX_VERSION_CODE >= 0x020400
+				/* This started being used during 2.4.0-test */
+	owner:   THIS_MODULE,
+#endif
 	open:	 tdfx_open,
 	flush:	 drm_flush,
 	release: tdfx_release,
@@ -88,7 +90,7 @@ static drm_ioctl_desc_t	      tdfx_ioctls[] = {
 	[DRM_IOCTL_NR(DRM_IOCTL_LOCK)]	     = { tdfx_lock,	  1, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_UNLOCK)]     = { tdfx_unlock,	  1, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_FINISH)]     = { drm_finish,	  1, 0 },
-#ifdef DRM_AGP
+#if defined(CONFIG_AGP) || defined(CONFIG_AGP_MODULE)
 	[DRM_IOCTL_NR(DRM_IOCTL_AGP_ACQUIRE)]   = {drm_agp_acquire, 1, 1},
 	[DRM_IOCTL_NR(DRM_IOCTL_AGP_RELEASE)]   = {drm_agp_release, 1, 1},
 	[DRM_IOCTL_NR(DRM_IOCTL_AGP_ENABLE)]    = {drm_agp_enable,  1, 1},
@@ -102,46 +104,26 @@ static drm_ioctl_desc_t	      tdfx_ioctls[] = {
 #define TDFX_IOCTL_COUNT DRM_ARRAY_SIZE(tdfx_ioctls)
 
 #ifdef MODULE
-int			      init_module(void);
-void			      cleanup_module(void);
 static char		      *tdfx = NULL;
+#endif
 
-MODULE_AUTHOR("Precision Insight, Inc., Cedar Park, Texas.");
+MODULE_AUTHOR("VA Linux Systems, Inc.");
 MODULE_DESCRIPTION("tdfx");
 MODULE_PARM(tdfx, "s");
 
-/* init_module is called when insmod is used to load the module */
-
-int init_module(void)
-{
-	return tdfx_init();
-}
-
-/* cleanup_module is called when rmmod is used to unload the module */
-
-void cleanup_module(void)
-{
-	tdfx_cleanup();
-}
-#endif
-
 #ifndef MODULE
-/* tdfx_setup is called by the kernel to parse command-line options passed
- * via the boot-loader (e.g., LILO).  It calls the insmod option routine,
- * drm_parse_drm.
- *
- * This is not currently supported, since it requires changes to
- * linux/init/main.c. */
- 
+/* tdfx_options is called by the kernel to parse command-line options
+ * passed via the boot-loader (e.g., LILO).  It calls the insmod option
+ * routine, drm_parse_drm.
+ */
 
-void __init tdfx_setup(char *str, int *ints)
+static int __init tdfx_options(char *str)
 {
-	if (ints[0] != 0) {
-		DRM_ERROR("Illegal command line format, ignored\n");
-		return;
-	}
 	drm_parse_options(str);
+	return 1;
 }
+
+__setup("tdfx=", tdfx_options);
 #endif
 
 static int tdfx_setup(drm_device_t *dev)
@@ -241,7 +223,7 @@ static int tdfx_takedown(drm_device_t *dev)
 		}
 		dev->magiclist[i].head = dev->magiclist[i].tail = NULL;
 	}
-#ifdef DRM_AGP
+#if defined(CONFIG_AGP) || defined(CONFIG_AGP_MODULE)
 				/* Clear AGP information */
 	if (dev->agp) {
 		drm_agp_mem_t *temp;
@@ -254,9 +236,7 @@ static int tdfx_takedown(drm_device_t *dev)
 			drm_free(temp, sizeof(*temp), DRM_MEM_AGPLISTS);
 			temp = temp_next;
 		}
-		if(dev->agp->acquired) (*drm_agp.release)();
-		drm_free(dev->agp, sizeof(*dev->agp), DRM_MEM_AGPLISTS);
-		dev->agp = NULL;
+		if (dev->agp->acquired) (*drm_agp.release)();
 	}
 #endif
 				/* Clear vma list (only built for debugging) */
@@ -319,7 +299,7 @@ static int tdfx_takedown(drm_device_t *dev)
 /* tdfx_init is called via init_module at module load time, or via
  * linux/init/main.c (this is not currently supported). */
 
-int tdfx_init(void)
+static int tdfx_init(void)
 {
 	int		      retcode;
 	drm_device_t	      *dev = &tdfx_device;
@@ -343,7 +323,7 @@ int tdfx_init(void)
 
 	drm_mem_init();
 	drm_proc_init(dev);
-#ifdef DRM_AGP
+#if defined(CONFIG_AGP) || defined(CONFIG_AGP_MODULE)
 	dev->agp    = drm_agp_init();
 #endif
 	if((retcode = drm_ctxbitmap_init(dev))) {
@@ -367,7 +347,7 @@ int tdfx_init(void)
 
 /* tdfx_cleanup is called via cleanup_module at module unload time. */
 
-void tdfx_cleanup(void)
+static void tdfx_cleanup(void)
 {
 	drm_device_t	      *dev = &tdfx_device;
 
@@ -381,7 +361,18 @@ void tdfx_cleanup(void)
 	}
 	drm_ctxbitmap_cleanup(dev);
 	tdfx_takedown(dev);
+#if defined(CONFIG_AGP) || defined(CONFIG_AGP_MODULE)
+	if (dev->agp) {
+		drm_agp_uninit();
+		drm_free(dev->agp, sizeof(*dev->agp), DRM_MEM_AGPLISTS);
+		dev->agp = NULL;
+	}
+#endif
 }
+
+module_init(tdfx_init);
+module_exit(tdfx_cleanup);
+
 
 int tdfx_version(struct inode *inode, struct file *filp, unsigned int cmd,
 		  unsigned long arg)
@@ -424,7 +415,9 @@ int tdfx_open(struct inode *inode, struct file *filp)
 	
 	DRM_DEBUG("open_count = %d\n", dev->open_count);
 	if (!(retcode = drm_open_helper(inode, filp, dev))) {
-		MOD_INC_USE_COUNT;
+#if LINUX_VERSION_CODE < 0x020333
+		MOD_INC_USE_COUNT; /* Needed before Linux 2.3.51 */
+#endif
 		atomic_inc(&dev->total_open);
 		spin_lock(&dev->count_lock);
 		if (!dev->open_count++) {
@@ -439,12 +432,17 @@ int tdfx_open(struct inode *inode, struct file *filp)
 int tdfx_release(struct inode *inode, struct file *filp)
 {
 	drm_file_t    *priv   = filp->private_data;
-	drm_device_t  *dev    = priv->dev;
+	drm_device_t  *dev;
 	int	      retcode = 0;
+
+	lock_kernel();
+	dev = priv->dev;
 
 	DRM_DEBUG("open_count = %d\n", dev->open_count);
 	if (!(retcode = drm_release(inode, filp))) {
-		MOD_DEC_USE_COUNT;
+#if LINUX_VERSION_CODE < 0x020333
+		MOD_DEC_USE_COUNT; /* Needed before Linux 2.3.51 */
+#endif
 		atomic_inc(&dev->total_close);
 		spin_lock(&dev->count_lock);
 		if (!--dev->open_count) {
@@ -453,13 +451,17 @@ int tdfx_release(struct inode *inode, struct file *filp)
 					  atomic_read(&dev->ioctl_count),
 					  dev->blocked);
 				spin_unlock(&dev->count_lock);
+				unlock_kernel();
 				return -EBUSY;
 			}
 			spin_unlock(&dev->count_lock);
+			unlock_kernel();
 			return tdfx_takedown(dev);
 		}
 		spin_unlock(&dev->count_lock);
 	}
+
+	unlock_kernel();
 	return retcode;
 }
 
@@ -625,19 +627,11 @@ int tdfx_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 		}
         }
 
-#if 0
-	DRM_ERROR("pid = %5d, old counter = %5ld\n", 
-		current->pid, current->counter);
-#endif
+#if LINUX_VERSION_CODE < 0x020400
 	if (lock.context != tdfx_res_ctx.handle) {
 		current->counter = 5;
 		current->priority = DEF_PRIORITY/4;
 	}
-#if 0
-	while (current->counter > 25)
-		current->counter >>= 1; /* decrease time slice */
-	DRM_ERROR("pid = %5d, new counter = %5ld\n",
-		 current->pid, current->counter);
 #endif
         DRM_DEBUG("%d %s\n", lock.context, ret ? "interrupted" : "has lock");
 
@@ -679,19 +673,11 @@ int tdfx_unlock(struct inode *inode, struct file *filp, unsigned int cmd,
 		}
 	}
 
-#if 0
-	current->policy |= SCHED_YIELD;
-	current->state = TASK_INTERRUPTIBLE;
-	schedule_timeout(1000);
-#endif
-
+#if LINUX_VERSION_CODE < 0x020400
 	if (lock.context != tdfx_res_ctx.handle) {
 		current->counter = 5;
 		current->priority = DEF_PRIORITY;
 	}
-#if 0
-	current->state = TASK_INTERRUPTIBLE;
-	schedule_timeout(10);
 #endif
 	
 	return 0;

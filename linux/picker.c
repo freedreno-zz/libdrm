@@ -1,8 +1,14 @@
+/* $XFree86$ */
+
 #include <linux/autoconf.h>
 #include <linux/version.h>
 
 #ifndef CONFIG_SMP
 #define CONFIG_SMP 0
+#endif
+
+#ifndef CONFIG_MODULES
+#define CONFIG_MODULES 0
 #endif
 
 #ifndef CONFIG_MODVERSIONS
@@ -18,6 +24,7 @@
 #endif
 
 SMP = CONFIG_SMP
+MODULES = CONFIG_MODULES
 MODVERSIONS = CONFIG_MODVERSIONS
 AGP = CONFIG_AGP
 AGP_MODULE = CONFIG_AGP_MODULE

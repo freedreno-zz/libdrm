@@ -28,6 +28,7 @@
  *          Kevin E. Martin <martin@valinux.com>
  *
  */
+/* $XFree86$ */
 
 #ifndef _R128_DRV_H_
 #define _R128_DRV_H_
@@ -69,8 +70,6 @@ typedef struct drm_r128_buf_priv {
 } drm_r128_buf_priv_t;
 
 				/* r128_drv.c */
-extern int  r128_init(void);
-extern void r128_cleanup(void);
 extern int  r128_version(struct inode *inode, struct file *filp,
 			  unsigned int cmd, unsigned long arg);
 extern int  r128_open(struct inode *inode, struct file *filp);

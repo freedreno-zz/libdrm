@@ -28,6 +28,7 @@
  *    Rickard E. (Rik) Faith <faith@valinux.com>
  *
  */
+/* $XFree86$ */
 
 #define __NO_VERSION__
 #include "drmP.h"
@@ -97,10 +98,17 @@ void drm_parse_options(char *s)
 	}
 }
 
+/* drm_cpu_valid returns non-zero if the DRI will run on this CPU, and 0
+ * otherwise. */
+
 int drm_cpu_valid(void)
 {
 #if defined(__i386__)
 	if (boot_cpu_data.x86 == 3) return 0; /* No cmpxchg on a 386 */
+#endif
+#if defined(__sparc__) && !defined(__sparc_v9__)
+	if (1)
+		return 0; /* No cmpxchg before v9 sparc. */
 #endif
 	return 1;
 }

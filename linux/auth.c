@@ -28,6 +28,7 @@
  *    Rickard E. (Rik) Faith <faith@valinux.com>
  *
  */
+/* $XFree86$ */
 
 #define __NO_VERSION__
 #include "drmP.h"
@@ -126,12 +127,12 @@ int drm_getmagic(struct inode *inode, struct file *filp, unsigned int cmd,
 	if (priv->magic) {
 		auth.magic = priv->magic;
 	} else {
-		spin_lock(&lock);
 		do {
+			spin_lock(&lock);
 			if (!sequence) ++sequence; /* reserve 0 */
 			auth.magic = sequence++;
+			spin_unlock(&lock);
 		} while (drm_find_file(dev, auth.magic));
-		spin_unlock(&lock);
 		priv->magic = auth.magic;
 		drm_add_magic(dev, priv, auth.magic);
 	}

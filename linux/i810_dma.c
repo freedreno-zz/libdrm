@@ -29,11 +29,11 @@
  *          Keith Whitwell <keithw@valinux.com>
  *
  */
+/* $XFree86$ */
 
 #define __NO_VERSION__
 #include "drmP.h"
 #include "i810_drv.h"
-
 #include <linux/interrupt.h>	/* For task queue support */
 
 /* in case we don't have a 2.3.99-pre6 kernel or later: */
@@ -156,16 +156,23 @@ static struct file_operations i810_buffer_fops = {
 
 int i810_mmap_buffers(struct file *filp, struct vm_area_struct *vma)
 {
-	drm_file_t	  *priv	  = filp->private_data;
-	drm_device_t	  *dev	  = priv->dev;
-	drm_i810_private_t *dev_priv = dev->dev_private;
-	drm_buf_t *buf = dev_priv->mmap_buffer;
-	drm_i810_buf_priv_t *buf_priv = buf->dev_private;
+	drm_file_t	    *priv	  = filp->private_data;
+	drm_device_t	    *dev;
+	drm_i810_private_t  *dev_priv;
+	drm_buf_t           *buf;
+	drm_i810_buf_priv_t *buf_priv;
+
+	lock_kernel();
+	dev	 = priv->dev;
+	dev_priv = dev->dev_private;
+	buf      = dev_priv->mmap_buffer;
+	buf_priv = buf->dev_private;
    
 	vma->vm_flags |= (VM_IO | VM_DONTCOPY);
 	vma->vm_file = filp;
    
    	buf_priv->currently_mapped = I810_BUF_MAPPED;
+	unlock_kernel();
 
 	if (remap_page_range(vma->vm_start,
 			     VM_OFFSET(vma),
@@ -276,8 +283,8 @@ static unsigned long i810_alloc_page(drm_device_t *dev)
 	if(address == 0UL) 
 		return 0;
 	
-	atomic_inc(&mem_map[MAP_NR((void *) address)].count);
-	set_bit(PG_locked, &mem_map[MAP_NR((void *) address)].flags);
+	atomic_inc(&virt_to_page(address)->count);
+	set_bit(PG_locked, &virt_to_page(address)->flags);
    
 	return address;
 }
@@ -287,9 +294,9 @@ static void i810_free_page(drm_device_t *dev, unsigned long page)
 	if(page == 0UL) 
 		return;
 	
-	atomic_dec(&mem_map[MAP_NR((void *) page)].count);
-	clear_bit(PG_locked, &mem_map[MAP_NR((void *) page)].flags);
-	wake_up(&mem_map[MAP_NR((void *) page)].wait);
+	atomic_dec(&virt_to_page(page)->count);
+	clear_bit(PG_locked, &virt_to_page(page)->flags);
+	wake_up(&virt_to_page(page)->wait);
 	free_page(page);
 	return;
 }

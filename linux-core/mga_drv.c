@@ -29,17 +29,15 @@
  *
  *
  */
+/* $XFree86$ */
 
 #include <linux/config.h>
-#define EXPORT_SYMTAB
 #include "drmP.h"
 #include "mga_drv.h"
-EXPORT_SYMBOL(mga_init);
-EXPORT_SYMBOL(mga_cleanup);
 
 #define MGA_NAME	 "mga"
 #define MGA_DESC	 "Matrox g200/g400"
-#define MGA_DATE	 "19991213"
+#define MGA_DATE	 "20000719"
 #define MGA_MAJOR	 1
 #define MGA_MINOR	 0
 #define MGA_PATCHLEVEL	 0
@@ -48,6 +46,10 @@ static drm_device_t	      mga_device;
 drm_ctx_t		      mga_res_ctx;
 
 static struct file_operations mga_fops = {
+#if LINUX_VERSION_CODE >= 0x020400
+				/* This started being used during 2.4.0-test */
+	owner:   THIS_MODULE,
+#endif
 	open:	 mga_open,
 	flush:	 drm_flush,
 	release: mga_release,
@@ -118,47 +120,26 @@ static drm_ioctl_desc_t	      mga_ioctls[] = {
 #define MGA_IOCTL_COUNT DRM_ARRAY_SIZE(mga_ioctls)
 
 #ifdef MODULE
-int			      init_module(void);
-void			      cleanup_module(void);
 static char		      *mga = NULL;
+#endif
 
-MODULE_AUTHOR("Precision Insight, Inc., Cedar Park, Texas.");
+MODULE_AUTHOR("VA Linux Systems, Inc.");
 MODULE_DESCRIPTION("Matrox g200/g400");
 MODULE_PARM(mga, "s");
 
-/* init_module is called when insmod is used to load the module */
-
-int init_module(void)
-{
-	DRM_DEBUG("doing mga_init()\n");
-	return mga_init();
-}
-
-/* cleanup_module is called when rmmod is used to unload the module */
-
-void cleanup_module(void)
-{
-	mga_cleanup();
-}
-#endif
-
 #ifndef MODULE
-/* mga_setup is called by the kernel to parse command-line options passed
+/* mga_options is called by the kernel to parse command-line options passed
  * via the boot-loader (e.g., LILO).  It calls the insmod option routine,
  * drm_parse_drm.
- *
- * This is not currently supported, since it requires changes to
- * linux/init/main.c. */
- 
+ */
 
-void __init mga_setup(char *str, int *ints)
+static int __init mga_options(char *str)
 {
-	if (ints[0] != 0) {
-		DRM_ERROR("Illegal command line format, ignored\n");
-		return;
-	}
 	drm_parse_options(str);
+	return 1;
 }
+
+__setup("mga=", mga_options);
 #endif
 
 static int mga_setup(drm_device_t *dev)
@@ -357,7 +338,7 @@ static int mga_takedown(drm_device_t *dev)
 /* mga_init is called via init_module at module load time, or via
  * linux/init/main.c (this is not currently supported). */
 
-int mga_init(void)
+static int mga_init(void)
 {
 	int		      retcode;
 	drm_device_t	      *dev = &mga_device;
@@ -422,7 +403,7 @@ int mga_init(void)
 
 /* mga_cleanup is called via cleanup_module at module unload time. */
 
-void mga_cleanup(void)
+static void mga_cleanup(void)
 {
 	drm_device_t	      *dev = &mga_device;
 
@@ -448,10 +429,15 @@ void mga_cleanup(void)
 
 	mga_takedown(dev);
 	if (dev->agp) {
+		drm_agp_uninit();
 		drm_free(dev->agp, sizeof(*dev->agp), DRM_MEM_AGPLISTS);
 		dev->agp = NULL;
 	}
 }
+
+module_init(mga_init);
+module_exit(mga_cleanup);
+
 
 int mga_version(struct inode *inode, struct file *filp, unsigned int cmd,
 		  unsigned long arg)
@@ -494,7 +480,9 @@ int mga_open(struct inode *inode, struct file *filp)
 	
 	DRM_DEBUG("open_count = %d\n", dev->open_count);
 	if (!(retcode = drm_open_helper(inode, filp, dev))) {
-		MOD_INC_USE_COUNT;
+#if LINUX_VERSION_CODE < 0x020333
+		MOD_INC_USE_COUNT; /* Needed before Linux 2.3.51 */
+#endif
 		atomic_inc(&dev->total_open);
 		spin_lock(&dev->count_lock);
 		if (!dev->open_count++) {
@@ -509,9 +497,11 @@ int mga_open(struct inode *inode, struct file *filp)
 int mga_release(struct inode *inode, struct file *filp)
 {
 	drm_file_t    *priv   = filp->private_data;
-	drm_device_t  *dev    = priv->dev;
+	drm_device_t  *dev;
 	int	      retcode = 0;
 
+	lock_kernel();
+	dev    = priv->dev;
 	DRM_DEBUG("pid = %d, device = 0x%x, open_count = %d\n",
 		  current->pid, dev->device, dev->open_count);
 
@@ -573,7 +563,9 @@ int mga_release(struct inode *inode, struct file *filp)
 	up(&dev->struct_sem);
 	
 	drm_free(priv, sizeof(*priv), DRM_MEM_FILES);
-   	MOD_DEC_USE_COUNT;
+#if LINUX_VERSION_CODE < 0x020333
+	MOD_DEC_USE_COUNT; /* Needed before Linux 2.3.51 */
+#endif
    	atomic_inc(&dev->total_close);
    	spin_lock(&dev->count_lock);
    	if (!--dev->open_count) {
@@ -582,12 +574,15 @@ int mga_release(struct inode *inode, struct file *filp)
 				  atomic_read(&dev->ioctl_count),
 				  dev->blocked);
 		   	spin_unlock(&dev->count_lock);
+			unlock_kernel();
 		   	return -EBUSY;
 		}
 	   	spin_unlock(&dev->count_lock);
+		unlock_kernel();
 	   	return mga_takedown(dev);
 	}
-   	spin_unlock(&dev->count_lock);
+	spin_unlock(&dev->count_lock);
+	unlock_kernel();
 	return retcode;
 }
 

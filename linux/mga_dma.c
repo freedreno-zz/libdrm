@@ -29,6 +29,7 @@
  *	    Keith Whitwell <keithw@valinux.com>
  *
  */
+/* $XFree86$ */
 
 #define __NO_VERSION__
 #include "drmP.h"
@@ -57,8 +58,8 @@ static unsigned long mga_alloc_page(drm_device_t *dev)
 	if(address == 0UL) {
 		return 0;
 	}
-	atomic_inc(&mem_map[MAP_NR((void *) address)].count);
-	set_bit(PG_locked, &mem_map[MAP_NR((void *) address)].flags);
+	atomic_inc(&virt_to_page(address)->count);
+	set_bit(PG_locked, &virt_to_page(address)->flags);
    
 	return address;
 }
@@ -70,9 +71,9 @@ static void mga_free_page(drm_device_t *dev, unsigned long page)
 	if(page == 0UL) {
 		return;
 	}
-	atomic_dec(&mem_map[MAP_NR((void *) page)].count);
-	clear_bit(PG_locked, &mem_map[MAP_NR((void *) page)].flags);
-	wake_up(&mem_map[MAP_NR((void *) page)].wait);
+	atomic_dec(&virt_to_page(page)->count);
+	clear_bit(PG_locked, &virt_to_page(page)->flags);
+	wake_up(&virt_to_page(page)->wait);
 	free_page(page);
 	return;
 }
@@ -765,7 +766,7 @@ static int mga_dma_initialize(drm_device_t *dev, drm_mga_init_t *init) {
 	dev_priv->mAccess = init->mAccess;
    	init_waitqueue_head(&dev_priv->flush_queue);
 	init_waitqueue_head(&dev_priv->buf_queue);
-	dev_priv->WarpPipe = -1;
+	dev_priv->WarpPipe = 0xff000000;
 
    	DRM_DEBUG("chipset: %d ucode_size: %d backOffset: %x depthOffset: %x\n",
 		  dev_priv->chipset, dev_priv->warp_ucode_size, 

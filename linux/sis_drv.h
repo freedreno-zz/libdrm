@@ -2,6 +2,7 @@
  * Created: Thu Oct  7 10:40:04 1999 by faith@precisioninsight.com
  *
  * Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
+ * Copyright 2000 VA Linux Systems, Inc., Sunnyvale, California.
  * All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -24,19 +25,17 @@
  * DEALINGS IN THE SOFTWARE.
  * 
  * Authors:
- *    Rickard E. (Rik) Faith <faith@precisioninsight.com>
- *    Daryll Strauss <daryll@precisioninsight.com>
+ *    Rickard E. (Rik) Faith <faith@valinux.com>
+ *    Daryll Strauss <daryll@valinux.com>
+ *    Sung-Ching Lin <sclin@sis.com.tw>
  * 
  */
-
-/* $XFree86: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/kernel/sis_drv.h,v 1.2 2000/08/04 03:51:47 tsi Exp $ */
+/* $XFree86: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/kernel/sis_drv.h,v 1.5 2000/08/28 02:43:16 tsi Exp $ */
 
 #ifndef _SIS_DRV_H_
 #define _SIS_DRV_H_
 
 				/* sis_drv.c */
-extern int  sis_init(void);
-extern void sis_cleanup(void);
 extern int  sis_version(struct inode *inode, struct file *filp,
 			  unsigned int cmd, unsigned long arg);
 extern int  sis_open(struct inode *inode, struct file *filp);
@@ -76,7 +75,6 @@ int sis_fb_alloc(struct inode *inode, struct file *filp, unsigned int cmd,
 		  unsigned long arg);
 int sis_fb_free(struct inode *inode, struct file *filp, unsigned int cmd,
 		  unsigned long arg);
-
 
 int sis_agp_init(struct inode *inode, struct file *filp, unsigned int cmd,
 		  unsigned long arg);
