@@ -449,7 +449,7 @@ static void radeon_do_cp_flush( drm_radeon_private_t *dev_priv )
 
 /* Wait for the CP to go idle.
  */
-static int radeon_do_cp_idle( drm_radeon_private_t *dev_priv )
+int radeon_do_cp_idle( drm_radeon_private_t *dev_priv )
 {
 	return radeon_do_wait_for_idle( dev_priv );
 }
@@ -560,11 +560,11 @@ static void radeon_cp_init_ring_buffer( drm_device_t *dev )
 
 	/* Initialize the memory controller */
 	RADEON_WRITE( RADEON_MC_FB_LOCATION,
-		      ( dev_priv->agp_vm_start-1 ) & 0xffff0000);
+		      (dev_priv->agp_vm_start - 1) & 0xffff0000 );
 	RADEON_WRITE( RADEON_MC_AGP_LOCATION,
-		      ( ( ( dev_priv->agp_vm_start-1 +
-			    dev_priv->agp_size ) & 0xffff0000)
-			| ( dev_priv->agp_vm_start >> 16 ) ) );
+		      (((dev_priv->agp_vm_start - 1 +
+			 dev_priv->agp_size) & 0xffff0000) |
+		       (dev_priv->agp_vm_start >> 16)) );
 
 	ring_start = (dev_priv->cp_ring->offset
 		      - dev->agp->base
@@ -585,6 +585,15 @@ static void radeon_cp_init_ring_buffer( drm_device_t *dev )
 
 	/* Set ring buffer size */
 	RADEON_WRITE( RADEON_CP_RB_CNTL, dev_priv->ring.size_l2qw );
+
+	/* Initialize the scratch register pointer.
+	 * GH: We really want to do this, but it seems to be causing
+	 * some instability.  I'll look into this later on...
+	 * GH: I'll remove the magic numbers when it works.
+	 */
+	RADEON_WRITE( RADEON_SCRATCH_ADDR, (dev_priv->ring_rptr->offset +
+					    RADEON_SCRATCH_REG_OFFSET) );
+	RADEON_WRITE( RADEON_SCRATCH_UMSK, 0x7 );
 
 	radeon_do_wait_for_idle( dev_priv );
 
@@ -722,6 +731,10 @@ static int radeon_do_init_cp( drm_device_t *dev, drm_radeon_init_t *init )
 	dev_priv->ring.tail_mask =
 		(dev_priv->ring.size / sizeof(u32)) - 1;
 
+	dev_priv->scratch = ((__volatile__ u32 *)
+			     dev_priv->ring_rptr->handle +
+			     (RADEON_SCRATCH_REG_OFFSET / sizeof(u32)));
+
 	dev_priv->sarea_priv->last_frame = 0;
 	RADEON_WRITE( RADEON_LAST_FRAME_REG,
 		      dev_priv->sarea_priv->last_frame );
@@ -729,6 +742,10 @@ static int radeon_do_init_cp( drm_device_t *dev, drm_radeon_init_t *init )
 	dev_priv->sarea_priv->last_dispatch = 0;
 	RADEON_WRITE( RADEON_LAST_DISPATCH_REG,
 		      dev_priv->sarea_priv->last_dispatch );
+
+	dev_priv->sarea_priv->last_clear = 0;
+	RADEON_WRITE( RADEON_LAST_CLEAR_REG,
+		      dev_priv->sarea_priv->last_clear );
 
 	radeon_cp_load_microcode( dev_priv );
 	radeon_cp_init_ring_buffer( dev );
@@ -1067,12 +1084,12 @@ drm_buf_t *radeon_freelist_get( drm_device_t *dev )
 	}
 
 #if ROTATE_BUFS
-	if (++dev_priv->last_buf >= dma->buf_count)
+	if ( ++dev_priv->last_buf >= dma->buf_count )
 		dev_priv->last_buf = 0;
 	start = dev_priv->last_buf;
 #endif
 	for ( t = 0 ; t < dev_priv->usec_timeout ; t++ ) {
-		u32 done_age = RADEON_READ( RADEON_LAST_DISPATCH_REG );
+		u32 done_age = dev_priv->scratch[RADEON_LAST_DISPATCH];
 #if ROTATE_BUFS
 		for ( i = start ; i < dma->buf_count ; i++ ) {
 #else
@@ -1089,8 +1106,8 @@ drm_buf_t *radeon_freelist_get( drm_device_t *dev )
 				return buf;
 			}
 			DRM_DEBUG( "    skipping buf=%d age=%d done=%d\n",
-				  buf->idx, buf_priv->age,
-				  done_age );
+				   buf->idx, buf_priv->age,
+				   done_age );
 #if ROTATE_BUFS
 			start = 0;
 #endif

@@ -39,6 +39,9 @@
  * CP hardware state programming functions
  */
 
+#undef RADEON_VERBOSE
+#define RADEON_VERBOSE	0
+
 static void radeon_emit_clip_rects( drm_radeon_private_t *dev_priv,
 				    drm_clip_rect_t *boxes, int count )
 {
@@ -47,31 +50,39 @@ static void radeon_emit_clip_rects( drm_radeon_private_t *dev_priv,
 	RING_LOCALS;
 	DRM_INFO( "    %s: count=%d\n", __FUNCTION__, count );
 
-	BEGIN_RING( 17 );
+	BEGIN_RING( 11 );
 
 	if ( count >= 1 ) {
-		OUT_RING( CP_PACKET0( RADEON_SCISSOR_TL_0, 3 ) );
+		DRM_INFO( "box[0]:  x1=%d y1=%d  x2=%d y2=%d\n",
+			  boxes[0].x1, boxes[0].y1,
+			  boxes[0].x2, boxes[0].y2 );
+
+		OUT_RING( CP_PACKET0( RADEON_SCISSOR_TL_0, 1 ) );
 		OUT_RING( (boxes[0].y1 << 16) | boxes[0].x1 );
 		OUT_RING( ((boxes[0].y2 - 1) << 16) | (boxes[0].x2 - 1) );
 
 		aux_scissor_cntl |= (RADEON_SCISSOR_0_ENABLE |
-				     0 /* RADEON_AUX1_SC_MODE_OR */);
+				     0 /* RADEON_EXCLUSIVE_SCISSOR_0 */);
 	}
 	if ( count >= 2 ) {
-		OUT_RING( CP_PACKET0( RADEON_SCISSOR_TL_1, 3 ) );
+		DRM_INFO( "box[1]:  x1=%d y1=%d  x2=%d y2=%d\n",
+			  boxes[1].x1, boxes[1].y1,
+			  boxes[1].x2, boxes[1].y2 );
+
+		OUT_RING( CP_PACKET0( RADEON_SCISSOR_TL_1, 1 ) );
 		OUT_RING( (boxes[1].y1 << 16) | boxes[1].x1 );
 		OUT_RING( ((boxes[1].y2 - 1) << 16) | (boxes[1].x2 - 1) );
 
 		aux_scissor_cntl |= (RADEON_SCISSOR_1_ENABLE |
-				     0 /* RADEON_AUX2_SC_MODE_OR */);
+				     RADEON_EXCLUSIVE_SCISSOR_1);
 	}
 	if ( count >= 3 ) {
-		OUT_RING( CP_PACKET0( RADEON_SCISSOR_TL_2, 3 ) );
+		OUT_RING( CP_PACKET0( RADEON_SCISSOR_TL_2, 1 ) );
 		OUT_RING( (boxes[2].y1 << 16) | boxes[2].x1 );
 		OUT_RING( ((boxes[2].y2 - 1) << 16) | (boxes[2].x2 - 1) );
 
 		aux_scissor_cntl |= (RADEON_SCISSOR_2_ENABLE |
-				     0 /* RADEON_AUX3_SC_MODE_OR */);
+				     0 /* RADEON_EXCLUSIVE_SCISSOR_2 */);
 	}
 
 	OUT_RING( CP_PACKET0( RADEON_AUX_SCISSOR_CNTL, 0 ) );
@@ -80,6 +91,9 @@ static void radeon_emit_clip_rects( drm_radeon_private_t *dev_priv,
 	ADVANCE_RING();
 #endif
 }
+
+#undef RADEON_VERBOSE
+#define RADEON_VERBOSE	0
 
 static inline void radeon_emit_context( drm_radeon_private_t *dev_priv )
 {
@@ -571,7 +585,7 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 		if ( tmp & RADEON_BACK )  flags |= RADEON_FRONT;
 	}
 
-	RADEON_WAIT_UNTIL_IDLE();
+	RADEON_WAIT_UNTIL_3D_IDLE();
 
 	for ( i = 0 ; i < nbox ; i++ ) {
 		int x = pbox[i].x1;
@@ -747,7 +761,14 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 		}
 	}
 
-	RADEON_WAIT_UNTIL_IDLE();
+	/* Increment the clear counter.  The client-side 3D driver must
+	 * wait on this value before performing the clear ioctl.  We
+	 * need this because the card's so damned fast...
+	 */
+	dev_priv->sarea_priv->last_clear++;
+
+	RADEON_CLEAR_AGE( dev_priv->sarea_priv->last_clear );
+	RADEON_WAIT_UNTIL_2D_IDLE();
 }
 
 static void radeon_cp_dispatch_swap( drm_device_t *dev )
@@ -782,7 +803,7 @@ static void radeon_cp_dispatch_swap( drm_device_t *dev )
 		break;
 	}
 
-	RADEON_WAIT_UNTIL_IDLE();
+	RADEON_WAIT_UNTIL_3D_IDLE();
 
 	for ( i = 0 ; i < nbox ; i++ ) {
 		int x = pbox[i].x1;
@@ -819,14 +840,8 @@ static void radeon_cp_dispatch_swap( drm_device_t *dev )
 	 */
 	dev_priv->sarea_priv->last_frame++;
 
-	BEGIN_RING( 2 );
-
-	OUT_RING( CP_PACKET0( RADEON_LAST_FRAME_REG, 0 ) );
-	OUT_RING( dev_priv->sarea_priv->last_frame );
-
-	ADVANCE_RING();
-
-	RADEON_WAIT_UNTIL_IDLE();
+	RADEON_FRAME_AGE( dev_priv->sarea_priv->last_frame );
+	RADEON_WAIT_UNTIL_2D_IDLE();
 }
 
 static void radeon_cp_dispatch_flip( drm_device_t *dev )
@@ -843,7 +858,7 @@ static void radeon_cp_dispatch_flip( drm_device_t *dev )
 	radeon_cp_performance_boxes( dev_priv );
 #endif
 
-	RADEON_WAIT_UNTIL_IDLE();
+	RADEON_WAIT_UNTIL_3D_IDLE();
 	RADEON_WAIT_UNTIL_PAGE_FLIPPED();
 
 	BEGIN_RING( 2 );
@@ -866,12 +881,7 @@ static void radeon_cp_dispatch_flip( drm_device_t *dev )
 	 */
 	dev_priv->sarea_priv->last_frame++;
 
-	BEGIN_RING( 2 );
-
-	OUT_RING( CP_PACKET0( RADEON_LAST_FRAME_REG, 0 ) );
-	OUT_RING( dev_priv->sarea_priv->last_frame );
-
-	ADVANCE_RING();
+	RADEON_FRAME_AGE( dev_priv->sarea_priv->last_frame );
 }
 
 static void radeon_cp_dispatch_vertex( drm_device_t *dev,
@@ -930,12 +940,7 @@ static void radeon_cp_dispatch_vertex( drm_device_t *dev,
 		buf_priv->age = dev_priv->sarea_priv->last_dispatch;
 
 		/* Emit the vertex buffer age */
-		BEGIN_RING( 2 );
-
-		OUT_RING( CP_PACKET0( RADEON_LAST_DISPATCH_REG, 0 ) );
-		OUT_RING( buf_priv->age );
-
-		ADVANCE_RING();
+		RADEON_DISPATCH_AGE( buf_priv->age );
 
 		buf->pending = 1;
 		buf->used = 0;
@@ -944,15 +949,6 @@ static void radeon_cp_dispatch_vertex( drm_device_t *dev,
 	}
 
 	dev_priv->sarea_priv->last_dispatch++;
-
-#if 0
-	if ( dev_priv->submit_age == RADEON_MAX_VB_AGE ) {
-		ret = radeon_do_cp_idle( dev_priv );
-		if ( ret < 0 ) return ret;
-		dev_priv->submit_age = 0;
-		radeon_freelist_reset( dev );
-	}
-#endif
 
 	sarea_priv->dirty &= ~RADEON_UPLOAD_CLIPRECTS;
 	sarea_priv->nbox = 0;
@@ -1003,12 +999,7 @@ static void radeon_cp_dispatch_indirect( drm_device_t *dev,
 		buf_priv->age = dev_priv->sarea_priv->last_dispatch;
 
 		/* Emit the indirect buffer age */
-		BEGIN_RING( 2 );
-
-		OUT_RING( CP_PACKET0( RADEON_LAST_DISPATCH_REG, 0 ) );
-		OUT_RING( buf_priv->age );
-
-		ADVANCE_RING();
+		RADEON_DISPATCH_AGE( buf_priv->age );
 
 		buf->pending = 1;
 		buf->used = 0;
@@ -1017,15 +1008,6 @@ static void radeon_cp_dispatch_indirect( drm_device_t *dev,
 	}
 
 	dev_priv->sarea_priv->last_dispatch++;
-
-#if 0
-	if ( dev_priv->submit_age == RADEON_MAX_VB_AGE ) {
-		ret = radeon_do_cp_idle( dev_priv );
-		if ( ret < 0 ) return ret;
-		dev_priv->submit_age = 0;
-		radeon_freelist_reset( dev );
-	}
-#endif
 }
 
 static void radeon_cp_dispatch_indices( drm_device_t *dev,
@@ -1094,12 +1076,7 @@ static void radeon_cp_dispatch_indices( drm_device_t *dev,
 		buf_priv->age = dev_priv->sarea_priv->last_dispatch;
 
 		/* Emit the vertex buffer age */
-		BEGIN_RING( 2 );
-
-		OUT_RING( CP_PACKET0( RADEON_LAST_DISPATCH_REG, 0 ) );
-		OUT_RING( buf_priv->age );
-
-		ADVANCE_RING();
+		RADEON_DISPATCH_AGE( buf_priv->age );
 
 		buf->pending = 1;
 		/* FIXME: Check dispatched field */
@@ -1107,15 +1084,6 @@ static void radeon_cp_dispatch_indices( drm_device_t *dev,
 	}
 
 	dev_priv->sarea_priv->last_dispatch++;
-
-#if 0
-	if ( dev_priv->submit_age == RADEON_MAX_VB_AGE ) {
-		ret = radeon_do_cp_idle( dev_priv );
-		if ( ret < 0 ) return ret;
-		dev_priv->submit_age = 0;
-		radeon_freelist_reset( dev );
-	}
-#endif
 
 	sarea_priv->dirty &= ~RADEON_UPLOAD_CLIPRECTS;
 	sarea_priv->nbox = 0;
@@ -1169,7 +1137,7 @@ static int radeon_cp_dispatch_blit( drm_device_t *dev,
 	 * up with the texture data from the host data blit, otherwise
 	 * part of the texture image may be corrupted.
 	 */
-	RADEON_WAIT_UNTIL_IDLE();
+	RADEON_WAIT_UNTIL_3D_IDLE();
 	RADEON_FLUSH_CACHE();
 
 	/* Dispatch the indirect buffer.
@@ -1219,7 +1187,7 @@ static int radeon_cp_dispatch_blit( drm_device_t *dev,
 	 * the texture data is written out to memory before rendering
 	 * continues.
 	 */
-	RADEON_WAIT_UNTIL_IDLE();
+	RADEON_WAIT_UNTIL_2D_IDLE();
 	RADEON_FLUSH_CACHE();
 
 	return 0;
@@ -1334,6 +1302,8 @@ int radeon_cp_vertex( struct inode *inode, struct file *filp,
 		return -EINVAL;
 	}
 
+	VB_AGE_CHECK_WITH_RET( dev_priv );
+
 	buf = dma->buflist[vertex.idx];
 	buf_priv = buf->dev_private;
 
@@ -1397,6 +1367,8 @@ int radeon_cp_indices( struct inode *inode, struct file *filp,
 		return -EINVAL;
 	}
 
+	VB_AGE_CHECK_WITH_RET( dev_priv );
+
 	buf = dma->buflist[elts.idx];
 	buf_priv = buf->dev_private;
 
@@ -1436,6 +1408,7 @@ int radeon_cp_blit( struct inode *inode, struct file *filp,
 {
 	drm_file_t *priv = filp->private_data;
 	drm_device_t *dev = priv->dev;
+	drm_radeon_private_t *dev_priv = dev->dev_private;
 	drm_device_dma_t *dma = dev->dma;
 	drm_radeon_blit_t blit;
 
@@ -1457,6 +1430,8 @@ int radeon_cp_blit( struct inode *inode, struct file *filp,
 			   blit.idx, dma->buf_count );
 		return -EINVAL;
 	}
+
+	VB_AGE_CHECK_WITH_RET( dev_priv );
 
 	return radeon_cp_dispatch_blit( dev, &blit );
 }
@@ -1531,6 +1506,8 @@ int radeon_cp_indirect( struct inode *inode, struct file *filp,
 			   indirect.start, buf->used );
 		return -EINVAL;
 	}
+
+	VB_AGE_CHECK_WITH_RET( dev_priv );
 
 	buf->used = indirect.end;
 	buf_priv->discard = indirect.discard;

@@ -81,6 +81,8 @@
 #define RADEON_INDEX_PRIM_OFFSET	20
 #define RADEON_HOSTDATA_BLIT_OFFSET	32
 
+#define RADEON_SCRATCH_REG_OFFSET	32
+
 /* Keep these small for testing
  */
 #define RADEON_NR_SAREA_CLIPRECTS	12
@@ -219,6 +221,7 @@ typedef struct {
 	 */
 	unsigned int last_frame;
 	unsigned int last_dispatch;
+	unsigned int last_clear;
 
 	drm_radeon_tex_region_t tex_list[RADEON_NR_TEX_HEAPS][RADEON_NR_TEX_REGIONS+1];
 	int tex_age[RADEON_NR_TEX_HEAPS];

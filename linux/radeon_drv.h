@@ -73,6 +73,7 @@ typedef struct drm_radeon_private {
 #if ROTATE_BUFS
 	int last_buf;
 #endif
+	volatile u32 *scratch;
 
 	int usec_timeout;
 	int is_pci;
@@ -151,6 +152,7 @@ extern drm_buf_t *radeon_freelist_get( drm_device_t *dev );
 extern int radeon_wait_ring( drm_radeon_private_t *dev_priv, int n );
 extern void radeon_update_ring_snapshot( drm_radeon_private_t *dev_priv );
 
+extern int radeon_do_cp_idle( drm_radeon_private_t *dev_priv );
 extern int radeon_do_cleanup_pageflip( drm_device_t *dev );
 
 				/* radeon_state.c */
@@ -243,12 +245,14 @@ extern int  radeon_context_switch_complete(drm_device_t *dev, int new);
 #	define RADEON_DST_TILE_MICRO		(2 << 30)
 #	define RADEON_DST_TILE_BOTH		(3 << 30)
 
-#define RADEON_GUI_SCRATCH_REG0		0x15e0
-#define RADEON_GUI_SCRATCH_REG1		0x15e4
-#define RADEON_GUI_SCRATCH_REG2		0x15e8
-#define RADEON_GUI_SCRATCH_REG3		0x15ec
-#define RADEON_GUI_SCRATCH_REG4		0x15f0
-#define RADEON_GUI_SCRATCH_REG5		0x15f4
+#define RADEON_SCRATCH_REG0		0x15e0
+#define RADEON_SCRATCH_REG1		0x15e4
+#define RADEON_SCRATCH_REG2		0x15e8
+#define RADEON_SCRATCH_REG3		0x15ec
+#define RADEON_SCRATCH_REG4		0x15f0
+#define RADEON_SCRATCH_REG5		0x15f4
+#define RADEON_SCRATCH_UMSK		0x0770
+#define RADEON_SCRATCH_ADDR		0x0774
 
 #define RADEON_HOST_PATH_CNTL		0x0130
 #	define RADEON_HDP_SOFT_RESET		(1 << 26)
@@ -473,10 +477,12 @@ extern int  radeon_context_switch_complete(drm_device_t *dev, int new);
 /* Constants */
 #define RADEON_MAX_USEC_TIMEOUT		100000	/* 100 ms */
 
-#define RADEON_LAST_FRAME_REG		RADEON_GUI_SCRATCH_REG0
-#define RADEON_LAST_DISPATCH_REG	RADEON_GUI_SCRATCH_REG1
-#define RADEON_MAX_VB_AGE		0xffffffff
+#define RADEON_LAST_FRAME_REG		RADEON_SCRATCH_REG0
+#define RADEON_LAST_DISPATCH_REG	RADEON_SCRATCH_REG1
+#define RADEON_LAST_CLEAR_REG		RADEON_SCRATCH_REG2
+#define RADEON_LAST_DISPATCH		1
 
+#define RADEON_MAX_VB_AGE		0x7fffffff
 #define RADEON_MAX_VB_VERTS		(0xffff)
 
 
@@ -512,7 +518,8 @@ extern int RADEON_READ_PLL(drm_device_t *dev, int addr);
 	(RADEON_CP_PACKET3 | (pkt) | ((n) << 16))
 
 
-/*
+/* ================================================================
+ * Engine control helper macros
  */
 
 #define RADEON_WAIT_UNTIL_2D_IDLE()					\
@@ -575,6 +582,50 @@ do {									\
 	ADVANCE_RING();							\
 } while (0)
 
+
+/* ================================================================
+ * Misc helper macros
+ */
+
+#define VB_AGE_CHECK_WITH_RET( dev_priv )				\
+do {									\
+	drm_radeon_sarea_t *sarea_priv = dev_priv->sarea_priv;		\
+	if ( sarea_priv->last_dispatch >= RADEON_MAX_VB_AGE ) {		\
+		int __ret = radeon_do_cp_idle( dev_priv );		\
+		if ( __ret < 0 ) return __ret;				\
+		sarea_priv->last_dispatch = 0;				\
+		radeon_freelist_reset( dev );				\
+	}								\
+} while (0)
+
+#define RADEON_DISPATCH_AGE( age )					\
+do {									\
+	BEGIN_RING( 2 );						\
+	OUT_RING( CP_PACKET0( RADEON_LAST_DISPATCH_REG, 0 ) );		\
+	OUT_RING( age );						\
+	ADVANCE_RING();							\
+} while (0)
+
+#define RADEON_FRAME_AGE( age )						\
+do {									\
+	BEGIN_RING( 2 );						\
+	OUT_RING( CP_PACKET0( RADEON_LAST_FRAME_REG, 0 ) );		\
+	OUT_RING( age );						\
+	ADVANCE_RING();							\
+} while (0)
+
+#define RADEON_CLEAR_AGE( age )						\
+do {									\
+	BEGIN_RING( 2 );						\
+	OUT_RING( CP_PACKET0( RADEON_LAST_CLEAR_REG, 0 ) );		\
+	OUT_RING( age );						\
+	ADVANCE_RING();							\
+} while (0)
+
+
+/* ================================================================
+ * Ring control
+ */
 
 #define radeon_flush_write_combine()	mb()
 
