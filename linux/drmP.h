@@ -518,6 +518,17 @@ typedef struct drm_map_list {
 	drm_map_t		*map;
 } drm_map_list_t;
 
+#if __HAVE_VBL_IRQ
+
+typedef struct drm_vbl_sig {
+	struct list_head	head;
+	unsigned int		sequence;
+	struct siginfo		info;
+	struct task_struct	*task;
+} drm_vbl_sig_t;
+
+#endif
+
 typedef struct drm_device {
 	const char	  *name;	/* Simple driver name		   */
 	char		  *unique;	/* Unique identifier: e.g., busid  */
@@ -580,6 +591,8 @@ typedef struct drm_device {
 #if __HAVE_VBL_IRQ
    	wait_queue_head_t vbl_queue;
    	atomic_t          vbl_received;
+	spinlock_t        vbl_lock;
+	drm_vbl_sig_t     vbl_sigs;
 #endif
 	cycles_t	  ctx_start;
 	cycles_t	  lck_start;
@@ -820,6 +833,7 @@ extern void          DRM(driver_irq_uninstall)( drm_device_t *dev );
 extern int           DRM(wait_vblank)(struct inode *inode, struct file *filp,
 				      unsigned int cmd, unsigned long arg);
 extern int           DRM(vblank_wait)(drm_device_t *dev, unsigned int *vbl_seq);
+extern void          DRM(vbl_send_signals)( drm_device_t *dev );
 #endif
 #if __HAVE_DMA_IRQ_BH
 extern void          DRM(dma_immediate_bh)( void *dev );
