@@ -60,11 +60,13 @@
  */
 #define __HAVE_DMA		1
 
+#if 0
 #define __HAVE_DMA_QUIESCENT	1
 #define DRIVER_DMA_QUIESCENT() do {					\
 	drm_radeon_private_t *dev_priv = dev->dev_private;		\
 	return radeon_do_cp_idle( dev_priv );				\
 } while (0)
+#endif
 
 /* Buffer customization:
  */
