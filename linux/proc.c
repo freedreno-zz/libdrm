@@ -1,6 +1,5 @@
 /* proc.c -- /proc support for DRM -*- linux-c -*-
  * Created: Mon Jan 11 09:48:47 1999 by faith@precisioninsight.com
- * Revised: Fri Dec  3 09:44:16 1999 by faith@precisioninsight.com
  *
  * Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
  * All Rights Reserved.
@@ -24,7 +23,8 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
  * 
- * $PI: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/kernel/proc.c,v 1.4 1999/08/20 15:36:46 faith Exp $
+ * Author: Rickard E. (Rik) Faith <faith@precisioninsight.com>
+ *
  * $XFree86: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/kernel/proc.c,v 1.1 1999/09/25 14:38:02 dawes Exp $
  *
  */
@@ -165,7 +165,10 @@ static int _drm_vm_info(char *buf, char **start, off_t offset, int len,
 {
 	drm_device_t *dev = (drm_device_t *)data;
 	drm_map_t    *map;
-	const char   *types[] = { "FB", "REG", "SHM" };
+				/* Hardcoded from _DRM_FRAME_BUFFER,
+                                   _DRM_REGISTERS, _DRM_SHM, and
+                                   _DRM_AGP. */
+	const char   *types[] = { "FB", "REG", "SHM", "AGP" };
 	const char   *type;
 	int	     i;
 

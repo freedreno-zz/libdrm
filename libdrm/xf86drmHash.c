@@ -1,6 +1,5 @@
 /* xf86drmHash.c -- Small hash table support for integer -> integer mapping
  * Created: Sun Apr 18 09:35:45 1999 by faith@precisioninsight.com
- * Revised: Thu Jun  3 16:11:06 1999 by faith@precisioninsight.com
  *
  * Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
  * All Rights Reserved.
@@ -24,7 +23,8 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
  * 
- * $PI: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/xf86drmHash.c,v 1.3 1999/06/07 13:01:42 faith Exp $
+ * Author: Rickard E. (Rik) Faith <faith@precisioninsight.com>
+ *
  * $XFree86: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/xf86drmHash.c,v 1.1 1999/06/14 07:32:02 dawes Exp $
  *
  * DESCRIPTION

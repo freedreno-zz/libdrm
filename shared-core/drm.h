@@ -1,6 +1,5 @@
 /* drm.h -- Header for Direct Rendering Manager -*- linux-c -*-
  * Created: Mon Jan  4 10:05:05 1999 by faith@precisioninsight.com
- * Revised: Mon Dec  6 17:11:19 1999 by faith@precisioninsight.com
  *
  * Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
  * All rights reserved.
@@ -24,11 +23,13 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
  * 
- * $PI: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/kernel/drm.h,v 1.46 1999/08/20 20:00:53 faith Exp $
- * $XFree86: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/kernel/drm.h,v 1.1 1999/09/25 14:37:58 dawes Exp $
+ *
+ * Author: Rickard E. (Rik) Faith <faith@precisioninsight.com>
  *
  * Acknowledgements:
  * Dec 1999, Richard Henderson <rth@twiddle.net>, move to generic cmpxchg.
+ *
+ * $XFree86: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/kernel/drm.h,v 1.1 1999/09/25 14:37:58 dawes Exp $
  *
  */
 
@@ -102,7 +103,8 @@ typedef struct drm_control {
 typedef enum drm_map_type {
 	_DRM_FRAME_BUFFER = 0,	  /* WC (no caching), no core dump	    */
 	_DRM_REGISTERS	  = 1,	  /* no caching, no core dump		    */
-	_DRM_SHM	  = 2	  /* shared, cached			    */
+	_DRM_SHM	  = 2,	  /* shared, cached			    */
+	_DRM_AGP          = 3	  /* AGP/GART                               */
 } drm_map_type_t;
 
 typedef enum drm_map_flags {
@@ -238,6 +240,36 @@ typedef struct drm_irq_busid {
 	int funcnum;
 } drm_irq_busid_t;
 
+typedef struct drm_agp_mode {
+	unsigned long mode;
+} drm_agp_mode_t;
+
+				/* For drm_agp_alloc -- allocated a buffer */
+typedef struct drm_agp_buffer {
+	unsigned long size;	/* In bytes -- will round to page boundary */
+	unsigned long handle;	/* Used for BIND/UNBIND ioctls */
+} drm_agp_buffer_t;
+
+				/* For drm_agp_bind */
+typedef struct drm_agp_binding {
+	unsigned long handle;   /* From drm_agp_buffer */
+	unsigned long offset;	/* In bytes -- will round to page boundary */
+} drm_agp_binding_t;
+
+typedef struct drm_agp_info {
+	int            agp_version_major;
+	int            agp_version_minor;
+	unsigned long  mode;
+	unsigned long  aperture_base;  /* physical address */
+	unsigned long  aperture_size;  /* bytes */
+	unsigned long  memory_allowed; /* bytes */
+	unsigned long  memory_used;
+
+				/* PCI information */
+	unsigned short id_vendor;
+	unsigned short id_device;
+} drm_agp_info_t;
+
 #define DRM_IOCTL_BASE	     'd'
 #define DRM_IOCTL_NR(n)	     _IOC_NR(n)
 #define DRM_IO(nr)	     _IO(DRM_IOCTL_BASE,nr)
@@ -276,5 +308,14 @@ typedef struct drm_irq_busid {
 #define DRM_IOCTL_LOCK	     DRM_IOW( 0x2a, drm_lock_t)
 #define DRM_IOCTL_UNLOCK     DRM_IOW( 0x2b, drm_lock_t)
 #define DRM_IOCTL_FINISH     DRM_IOW( 0x2c, drm_lock_t)
+
+#define DRM_IOCTL_AGP_ACQUIRE DRM_IO(  0x30)
+#define DRM_IOCTL_AGP_RELEASE DRM_IO(  0x31)
+#define DRM_IOCTL_AGP_ENABLE  DRM_IOR( 0x32, drm_agp_mode_t)
+#define DRM_IOCTL_AGP_INFO    DRM_IOW( 0x33, drm_agp_info_t)
+#define DRM_IOCTL_AGP_ALLOC   DRM_IOWR(0x34, drm_agp_buffer_t)
+#define DRM_IOCTL_AGP_FREE    DRM_IOW( 0x35, drm_agp_buffer_t)
+#define DRM_IOCTL_AGP_BIND    DRM_IOWR(0x36, drm_agp_binding_t)
+#define DRM_IOCTL_AGP_UNBIND  DRM_IOW( 0x37, drm_agp_binding_t)
 
 #endif

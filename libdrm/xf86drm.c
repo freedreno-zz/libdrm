@@ -1,6 +1,5 @@
 /* xf86drm.c -- User-level interface to DRM device
  * Created: Tue Jan  5 08:16:21 1999 by faith@precisioninsight.com
- * Revised: Mon Dec  6 11:34:13 1999 by faith@precisioninsight.com
  *
  * Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
  * All Rights Reserved.
@@ -24,7 +23,8 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
  * 
- * $PI: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/xf86drm.c,v 1.43 1999/08/04 18:14:43 faith Exp $
+ * Author: Rickard E. (Rik) Faith <faith@precisioninsight.com>
+ *
  * $XFree86: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/xf86drm.c,v 1.5 1999/10/13 22:33:07 dawes Exp $
  * 
  */
@@ -743,6 +743,139 @@ int drmDestroyDrawable(int fd, drmDrawable handle)
     draw.handle = handle;
     if (ioctl(fd, DRM_IOCTL_RM_DRAW, &draw)) return -errno;
     return 0;
+}
+
+int drmAgpAcquire(int fd)
+{
+    if (ioctl(fd, DRM_IOCTL_AGP_ACQUIRE)) return -errno;
+    return 0;
+}
+
+int drmAgpRelease(int fd)
+{
+    if (ioctl(fd, DRM_IOCTL_AGP_RELEASE)) return -errno;
+    return 0;
+}
+
+int drmAgpEnable(int fd, unsigned long mode)
+{
+    drm_agp_mode_t m;
+
+    m.mode = mode;
+    if (ioctl(fd, DRM_IOCTL_AGP_ENABLE, &m)) return -errno;
+    return 0;
+}
+
+unsigned long drmAgpAlloc(int fd, unsigned long size)
+{
+    drm_agp_buffer_t b;
+
+    b.size   = size;
+    b.handle = 0;
+    if (ioctl(fd, DRM_IOCTL_AGP_ALLOC, &b)) return 0;
+    return b.handle;
+}
+
+int drmAgpFree(int fd, unsigned long handle)
+{
+    drm_agp_buffer_t b;
+
+    b.size   = 0;
+    b.handle = handle;
+    if (ioctl(fd, DRM_IOCTL_AGP_FREE, &b)) return -errno;
+    return 0;
+}
+
+unsigned long drmAgpBind(int fd, unsigned long handle, unsigned long offset)
+{
+    drm_agp_binding_t b;
+
+    b.handle = handle;
+    b.offset = offset;
+    if (ioctl(fd, DRM_IOCTL_AGP_BIND, &b)) return -errno;
+    return 0;
+}
+
+int drmAgpUnbind(int fd, unsigned long handle)
+{
+    drm_agp_binding_t b;
+
+    b.handle = handle;
+    b.offset = 0;
+    if (ioctl(fd, DRM_IOCTL_AGP_UNBIND, &b)) return -errno;
+    return 0;
+}
+
+int drmAgpVersionMajor(int fd)
+{
+    drm_agp_info_t i;
+
+    if (ioctl(fd, DRM_IOCTL_AGP_INFO, &i)) return -errno;
+    return i.agp_version_major;
+}
+
+int drmAgpVersionMinor(int fd)
+{
+    drm_agp_info_t i;
+
+    if (ioctl(fd, DRM_IOCTL_AGP_INFO, &i)) return -errno;
+    return i.agp_version_minor;
+}
+
+unsigned long drmAgpGetMode(int fd)
+{
+    drm_agp_info_t i;
+
+    if (ioctl(fd, DRM_IOCTL_AGP_INFO, &i)) return -errno;
+    return i.mode;
+}
+
+unsigned long drmAgpBase(int fd)
+{
+    drm_agp_info_t i;
+
+    if (ioctl(fd, DRM_IOCTL_AGP_INFO, &i)) return -errno;
+    return i.aperture_base;
+}
+
+unsigned long drmAgpSize(int fd)
+{
+    drm_agp_info_t i;
+
+    if (ioctl(fd, DRM_IOCTL_AGP_INFO, &i)) return -errno;
+    return i.aperture_size;
+}
+
+unsigned long drmAgpMemoryUsed(int fd)
+{
+    drm_agp_info_t i;
+
+    if (ioctl(fd, DRM_IOCTL_AGP_INFO, &i)) return -errno;
+    return i.memory_used;
+}
+
+unsigned long drmAgpMemoryAvail(int fd)
+{
+    drm_agp_info_t i;
+
+    if (ioctl(fd, DRM_IOCTL_AGP_INFO, &i)) return -errno;
+    return i.memory_allowed;
+}
+
+unsigned int drmAgpVendorId(int fd)
+{
+    drm_agp_info_t i;
+
+    if (ioctl(fd, DRM_IOCTL_AGP_INFO, &i)) return -errno;
+    return i.id_vendor;
+}
+
+unsigned int drmAgpDeviceId(int fd)
+{
+    drm_agp_info_t i;
+
+    if (ioctl(fd, DRM_IOCTL_AGP_INFO, &i)) return -errno;
+    return i.id_device;
 }
 
 int drmError(int err, const char *label)
