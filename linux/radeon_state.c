@@ -165,28 +165,28 @@ static void radeon_emit_state( drm_radeon_private_t *dev_priv,
 	if ( dirty & RADEON_UPLOAD_TEX1 ) {
 		BEGIN_RING( 9 );
 		OUT_RING( CP_PACKET0( RADEON_PP_TXFILTER_1, 5 ) );
-		OUT_RING( tex->pp_txfilter );
-		OUT_RING( tex->pp_txformat );
-		OUT_RING( tex->pp_txoffset );
-		OUT_RING( tex->pp_txcblend );
-		OUT_RING( tex->pp_txablend );
-		OUT_RING( tex->pp_tfactor );
+		OUT_RING( tex[1].pp_txfilter );
+		OUT_RING( tex[1].pp_txformat );
+		OUT_RING( tex[1].pp_txoffset );
+		OUT_RING( tex[1].pp_txcblend );
+		OUT_RING( tex[1].pp_txablend );
+		OUT_RING( tex[1].pp_tfactor );
 		OUT_RING( CP_PACKET0( RADEON_PP_BORDER_COLOR_1, 0 ) );
-		OUT_RING( tex->pp_border_color );
+		OUT_RING( tex[1].pp_border_color );
 		ADVANCE_RING();
 	}
 
 	if ( dirty & RADEON_UPLOAD_TEX2 ) {
 		BEGIN_RING( 9 );
 		OUT_RING( CP_PACKET0( RADEON_PP_TXFILTER_2, 5 ) );
-		OUT_RING( tex->pp_txfilter );
-		OUT_RING( tex->pp_txformat );
-		OUT_RING( tex->pp_txoffset );
-		OUT_RING( tex->pp_txcblend );
-		OUT_RING( tex->pp_txablend );
-		OUT_RING( tex->pp_tfactor );
+		OUT_RING( tex[2].pp_txfilter );
+		OUT_RING( tex[2].pp_txformat );
+		OUT_RING( tex[2].pp_txoffset );
+		OUT_RING( tex[2].pp_txcblend );
+		OUT_RING( tex[2].pp_txablend );
+		OUT_RING( tex[2].pp_tfactor );
 		OUT_RING( CP_PACKET0( RADEON_PP_BORDER_COLOR_2, 0 ) );
-		OUT_RING( tex->pp_border_color );
+		OUT_RING( tex[2].pp_border_color );
 		ADVANCE_RING();
 	}
 }
