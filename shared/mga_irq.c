@@ -36,6 +36,8 @@
 #include "mga_drm.h"
 #include "mga_drv.h"
 
+#define IDR_VBLANK_HACK 1
+
 void mga_dma_service( DRM_IRQ_ARGS )
 {
 	drm_device_t *dev = (drm_device_t *) arg;
@@ -46,12 +48,21 @@ void mga_dma_service( DRM_IRQ_ARGS )
 	status = MGA_READ( MGA_STATUS );
 	
 	/* VBLANK interrupt */
+#if IDR_VBLANK_HACK
+	if ( status & 0x08 ) {
+		MGA_WRITE( MGA_ICLEAR, status );
+		atomic_inc(&dev->vbl_received);
+		DRM_WAKEUP(&dev->vbl_queue);
+		DRM(vbl_send_signals)( dev );
+	}
+#else
 	if ( status & MGA_VLINEPEN ) {
 		MGA_WRITE( MGA_ICLEAR, MGA_VLINEICLR );
 		atomic_inc(&dev->vbl_received);
 		DRM_WAKEUP(&dev->vbl_queue);
 		DRM(vbl_send_signals)( dev );
 	}
+#endif
 }
 
 int mga_vblank_wait(drm_device_t *dev, unsigned int *sequence)
@@ -87,7 +98,11 @@ void mga_driver_irq_postinstall( drm_device_t *dev ) {
 	   (drm_mga_private_t *)dev->dev_private;
 
 	/* Turn on VBL interrupt */
+#if IDR_VBLANK_HACK
+   	MGA_WRITE( MGA_IEN, 0x0000000c );
+#else
    	MGA_WRITE( MGA_IEN, MGA_VLINEIEN );
+#endif
 }
 
 void mga_driver_irq_uninstall( drm_device_t *dev ) {
