@@ -188,7 +188,11 @@ int DRM(write_string)(drm_device_t *dev, const char *s)
 	DRM_DEBUG("dev->buf_sigio=%p\n", dev->buf_sigio);
 	if (dev->buf_sigio) {
 		DRM_DEBUG("dev->buf_sigio->sio_pgid=%d\n", dev->buf_sigio->sio_pgid);
+#if __FreeBSD_version >= 500000
+		pgsigio(&dev->buf_sigio, SIGIO, 0);
+#else
 		pgsigio(dev->buf_sigio, SIGIO, 0);
+#endif /* __FreeBSD_version */
 	}
 	DRM_DEBUG("waking\n");
 	wakeup(&dev->buf_rp);

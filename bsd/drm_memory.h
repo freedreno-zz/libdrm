@@ -290,6 +290,8 @@ void *DRM(ioremap)(unsigned long offset, unsigned long size)
 	return pt;
 }
 
+/* unused so far */
+#if 0
 void *DRM(ioremap_nocache)(unsigned long offset, unsigned long size)
 {
 	void *pt;
@@ -313,6 +315,7 @@ void *DRM(ioremap_nocache)(unsigned long offset, unsigned long size)
 	DRM_OS_SPINUNLOCK(&DRM(mem_lock));
 	return pt;
 }
+#endif
 
 void DRM(ioremapfree)(void *pt, unsigned long size)
 {

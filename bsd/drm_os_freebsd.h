@@ -47,16 +47,12 @@
 
 #if __FreeBSD_version >= 500000
 #define DRM_OS_SPINTYPE		struct mtx
-#define DRM_OS_SPININIT(l,name)	mtx_init(&l, name, MTX_DEF)
+#define DRM_OS_SPININIT(l,name)	mtx_init(&l, name, NULL, MTX_DEF)
 #define DRM_OS_SPINLOCK(l)	mtx_lock(l)
 #define DRM_OS_SPINUNLOCK(u)	mtx_unlock(u);
-#define DRM_OS_LOCK	lockmgr(&dev->dev_lock, LK_EXCLUSIVE, 0, curthread)
-#define DRM_OS_UNLOCK 	lockmgr(&dev->dev_lock, LK_RELEASE, 0, curthread)
 #define DRM_OS_CURPROC		curthread
 #define DRM_OS_STRUCTPROC	struct thread
 #define DRM_OS_CURRENTPID       curthread->td_proc->p_pid
-#define DRM_OS_IOCTL 		dev_t kdev, u_long cmd, caddr_t data, int flags, struct thread *p
-#define DRM_OS_CHECKSUSER	suser(p->td_proc)
 #else
 #define DRM_OS_CURPROC		curproc
 #define DRM_OS_STRUCTPROC	struct proc
@@ -64,19 +60,19 @@
 #define DRM_OS_SPININIT(l,name)	simple_lock_init(&l)
 #define DRM_OS_SPINLOCK(l)	simple_lock(l)
 #define DRM_OS_SPINUNLOCK(u)	simple_unlock(u);
-#define DRM_OS_IOCTL		dev_t kdev, u_long cmd, caddr_t data, int flags, struct proc *p
-#define DRM_OS_LOCK	lockmgr(&dev->dev_lock, LK_EXCLUSIVE, 0, curproc)
-#define DRM_OS_UNLOCK 	lockmgr(&dev->dev_lock, LK_RELEASE, 0, curproc)
 #define DRM_OS_CURRENTPID       curproc->p_pid
-#define DRM_OS_CHECKSUSER	suser(p)
 #endif
 
+#define DRM_OS_IOCTL		dev_t kdev, u_long cmd, caddr_t data, int flags, DRM_OS_STRUCTPROC *p
+#define DRM_OS_LOCK		lockmgr(&dev->dev_lock, LK_EXCLUSIVE, 0, DRM_OS_CURPROC)
+#define DRM_OS_UNLOCK 		lockmgr(&dev->dev_lock, LK_RELEASE, 0, DRM_OS_CURPROC)
+#define DRM_OS_CHECKSUSER	suser(p)
 #define DRM_OS_TASKQUEUE_ARGS	void *dev, int pending
-#define DRM_OS_IRQ_ARGS	void *device
-#define DRM_OS_DEVICE	drm_device_t	*dev	= kdev->si_drv1
-#define DRM_OS_MALLOC(size) malloc( size, DRM(M_DRM), M_NOWAIT )
-#define DRM_OS_FREE(pt) free( pt, DRM(M_DRM) )
-#define DRM_OS_VTOPHYS(addr) vtophys(addr)
+#define DRM_OS_IRQ_ARGS		void *device
+#define DRM_OS_DEVICE		drm_device_t	*dev	= kdev->si_drv1
+#define DRM_OS_MALLOC(size)	malloc( size, DRM(M_DRM), M_NOWAIT )
+#define DRM_OS_FREE(pt)		free( pt, DRM(M_DRM) )
+#define DRM_OS_VTOPHYS(addr)	vtophys(addr)
 
 #define DRM_OS_PRIV					\
 	drm_file_t	*priv	= (drm_file_t *) DRM(find_file_by_proc)(dev, p); \
@@ -233,18 +229,17 @@ find_first_zero_bit(volatile unsigned long *p, int max)
 
 				/* Macros to make printf easier */
 #define DRM_ERROR(fmt, arg...) \
-	printf("error: " "[" DRM_NAME ":" __FUNCTION__ "] *ERROR* " fmt , ##arg)
+	printf("error: " "[" DRM_NAME ":%s] *ERROR* " fmt , __FUNCTION__, ##arg)
 #define DRM_MEM_ERROR(area, fmt, arg...) \
-	printf("error: " "[" DRM_NAME ":" __FUNCTION__ ":%s] *ERROR* " fmt , \
-	       DRM(mem_stats)[area].name , ##arg)
+	printf("error: " "[" DRM_NAME ":%s:%s] *ERROR* " fmt , \
+		__FUNCTION__, DRM(mem_stats)[area].name , ##arg)
 #define DRM_INFO(fmt, arg...)  printf("info: " "[" DRM_NAME "] " fmt , ##arg)
 
 #if DRM_DEBUG_CODE
 #define DRM_DEBUG(fmt, arg...)						  \
 	do {								  \
-		if (DRM(flags) & DRM_FLAG_DEBUG)				  \
-			printf("[" DRM_NAME ":" __FUNCTION__ "] " fmt ,	  \
-			       ##arg);					  \
+		if (DRM(flags) & DRM_FLAG_DEBUG)			  \
+			printf("[" DRM_NAME ":%s] " fmt , __FUNCTION__, ##arg); \
 	} while (0)
 #else
 #define DRM_DEBUG(fmt, arg...)		 do { } while (0)
@@ -348,7 +343,7 @@ extern d_ioctl_t	DRM(mapbufs);
 extern int		DRM(mem_info) DRM_SYSCTL_HANDLER_ARGS;
 
 /* DMA support (drm_dma.h) */
-#if __HAVE_DMA_IRQ
+#if __HAVE_DMA
 extern d_ioctl_t	DRM(control);
 #endif
 

@@ -884,7 +884,11 @@ int DRM( close)(dev_t kdev, int flags, int fmt, DRM_OS_STRUCTPROC *p)
 	DRM(reclaim_buffers)( dev, priv->pid );
 #endif
 
+#if __FreeBSD_version >= 500000
+	funsetown(&dev->buf_sigio);
+#else
 	funsetown(dev->buf_sigio);
+#endif /* __FreeBSD_version */
 
 	DRM_OS_LOCK;
 	priv = DRM(find_file_by_proc)(dev, p);

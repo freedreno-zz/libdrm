@@ -23,18 +23,17 @@ int DRM(mmap)(dev_t kdev, vm_offset_t offset, int prot)
 	drm_device_t	*dev	= kdev->si_drv1;
 	drm_map_t	*map	= NULL;
 	drm_map_list_entry_t *listentry=NULL;
-	/*drm_file_t *priv;*/
+	drm_file_t *priv;
 
 /*	DRM_DEBUG("offset = 0x%x\n", offset);*/
 
-	/*XXX Fixme */
-	/*priv = DRM(find_file_by_proc)(dev, p);
+	priv = DRM(find_file_by_proc)(dev, DRM_OS_CURPROC);
 	if (!priv) {
 		DRM_DEBUG("can't find authenticator\n");
 		return EINVAL;
 	}
 
-	if (!priv->authenticated) DRM_OS_RETURN(EACCES);*/
+	if (!priv->authenticated) DRM_OS_RETURN(EACCES);
 
 	if (dev->dma
 	    && offset >= 0
@@ -59,7 +58,7 @@ int DRM(mmap)(dev_t kdev, vm_offset_t offset, int prot)
 		DRM_DEBUG("can't find map\n");
 		return -1;
 	}
-	if (((map->flags&_DRM_RESTRICTED) && suser(curproc))) {
+	if (((map->flags&_DRM_RESTRICTED) && suser(DRM_OS_CURPROC))) {
 		DRM_DEBUG("restricted map\n");
 		return -1;
 	}
