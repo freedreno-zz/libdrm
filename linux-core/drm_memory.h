@@ -352,6 +352,7 @@ void DRM(ioremapfree)(void *pt, unsigned long size)
 }
 
 #if defined(CONFIG_AGP) || defined(CONFIG_AGP_MODULE)
+#if __MUST_HAVE_AGP
 
 agp_memory *DRM(alloc_agp)(int pages, u32 type)
 {
@@ -455,5 +456,5 @@ int DRM(unbind_agp)(agp_memory *handle)
 	}
 	return retcode;
 }
-
+#endif
 #endif /* defined(CONFIG_AGP) || defined(CONFIG_AGP_MODULE) */

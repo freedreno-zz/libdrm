@@ -257,11 +257,11 @@ int drm_context_switch(drm_device_t *dev, int old, int new)
 		return -EINVAL;
 	}
 
-	if (drm_flags & DRM_FLAG_NOCTX) {
+	if (DRM(flags) & DRM_FLAG_NOCTX) {
 		drm_context_switch_complete(dev, new);
 	} else {
 		sprintf(buf, "C %d %d\n", old, new);
-		drm_write_string(dev, buf);
+		DRM(write_string)(dev, buf);
 	}
 
 	atomic_dec(&q->use_count);
@@ -281,14 +281,14 @@ int drm_context_switch_complete(drm_device_t *dev, int new)
 	}
 
 	if (!dma || !(dma->next_buffer && dma->next_buffer->while_locked)) {
-		if (drm_lock_free(dev, &dev->lock.hw_lock->lock,
+		if (DRM(lock_free)(dev, &dev->lock.hw_lock->lock,
 				  DRM_KERNEL_CONTEXT)) {
 			DRM_ERROR("Cannot free lock\n");
 		}
 	}
 
 #if DRM_DMA_HISTOGRAM
-	atomic_inc(&dev->histo.ctx[drm_histogram_slot(get_cycles()
+	atomic_inc(&dev->histo.ctx[DRM(histogram_slot)(get_cycles()
 						      - dev->ctx_start)]);
 
 #endif
@@ -300,8 +300,6 @@ int drm_context_switch_complete(drm_device_t *dev, int new)
 #endif
 
 
-
-#if 0
 void DRM(clear_next_buffer)(drm_device_t *dev)
 {
 	drm_device_dma_t *dma = dev->dma;
@@ -562,7 +560,5 @@ int DRM(dma_get_buffers)(drm_device_t *dev, drm_dma_t *dma)
 	}
 	return 0;
 }
-
-#endif
 
 #endif

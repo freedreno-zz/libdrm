@@ -78,6 +78,9 @@
 #ifndef __HAVE_DRIVER_RELEASE
 #define __HAVE_DRIVER_RELEASE		0
 #endif
+#ifndef __HAVE_COUNTERS
+#define __HAVE_COUNTERS			0
+#endif
 
 #ifndef DRIVER_PREINIT
 #define DRIVER_PREINIT()
@@ -341,7 +344,7 @@ static int DRM(takedown)( drm_device_t *dev )
 		dev->map_count = 0;
 	}
 
-#if HAVE_DMA_QUEUE || HAVE_MULTIPLE_DMA_QUEUES
+#if __HAVE_DMA_QUEUE || __HAVE_MULTIPLE_DMA_QUEUES
 	if ( dev->queuelist ) {
 		for ( i = 0 ; i < dev->queue_count ; i++ ) {
 			DRM(waitlist_destroy)( &dev->queuelist[i]->waitlist );
@@ -379,7 +382,9 @@ static int DRM(takedown)( drm_device_t *dev )
  */
 static int __init drm_init( void )
 {
+#if __HAVE_CTX_BITMAP
 	int retcode;
+#endif
 	drm_device_t *dev = &DRM(device);
 
 	DRM_DEBUG( "\n" );
@@ -459,6 +464,7 @@ static void __exit drm_cleanup( void )
 #endif
 
 #if __REALLY_HAVE_MTRR
+#if __REALLY_HAVE_AGP
 	if ( dev->agp && dev->agp->agp_mtrr ) {
 		int retval;
 		retval = mtrr_del( dev->agp->agp_mtrr,
@@ -466,6 +472,7 @@ static void __exit drm_cleanup( void )
 				   dev->agp->agp_info.aper_size*1024*1024 );
 		DRM_DEBUG( "mtrr_del=%d\n", retval );
 	}
+#endif
 #endif
 
 	DRM(takedown)( dev );
@@ -748,12 +755,22 @@ int DRM(lock)( struct inode *inode, struct file *filp,
 #endif
 
 #if __HAVE_DMA_FLUSH
-	ret = drm_flush_block_and_flush( dev, lock.context, lock.flags );
+	ret = DRM(flush_block_and_flush)( dev, lock.context, lock.flags );
 #endif
         if ( !ret ) {
-		/* FIXME: do gamma stuff???
-		 */
+#if 0 /* gamma stuff */
+		if (_DRM_LOCKING_CONTEXT(dev->lock.hw_lock->lock)
+		    != lock.context) {
+			long j = jiffies - dev->lock.lock_time;
 
+			if (j > 0 && j <= DRM_LOCK_SLICE) {
+				/* Can't take lock if we just had it and
+				   there is contention. */
+				current->state = TASK_INTERRUPTIBLE;
+				schedule_timeout(j);
+			}
+		}
+#endif
                 add_wait_queue( &dev->lock.lock_queue, &entry );
                 for (;;) {
                         current->state = TASK_INTERRUPTIBLE;

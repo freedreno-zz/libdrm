@@ -32,8 +32,8 @@
 #define __NO_VERSION__
 #include "drmP.h"
 
-#ifndef HAVE_DMA_QUEUE
-#define HAVE_DMA_QUEUE	0
+#ifndef __HAVE_DMA_QUEUE
+#define __HAVE_DMA_QUEUE	0
 #endif
 
 int DRM(block)(struct inode *inode, struct file *filp, unsigned int cmd,
