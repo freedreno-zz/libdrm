@@ -363,7 +363,6 @@ typedef struct drm_agp_info {
 #define DRM_IOCTL_I810_GETAGE		DRM_IO(  0x44)
 #define DRM_IOCTL_I810_GETBUF		DRM_IOWR(0x45, drm_i810_dma_t)
 #define DRM_IOCTL_I810_SWAP		DRM_IO(  0x46)
-#define DRM_IOCTL_I810_COPY		DRM_IOW( 0x47, drm_i810_copy_t)
 #define DRM_IOCTL_I810_DOCOPY		DRM_IO(  0x48)
 
 /* Rage 128 specific ioctls */
@@ -394,7 +393,6 @@ typedef struct drm_agp_info {
 #define DRM_IOCTL_RADEON_SWAP		DRM_IO(  0x47)
 #define DRM_IOCTL_RADEON_CLEAR		DRM_IOW( 0x48, drm_radeon_clear_t)
 #define DRM_IOCTL_RADEON_VERTEX		DRM_IOW( 0x49, drm_radeon_vertex_t)
-#define DRM_IOCTL_RADEON_INDICES	DRM_IOW( 0x4a, drm_radeon_indices_t)
 #define DRM_IOCTL_RADEON_BLIT		DRM_IOW( 0x4b, drm_radeon_blit_t)
 #define DRM_IOCTL_RADEON_STIPPLE	DRM_IOW( 0x4c, drm_radeon_stipple_t)
 #define DRM_IOCTL_RADEON_INDIRECT	DRM_IOWR(0x4d, drm_radeon_indirect_t)

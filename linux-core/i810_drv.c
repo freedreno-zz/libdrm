@@ -111,7 +111,6 @@ static drm_ioctl_desc_t	      i810_ioctls[] = {
    	[DRM_IOCTL_NR(DRM_IOCTL_I810_GETAGE)] = { i810_getage,     1, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_I810_GETBUF)] = { i810_getbuf,     1, 0 },
    	[DRM_IOCTL_NR(DRM_IOCTL_I810_SWAP)]   = { i810_swap_bufs,  1, 0 },
-   	[DRM_IOCTL_NR(DRM_IOCTL_I810_COPY)]   = { i810_copybuf,    1, 0 },
    	[DRM_IOCTL_NR(DRM_IOCTL_I810_DOCOPY)] = { i810_docopy,     1, 0 },
 };
 

@@ -79,7 +79,8 @@
 } while(0)
 
 #define OUT_RING(n) do {						\
-	if (I810_VERBOSE) DRM_DEBUG("   OUT_RING %x\n", (int)(n));	\
+	if (I810_VERBOSE) 						\
+            DRM_DEBUG("   OUT_RING %x: %x\n", outring, (int)(n));	\
 	*(volatile unsigned int *)(virt + outring) = n;			\
 	outring += 4;							\
 	outring &= ringmask;						\
@@ -348,6 +349,9 @@ static int i810_wait_ring(drm_device_t *dev, int n)
 		if (ring->head != last_head)
 		   end = jiffies + (HZ*3);
 	  
+		if (iters==1)
+		   printk("wait for space in ring\n");
+
 	   	iters++;
 		if((signed)(end - jiffies) <= 0) {
 		   	DRM_ERROR("space: %d wanted %d\n", ring->space, n);
@@ -547,6 +551,10 @@ static void i810EmitContextVerified( drm_device_t *dev,
 	if (j & 1) 
 		OUT_RING( 0 ); 
 
+/*  	for (i = 0 ; i < I810_CTX_SETUP_SIZE ; i++) */
+/*  	   printk("ctxreg %d: %x\n", i, code[i]); */
+
+
 	ADVANCE_LP_RING();
 }
 
@@ -579,6 +587,9 @@ static void i810EmitTexVerified( drm_device_t *dev,
 	if (j & 1) 
 		OUT_RING( 0 ); 
 
+	for (i = 0 ; i < I810_TEX_SETUP_SIZE ; i++)
+	   printk("texreg %d: %x\n", i, code[i]);
+
 	ADVANCE_LP_RING();
 }
 
@@ -589,7 +600,7 @@ static void i810EmitDestVerified( drm_device_t *dev,
 				  volatile unsigned int *code ) 
 {	
    	drm_i810_private_t *dev_priv = dev->dev_private;
-	unsigned int tmp;
+	unsigned int tmp; 
 	RING_LOCALS;
 
 	BEGIN_LP_RING( I810_DEST_SETUP_SIZE + 2 );
@@ -617,35 +628,35 @@ static void i810EmitDestVerified( drm_device_t *dev,
 	OUT_RING( code[I810_DESTREG_DR4] );
 	OUT_RING( 0 );
 
+	{
+/*  	int i; */
+/*  	for (i = 0 ; i < I810_DEST_SETUP_SIZE ; i++) */
+/*  	   printk("destreg %d: %x\n", i, code[i]); */
+	}
+
 	ADVANCE_LP_RING();
 }
 
 
 
-static void i810EmitState( drm_device_t *dev )
+static void i810EmitState( drm_device_t *dev, 
+			   drm_i810_state_t *state,
+			   unsigned int dirty )
 {
-   	drm_i810_private_t *dev_priv = dev->dev_private;
-      	drm_i810_sarea_t *sarea_priv = dev_priv->sarea_priv;
-	unsigned int dirty = sarea_priv->dirty;
-
 	if (dirty & I810_UPLOAD_BUFFERS) {
-		i810EmitDestVerified( dev, sarea_priv->BufferState );
-		sarea_priv->dirty &= ~I810_UPLOAD_BUFFERS;
+		i810EmitDestVerified( dev, state->BufferSetup );
 	}
 
 	if (dirty & I810_UPLOAD_CTX) {
-		i810EmitContextVerified( dev, sarea_priv->ContextState );
-		sarea_priv->dirty &= ~I810_UPLOAD_CTX;
+		i810EmitContextVerified( dev, state->Setup );
 	}
 
 	if (dirty & I810_UPLOAD_TEX0) {
-		i810EmitTexVerified( dev, sarea_priv->TexState[0] );
-		sarea_priv->dirty &= ~I810_UPLOAD_TEX0;
+ 		i810EmitTexVerified( dev, state->TexSetup[0] );
 	}
 
 	if (dirty & I810_UPLOAD_TEX1) {
-		i810EmitTexVerified( dev, sarea_priv->TexState[1] );
-		sarea_priv->dirty &= ~I810_UPLOAD_TEX1;
+		i810EmitTexVerified( dev, state->TexSetup[1] );
 	}
 }
 
@@ -770,13 +781,15 @@ static void i810_dma_dispatch_swap( drm_device_t *dev )
 		OUT_RING( start );
 		ADVANCE_LP_RING();
 	}
+
 }
 
 
 static void i810_dma_dispatch_vertex(drm_device_t *dev, 
 				     drm_buf_t *buf,
-				     int discard,
-				     int used)
+				     drm_i810_prim_t *prim,
+				     int nrprim, 
+				     int discard )
 {
    	drm_i810_private_t *dev_priv = dev->dev_private;
 	drm_i810_buf_priv_t *buf_priv = buf->dev_private;
@@ -784,90 +797,101 @@ static void i810_dma_dispatch_vertex(drm_device_t *dev,
    	drm_clip_rect_t *box = sarea_priv->boxes;
    	int nbox = sarea_priv->nbox;
 	unsigned long address = (unsigned long)buf->bus_address;
-	unsigned long start = address - dev->agp->base;     
-	int i = 0, u;
+	unsigned long bufstart = address - dev->agp->base; 
+	char *buf_virtual = (char *)buf_priv->virtual;
+	int i;
    	RING_LOCALS;
+
+   	if (nbox > I810_NR_SAREA_CLIPRECTS) 
+		nrprim = 0;       
 
    	i810_kernel_lost_context(dev);
 
-   	if (nbox > I810_NR_SAREA_CLIPRECTS) 
-		nbox = I810_NR_SAREA_CLIPRECTS;
+	for (i = 0 ; i < nrprim ; i++, prim++) {
+		int j = 0;
 
-	if (discard) {
-		u = cmpxchg(buf_priv->in_use, I810_BUF_CLIENT, 
-			    I810_BUF_HARDWARE);
-		if(u != I810_BUF_CLIENT) {
-			DRM_DEBUG("xxxx 2\n");
+/*  		printk("prim %d/%d %d..%d type %x state %d dirty %d nbox %d\n",  */
+/*  		       i, nrprim, prim->start, prim->finish, prim->prim, */
+/*  		       prim->stateidx, prim->dirty, */
+/*  		       nbox); */
+
+		if ((unsigned)prim->start > 4096 ||
+		    prim->start >= prim->finish ||
+		    (prim->start & 0x7) != 0x4) {
+			continue;
 		}
-	}
-
-	if (used > 4*1024) 
-		used = 0;
-
-	if (sarea_priv->dirty)
-	   i810EmitState( dev );
-
-  	DRM_DEBUG("dispatch vertex addr 0x%lx, used 0x%x nbox %d\n", 
-		  address, used, nbox);
-
-   	dev_priv->counter++;
-   	DRM_DEBUG(  "dispatch counter : %ld\n", dev_priv->counter);
-   	DRM_DEBUG(  "i810_dma_dispatch\n");
-   	DRM_DEBUG(  "start : %lx\n", start);
-	DRM_DEBUG(  "used : %d\n", used);
-   	DRM_DEBUG(  "start + used - 4 : %ld\n", start + used - 4);
-
-	if (buf_priv->currently_mapped == I810_BUF_MAPPED) {
-		*(u32 *)buf_priv->virtual = (GFX_OP_PRIMITIVE |
-					     sarea_priv->vertex_prim |
-					     ((used/4)-2));
 		
-		if (used & 4) {
-			*(u32 *)((u32)buf_priv->virtual + used) = 0;
-			used += 4;
+		if (prim->dirty) {
+			i810EmitState( dev, 
+				       &sarea_priv->state[(int)prim->stateidx],
+				       prim->dirty );
 		}
 
-		i810_unmap_buffer(buf);
-	}
-		   
-	if (used) {
+		*(int *)&buf_virtual[prim->start-4] = 
+			(GFX_OP_PRIMITIVE | (((int)prim->prim) << 18) |
+			 ((prim->finish - prim->start)/4-1));
+
+/*  		printk("op %x\n",  */
+/*  			(GFX_OP_PRIMITIVE | (((int)prim->prim) << 18) | */
+/*  			 ((prim->finish - prim->start)/4-1))); */
+
+		
+		if (prim->finish & 0x4) {
+			*(int *)&buf_virtual[prim->finish] = 0;
+			prim->finish += 4;
+		}
+
+
+		
 		do {
-			if (i < nbox) {
+			if (j < nbox) {
 				BEGIN_LP_RING(4);
-				OUT_RING( GFX_OP_SCISSOR | SC_UPDATE_SCISSOR | 
+				OUT_RING( GFX_OP_SCISSOR | 
+					  SC_UPDATE_SCISSOR | 
 					  SC_ENABLE );
 				OUT_RING( GFX_OP_SCISSOR_INFO );
-				OUT_RING( box[i].x1 | (box[i].y1<<16) );
-				OUT_RING( (box[i].x2-1) | ((box[i].y2-1)<<16) );
+				OUT_RING( box[j].x1 | (box[j].y1<<16) );
+				OUT_RING( (box[j].x2-1) | ((box[j].y2-1)<<16) );
 				ADVANCE_LP_RING();
+				if (nbox == 1) nbox = 0;
 			}
 			
 			BEGIN_LP_RING(4);
 			OUT_RING( CMD_OP_BATCH_BUFFER );
-			OUT_RING( start | BB1_PROTECTED );
-			OUT_RING( start + used - 4 );
+			OUT_RING( (bufstart + prim->start - 4) | 
+				  BB1_PROTECTED );
+			OUT_RING( (bufstart + prim->finish - 4) );
 			OUT_RING( 0 );
 			ADVANCE_LP_RING();
-			
-		} while (++i < nbox);
+
+/*  			printk("fire %x..%x\n", bufstart + prim->start - 4, */
+/*  			       bufstart + prim->finish-4); */
+
+		} while (++j < nbox);
+		
+
+		BEGIN_LP_RING(4);
+		ADVANCE_LP_RING();
 	}
 
-	BEGIN_LP_RING(10);
-	OUT_RING( CMD_STORE_DWORD_IDX );
-	OUT_RING( 20 );
-	OUT_RING( dev_priv->counter );
-	OUT_RING( 0 );
 
 	if (discard) {
+		dev_priv->counter++;
+
+		(void) cmpxchg(buf_priv->in_use, I810_BUF_CLIENT, 
+			       I810_BUF_HARDWARE);
+
+		BEGIN_LP_RING( 8 );
+		OUT_RING( CMD_STORE_DWORD_IDX );
+		OUT_RING( 20 );
+		OUT_RING( dev_priv->counter );
 		OUT_RING( CMD_STORE_DWORD_IDX );
 		OUT_RING( buf_priv->my_use_idx );
 		OUT_RING( I810_BUF_FREE );
+		OUT_RING( CMD_REPORT_HEAD );
 		OUT_RING( 0 );
+		ADVANCE_LP_RING();
 	}
-
-      	OUT_RING( CMD_REPORT_HEAD );
-	OUT_RING( 0 );
-   	ADVANCE_LP_RING();
 }
 
 
@@ -880,13 +904,14 @@ static void i810_dma_service(int irq, void *device, struct pt_regs *regs)
 	atomic_inc(&dev->total_irq);
       	temp = I810_READ16(I810REG_INT_IDENTITY_R);
    	temp = temp & ~(0x6000);
-   	if(temp != 0) I810_WRITE16(I810REG_INT_IDENTITY_R, 
-				   temp); /* Clear all interrupts */
-	else
-	   return;
+   	if(temp == 0) 
+		return;
+
+	/* Clear all interrupts */
+	I810_WRITE16(I810REG_INT_IDENTITY_R, temp);
  
-   	queue_task(&dev->tq, &tq_immediate);
-   	mark_bh(IMMEDIATE_BH);
+	queue_task(&dev->tq, &tq_immediate);
+	mark_bh(IMMEDIATE_BH);
 }
 
 static void i810_dma_task_queue(void *device)
@@ -954,9 +979,9 @@ int i810_irq_install(drm_device_t *dev, int irq)
 	}
    	temp = I810_READ16(I810REG_INT_ENABLE_R);
    	temp = temp & 0x6000;
-   	temp = temp | 0x0003;
-   	I810_WRITE16(I810REG_INT_ENABLE_R, 
-		     temp); /* Enable bp & user interrupts */
+   	temp = temp | 0x8003;
+	/* Enable error, bp & user interrupts */
+   	I810_WRITE16(I810REG_INT_ENABLE_R, temp); 
 	return 0;
 }
 
@@ -964,9 +989,6 @@ int i810_irq_uninstall(drm_device_t *dev)
 {
 	int irq;
    	u16 temp;
-
-
-/*  	return 0; */
 
 	down(&dev->struct_sem);
 	irq	 = dev->irq;
@@ -1264,7 +1286,7 @@ int i810_flush_ioctl(struct inode *inode, struct file *filp,
 
 
 int i810_dma_vertex(struct inode *inode, struct file *filp,
-	       unsigned int cmd, unsigned long arg)
+		    unsigned int cmd, unsigned long arg)
 {
 	drm_file_t *priv = filp->private_data;
 	drm_device_t *dev = priv->dev;
@@ -1274,6 +1296,8 @@ int i810_dma_vertex(struct inode *inode, struct file *filp,
    	drm_i810_sarea_t *sarea_priv = (drm_i810_sarea_t *) 
      					dev_priv->sarea_priv; 
 	drm_i810_vertex_t vertex;
+	drm_buf_t *buf;
+	drm_i810_buf_priv_t *buf_priv;
 
 	if (copy_from_user(&vertex, (drm_i810_vertex_t *)arg, sizeof(vertex)))
 		return -EFAULT;
@@ -1283,19 +1307,35 @@ int i810_dma_vertex(struct inode *inode, struct file *filp,
 		return -EINVAL;
 	}
 
-	DRM_DEBUG("i810 dma vertex, idx %d used %d discard %d\n",
-		  vertex.idx, vertex.used, vertex.discard);
+	buf = dma->buflist[ vertex.idx ];
+   	buf_priv = buf->dev_private;
 
-	i810_dma_dispatch_vertex( dev, 
-				  dma->buflist[ vertex.idx ], 
-				  vertex.discard, vertex.used );
+	if (vertex.copy_size) {
+		if (vertex.copy_size > 4096)
+			return -EINVAL;
 
-   	atomic_add(vertex.used, &dma->total_bytes);
+		if (buf_priv->currently_mapped != I810_BUF_MAPPED) 
+			return -EPERM;
+
+		if (copy_from_user(buf_priv->virtual, 
+				   vertex.copy_address,
+				   vertex.copy_size))
+			return -EFAULT;
+	}
+
+	i810_dma_dispatch_vertex( dev, buf, 
+				  sarea_priv->prim,
+				  sarea_priv->primnr,
+				  vertex.discard );
+
+	if (buf_priv->currently_mapped == I810_BUF_MAPPED) {
+		i810_unmap_buffer(buf);
+	}
+		   
 	atomic_inc(&dma->total_dmas);
 	sarea_priv->last_enqueue = dev_priv->counter-1;
    	sarea_priv->last_dispatch = (int) hw_status[5];
-   
-	return 0;
+   	return 0;
 }
 
 
@@ -1387,40 +1427,6 @@ int i810_getbuf(struct inode *inode, struct file *filp, unsigned int cmd,
 	return retcode;
 }
 
-int i810_copybuf(struct inode *inode, struct file *filp, unsigned int cmd,
-		unsigned long arg)
-{
-	drm_file_t	  *priv	    = filp->private_data;
-	drm_device_t	  *dev	    = priv->dev;
-	drm_i810_copy_t	  d;
-   	drm_i810_private_t *dev_priv = (drm_i810_private_t *)dev->dev_private;
-   	u32 *hw_status = (u32 *)dev_priv->hw_status_page;
-   	drm_i810_sarea_t *sarea_priv = (drm_i810_sarea_t *) 
-     					dev_priv->sarea_priv; 
-	drm_buf_t *buf;
-	drm_i810_buf_priv_t *buf_priv;
-	drm_device_dma_t *dma = dev->dma;
-
-	if(!_DRM_LOCK_IS_HELD(dev->lock.hw_lock->lock)) {
-		DRM_ERROR("i810_dma called without lock held\n");
-		return -EINVAL;
-	}
-   
-   	if (copy_from_user(&d, (drm_i810_copy_t *)arg, sizeof(d)))
-		return -EFAULT;
-
-	if(d.idx > dma->buf_count) return -EINVAL;
-	buf = dma->buflist[ d.idx ];
-   	buf_priv = buf->dev_private;
-	if (buf_priv->currently_mapped != I810_BUF_MAPPED) return -EPERM;
-
-   	if (copy_from_user(buf_priv->virtual, d.address, d.used))
-		return -EFAULT;
-
-   	sarea_priv->last_dispatch = (int) hw_status[5];
-
-	return 0;
-}
 
 int i810_docopy(struct inode *inode, struct file *filp, unsigned int cmd,
 		unsigned long arg)

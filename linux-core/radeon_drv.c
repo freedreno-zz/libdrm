@@ -116,7 +116,6 @@ static drm_ioctl_desc_t	      radeon_ioctls[] = {
 	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_SWAP)]    = { radeon_cp_swap,    1, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_CLEAR)]   = { radeon_cp_clear,   1, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_VERTEX)]  = { radeon_cp_vertex,  1, 0 },
-	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_INDICES)] = { radeon_cp_indices, 1, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_BLIT)]    = { radeon_cp_blit,    1, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_STIPPLE)] = { radeon_cp_stipple, 1, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_INDIRECT)]= { radeon_cp_indirect,1, 1 },

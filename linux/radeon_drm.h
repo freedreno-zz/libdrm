@@ -41,40 +41,27 @@
 /* What needs to be changed for the current vertex buffer?
  */
 #define RADEON_UPLOAD_CONTEXT		0x00000001
-#define RADEON_UPLOAD_VERTFMT		0x00000002
+#define RADEON_UPLOAD_MISC		0x00000002
 #define RADEON_UPLOAD_LINE		0x00000004
 #define RADEON_UPLOAD_BUMPMAP		0x00000008
 #define RADEON_UPLOAD_MASKS		0x00000010
 #define RADEON_UPLOAD_VIEWPORT		0x00000020
 #define RADEON_UPLOAD_SETUP		0x00000040
 #define RADEON_UPLOAD_TCL		0x00000080
-#define RADEON_UPLOAD_MISC		0x00000100
-#define RADEON_UPLOAD_TEX0		0x00000200
-#define RADEON_UPLOAD_TEX1		0x00000400
-#define RADEON_UPLOAD_TEX2		0x00000800
-#define RADEON_UPLOAD_TEX0IMAGES	0x00001000
-#define RADEON_UPLOAD_TEX1IMAGES	0x00002000
-#define RADEON_UPLOAD_TEX2IMAGES	0x00004000
-#define RADEON_UPLOAD_CLIPRECTS		0x00008000 /* handled client-side */
-#define RADEON_REQUIRE_QUIESCENCE	0x00010000
-#define RADEON_UPLOAD_ALL		0x0001ffff
+#define RADEON_UPLOAD_TEX0		0x00000100
+#define RADEON_UPLOAD_TEX1		0x00000200
+#define RADEON_UPLOAD_TEX2		0x00000400
+#define RADEON_UPLOAD_CONTEXT_ALL	0x000000ff
+#define RADEON_UPLOAD_ALL		0x000007ff
 
 #define RADEON_FRONT			0x1
 #define RADEON_BACK			0x2
 #define RADEON_DEPTH			0x4
 
-/* Primitive types
- */
-#define RADEON_POINTS			0x1
-#define RADEON_LINES			0x2
-#define RADEON_LINE_STRIP		0x3
-#define RADEON_TRIANGLES		0x4
-#define RADEON_TRIANGLE_FAN		0x5
-#define RADEON_TRIANGLE_STRIP		0x6
 
 /* Vertex/indirect buffer size
  */
-#define RADEON_BUFFER_SIZE		16384
+#define RADEON_BUFFER_SIZE		65536
 
 /* Byte offsets for indirect buffer data
  */
@@ -88,12 +75,12 @@
 #define RADEON_NR_SAREA_CLIPRECTS	12
 
 /* There are 2 heaps (local/AGP).  Each region within a heap is a
- * minimum of 64k, and there are at most 64 of them per heap.
+ * minimum of 64k, and there are at most 32 of them per heap.
  */
 #define RADEON_LOCAL_TEX_HEAP		0
 #define RADEON_AGP_TEX_HEAP		1
 #define RADEON_NR_TEX_HEAPS		2
-#define RADEON_NR_TEX_REGIONS		64
+#define RADEON_NR_TEX_REGIONS		32
 #define RADEON_LOG_TEX_GRANULARITY	16
 
 #define RADEON_MAX_TEXTURE_LEVELS	11
@@ -108,8 +95,8 @@ typedef struct {
 	unsigned int alpha;
 } radeon_color_regs_t;
 
+/* Context state */
 typedef struct {
-	/* Context state */
 	unsigned int pp_misc;				/* 0x1c14 */
 	unsigned int pp_fog_color;
 	unsigned int re_solid_color;
@@ -117,47 +104,55 @@ typedef struct {
 	unsigned int rb3d_depthoffset;
 	unsigned int rb3d_depthpitch;
 	unsigned int rb3d_zstencilcntl;
-
 	unsigned int pp_cntl;				/* 0x1c38 */
 	unsigned int rb3d_cntl;
 	unsigned int rb3d_coloroffset;
 	unsigned int re_width_height;
 	unsigned int rb3d_colorpitch;
-	unsigned int se_cntl;
+} drm_radeon_context_state_t;
 
-	/* Vertex format state */
-	unsigned int se_coord_fmt;			/* 0x1c50 */
 
-	/* Line state */
+/* Line state */
+typedef struct {
 	unsigned int re_line_pattern;			/* 0x1cd0 */
 	unsigned int re_line_state;
-
 	unsigned int se_line_width;			/* 0x1db8 */
+} drm_radeon_line_state_t;
 
-	/* Bumpmap state */
+/* Bumpmap state */
+typedef struct {
 	unsigned int pp_lum_matrix;			/* 0x1d00 */
-
 	unsigned int pp_rot_matrix_0;			/* 0x1d58 */
 	unsigned int pp_rot_matrix_1;
+} drm_radeon_bumpmap_state_t;
 
-	/* Mask state */
+/* Mask state */
+typedef struct {
 	unsigned int rb3d_stencilrefmask;		/* 0x1d7c */
 	unsigned int rb3d_ropcntl;
 	unsigned int rb3d_planemask;
+} drm_radeon_mask_state_t;
 
-	/* Viewport state */
+/* Viewport state */
+typedef struct {
 	unsigned int se_vport_xscale;			/* 0x1d98 */
 	unsigned int se_vport_xoffset;
 	unsigned int se_vport_yscale;
 	unsigned int se_vport_yoffset;
 	unsigned int se_vport_zscale;
 	unsigned int se_vport_zoffset;
+} drm_radeon_viewport_state_t;
 
-	/* Setup state */
+/* Setup state */
+typedef struct {
+	unsigned int se_cntl;
 	unsigned int se_cntl_status;			/* 0x2140 */
+	unsigned int se_coord_fmt;			/* 0x1c50 */
+} drm_radeon_setup_state_t;
 
 #ifdef TCL_ENABLE
-	/* TCL state */
+/* TCL state */
+typedef struct {
 	radeon_color_regs_t se_tcl_material_emmissive;	/* 0x2210 */
 	radeon_color_regs_t se_tcl_material_ambient;
 	radeon_color_regs_t se_tcl_material_diffuse;
@@ -171,12 +166,13 @@ typedef struct {
 	unsigned int se_tcl_texture_proc_ctl;
 	unsigned int se_tcl_light_model_ctl;
 	unsigned int se_tcl_per_light_ctl[4];
+} drm_radeon_tcl_state_t;
 #endif
 
-	/* Misc state */
-	unsigned int re_top_left;			/* 0x26c0 */
+/* Misc state */
+typedef struct {
 	unsigned int re_misc;
-} drm_radeon_context_regs_t;
+} drm_radeon_misc_state_t;
 
 /* Setup registers for each texture unit
  */
@@ -187,9 +183,7 @@ typedef struct {
 	unsigned int pp_txcblend;
 	unsigned int pp_txablend;
 	unsigned int pp_tfactor;
-
 	unsigned int pp_border_color;
-
 #ifdef CUBIC_ENABLE
 	unsigned int pp_cubic_faces;
 	unsigned int pp_cubic_offset[5];
@@ -202,15 +196,43 @@ typedef struct {
 	int age;
 } drm_radeon_tex_region_t;
 
+
+typedef struct {
+	drm_radeon_context_state_t context;
+	drm_radeon_line_state_t line;
+	drm_radeon_bumpmap_state_t bumpmap;
+	drm_radeon_mask_state_t mask;
+	drm_radeon_viewport_state_t viewport;
+	drm_radeon_setup_state_t setup;
+	drm_radeon_misc_state_t misc;
+	drm_radeon_texture_regs_t texunit[RADEON_MAX_TEXTURE_UNITS];
+	int dirty;
+} drm_radeon_state_t;
+
+/* Space is crucial; there is some redunancy here:
+ */
+typedef struct {
+	unsigned int start;	
+	unsigned int finish;	
+	unsigned int prim:8;
+	unsigned int stateidx:8;
+	unsigned int numverts:16; /* overloaded as offset/64 for elt prims */
+        unsigned int vc_format;		
+} drm_radeon_prim_t;
+
+/* Really need a bigger area to hold the primitive and state data:
+ */
+#define RADEON_MAX_PRIMS  30
+#define RADEON_MAX_STATES 2
+
+
 typedef struct {
 	/* The channel for communication of state information to the kernel
 	 * on firing a vertex buffer.
 	 */
-	drm_radeon_context_regs_t context_state;
-	drm_radeon_texture_regs_t tex_state[RADEON_MAX_TEXTURE_UNITS];
-	unsigned int dirty;
-	unsigned int vertsize;
-	unsigned int vc_format;
+	drm_radeon_state_t state[RADEON_MAX_STATES];
+	drm_radeon_prim_t prim[RADEON_MAX_PRIMS];
+	unsigned int primnr;
 
 	/* The current cliprects, or a subset thereof.
 	 */
@@ -280,6 +302,7 @@ typedef struct drm_radeon_clear {
 	unsigned int flags;
 	int x, y, w, h;
 	unsigned int clear_color;
+	unsigned int clear_colormask;
 	unsigned int clear_depth;
 	union {
 		float f[5];
@@ -288,19 +311,9 @@ typedef struct drm_radeon_clear {
 } drm_radeon_clear_t;
 
 typedef struct drm_radeon_vertex {
-	int prim;
 	int idx;			/* Index of vertex buffer */
-	int count;			/* Number of vertices in buffer */
 	int discard;			/* Client finished with buffer? */
 } drm_radeon_vertex_t;
-
-typedef struct drm_radeon_indices {
-	int prim;
-	int idx;
-	int start;
-	int end;
-	int discard;			/* Client finished with buffer? */
-} drm_radeon_indices_t;
 
 typedef struct drm_radeon_blit {
 	int idx;

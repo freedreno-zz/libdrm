@@ -13,19 +13,17 @@
 #define I810_DMA_BUF_NR 		256
 #define I810_NR_SAREA_CLIPRECTS 	8
 
-/* Each region is a minimum of 64k, and there are at most 64 of them.
+/* Each region is a minimum of 64k, and there are at most 32 of them.
  */
-#define I810_NR_TEX_REGIONS 64
+#define I810_NR_TEX_REGIONS 32
 #define I810_LOG_MIN_TEX_REGION_SIZE 16
 #endif
 
-#define I810_UPLOAD_TEX0IMAGE  0x1 /* handled clientside */
-#define I810_UPLOAD_TEX1IMAGE  0x2 /* handled clientside */
-#define I810_UPLOAD_CTX        0x4
-#define I810_UPLOAD_BUFFERS    0x8
-#define I810_UPLOAD_TEX0       0x10
-#define I810_UPLOAD_TEX1       0x20
-#define I810_UPLOAD_CLIPRECTS  0x40
+
+#define I810_UPLOAD_CTX        0x1
+#define I810_UPLOAD_BUFFERS    0x2
+#define I810_UPLOAD_TEX0       0x4
+#define I810_UPLOAD_TEX1       0x8
 
 
 /* Indices into buf.Setup where various bits of state are mirrored per
@@ -88,6 +86,8 @@
 #define I810_TEXREG_MCS  7	/* GFX_OP_MAP_COORD_SETS ??? */
 #define I810_TEX_SETUP_SIZE 8
 
+/* Flags for clear ioctl
+ */
 #define I810_FRONT   0x1
 #define I810_BACK    0x2
 #define I810_DEPTH   0x4
@@ -122,12 +122,42 @@ typedef struct _drm_i810_tex_region {
 	int age;		/* tracked by clients to update local LRU's */
 } drm_i810_tex_region_t;
 
-typedef struct _drm_i810_sarea {
-   	unsigned int ContextState[I810_CTX_SETUP_SIZE];
-   	unsigned int BufferState[I810_DEST_SETUP_SIZE];
-   	unsigned int TexState[2][I810_TEX_SETUP_SIZE];
-   	unsigned int dirty;
+typedef struct _drm_i810_state {
+	unsigned int Setup[I810_CTX_SETUP_SIZE];
+	unsigned int BufferSetup[I810_DEST_SETUP_SIZE];
+	unsigned int TexSetup[2][I810_TEX_SETUP_SIZE];
+} drm_i810_state_t;
 
+#define PR_TRIANGLES         (0x0)
+#define PR_TRISTRIP_0        (0x1)
+#define PR_TRISTRIP_1        (0x2)
+#define PR_TRIFAN            (0x3)
+#define PR_POLYGON           (0x4)
+#define PR_LINES             (0x5)
+#define PR_LINESTRIP         (0x6)
+#define PR_RECTS             (0x7)
+
+typedef struct _drm_i810_prim {
+	int start;	
+	int finish;	
+	char prim;
+	char dirty;
+	char stateidx;
+} drm_i810_prim_t;
+
+#define I810_MAX_PRIMS  70
+#define I810_MAX_STATES 3
+
+typedef struct _drm_i810_sarea {
+
+	/* Allow multiple states and primitives per vertex buffer ioctl: 
+	 */
+	drm_i810_state_t state[I810_MAX_STATES];
+	drm_i810_prim_t prim[I810_MAX_PRIMS];
+	unsigned int primnr;
+
+	/* Multiple cliprects per vertex buffer ioctl:
+	 */
 	unsigned int nbox;
 	drm_clip_rect_t boxes[I810_NR_SAREA_CLIPRECTS];
 
@@ -145,17 +175,15 @@ typedef struct _drm_i810_sarea {
 	 * areas to kick out.  There is no need to choose whether to
 	 * kick out your own texture or someone else's - simply eject
 	 * them all in LRU order.  
-	 */
-   
+	 */   
 	drm_i810_tex_region_t texList[I810_NR_TEX_REGIONS+1]; 
 				/* Last elt is sentinal */
         int texAge;		/* last time texture was uploaded */
+
         int last_enqueue;	/* last time a buffer was enqueued */
 	int last_dispatch;	/* age of the most recently dispatched buffer */
 	int last_quiescent;     /*  */
 	int ctxOwner;		/* last context to upload state */
-
-	int vertex_prim;
 
 } drm_i810_sarea_t;
 
@@ -166,7 +194,6 @@ typedef struct _drm_i810_clear {
 } drm_i810_clear_t;
 
 
-
 /* These may be placeholders if we have more cliprects than
  * I810_NR_SAREA_CLIPRECTS.  In that case, the client sets discard to
  * false, indicating that the buffer will be dispatched again with a
@@ -174,15 +201,10 @@ typedef struct _drm_i810_clear {
  */
 typedef struct _drm_i810_vertex {
    	int idx;		/* buffer index */
-	int used;		/* nr bytes in use */
+	int copy_size;	        /* nr bytes to copy (0 if using unmap) */
+	void *copy_address;     /* address to copy from */
 	int discard;		/* client is finished with the buffer? */
 } drm_i810_vertex_t;
-
-typedef struct _drm_i810_copy_t {
-   	int idx;		/* buffer index */
-	int used;		/* nr bytes in use */
-	void *address;		/* Address to copy from */
-} drm_i810_copy_t;
 
 typedef struct drm_i810_dma {
 	void *virtual;
