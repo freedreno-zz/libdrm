@@ -1,4 +1,4 @@
-/* i810_drv.h -- Private header for the Matrox g200/g400 driver -*- linux-c -*-
+/* i810_drv.h -- Private header for the i810 driver -*- linux-c -*-
  * Created: Mon Dec 13 01:50:01 1999 by jhartmann@precisioninsight.com
  *
  * Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
@@ -31,6 +31,29 @@
 
 #ifndef _I810_DRV_H_
 #define _I810_DRV_H_
+#include "i810_drm_public.h"
+
+typedef struct _drm_i810_ring_buffer{
+      int tail_mask;
+      unsigned long Start;
+      unsigned long End;
+      unsigned long Size;
+      u8 *virtual_start;
+      int head;
+      int tail;
+      int space;
+} drm_i810_ring_buffer;
+
+typedef struct drm_i810_private {
+   	int ring_map_idx;
+   	int buffer_map_idx;
+   	drm_i810_ring_buffer ring;
+      	unsigned long hw_status_page;
+   	unsigned long counter;
+   	atomic_t dispatch_lock;
+      	atomic_t pending_bufs;
+   	atomic_t in_flush;
+} drm_i810_private_t;
 
 				/* i810_drv.c */
 extern int  i810_init(void);
@@ -54,8 +77,8 @@ extern int  i810_control(struct inode *inode, struct file *filp,
 			  unsigned int cmd, unsigned long arg);
 extern int  i810_lock(struct inode *inode, struct file *filp,
 		       unsigned int cmd, unsigned long arg);
-extern void i810_dma_init(drm_device_t *dev);
-extern void i810_dma_cleanup(drm_device_t *dev);
+extern int  i810_dma_init(struct inode *inode, struct file *filp,
+			unsigned int cmd, unsigned long arg);
 
 
 				/* i810_bufs.c */
@@ -72,5 +95,61 @@ extern int  i810_mapbufs(struct inode *inode, struct file *filp,
 extern int  i810_addmap(struct inode *inode, struct file *filp,
 		       unsigned int cmd, unsigned long arg);
 
+				/* i810_context.c */
+extern int  i810_resctx(struct inode *inode, struct file *filp,
+		       unsigned int cmd, unsigned long arg);
+extern int  i810_addctx(struct inode *inode, struct file *filp,
+		       unsigned int cmd, unsigned long arg);
+extern int  i810_modctx(struct inode *inode, struct file *filp,
+		       unsigned int cmd, unsigned long arg);
+extern int  i810_getctx(struct inode *inode, struct file *filp,
+		       unsigned int cmd, unsigned long arg);
+extern int  i810_switchctx(struct inode *inode, struct file *filp,
+			  unsigned int cmd, unsigned long arg);
+extern int  i810_newctx(struct inode *inode, struct file *filp,
+		       unsigned int cmd, unsigned long arg);
+extern int  i810_rmctx(struct inode *inode, struct file *filp,
+		      unsigned int cmd, unsigned long arg);
+
+extern int  i810_context_switch(drm_device_t *dev, int old, int new);
+extern int  i810_context_switch_complete(drm_device_t *dev, int new);
+
+
+#define GFX_OP_USER_INTERRUPT 		((0<<29)|(2<<23))
+#define GFX_OP_BREAKPOINT_INTERRUPT	((0<<29)|(1<<23))
+#define CMD_REPORT_HEAD			(7<<23)
+#define CMD_STORE_DWORD_IDX		((0x21<<23) | 0x1)
+#define CMD_OP_BATCH_BUFFER  ((0x0<<29)|(0x30<<23)|0x1)
+
+
+#define BB1_START_ADDR_MASK   (~0x7)
+#define BB1_PROTECTED         (1<<0)
+#define BB1_UNPROTECTED       (0<<0)
+#define BB2_END_ADDR_MASK     (~0x7)
+
+#define I810REG_HWSTAM		0x02098
+#define I810REG_INT_IDENTITY_R	0x020a4
+#define I810REG_INT_MASK_R 	0x020a8
+#define I810REG_INT_ENABLE_R	0x020a0
+
+#define LP_RING     		0x2030
+#define HP_RING     		0x2040
+#define RING_TAIL      		0x00
+#define TAIL_ADDR		0x000FFFF8
+#define RING_HEAD      		0x04
+#define HEAD_WRAP_COUNT     	0xFFE00000
+#define HEAD_WRAP_ONE       	0x00200000
+#define HEAD_ADDR           	0x001FFFFC
+#define RING_START     		0x08
+#define START_ADDR          	0x00FFFFF8
+#define RING_LEN       		0x0C
+#define RING_NR_PAGES       	0x000FF000 
+#define RING_REPORT_MASK    	0x00000006
+#define RING_REPORT_64K     	0x00000002
+#define RING_REPORT_128K    	0x00000004
+#define RING_NO_REPORT      	0x00000000
+#define RING_VALID_MASK     	0x00000001
+#define RING_VALID          	0x00000001
+#define RING_INVALID        	0x00000000
 
 #endif
