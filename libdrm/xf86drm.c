@@ -766,12 +766,13 @@ int drmAgpEnable(int fd, unsigned long mode)
     return 0;
 }
 
-unsigned long drmAgpAlloc(int fd, unsigned long size)
+unsigned long drmAgpAlloc(int fd, unsigned long size, unsigned long type)
 {
     drm_agp_buffer_t b;
 
     b.size   = size;
     b.handle = 0;
+    b.type   = type;
     if (ioctl(fd, DRM_IOCTL_AGP_ALLOC, &b)) return 0;
     return b.handle;
 }

@@ -594,7 +594,7 @@ extern void	     *drm_ioremap(unsigned long offset, unsigned long size);
 extern void	     drm_ioremapfree(void *pt, unsigned long size);
 
 #ifdef DRM_AGP
-extern agp_memory    *drm_alloc_agp(int pages);
+extern agp_memory    *drm_alloc_agp(int pages, u32 type);
 extern int           drm_free_agp(agp_memory *handle, int pages);
 extern int           drm_bind_agp(agp_memory *handle, unsigned int start);
 extern int           drm_unbind_agp(agp_memory *handle);

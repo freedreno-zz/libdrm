@@ -153,7 +153,7 @@ int drm_agp_alloc(struct inode *inode, struct file *filp, unsigned int cmd,
 	drm_agp_mem_t    *entry;
 	agp_memory       *memory;
 	unsigned long    pages;
-
+	u32 		 type;
 	if (!dev->agp->acquired) return -EINVAL;
 	copy_from_user_ret(&request, (drm_agp_buffer_t *)arg, sizeof(request),
 			   -EFAULT);
@@ -161,7 +161,9 @@ int drm_agp_alloc(struct inode *inode, struct file *filp, unsigned int cmd,
 		return -ENOMEM;
 
 	pages = (request.size + PAGE_SIZE - 1) / PAGE_SIZE;
-	if (!(memory = drm_alloc_agp(pages))) {
+	type = (u32) request.type;
+
+	if (!(memory = drm_alloc_agp(pages, type))) {
 		drm_free(entry, sizeof(*entry), DRM_MEM_AGPLISTS);
 		return -ENOMEM;
 	}
