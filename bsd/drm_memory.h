@@ -95,6 +95,11 @@ void DRM(mem_init)(void)
 	DRM(ram_used)	   = 0;
 }
 
+void DRM(mem_uninit)(void)
+{
+	DRM_SPINUNINIT(DRM(mem_lock));
+}
+
 #ifdef __FreeBSD__
 /* drm_mem_info is called whenever a process reads /dev/drm/mem. */
 static int DRM(_mem_info)(drm_mem_stats_t *stats, struct sysctl_oid *oidp, void *arg1, 

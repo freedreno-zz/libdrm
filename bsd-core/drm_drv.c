@@ -849,6 +849,8 @@ static void DRM(cleanup)(drm_device_t *dev)
 	}
 #endif
 	DRIVER_POSTCLEANUP();
+	DRM(mem_uninit)();
+	DRM_SPINUNINIT(dev->count_lock);
 }
 
 

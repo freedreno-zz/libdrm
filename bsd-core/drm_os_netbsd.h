@@ -60,12 +60,13 @@ extern drm_device_t *DRM(devs)[16];
 #define CDEV_MAJOR	34
 
 #define DRM_CURPROC		curproc
-#define DRM_STRUCTPROC	struct proc
+#define DRM_STRUCTPROC		struct proc
 #define DRM_SPINTYPE		struct simplelock
 #define DRM_SPININIT(l,name)	simple_lock_init(&l)
-#define DRM_SPINLOCK(l)	simple_lock(l)
+#define DRM_SPINUNINIT(l)
+#define DRM_SPINLOCK(l)		simple_lock(l)
 #define DRM_SPINUNLOCK(u)	simple_unlock(u);
-#define DRM_CURRENTPID       curproc->p_pid
+#define DRM_CURRENTPID		curproc->p_pid
 
 #define DRM_IOCTL_ARGS		dev_t kdev, u_long cmd, caddr_t data, int flags, DRM_STRUCTPROC *p
 #define DRM_LOCK		lockmgr(&dev->dev_lock, LK_EXCLUSIVE, NULL)

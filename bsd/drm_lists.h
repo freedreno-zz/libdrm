@@ -43,7 +43,7 @@ int DRM(waitlist_create)(drm_waitlist_t *bl, int count)
 
 	if(!bl->bufs) return DRM_ERR(ENOMEM);
 
-	memset(bl->bufs, 0, sizeof(*bl->bufs));
+	bzero(bl->bufs, sizeof(*bl->bufs));
 
 	bl->count      = count;
 	bl->rp	       = bl->bufs;
@@ -66,6 +66,8 @@ int DRM(waitlist_destroy)(drm_waitlist_t *bl)
 	bl->rp	  = NULL;
 	bl->wp	  = NULL;
 	bl->end	  = NULL;
+	DRM_SPINUNINIT( bl->write_lock );
+	DRM_SPINUNINIT( bl->read_lock );
 	return 0;
 }
 
@@ -137,6 +139,7 @@ int DRM(freelist_destroy)(drm_freelist_t *bl)
 {
 	atomic_set(&bl->count, 0);
 	bl->next = NULL;
+	DRM_SPINUNINIT( bl->lock );
 	return 0;
 }
 
