@@ -33,6 +33,7 @@
 #define __NO_VERSION__
 #include "drmP.h"
 #include "mga_drv.h"
+#include "mgareg_flags.h"
 
 #include <linux/interrupt.h>	/* For task queue support */
 
@@ -104,18 +105,16 @@ void mga_dma_init(drm_device_t *dev)
 	printk("done phys_head\n");
 	buffer.head = (u32 *) drm_ioremap(buffer.phys_head, 65536);
 	buffer.dma_ptr = buffer.head;
-	buffer.max_dwords = 16384;
-	buffer.num_dwords = 16384;
+	buffer.max_dwords = 16383;
+	buffer.num_dwords = 0;
 	buffer.first_time = 1;
-	MGA_WRITE(MGAREG_DWGSYNC, MGA_SYNC_TAG);
-	printk("done mga_write\n");
-   printk(KERN_INFO "mga_dma_init\n");
+        printk(KERN_INFO "mga_dma_init\n");
 }
 
 void mga_dma_cleanup(drm_device_t *dev)
 {
 	if(buffer.phys_head != 0)
-		drm_ioremapfree((void *)buffer.phys_head, 65536);
+		drm_ioremapfree((void *)buffer.head, 65536);
    printk(KERN_INFO "mga_dma_cleanup\n");
 }
 
@@ -123,42 +122,111 @@ static inline void mga_prim_overflow(drm_device_t *dev)
 {
 	buffer.num_dwords = 0;
 	buffer.outcount = 0;
+        buffer.dma_ptr = buffer.head;
 
-	MGA_WRITE(MGAREG_PRIMADDRESS, buffer.phys_head | TT_GENERAL);
    printk(KERN_INFO "mga_prim_overflow\n");
 }
+
+static void mga_delay(void)
+{
+}
+#define MGA_YDSTLEN(y,LEN)           DMAOUTREG(MGAREG_YDSTLEN,((y) << 16) | (LEN))
+#define MGA_FXBNDRY(x1,x2)           DMAOUTREG(MGAREG_FXBNDRY,((x2) << 16) | (x1))
+#define MGA_DWGCTL_EXEC(x)           DMAOUTREG(MGAREG_DWGCTL+MGAREG_MGA_EXEC,x)
 
 static inline void mga_dma_dispatch(drm_device_t *dev, unsigned long address,
 				    unsigned long length)
 {
-   
 	int use_agp = PDEA_pagpxfer_enable;
 	static int softrap = 1;
-
+   	static int j = 0;
+   	static int k = 0;
+	int timeout = 0;
+	int cmd;
+   
    printk(KERN_INFO "mga_dma_dispatch\n");
 
-	CHECK_OVERFLOW(10);
-	DMAOUTREG(MGAREG_DMAPAD, 0);
-	DMAOUTREG(MGAREG_DMAPAD, 0);
-	DMAOUTREG(MGAREG_SECADDRESS, address | TT_BLIT);
-	DMAOUTREG(MGAREG_SECEND, (address + length) | use_agp);
-	DMAOUTREG(MGAREG_DMAPAD, 0);
-	DMAOUTREG(MGAREG_DMAPAD, 0);
-#if 1
-	DMAOUTREG(MGAREG_DWGSYNC, MGA_SYNC_TAG); /* For debugging */
-      	DMAOUTREG(MGAREG_DMAPAD, 0);
-#else
-	DMAOUTREG(MGAREG_DMAPAD, 0);
-      	DMAOUTREG(MGAREG_SOFTRAP, softrap);
-#endif
-	MGA_WRITE(MGAREG_DWGSYNC, 0);
-	MGA_WRITE(MGAREG_PRIMEND, (buffer.phys_head + buffer.num_dwords) | 
-		  use_agp);
-   	while(MGA_READ(MGAREG_DWGSYNC) != MGA_SYNC_TAG)
-		;
+	CHECK_OVERFLOW(20);
+   printk(KERN_INFO "mga_dma_dispatch: overflow done\n");
 
+   MGA_YDSTLEN( k, 512 );       /* top to bottom */
+   MGA_FXBNDRY( j, 511+j );     /* full width */
+   k += 20;
+   j += 5;
+   if( j < 1280-512) j = 0;
+   if( k < 512) k = 0;
+
+   cmd = DC_opcod_iload |            /* image load */
+     DC_atype_rpl |                  /* raster replace mode */
+     DC_linear_linear |              /* linear source */
+     DC_bltmod_bfcol |               /* source data is pre-formatted color */
+     (0xC << DC_bop_SHIFT)  |        /* use source bit op */
+     DC_sgnzero_enable |             /* normal scanning direction */
+     DC_shftzero_enable |            /* required for iload */
+     DC_clipdis_enable;              /* don't use the clip rect */
+   
+   DMAOUTREG( MGAREG_AR0, 512 * 512 - 1); /* source pixel count */
+   DMAOUTREG( MGAREG_AR3, 0 );         /* required */
+   DMAOUTREG( MGAREG_DMAPAD, 0);
+   DMAOUTREG( MGAREG_DMAPAD, 0);
+   DMAOUTREG( MGAREG_DMAPAD, 0);
+   MGA_DWGCTL_EXEC(cmd);
+	DMAOUTREG(MGAREG_DMAPAD, 0);
+      printk(KERN_INFO "mga_dma_dispatch: dmapad\n");
+
+	DMAOUTREG(MGAREG_DMAPAD, 0);
+      printk(KERN_INFO "mga_dma_dispatch: dmapad\n");
+
+	DMAOUTREG(MGAREG_SECADDRESS, address | TT_BLIT);
+      printk(KERN_INFO "mga_dma_dispatch:secaddress\n");
+
+	DMAOUTREG(MGAREG_SECEND, (address + length) | use_agp);
+   	printk(KERN_INFO "mga_dma_dispatch: sec_end\n");
+
+	DMAOUTREG(MGAREG_DMAPAD, 0);
+      printk(KERN_INFO "mga_dma_dispatch: dmapad\n");
+
+	DMAOUTREG(MGAREG_DMAPAD, 0);
+      printk(KERN_INFO "mga_dma_dispatch: dmapad\n");
+
+      	DMAOUTREG(MGAREG_DMAPAD, 0);
+      printk(KERN_INFO "mga_dma_dispatch: dmapad\n");
+
+   	DMAOUTREG(MGAREG_DWGSYNC, 0); /* For debugging */
+      printk(KERN_INFO "mga_dma_dispatch: dwgsync\n");
+
+	MGA_WRITE(MGAREG_DWGSYNC, MGA_SYNC_TAG);
+	printk(KERN_INFO "mga_dma_dispatch: dwgsync write\n");
+   	while(MGA_READ(MGAREG_DWGSYNC) != MGA_SYNC_TAG || timeout < 500) {
+		int i;
+	   
+	        for(i = 0 ; i < 4096 * 4096; i++) mga_delay();
+	   
+	   timeout++;
+	}
+	if(timeout < 500) printk("DMA TIMEOUT!!");
+
+   	MGA_WRITE(MGAREG_PRIMADDRESS, buffer.phys_head | TT_GENERAL);
+      	printk(KERN_INFO "mga_dma_dispatch: primaddress\n");
+
+	MGA_WRITE(MGAREG_PRIMEND, (buffer.phys_head + 
+		 (buffer.num_dwords*sizeof(unsigned long))) | 
+		  use_agp);
+      	printk(KERN_INFO "mga_dma_dispatch: primend\n");
+
+        mga_prim_overflow(dev);
+
+   printk(KERN_INFO "mga_dma_dispatch: prim_overflow\n");
+   	timeout = 0;
+	while(MGA_READ(MGAREG_DWGSYNC) == MGA_SYNC_TAG || timeout < 500) {
+     		int i;
+	   
+	   	for(i = 0; i < 4096 * 4096; i++) mga_delay();
+	   timeout++;
+	}
+   	if(timeout < 500) printk("DMA TIMEOUT!!");
 	buffer.last_softrap = softrap;
-   printk(KERN_INFO "mga_dma_dispatch end \n");
+        printk(KERN_INFO "mga_dma_dispatch end \n");
 }
 
 static inline void mga_dma_quiescent(drm_device_t *dev)
@@ -659,13 +727,13 @@ int mga_dma(struct inode *inode, struct file *filp, unsigned int cmd,
    copy_from_user_ret(&d, (drm_dma_t *)arg, sizeof(d), -EFAULT);
 	DRM_DEBUG("%d %d: %d send, %d req\n",
 		  current->pid, d.context, d.send_count, d.request_count);
-#if 0
+
 	if (d.context == DRM_KERNEL_CONTEXT || d.context >= dev->queue_slots) {
 		DRM_ERROR("Process %d using context %d\n",
 			  current->pid, d.context);
 		return -EINVAL;
 	}
-#endif
+
 	if (d.send_count < 0 || d.send_count > dma->buf_count) {
 		DRM_ERROR("Process %d trying to send %d buffers (of %d max)\n",
 			  current->pid, d.send_count, dma->buf_count);
@@ -684,6 +752,8 @@ int mga_dma(struct inode *inode, struct file *filp, unsigned int cmd,
 		else 
 			retcode = mga_dma_send_buffers(dev, &d);
 #endif
+	   printk("mga_dma priority\n");
+
 	   retcode = mga_dma_priority(dev, &d);
 	}
 
@@ -697,6 +767,7 @@ int mga_dma(struct inode *inode, struct file *filp, unsigned int cmd,
 		  current->pid, d.granted_count);
 	copy_to_user_ret((drm_dma_t *)arg, &d, sizeof(d), -EFAULT);
 
+   printk("mga_dma end (granted)\n");
 	return retcode;
 }
 
@@ -781,8 +852,9 @@ int mga_control(struct inode *inode, struct file *filp, unsigned int cmd,
 	int		retcode;
    
    printk(KERN_INFO "mga_control\n");
+#if 1
    	mga_dma_init(dev);
-	
+#endif	
 	copy_from_user_ret(&ctl, (drm_control_t *)arg, sizeof(ctl), -EFAULT);
 	
 	switch (ctl.func) {
