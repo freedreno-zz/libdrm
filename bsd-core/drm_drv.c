@@ -487,12 +487,6 @@ static int DRM(takedown)( drm_device_t *dev )
 	drm_map_list_entry_t *list;
 	drm_vma_entry_t *vma, *vma_next;
 	int i;
-#if __REALLY_HAVE_MTRR
-#ifdef __NetBSD__
-	struct mtrr mtrrmap;
-	int one = 1;
-#endif /* __NetBSD__ */
-#endif /* __REALLY_HAVE_MTRR */
 
 	DRM_DEBUG( "\n" );
 
@@ -566,7 +560,19 @@ static int DRM(takedown)( drm_device_t *dev )
 #if __REALLY_HAVE_MTRR
 				if ( map->mtrr >= 0 ) {
 					int retcode;
-#ifdef __NetBSD__
+#ifdef __FreeBSD__
+					int act;
+					struct mem_range_desc mrdesc;
+					mrdesc.mr_base = map->offset;
+					mrdesc.mr_len = map->size;
+					mrdesc.mr_flags = MDF_WRITECOMBINE;
+					act = MEMRANGE_SET_UPDATE;
+					bcopy(DRIVER_NAME, &mrdesc.mr_owner, strlen(DRIVER_NAME));
+					retcode = mem_range_attr_set(&mrdesc, &act);
+					map->mtrr=1;
+#elif defined __NetBSD__
+					struct mtrr mtrrmap;
+					int one = 1;
 					mtrrmap.base = map->offset;
 					mtrrmap.len = map->size;
 					mtrrmap.type = MTRR_TYPE_WC;
@@ -658,12 +664,6 @@ static int DRM(init)( drm_device_t *dev )
 #ifdef __FreeBSD__
 	drm_device_t *dev;
 #endif
-#if __REALLY_HAVE_MTRR
-#ifdef __NetBSD__
-	struct mtrr mtrrmap;
-	int one = 1;
-#endif /* __NetBSD__ */
-#endif /* __REALLY_HAVE_MTRR */
 #if __HAVE_CTX_BITMAP
 	int retcode;
 #endif
@@ -703,10 +703,22 @@ static int DRM(init)( drm_device_t *dev )
 		DRM(takedown)( dev );
 		DRM_OS_RETURN(ENOMEM);
 	}
-#endif
+#endif /* __MUST_HAVE_AGP */
 #if __REALLY_HAVE_MTRR
-	if (dev->agp)
-#ifdef __NetBSD__
+	if (dev->agp) {
+#ifdef __FreeBSD__
+		int retcode = 0, act;
+		struct mem_range_desc mrdesc;
+		mrdesc.mr_base = dev->agp->info.ai_aperture_base;
+		mrdesc.mr_len = dev->agp->info.ai_aperture_size;
+		mrdesc.mr_flags = MDF_WRITECOMBINE;
+		act = MEMRANGE_SET_UPDATE;
+		bcopy(DRIVER_NAME, &mrdesc.mr_owner, strlen(DRIVER_NAME));
+		retcode = mem_range_attr_set(&mrdesc, &act);
+		dev->agp->agp_mtrr=1;
+#elif defined __NetBSD__
+		struct mtrr mtrrmap;
+		int one = 1;
 		mtrrmap.base = dev->agp->info.ai_aperture_base;
 		/* Might need a multiplier here XXX */
 		mtrrmap.len = dev->agp->info.ai_aperture_size;
@@ -714,8 +726,9 @@ static int DRM(init)( drm_device_t *dev )
 		mtrrmap.flags = MTRR_VALID;
 		dev->agp->agp_mtrr = mtrr_set( &mtrrmap, &one, NULL, MTRR_GETSET_KERNEL);
 #endif /* __NetBSD__ */
-#endif
-#endif
+	}
+#endif /* __REALLY_HAVE_MTRR */
+#endif /* __REALLY_HAVE_AGP */
 
 #if __HAVE_CTX_BITMAP
 	retcode = DRM(ctxbitmap_init)( dev );

@@ -26,6 +26,7 @@
 #include <machine/resource.h>
 #include <sys/mman.h>
 #include <sys/rman.h>
+#include <sys/memrange.h>
 #include <pci/pcivar.h>
 #if __FreeBSD_version >= 500000
 #include <sys/selinfo.h>
@@ -42,7 +43,7 @@
 #define __REALLY_HAVE_AGP	__HAVE_AGP
 #endif
 
-#define __REALLY_HAVE_MTRR	0
+#define __REALLY_HAVE_MTRR	1
 #define __REALLY_HAVE_SG	0
 
 #if __REALLY_HAVE_AGP

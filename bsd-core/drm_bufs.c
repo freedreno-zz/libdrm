@@ -71,12 +71,6 @@ int DRM(addmap)( DRM_OS_IOCTL )
 	DRM_OS_DEVICE;
 	drm_map_t *map;
 	drm_map_list_entry_t *list;
-#if __REALLY_HAVE_MTRR
-#ifdef __NetBSD__
-	struct mtrr mtrrmap;
-	int one = 1;
-#endif /* __NetBSD__ */
-#endif /* __REALLY_HAVE_MTRR */
 	
 	if (!(dev->flags & (FREAD|FWRITE)))
 		DRM_OS_RETURN(EACCES); /* Require read/write */
@@ -120,7 +114,19 @@ int DRM(addmap)( DRM_OS_IOCTL )
 #if __REALLY_HAVE_MTRR
 		if ( map->type == _DRM_FRAME_BUFFER ||
 		     (map->flags & _DRM_WRITE_COMBINING) ) {
-#ifdef __NetBSD__
+#ifdef __FreeBSD__
+			int retcode = 0, act;
+			struct mem_range_desc mrdesc;
+			mrdesc.mr_base = map->offset;
+			mrdesc.mr_len = map->size;
+			mrdesc.mr_flags = MDF_WRITECOMBINE;
+			act = MEMRANGE_SET_UPDATE;
+			bcopy(DRIVER_NAME, &mrdesc.mr_owner, strlen(DRIVER_NAME));
+			retcode = mem_range_attr_set(&mrdesc, &act);
+			map->mtrr=1;
+#elif defined __NetBSD__
+			struct mtrr mtrrmap;
+			int one = 1;
 			mtrrmap.base = map->offset;
 			mtrrmap.len = map->size;
 			mtrrmap.type = MTRR_TYPE_WC;
@@ -203,12 +209,6 @@ int DRM(rmmap)( DRM_OS_IOCTL )
 	drm_map_t *map;
 	drm_map_t request;
 	int found_maps = 0;
-#if __REALLY_HAVE_MTRR
-#ifdef __NetBSD__
-       struct mtrr mtrrmap;
-       int one = 1;
-#endif
-#endif
 
 	DRM_OS_KRNFROMUSR( request, (drm_map_t *)data, sizeof(request) );
 
@@ -237,7 +237,18 @@ int DRM(rmmap)( DRM_OS_IOCTL )
 #if __REALLY_HAVE_MTRR
 			if (map->mtrr >= 0) {
 				int retcode;
-#ifdef __NetBSD__
+#ifdef __FreeBSD__
+				int act;
+				struct mem_range_desc mrdesc;
+				mrdesc.mr_base = map->offset;
+				mrdesc.mr_len = map->size;
+				mrdesc.mr_flags = MDF_WRITECOMBINE;
+				act = MEMRANGE_SET_REMOVE;
+				bcopy(DRIVER_NAME, &mrdesc.mr_owner, strlen(DRIVER_NAME));
+				retcode = mem_range_attr_set(&mrdesc, &act);
+#elif defined __NetBSD__
+				struct mtrr mtrrmap;
+				int one = 1;
 				mtrrmap.base = map->offset;
 				mtrrmap.len = map->size;
 				mtrrmap.type = 0;
