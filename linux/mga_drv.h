@@ -60,7 +60,7 @@ typedef struct drm_mga_primary_buffer {
 	u8 *end;
 	int size;
 
-	volatile u32 *head;
+	u32 head;
 	u32 tail;
 	u32 wrap;
 	int space;

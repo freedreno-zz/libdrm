@@ -317,8 +317,7 @@ static inline void mga_g400_emit_pipe( drm_mga_private_t *dev_priv )
 				   MGA_DWGCTL,		MGA_DWGCTL_FLUSH );
 
 			DMA_BLOCK( MGA_LEN + MGA_EXEC,	0x00000001,
-				   /*MGA_DWGSYNC,		0x00007000,*/
-				   MGA_DMAPAD,		0x00000000,
+				   MGA_DWGSYNC,		0x00007000,
 				   MGA_TEXCTL2,		MGA_G400_TC2_MAGIC,
 				   MGA_LEN + MGA_EXEC,	0x00000000 );
 
@@ -525,7 +524,6 @@ static void mga_dma_dispatch_clear( drm_device_t *dev,
 	DMA_LOCALS;
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
-#if 1
 	for ( i = 0 ; i < nbox ; i++ ) {
 		unsigned int height = pbox[i].y2 - pbox[i].y1;
 
@@ -572,7 +570,15 @@ static void mga_dma_dispatch_clear( drm_device_t *dev,
 
 		ADVANCE_DMA();
 	}
-#endif
+
+	BEGIN_DMA( 1 );
+
+	DMA_BLOCK( MGA_DMAPAD,	0x00000000,
+		   MGA_DMAPAD,	0x00000000,
+		   MGA_PLNWT,	ctx->plnwt,
+		   MGA_DWGCTL,	ctx->dwgctl );
+
+	ADVANCE_DMA();
 }
 
 static void mga_dma_dispatch_swap( drm_device_t *dev )
@@ -587,12 +593,16 @@ static void mga_dma_dispatch_swap( drm_device_t *dev )
 	DMA_LOCALS;
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
-#if 1
-	BEGIN_DMA( 2 + nbox );
+	BEGIN_DMA( 4 + nbox );
 
-	DMA_BLOCK( MGA_MACCESS,	dev_priv->maccess,
+	DMA_BLOCK( MGA_DMAPAD,	0x00000000,
+		   MGA_DMAPAD,	0x00000000,
+		   MGA_DWGSYNC,	0x00007100,
+		   MGA_DWGSYNC,	0x00007000 );
+
+	DMA_BLOCK( MGA_DSTORG,	dev_priv->front_offset,
+		   MGA_MACCESS,	dev_priv->maccess,
 		   MGA_SRCORG,	dev_priv->back_offset,
-		   MGA_DSTORG,	dev_priv->front_offset,
 		   MGA_AR5,	pitch );
 
 	DMA_BLOCK( MGA_DMAPAD,	0x00000000,
@@ -611,8 +621,12 @@ static void mga_dma_dispatch_swap( drm_device_t *dev )
 					(pbox[i].y1 << 16) | h );
 	}
 
+	DMA_BLOCK( MGA_DMAPAD,	0x00000000,
+		   MGA_PLNWT,	ctx->plnwt,
+		   MGA_SRCORG,	dev_priv->front_offset,
+		   MGA_DWGCTL,	ctx->dwgctl );
+
 	ADVANCE_DMA();
-#endif
 }
 
 
@@ -632,15 +646,17 @@ static void mga_dma_dispatch_vertex( drm_device_t *dev, drm_buf_t *buf )
 
 	if ( buf->used ) {
 		buf_priv->dispatched = 1;
-#if 1
+
 		MGA_EMIT_STATE( dev_priv, sarea_priv->dirty );
 
 		do {
+#if 0
 			if ( i < sarea_priv->nbox ) {
 				mga_emit_clip_rect( dev_priv,
 						    &sarea_priv->boxes[i] );
 			}
-
+#endif
+#if 1
 			BEGIN_DMA( 1 );
 
 			DMA_BLOCK( MGA_DMAPAD,		0x00000000,
@@ -651,8 +667,8 @@ static void mga_dma_dispatch_vertex( drm_device_t *dev, drm_buf_t *buf )
 							 MGA_PAGPXFER) );
 
 			ADVANCE_DMA();
-		} while ( ++i < sarea_priv->nbox );
 #endif
+		} while ( ++i < sarea_priv->nbox );
 	}
 
 	if ( buf_priv->discard ) {
@@ -830,8 +846,6 @@ int mga_dma_swap( struct inode *inode, struct file *filp,
 	dev_priv->sarea_priv->dirty |= MGA_UPLOAD_CONTEXT;
 
 	MAYBE_FLUSH_DMA();
-
-	mga_do_wait_for_idle( dev_priv );
 	return 0;
 }
 
@@ -879,8 +893,6 @@ int mga_dma_vertex( struct inode *inode, struct file *filp,
 	mga_dma_dispatch_vertex( dev, buf );
 
 	MAYBE_FLUSH_DMA();
-
-	mga_do_wait_for_idle( dev_priv );
 	return 0;
 }
 

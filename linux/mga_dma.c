@@ -1087,7 +1087,7 @@ int mga_do_dma_reset( drm_mga_private_t *dev_priv )
 
 	/* The primary DMA stream should look like new right about now.
 	 */
-	*dev_priv->prim.head = dev_priv->primary->offset;
+	dev_priv->prim.head = 0;
 	dev_priv->prim.tail = 0;
 	dev_priv->prim.wrap = 0;
 	dev_priv->prim.space = dev_priv->prim.size - MGA_DMA_SOFTRAP_SIZE;
@@ -1124,10 +1124,12 @@ int mga_do_engine_reset( drm_mga_private_t *dev_priv )
 	 * 3D clients should probably die after calling this.  The X
 	 * server should reset the engine state to known values.
 	 */
+#if 0
 	MGA_WRITE( MGA_PRIMPTR,
 		   virt_to_bus((void *)dev_priv->prim.status_page) |
 		   MGA_PRIMPTREN0 |
 		   MGA_PRIMPTREN1 );
+#endif
 
 	MGA_WRITE( MGA_ICLEAR, MGA_SOFTRAPICLR );
 	MGA_WRITE( MGA_IEN,    MGA_SOFTRAPIEN );
@@ -1153,37 +1155,25 @@ static inline void mga_do_dma( drm_mga_private_t *dev_priv,
 			       u32 head, u32 tail )
 {
 	drm_mga_primary_buffer_t *primary = &dev_priv->prim;
-	DRM_INFO( "%s:\n", __FUNCTION__ );
+	DRM_DEBUG( "%s:\n", __FUNCTION__ );
 
 	/* Only flush the primary DMA stream if there are new commands.
 	 */
 	if ( head == tail ) {
-		PRINT_DMA_STATE( dev_priv );
-		DRM_INFO( "   bailing out...\n" );
+		DRM_DEBUG( "   bailing out...\n" );
+		clear_bit( 0, &dev_priv->dma_flag );
 		return;
 	}
 
-	if ( 1 ) {
-		u32 status = MGA_READ( MGA_STATUS ) & MGA_ENGINE_IDLE_MASK;
-		if ( status != MGA_ENDPRDMASTS ) {
-			DRM_ERROR( "DMA engine not idle!\n" );
-			status = *((u32 *)0x00000000);
-		}
-		if ( MGA_READ( MGA_STATUS ) & MGA_SOFTRAPEN ) {
-			DRM_ERROR( "DMA engine SOFTRAP interrupt pending!\n" );
-			status = *((u32 *)0x00000000);
-		}
-	}
-
-	DRM_INFO( "   head = 0x%08x 0x%04x\n",
+	DRM_DEBUG( "   head = 0x%08x 0x%04x\n",
 		  head, head - dev_priv->primary->offset );
-	DRM_INFO( "   tail = 0x%08x 0x%04x\n",
+	DRM_DEBUG( "   tail = 0x%08x 0x%04x\n",
 		  tail, tail - dev_priv->primary->offset );
 
 	if ( tail <= head ) {
-		u32 tmp;
+		u32 tmp, *fuck = 0x12345678;
 		DRM_ERROR( "FUCK ME DEAD\n" );
-		tmp = *((u32 *)0x00000000);
+		tmp = *fuck;
 	}
 
 	clear_bit( MGA_DMA_IDLE, &primary->state );
@@ -1192,10 +1182,10 @@ static inline void mga_do_dma( drm_mga_private_t *dev_priv,
 
 	MGA_WRITE( MGA_PRIMADDRESS, head | MGA_DMA_GENERAL );
 	MGA_WRITE( MGA_PRIMEND,     tail | MGA_PAGPXFER );
-	DRM_INFO( "%s: done.\n", __FUNCTION__ );
 
-	mga_do_wait_for_idle( dev_priv );
-	DRM_INFO( "%s: idle.\n", __FUNCTION__ );
+	clear_bit( 0, &dev_priv->dma_flag );
+
+	DRM_DEBUG( "%s: done.\n", __FUNCTION__ );
 }
 
 void mga_do_dma_flush( drm_mga_private_t *dev_priv )
@@ -1203,7 +1193,7 @@ void mga_do_dma_flush( drm_mga_private_t *dev_priv )
 	drm_mga_primary_buffer_t *primary = &dev_priv->prim;
 	u32 head, tail;
 	DMA_LOCALS;
-	DRM_INFO( "%s\n", __FUNCTION__ );
+	DRM_DEBUG( "%s:\n", __FUNCTION__ );
 
 	if ( test_and_set_bit( 0, &dev_priv->dma_flag ) ) {
 		DRM_ERROR( "wtf???\n" );
@@ -1220,8 +1210,9 @@ void mga_do_dma_flush( drm_mga_private_t *dev_priv )
 	/* Only flush the primary DMA stream if there are new commands.
 	 */
 	if ( primary->tail == primary->last_flush ) {
-		DRM_INFO( "   bailing out...\n" );
-		goto cleanup;
+		DRM_DEBUG( "   bailing out...\n" );
+		clear_bit( 0, &dev_priv->dma_flag );
+		return;
 	}
 
 	/* Writing the SOFTRAP register will cause an interrupt.  We use
@@ -1236,40 +1227,22 @@ void mga_do_dma_flush( drm_mga_private_t *dev_priv )
 
 	ADVANCE_DMA();
 
-	/* Reset the PRIMADDRESS pointer if we wrapped after the last
-	 * batch of commands.
-	 */
-	if ( test_bit( MGA_DMA_WRAP, &primary->state ) ) {
-		*primary->head = dev_priv->primary->offset;
-		primary->space = (primary->size - primary->tail -
-				  MGA_DMA_SOFTRAP_SIZE);
-		DRM_INFO( "   clearing wrap: tail=0x%04x space=0x%x\n",
-			  primary->tail, primary->space );
-		clear_bit( MGA_DMA_WRAP, &primary->state );
-	}
-
-	/* The primary DMA stream must be idle here, so we can safely
-	 * cache this value.  Prevents doing multiple uncached reads
-	 * from the DMA status page.
-	 */
-	head = *primary->head;
-
-	tail = primary->tail + dev_priv->primary->offset;
+	primary->space = primary->size - primary->tail - MGA_DMA_SOFTRAP_SIZE;
 	primary->last_flush = primary->tail;
+
+	head = primary->head + dev_priv->primary->offset;
+	tail = primary->tail + dev_priv->primary->offset;
 
 	/* Kick off the DMA transfer.
 	 */
 	mga_do_dma( dev_priv, head, tail );
-
- cleanup:
-	clear_bit( 0, &dev_priv->dma_flag );
 }
 
 void mga_do_dma_wrap( drm_mga_private_t *dev_priv )
 {
 	drm_mga_primary_buffer_t *primary = &dev_priv->prim;
 	u32 head, tail;
-	DRM_INFO( "%s\n", __FUNCTION__ );
+	DRM_DEBUG( "%s:\n", __FUNCTION__ );
 
 	if ( test_and_set_bit( 0, &dev_priv->dma_flag ) ) {
 		DRM_ERROR( "wtf???\n" );
@@ -1279,15 +1252,12 @@ void mga_do_dma_wrap( drm_mga_private_t *dev_priv )
 	/* Only wrap the primary DMA stream if we have to.
 	 */
 	if ( !primary->wrap ) {
-		DRM_INFO( "   bailing out...\n" );
-		goto cleanup;
+		DRM_DEBUG( "   bailing out...\n" );
+		clear_bit( 0, &dev_priv->dma_flag );
+		return;
 	}
 
-	/* The primary DMA stream must be idle here, so we can safely
-	 * cache this value.  Prevents doing multiple uncached reads
-	 * from the DMA status page.
-	 */
-	head = *primary->head;
+	head = primary->head + dev_priv->primary->offset;
 
 	/* Wrap the primary DMA stream.  We use primary->wrap to
 	 * determine when the comamnds have wrapped around, and
@@ -1298,15 +1268,9 @@ void mga_do_dma_wrap( drm_mga_private_t *dev_priv )
 	tail = primary->wrap + dev_priv->primary->offset;
 	primary->wrap = 0;
 
-	DRM_INFO( "   setting wrap...\n" );
-	set_bit( MGA_DMA_WRAP, &primary->state );
-
 	/* Kick off the DMA transfer.
 	 */
 	mga_do_dma( dev_priv, head, tail );
-
- cleanup:
-	clear_bit( 0, &dev_priv->dma_flag );
 }
 
 void mga_dma_wrap_or_wait( drm_mga_private_t *dev_priv, int n )
@@ -1333,8 +1297,10 @@ void mga_dma_wrap_or_wait( drm_mga_private_t *dev_priv, int n )
 		primary->tail = 0;
 		primary->last_flush = 0;
 
-		while ( mga_do_wait_for_idle( dev_priv ) < 0 )
-			;
+		primary->space = primary->head - MGA_DMA_SOFTRAP_SIZE;
+
+		DRM_INFO( "   wrap=0x%04x head=0x%04x space=0x%x\n",
+			  primary->wrap, primary->head, primary->space );
 
 		/* Kick off the last chunk of commands immediately if
 		 * the primary DMA stream is idle.  This makes wrapping
@@ -1342,17 +1308,6 @@ void mga_dma_wrap_or_wait( drm_mga_private_t *dev_priv, int n )
 		 */
 		if ( MGA_DMA_IS_IDLE( dev_priv ) ) {
 			mga_do_dma_wrap( dev_priv );
-		}
-
-		{
-			u32 head = *primary->head;
-
-			primary->space = (head - dev_priv->primary->offset -
-					  MGA_DMA_SOFTRAP_SIZE);
-
-			DRM_INFO( "   head=0x%08x 0x%04x space=0x%x\n",
-				  head, head - dev_priv->primary->offset,
-				  primary->space );
 		}
 	} else {
 		/* FIXME: This is terribly broken...
@@ -1363,8 +1318,7 @@ void mga_dma_wrap_or_wait( drm_mga_private_t *dev_priv, int n )
 
 		mga_do_dma_flush( dev_priv );
 
-		primary->space = (*primary->head - primary->tail -
-				  dev_priv->primary->offset);
+		primary->space = (primary->head - primary->tail);
 	}
 }
 
@@ -1375,7 +1329,7 @@ void mga_update_primary_snapshot( drm_mga_private_t *dev_priv )
 	if ( !primary->wrap ) {
 		primary->space = primary->size - primary->tail;
 	} else {
-		primary->space = (*primary->head - primary->tail -
+		primary->space = (primary->head - primary->tail -
 				  dev_priv->primary->offset);
 	}
 
@@ -1418,7 +1372,7 @@ int mga_dma_schedule( drm_device_t *dev, int locked )
 {
 	drm_mga_private_t *dev_priv = (drm_mga_private_t *)dev->dev_private;
 	drm_mga_primary_buffer_t *primary = &dev_priv->prim;
-	DRM_INFO( "%s: prim=0x%x low=0x%x\n",
+	DRM_DEBUG( "%s: prim=0x%x low=0x%x\n",
 		  __FUNCTION__,
 		  dev_priv->prim.tail - dev_priv->prim.last_flush,
 		  dev_priv->prim.low_mark);
@@ -1430,24 +1384,23 @@ int mga_dma_schedule( drm_device_t *dev, int locked )
 
 	set_bit( MGA_DMA_IDLE, &primary->state );
 
+	primary->head = primary->last_flush;
+
 	if ( dev_priv->prim.wrap ) {
-		DRM_INFO( "   wrapping primary DMA...\n" );
+		DRM_DEBUG( "   wrapping primary DMA...\n" );
 		mga_do_dma_wrap( dev_priv );
 	} else if ( test_bit( MGA_DMA_FLUSH, &dev_priv->prim.state ) ) {
-		DRM_INFO( "   forcing primary DMA...\n" );
+		DRM_DEBUG( "   forcing primary DMA...\n" );
 		mga_do_dma_flush( dev_priv );
 	} else if ( dev_priv->prim.tail - dev_priv->prim.last_flush >=
 		    dev_priv->prim.low_mark ) {
-		DRM_INFO( "   flushing primary DMA...\n" );
+		DRM_DEBUG( "   flushing primary DMA...\n" );
 		mga_do_dma_flush( dev_priv );
 	} else {
-		DRM_INFO( "   going idle...\n" );
+		DRM_DEBUG( "   going idle...\n" );
 	}
-#if 0
-	PRINT_DMA_STATE( dev_priv );
-#endif
-	DRM_INFO( "%s: done.\n", __FUNCTION__ );
 
+	DRM_DEBUG( "%s: done.\n", __FUNCTION__ );
 	clear_bit( 0, &dev_priv->interrupt_flag );
 
 	return 0;
@@ -1719,17 +1672,19 @@ static int mga_do_init_dma( drm_device_t *dev, drm_mga_init_t *init )
 
 	/* Init the DMA status pointer.
 	 */
+#if 0
 	MGA_WRITE( MGA_PRIMPTR,
 		   virt_to_bus((void *)dev_priv->prim.status_page) |
 		   MGA_PRIMPTREN0 |	/* Soft trap, SECEND, SETUPEND */
 		   0 /*MGA_PRIMPTREN1*/ );	/* DWGSYNC */
+#endif
 
 	dev_priv->prim.start = (u8 *)dev_priv->primary->handle;
 	dev_priv->prim.end = ((u8 *)dev_priv->primary->handle
 			      + dev_priv->primary->size);
 	dev_priv->prim.size = dev_priv->primary->size;
 
-	dev_priv->prim.head = (volatile u32 *) dev_priv->prim.status;
+	dev_priv->prim.head = 0;
 	dev_priv->prim.tail = 0;
 	dev_priv->prim.wrap = 0;
 	dev_priv->prim.space = dev_priv->prim.size - MGA_DMA_SOFTRAP_SIZE;
@@ -1740,12 +1695,6 @@ static int mga_do_init_dma( drm_device_t *dev, drm_mga_init_t *init )
 	dev_priv->prim.high_mark = 0;
 
 	set_bit( MGA_DMA_IDLE, &dev_priv->prim.state );
-
-	/* We use the status copy of PRIMADDRESS as the value we write
-	 * to the hardware, so initialize it to the beginning of primary
-	 * DMA space here.
-	 */
-	*dev_priv->prim.head = dev_priv->primary->offset;
 
 	dev_priv->sarea_priv->last_dispatch = 0;
 	dev_priv->prim.status[1] = 0;
@@ -1953,10 +1902,11 @@ if ( 0 ) {
 	DRM_INFO( "  end = %p\n", dev_priv->prim.end );
 	DRM_INFO( "space = %d \n", dev_priv->prim.space );
 
+#if 0
 	/* Let's lock the board and then recover from it.  Isn't it
 	 * nice to be able to do so?
 	 */
-	*dev_priv->prim.head += 4096;
+	dev_priv->prim.head += 4096;
 	dev_priv->prim.tail = 128;
 
 	mga_do_dma_flush( dev_priv );
@@ -1965,12 +1915,13 @@ if ( 0 ) {
 	if ( ret < 0 ) {
 		mga_do_engine_reset( dev_priv );
 	}
+#endif
 
 	/* You'll notice that this does not fail.  Cool, eh?
 	 */
 	mga_do_wait_for_idle( dev_priv );
 
-	for ( i = 0 ; i < 16 * 1024 ; i++ ) {
+	for ( i = 0 ; i < 256 * 1024 ; i++ ) {
 		DMA_LOCALS;
 
 		BEGIN_DMA( 8 );
@@ -2027,19 +1978,22 @@ if ( 0 ) {
 
 			mga_do_dma_flush( dev_priv );
 
+#if 0
 			if ( mga_do_wait_for_idle( dev_priv ) < 0 )
 				return -EINVAL;
+#endif
 		}
 	}
 
 	/* Flush the primary DMA stream.
 	 */
 	mga_do_wait_for_idle( dev_priv );
+	DRM_INFO( "*** forcing final flush now ***\n" );
 	mga_do_dma_flush( dev_priv );
 	mga_do_wait_for_idle( dev_priv );
 
-	DRM_INFO( "head = 0x%08x\n", dev_priv->prim.status[0] );
-	DRM_INFO( "sync = 0x%08x\n", dev_priv->prim.status[1] );
+	DRM_DEBUG( "head = 0x%08x\n", dev_priv->prim.status[0] );
+	DRM_DEBUG( "sync = 0x%08x\n", dev_priv->prim.status[1] );
 	DRM_INFO( "\n" );
 	DRM_INFO( "space = 0x%x / 0x%x\n",
 		  dev_priv->prim.space,
