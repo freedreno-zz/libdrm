@@ -64,8 +64,6 @@ typedef struct drm_i810_private {
       	unsigned long hw_status_page;
    	unsigned long counter;
 
-   	atomic_t flush_done;
-   	wait_queue_head_t flush_queue;	/* Processes waiting until flush    */
 	drm_buf_t *mmap_buffer;
 
 

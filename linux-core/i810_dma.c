@@ -422,9 +422,6 @@ static int i810_dma_initialize(drm_device_t *dev,
 		((u8 *)dev_priv->sarea_map->handle +
 		 init->sarea_priv_offset);
 
-   	atomic_set(&dev_priv->flush_done, 0);
-	init_waitqueue_head(&dev_priv->flush_queue);
-
    	dev_priv->ring.Start = init->ring_start;
    	dev_priv->ring.End = init->ring_end;
    	dev_priv->ring.Size = init->ring_size;
@@ -887,53 +884,7 @@ static void i810_dma_dispatch_vertex(drm_device_t *dev,
 }
 
 
-/* Interrupts are only for flushing */
-void i810_dma_service(int irq, void *device, struct pt_regs *regs)
-{
-	drm_device_t	 *dev = (drm_device_t *)device;
-      	drm_i810_private_t *dev_priv = (drm_i810_private_t *)dev->dev_private;
-   	u16 temp;
-
-	atomic_inc(&dev->counts[_DRM_STAT_IRQ]);
-      	temp = I810_READ16(I810REG_INT_IDENTITY_R);
-   	temp = temp & ~(0x6000);
-   	if(temp == 0)
-		return;
-
-	/* Clear all interrupts */
-	I810_WRITE16(I810REG_INT_IDENTITY_R, temp);
-
-	queue_task(&dev->tq, &tq_immediate);
-	mark_bh(IMMEDIATE_BH);
-}
-
-void i810_dma_immediate_bh(void *device)
-{
-	drm_device_t *dev = (drm_device_t *) device;
-      	drm_i810_private_t *dev_priv = (drm_i810_private_t *)dev->dev_private;
-
-   	atomic_set(&dev_priv->flush_done, 1);
-   	wake_up_interruptible(&dev_priv->flush_queue);
-}
-
-static inline void i810_dma_emit_flush(drm_device_t *dev)
-{
-   	drm_i810_private_t *dev_priv = dev->dev_private;
-   	RING_LOCALS;
-
-   	i810_kernel_lost_context(dev);
-
-   	BEGIN_LP_RING(2);
-      	OUT_RING( CMD_REPORT_HEAD );
-      	OUT_RING( GFX_OP_USER_INTERRUPT );
-      	ADVANCE_LP_RING();
-
-/*  	i810_wait_ring( dev, dev_priv->ring.Size - 8 ); */
-/*     	atomic_set(&dev_priv->flush_done, 1); */
-/*     	wake_up_interruptible(&dev_priv->flush_queue); */
-}
-
-static inline void i810_dma_quiescent_emit(drm_device_t *dev)
+void i810_dma_quiescent(drm_device_t *dev)
 {
       	drm_i810_private_t *dev_priv = dev->dev_private;
    	RING_LOCALS;
@@ -944,79 +895,27 @@ static inline void i810_dma_quiescent_emit(drm_device_t *dev)
    	OUT_RING( INST_PARSER_CLIENT | INST_OP_FLUSH | INST_FLUSH_MAP_CACHE );
    	OUT_RING( CMD_REPORT_HEAD );
       	OUT_RING( 0 );
-      	OUT_RING( GFX_OP_USER_INTERRUPT );
+      	OUT_RING( 0 );
    	ADVANCE_LP_RING();
 
-/*  	i810_wait_ring( dev, dev_priv->ring.Size - 8 ); */
-/*     	atomic_set(&dev_priv->flush_done, 1); */
-/*     	wake_up_interruptible(&dev_priv->flush_queue); */
-}
-
-void i810_dma_quiescent(drm_device_t *dev)
-{
-      	DECLARE_WAITQUEUE(entry, current);
-  	drm_i810_private_t *dev_priv = (drm_i810_private_t *)dev->dev_private;
-	unsigned long end;
-
-   	if(dev_priv == NULL) {
-	   	return;
-	}
-      	atomic_set(&dev_priv->flush_done, 0);
-   	add_wait_queue(&dev_priv->flush_queue, &entry);
-   	end = jiffies + (HZ*3);
-
-   	for (;;) {
-		current->state = TASK_INTERRUPTIBLE;
-	      	i810_dma_quiescent_emit(dev);
-	   	if (atomic_read(&dev_priv->flush_done) == 1) break;
-		if((signed)(end - jiffies) <= 0) {
-		   	DRM_ERROR("lockup\n");
-		   	break;
-		}
-	      	schedule_timeout(HZ*3);
-	      	if (signal_pending(current)) {
-		   	break;
-		}
-	}
-
-   	current->state = TASK_RUNNING;
-   	remove_wait_queue(&dev_priv->flush_queue, &entry);
-
-   	return;
+	i810_wait_ring( dev, dev_priv->ring.Size - 8 );
 }
 
 static int i810_flush_queue(drm_device_t *dev)
 {
-   	DECLARE_WAITQUEUE(entry, current);
-  	drm_i810_private_t *dev_priv = (drm_i810_private_t *)dev->dev_private;
+   	drm_i810_private_t *dev_priv = dev->dev_private;
 	drm_device_dma_t *dma = dev->dma;
-	unsigned long end;
    	int i, ret = 0;
+   	RING_LOCALS;
+	
+   	i810_kernel_lost_context(dev);
 
-   	if(dev_priv == NULL) {
-	   	return 0;
-	}
-      	atomic_set(&dev_priv->flush_done, 0);
-   	add_wait_queue(&dev_priv->flush_queue, &entry);
-   	end = jiffies + (HZ*3);
-   	for (;;) {
-		current->state = TASK_INTERRUPTIBLE;
-	      	i810_dma_emit_flush(dev);
-	   	if (atomic_read(&dev_priv->flush_done) == 1) break;
-		if((signed)(end - jiffies) <= 0) {
-		   	DRM_ERROR("lockup\n");
-		   	break;
-		}
-	      	schedule_timeout(HZ*3);
-	      	if (signal_pending(current)) {
-		   	ret = -EINTR; /* Can't restart */
-		   	break;
-		}
-	}
+   	BEGIN_LP_RING(2);
+      	OUT_RING( CMD_REPORT_HEAD );
+      	OUT_RING( 0 );
+      	ADVANCE_LP_RING();
 
-   	current->state = TASK_RUNNING;
-   	remove_wait_queue(&dev_priv->flush_queue, &entry);
-
+	i810_wait_ring( dev, dev_priv->ring.Size - 8 );
 
    	for (i = 0; i < dma->buf_count; i++) {
 	   	drm_buf_t *buf = dma->buflist[ i ];
