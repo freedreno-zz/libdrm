@@ -1030,7 +1030,8 @@ static int radeon_cp_dispatch_texture( drm_device_t *dev,
 		return -EINVAL;
 	}
 
-	DRM_DEBUG( "   tex=%d  blit=%d\n", tex_width, blit_width );
+	DRM_DEBUG( "   tex=%dx%d  blit=%d\n",
+		   tex_width, tex->height, blit_width );
 
 	/* Flush the pixel cache.  This ensures no pixel data gets mixed
 	 * up with the texture data from the host data blit, otherwise
@@ -1087,11 +1088,7 @@ static int radeon_cp_dispatch_texture( drm_device_t *dev,
 		     RADEON_GMC_CLR_CMP_CNTL_DIS |
 		     RADEON_GMC_WR_MSK_DIS);
 
-#if 1
 	buffer[2] = (tex->pitch << 22) | (tex->offset >> 10);
-#else
-	buffer[2] = dev_priv->front_pitch_offset;
-#endif
 	buffer[3] = 0xffffffff;
 	buffer[4] = 0xffffffff;
 	buffer[5] = (y << 16) | image->x;
@@ -1112,10 +1109,6 @@ static int radeon_cp_dispatch_texture( drm_device_t *dev,
 		 * width.
 		 */
 		for ( i = 0 ; i < tex->height ; i++ ) {
-			int j;
-			for ( j = 0 ; j < 8 ; j++ ) {
-				buffer[j] = 0xf800f800;
-			}
 			if ( copy_from_user( buffer, data, tex_width ) )
 				return -EFAULT;
 			buffer += 8;
