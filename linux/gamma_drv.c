@@ -37,9 +37,9 @@ EXPORT_SYMBOL(gamma_cleanup);
 #define GAMMA_NAME	 "gamma"
 #define GAMMA_DESC	 "3dlabs GMX 2000"
 #define GAMMA_DATE	 "19990830"
-#define GAMMA_MAJOR	 0
+#define GAMMA_MAJOR	 1
 #define GAMMA_MINOR	 0
-#define GAMMA_PATCHLEVEL 5
+#define GAMMA_PATCHLEVEL 0
 
 static drm_device_t	      gamma_device;
 

@@ -39,9 +39,9 @@ EXPORT_SYMBOL(mga_cleanup);
 #define MGA_NAME	 "mga"
 #define MGA_DESC	 "Matrox g200/g400"
 #define MGA_DATE	 "19991213"
-#define MGA_MAJOR	 0
+#define MGA_MAJOR	 1
 #define MGA_MINOR	 0
-#define MGA_PATCHLEVEL	 1
+#define MGA_PATCHLEVEL	 0
 
 static drm_device_t	      mga_device;
 drm_ctx_t		      mga_res_ctx;

@@ -37,9 +37,9 @@ EXPORT_SYMBOL(tdfx_cleanup);
 #define TDFX_NAME	 "tdfx"
 #define TDFX_DESC	 "tdfx"
 #define TDFX_DATE	 "19991009"
-#define TDFX_MAJOR	 0
+#define TDFX_MAJOR	 1
 #define TDFX_MINOR	 0
-#define TDFX_PATCHLEVEL  1
+#define TDFX_PATCHLEVEL  0
 
 static drm_device_t	      tdfx_device;
 drm_ctx_t	              tdfx_res_ctx;
