@@ -133,18 +133,15 @@ void gamma_dma_service(int irq, void *device, struct pt_regs *regs)
 	atomic_inc(&dev->counts[6]); /* _DRM_STAT_IRQ */
 
 #if !QUEUED_DMA
-#if 1
 	if (GAMMA_READ(GAMMA_GCOMMANDINTFLAGS) == 0x10) {
 #if 0
 	printk("CommandErrorFlags 0x%x\n",GAMMA_READ(0xc58));
 	printk("GErrorFlags 0x%x\n",GAMMA_READ(0x838));
 #endif
 	GAMMA_WRITE(GAMMA_GCOMMANDINTFLAGS, 0x10);
-	GAMMA_WRITE(0xc58, 0x4); /* Clear DMA overrun */
-	GAMMA_WRITE(0xc58, 0xffffffff); /* Clear everything overrun */
+	GAMMA_WRITE(0xc58, 0xffffffff); /* Clear all errors */
 	GAMMA_WRITE(0x838, 0x2000);
 	}
-#endif
 
 	while (GAMMA_READ(GAMMA_INFIFOSPACE) < 3);
 	GAMMA_WRITE(GAMMA_GDELAYTIMER, 0xc350/2); /* 0x05S */
@@ -197,7 +194,9 @@ static int gamma_do_dma(drm_device_t *dev, int locked)
 	}
 
 	buf	= dma->next_buffer;
-	address = (unsigned long)buf->address;
+	/* WE NOW ARE ON LOGICAL PAGES!! - using page table setup in dma_init */
+	/* So we pass the buffer index value into the physical page offset */
+	address = buf->idx << 12;
 	length	= buf->used;
 
 	DRM_DEBUG("context %d, buffer %d (%ld bytes)\n",
