@@ -35,7 +35,7 @@
 #include <linux/delay.h>
 
 
-/* ================================================================
+/* =============================================================
  * CCE hardware state programming functions
  */
 
@@ -274,7 +274,7 @@ static inline void r128_emit_state( drm_r128_private_t *dev_priv )
 
 
 #if R128_PERFORMANCE_BOXES
-/* ================================================================
+/* =============================================================
  * Performance monitoring functions
  */
 
@@ -340,7 +340,7 @@ static void r128_cce_performance_boxes( drm_r128_private_t *dev_priv )
 #endif
 
 
-/* ================================================================
+/* =============================================================
  * CCE command dispatch functions
  */
 
@@ -879,7 +879,7 @@ static int r128_cce_dispatch_blit( drm_device_t *dev,
 }
 
 
-/* ================================================================
+/* =============================================================
  * Tiled depth buffer management
  *
  * FIXME: These should all set the destination write mask for when we
@@ -1203,7 +1203,7 @@ static int r128_cce_dispatch_read_pixels( drm_device_t *dev,
 }
 
 
-/* ================================================================
+/* =============================================================
  * Polygon stipple
  */
 
@@ -1225,7 +1225,7 @@ static void r128_cce_dispatch_stipple( drm_device_t *dev, u32 *stipple )
 }
 
 
-/* ================================================================
+/* =============================================================
  * IOCTL functions
  */
 

@@ -35,7 +35,7 @@
 #include <linux/delay.h>
 
 
-/* ================================================================
+/* =============================================================
  * CP hardware state programming functions
  */
 
@@ -374,7 +374,7 @@ static inline void radeon_emit_state( drm_radeon_private_t *dev_priv,
 
 
 #if RADEON_PERFORMANCE_BOXES
-/* ================================================================
+/* =============================================================
  * Performance monitoring functions
  */
 
@@ -432,7 +432,7 @@ static void radeon_cp_performance_boxes( drm_radeon_private_t *dev_priv )
 #endif
 
 
-/* ================================================================
+/* =============================================================
  * CP command dispatch functions
  */
 
@@ -1092,7 +1092,7 @@ static void radeon_cp_dispatch_stipple( drm_device_t *dev, u32 *stipple )
 }
 
 
-/* ================================================================
+/* =============================================================
  * IOCTL functions
  */
 

@@ -43,7 +43,7 @@
 static inline void gamma_dma_dispatch(drm_device_t *dev, unsigned long address,
 				      unsigned long length)
 {
-	drm_gamma_private_t *dev_priv =					
+	drm_gamma_private_t *dev_priv =
 				(drm_gamma_private_t *)dev->dev_private;
 #if !QUEUED_DMA
 	mb();
@@ -65,7 +65,7 @@ static inline void gamma_dma_dispatch(drm_device_t *dev, unsigned long address,
 
 void gamma_dma_quiescent_single(drm_device_t *dev)
 {
-	drm_gamma_private_t *dev_priv =					
+	drm_gamma_private_t *dev_priv =
 				(drm_gamma_private_t *)dev->dev_private;
 	while (GAMMA_READ(GAMMA_DMACOUNT));
 
@@ -82,7 +82,7 @@ void gamma_dma_quiescent_single(drm_device_t *dev)
 
 void gamma_dma_quiescent_dual(drm_device_t *dev)
 {
-	drm_gamma_private_t *dev_priv =					
+	drm_gamma_private_t *dev_priv =
 				(drm_gamma_private_t *)dev->dev_private;
 	while (GAMMA_READ(GAMMA_DMACOUNT));
 
@@ -105,7 +105,7 @@ void gamma_dma_quiescent_dual(drm_device_t *dev)
 
 void gamma_dma_ready(drm_device_t *dev)
 {
-	drm_gamma_private_t *dev_priv =					
+	drm_gamma_private_t *dev_priv =
 				(drm_gamma_private_t *)dev->dev_private;
 #if !QUEUED_DMA
 	while (GAMMA_READ(GAMMA_DMACOUNT));
@@ -114,12 +114,12 @@ void gamma_dma_ready(drm_device_t *dev)
 
 static inline int gamma_dma_is_ready(drm_device_t *dev)
 {
-	drm_gamma_private_t *dev_priv =					
+	drm_gamma_private_t *dev_priv =
 				(drm_gamma_private_t *)dev->dev_private;
 #if !QUEUED_DMA
 	return(!GAMMA_READ(GAMMA_DMACOUNT));
 #else
-	return (GAMMA_READ(GAMMA_GCOMMANDINTFLAGS) & 0x01); 
+	return (GAMMA_READ(GAMMA_GCOMMANDINTFLAGS) & 0x01);
 #endif
 }
 
@@ -127,7 +127,7 @@ void gamma_dma_service(int irq, void *device, struct pt_regs *regs)
 {
 	drm_device_t	 *dev = (drm_device_t *)device;
 	drm_device_dma_t *dma = dev->dma;
-	drm_gamma_private_t *dev_priv =					
+	drm_gamma_private_t *dev_priv =
 				(drm_gamma_private_t *)dev->dev_private;
 
 	atomic_inc(&dev->counts[6]); /* _DRM_STAT_IRQ */
@@ -603,7 +603,7 @@ int gamma_dma(struct inode *inode, struct file *filp, unsigned int cmd,
 	}
 
 	if (d.send_count) {
-#if OLDDMA 
+#if OLDDMA
 		if (d.flags & _DRM_DMA_PRIORITY)
 			retcode = gamma_dma_priority(dev, &d);
 		else
@@ -625,7 +625,7 @@ int gamma_dma(struct inode *inode, struct file *filp, unsigned int cmd,
 	return retcode;
 }
 
-/* ================================================================
+/* =============================================================
  * DMA initialization, cleanup
  */
 
@@ -641,7 +641,7 @@ static int gamma_do_init_dma( drm_device_t *dev, drm_gamma_init_t *init )
 
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
-	dev_priv = DRM(alloc)( sizeof(drm_gamma_private_t), 
+	dev_priv = DRM(alloc)( sizeof(drm_gamma_private_t),
 							DRM_MEM_DRIVER );
 	if ( !dev_priv )
 		return -ENOMEM;
@@ -797,7 +797,7 @@ int gamma_dma_copy( struct inode *inode, struct file *filp,
 	return gamma_do_copy_dma( dev, &copy );
 }
 
-/* ================================================================
+/* =============================================================
  * Per Context SAREA Support
  */
 

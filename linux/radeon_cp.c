@@ -322,7 +322,7 @@ static void radeon_status( drm_radeon_private_t *dev_priv )
 #endif
 
 
-/* ================================================================
+/* =============================================================
  * Engine, FIFO control
  */
 
@@ -393,7 +393,7 @@ static int radeon_do_wait_for_idle( drm_radeon_private_t *dev_priv )
 }
 
 
-/* ================================================================
+/* =============================================================
  * CP control, initialization
  */
 
@@ -953,7 +953,7 @@ int radeon_engine_reset( struct inode *inode, struct file *filp,
 }
 
 
-/* ================================================================
+/* =============================================================
  * Fullscreen mode
  */
 
@@ -1014,7 +1014,7 @@ int radeon_fullscreen( struct inode *inode, struct file *filp,
 }
 
 
-/* ================================================================
+/* =============================================================
  * Freelist management
  */
 #define RADEON_BUFFER_USED	0xffffffff
@@ -1153,7 +1153,7 @@ void radeon_freelist_reset( drm_device_t *dev )
 }
 
 
-/* ================================================================
+/* =============================================================
  * CP command submission
  */
 

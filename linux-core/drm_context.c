@@ -34,7 +34,7 @@
 
 #if __HAVE_CTX_BITMAP
 
-/* ================================================================
+/* =============================================================
  * Context bitmap support
  */
 
@@ -72,16 +72,16 @@ int DRM(ctxbitmap_next)( drm_device_t *dev )
 			if(dev->context_sareas) {
 				dev->context_sareas = DRM(realloc)(
 					dev->context_sareas,
-					(dev->max_context - 1) * 
+					(dev->max_context - 1) *
 					sizeof(*dev->context_sareas),
-					dev->max_context * 
+					dev->max_context *
 					sizeof(*dev->context_sareas),
 					DRM_MEM_MAPS);
 				dev->context_sareas[bit] = NULL;
 			} else {
 				/* max_context == 1 at this point */
 				dev->context_sareas = DRM(alloc)(
-						dev->max_context * 
+						dev->max_context *
 						sizeof(*dev->context_sareas),
 						DRM_MEM_MAPS);
 				dev->context_sareas[bit] = NULL;
@@ -123,14 +123,14 @@ void DRM(ctxbitmap_cleanup)( drm_device_t *dev )
 {
 	down(&dev->struct_sem);
 	if( dev->context_sareas ) DRM(free)( dev->context_sareas,
-					     sizeof(*dev->context_sareas) * 
+					     sizeof(*dev->context_sareas) *
 					     dev->max_context,
 					     DRM_MEM_MAPS );
 	DRM(free)( (void *)dev->ctx_bitmap, PAGE_SIZE, DRM_MEM_CTXBITMAP );
 	up(&dev->struct_sem);
 }
 
-/* ================================================================
+/* =============================================================
  * Per Context SAREA Support
  */
 
@@ -202,7 +202,7 @@ int DRM(setsareactx)(struct inode *inode, struct file *filp,
 	return 0;
 }
 
-/* ================================================================
+/* =============================================================
  * The actual DRM context handling routines
  */
 
@@ -389,7 +389,7 @@ int DRM(rmctx)( struct inode *inode, struct file *filp,
 
 #else /* __HAVE_CTX_BITMAP */
 
-/* ================================================================
+/* =============================================================
  * Old-style context support
  */
 
