@@ -1710,11 +1710,11 @@ int radeon_cp_cmdbuf( struct inode *inode, struct file *filp,
 	VB_AGE_TEST_WITH_RETURN( dev_priv );
 
 
-	if (!verify_area( VERIFY_READ, cmdbuf.buf, cmdbuf.bufsz ))
+	if (verify_area( VERIFY_READ, cmdbuf.buf, cmdbuf.bufsz ))
 		return -EFAULT;
 
-	if (!verify_area( VERIFY_READ, cmdbuf.boxes, 
-			  cmdbuf.nbox * sizeof(drm_clip_rect_t)))
+	if (verify_area( VERIFY_READ, cmdbuf.boxes, 
+			 cmdbuf.nbox * sizeof(drm_clip_rect_t)))
 		return -EFAULT;
 
 	while ( cmdbuf.bufsz >= sizeof(header) ) {
