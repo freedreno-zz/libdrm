@@ -158,6 +158,7 @@ static int mga_dma_initialize(drm_device_t *dev, drm_mga_init_t *init) {
 
 	memset(dev_priv, 0, sizeof(drm_mga_private_t));
       	atomic_set(&dev_priv->pending_bufs, 0);
+      	atomic_set(&dev_priv->in_flush, 0);
 
 	if((init->reserved_map_idx >= dev->map_count) ||
 	   (init->buffer_map_idx >= dev->map_count)) {
@@ -332,15 +333,13 @@ static void __mga_iload_small(drm_device_t *dev,
    	PRIMOUTREG(MGAREG_SECEND, (address + length) | use_agp);
    	PRIMOUTREG(MGAREG_DMAPAD, 0);
    	PRIMOUTREG(MGAREG_DMAPAD, 0);
-   	PRIMOUTREG(MGAREG_DWGSYNC, 0);
+   	PRIMOUTREG(MGAREG_DMAPAD, 0);
    	PRIMOUTREG(MGAREG_SOFTRAP, 0);
    	PRIMADVANCE(dev_priv);
 #if 0
    	/* For now we need to set this in the ioctl */
 	sarea_priv->dirty |= MGASAREA_NEW_CONTEXT;
 #endif
-   	MGA_WRITE(MGAREG_DWGSYNC, MGA_SYNC_TAG);
-   	while(MGA_READ(MGAREG_DWGSYNC) != MGA_SYNC_TAG) ;
 
       	MGA_WRITE(MGAREG_PRIMADDRESS, dev_priv->prim_phys_head | TT_GENERAL);
 	MGA_WRITE(MGAREG_PRIMEND, (phys_head + num_dwords * 4) | use_agp);   
@@ -407,15 +406,13 @@ static void __mga_iload_xy(drm_device_t *dev,
 	   
    	PRIMOUTREG(MGAREG_DMAPAD, 0);
    	PRIMOUTREG(MGAREG_DMAPAD, 0);
-   	PRIMOUTREG(MGAREG_DWGSYNC, 0);
+   	PRIMOUTREG(MGAREG_DMAPAD, 0);
    	PRIMOUTREG(MGAREG_SOFTRAP, 0);
    	PRIMADVANCE(dev_priv);
 #if 0
    	/* For now we need to set this in the ioctl */
 	sarea_priv->dirty |= MGASAREA_NEW_CONTEXT;
 #endif
-   	MGA_WRITE(MGAREG_DWGSYNC, MGA_SYNC_TAG);
-   	while(MGA_READ(MGAREG_DWGSYNC) != MGA_SYNC_TAG) ;
 
       	MGA_WRITE(MGAREG_PRIMADDRESS, dev_priv->prim_phys_head | TT_GENERAL);
 	MGA_WRITE(MGAREG_PRIMEND, (phys_head + num_dwords * 4) | use_agp);
@@ -468,15 +465,12 @@ static void mga_dma_dispatch_vertex(drm_device_t *dev, drm_buf_t *buf)
 
 		PRIMOUTREG( MGAREG_DMAPAD, 0);
 		PRIMOUTREG( MGAREG_DMAPAD, 0);
-		PRIMOUTREG( MGAREG_DWGSYNC, 0);
+		PRIMOUTREG( MGAREG_DMAPAD, 0);
 		PRIMOUTREG( MGAREG_SOFTRAP, 0);
 		PRIMADVANCE(dev_priv);
 	}
 
 	PRIMGETPTR( dev_priv );
-
-   	MGA_WRITE(MGAREG_DWGSYNC, MGA_SYNC_TAG);
-   	while(MGA_READ(MGAREG_DWGSYNC) != MGA_SYNC_TAG) ;
 
       	MGA_WRITE(MGAREG_PRIMADDRESS, dev_priv->prim_phys_head | TT_GENERAL);
 	MGA_WRITE(MGAREG_PRIMEND, (phys_head + num_dwords * 4) | use_agp);
@@ -504,12 +498,9 @@ static void mga_dma_dispatch_general(drm_device_t *dev, drm_buf_t *buf)
 
 	PRIMOUTREG( MGAREG_DMAPAD, 0);
 	PRIMOUTREG( MGAREG_DMAPAD, 0);
-      	PRIMOUTREG( MGAREG_DWGSYNC, 0);
+      	PRIMOUTREG( MGAREG_DMAPAD, 0);
    	PRIMOUTREG( MGAREG_SOFTRAP, 0);
    	PRIMADVANCE(dev_priv);
-
-   	MGA_WRITE(MGAREG_DWGSYNC, MGA_SYNC_TAG);
-   	while(MGA_READ(MGAREG_DWGSYNC) != MGA_SYNC_TAG) ;
 
       	MGA_WRITE(MGAREG_PRIMADDRESS, dev_priv->prim_phys_head | TT_GENERAL);
 	MGA_WRITE(MGAREG_PRIMEND, (phys_head + num_dwords * 4) | use_agp);
@@ -528,11 +519,11 @@ static inline void mga_dma_quiescent(drm_device_t *dev)
 	      atomic_dec(&dev_priv->dispatch_lock);
 	   }
 	}
-	while((MGA_READ(MGAREG_STATUS) & 0x00020001) != 0x00020000) ;
-#if 0
+#if 1
    MGA_WRITE(MGAREG_DWGSYNC, MGA_SYNC_TAG);
+   while(MGA_READ(MGAREG_DWGSYNC) != MGA_SYNC_TAG) ;
+   MGA_WRITE(MGAREG_DWGSYNC, 0);
 #endif
-   	while(MGA_READ(MGAREG_DWGSYNC) == MGA_SYNC_TAG) ;
    	atomic_dec(&dev_priv->dispatch_lock);
 }
 
@@ -644,9 +635,7 @@ static int mga_do_dma(drm_device_t *dev, int locked)
 	}
    
 	/* Always hold the hardware lock while dispatching.
-	 * or if in_flush is set, ignore the lock.
 	 */
-   	if ((atomic_read(&dev_priv->in_flush)) == 1) locked = 1;
 
 	if (!locked && !drm_lock_take(&dev->lock.hw_lock->lock,
 				      DRM_KERNEL_CONTEXT)) {
@@ -706,7 +695,6 @@ static int mga_do_dma(drm_device_t *dev, int locked)
 	   wake_up_interruptible(&dev->queuelist[DRM_KERNEL_CONTEXT]->flush_queue);
 	}   
 #if 0
-   wake_up_interruptible(&dev->lock.lock_queue);
 #endif
    
 	/* We hold the dispatch lock until the interrupt handler
@@ -900,9 +888,7 @@ int mga_flush_queue(drm_device_t *dev)
    	printk("mga_flush_queue\n");
    	printk("pending_bufs : %d\n", atomic_read(&dev_priv->pending_bufs));
    	if(atomic_read(&dev_priv->pending_bufs) != 0) {
-#if 1
 	   printk("got to flush\n");
-	   atomic_inc(&dev_priv->in_flush);
 	   current->state = TASK_INTERRUPTIBLE;
 	   add_wait_queue(&q->flush_queue, &entry);
 	   for (;;) {
@@ -918,14 +904,6 @@ int mga_flush_queue(drm_device_t *dev)
 	   printk("Exited out of schedule from flush_queue\n");
 	   current->state = TASK_RUNNING;
 	   remove_wait_queue(&q->flush_queue, &entry);
-	   atomic_dec(&dev_priv->in_flush);
-#endif
-#if 0
-	   while(atomic_read(&dev_priv->pending_bufs) != 0) {
-	      /* We have the lock */
-	      mga_dma_schedule(dev, 1);
-	   }
-#endif
 	}
    
    	return ret;
@@ -936,6 +914,8 @@ int mga_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 {
 	drm_file_t	  *priv	  = filp->private_data;
 	drm_device_t	  *dev	  = priv->dev;
+   	drm_mga_private_t *dev_priv = (drm_mga_private_t *) dev->dev_private;
+
 	DECLARE_WAITQUEUE(entry, current);
 	int		  ret	= 0;
 	drm_lock_t	  lock;
@@ -947,7 +927,7 @@ int mga_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 			  current->pid, lock.context);
 		return -EINVAL;
 	}
-
+   
    	printk("%d (pid %d) requests lock (0x%08x), flags = 0x%08x\n",
 		  lock.context, current->pid, dev->lock.hw_lock->lock,
 		  lock.flags);
@@ -956,7 +936,38 @@ int mga_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 	if (lock.context < 0) {
 		return -EINVAL;
 	}
-
+   
+   	atomic_inc(&dev_priv->in_flush);
+   	if(atomic_read(&dev_priv->in_flush) != 1) {
+	   atomic_dec(&dev_priv->in_flush);
+	   add_wait_queue(&dev->lock.lock_queue, &entry);
+	   for (;;) {
+	      /* Contention */
+	      atomic_inc(&dev->total_sleeps);
+	      current->state = TASK_INTERRUPTIBLE;
+	      current->policy |= SCHED_YIELD;
+	      atomic_inc(&dev_priv->in_flush);
+	      if(atomic_read(&dev_priv->in_flush) == 1) {
+		 break;
+	      }
+	      atomic_dec(&dev_priv->in_flush);
+	      printk("Calling lock schedule\n");
+	      schedule();
+	      if (signal_pending(current)) {
+		 ret = -ERESTARTSYS;
+		 break;
+	      }
+	   }
+	   current->state = TASK_RUNNING;
+	   remove_wait_queue(&dev->lock.lock_queue, &entry);
+	}
+   
+   	if (lock.flags & _DRM_LOCK_QUIESCENT) {
+	   ret = mga_flush_queue(dev);
+	   if(ret != 0) atomic_dec(&dev_priv->in_flush);
+	} else {
+	   atomic_dec(&dev_priv->in_flush);
+	}
 	/* Only one queue:
 	 */
 
@@ -993,14 +1004,12 @@ int mga_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 	
 	if (!ret) {
 		if (lock.flags & _DRM_LOCK_QUIESCENT) {
-		   	printk("_DRM_LOCK_QUIESCENT\n");
-		   	ret = mga_flush_queue(dev);
-		   	if(ret != 0) {
-			   drm_lock_free(dev, &dev->lock.hw_lock->lock,
-					 lock.context);
-			} else {
-			   mga_dma_quiescent(dev);
-			}
+		   printk("_DRM_LOCK_QUIESCENT\n");
+#if 0
+		   mga_dma_quiescent(dev);
+#endif
+		   atomic_dec(&dev_priv->in_flush);
+		   wake_up_interruptible(&dev->lock.lock_queue);
 		}
 	}
 	printk("%d %s\n", lock.context, ret ? "interrupted" : "has lock");
