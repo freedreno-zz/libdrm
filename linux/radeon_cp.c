@@ -36,7 +36,7 @@
 #include <linux/interrupt.h>	/* For task queue support */
 #include <linux/delay.h>
 
-#define RADEON_FIFO_DEBUG	1
+#define RADEON_FIFO_DEBUG	0
 
 
 /* CP microcode (from ATI) */
@@ -373,14 +373,8 @@ static int radeon_do_wait_for_fifo( drm_radeon_private_t *dev_priv,
 	}
 
 #if RADEON_FIFO_DEBUG
-	{
-	  static int fails = 0;
-	  if (!fails) {
-	    DRM_ERROR( "failed!\n" );
-	    radeon_status( dev_priv );
-	    fails++;
-	  }
-	}
+	DRM_ERROR( "failed!\n" );
+	radeon_status( dev_priv );
 #endif
 	return -EBUSY;
 }
@@ -402,14 +396,8 @@ static int radeon_do_wait_for_idle( drm_radeon_private_t *dev_priv )
 	}
 
 #if RADEON_FIFO_DEBUG
-	{
-	  static int fails = 0;
-	  if (!fails) {
-	    DRM_ERROR( "failed!\n" );
-	    radeon_status( dev_priv );
-	    fails++;
-	  }
-	}
+	DRM_ERROR( "failed!\n" );
+	radeon_status( dev_priv );
 #endif
 	return -EBUSY;
 }
@@ -666,6 +654,17 @@ static int radeon_do_init_cp( drm_device_t *dev, drm_radeon_init_t *init )
 
 	dev_priv->is_pci = init->is_pci;
 
+#if 1
+	/* PCI support is not 100% working, so we disable it here.
+	 */
+	if ( dev_priv->is_pci ) {
+		DRM_ERROR( "PCI GART not yet supported for Radeon!\n" );
+		DRM(free)( dev_priv, sizeof(*dev_priv), DRM_MEM_DRIVER );
+		dev->dev_private = NULL;
+		return -EINVAL;
+	}
+#endif
+
 	if ( dev_priv->is_pci && !dev->sg ) {
 		DRM_DEBUG( "PCI GART memory not allocated!\n" );
 		DRM_ERROR( "PCI GART memory not allocated!\n" );
@@ -818,7 +817,6 @@ static int radeon_do_init_cp( drm_device_t *dev, drm_radeon_init_t *init )
 						+ dev_priv->agp_vm_start);
 	else
 #endif
-		/* ???????? */
 		dev_priv->agp_buffers_offset = (dev_priv->buffers->offset
 						- dev->sg->handle
 						+ dev_priv->agp_vm_start);
@@ -882,26 +880,29 @@ static int radeon_do_init_cp( drm_device_t *dev, drm_radeon_init_t *init )
 			dev->dev_private = NULL;
 			return -EINVAL;
 		}
-		/* Turn on PCI GART */
+		/* Turn on PCI GART
+		 */
 		tmp = RADEON_READ( RADEON_AIC_CNTL )
 		      | RADEON_PCIGART_TRANSLATE_EN;
 		RADEON_WRITE( RADEON_AIC_CNTL, tmp );
 
-		/* set PCI GART page-table base address */
+		/* set PCI GART page-table base address
+		 */
 		RADEON_WRITE( RADEON_AIC_PT_BASE,
 			      virt_to_bus( (void *)dev_priv->phys_pci_gart ) );
 
-		/* set address range for PCI address translate */
+		/* set address range for PCI address translate
+		 */
 		RADEON_WRITE( RADEON_AIC_LO_ADDR, dev_priv->agp_vm_start );
 		RADEON_WRITE( RADEON_AIC_HI_ADDR, dev_priv->agp_vm_start
 						  + dev_priv->agp_size - 1);
 
-#if 1
-		/* ??? turn off AGP aperture */
+		/* Turn off AGP aperture -- is this required for PCIGART?
+		 */
 		RADEON_WRITE( RADEON_MC_AGP_LOCATION, 0 );
-#endif
 	} else {
-		/* Turn off PCI GART */
+		/* Turn off PCI GART
+		 */
 		tmp = RADEON_READ( RADEON_AIC_CNTL )
 		      & ~RADEON_PCIGART_TRANSLATE_EN;
 		RADEON_WRITE( RADEON_AIC_CNTL, tmp );
@@ -925,9 +926,11 @@ int radeon_do_cleanup_cp( drm_device_t *dev )
 	if ( dev->dev_private ) {
 		drm_radeon_private_t *dev_priv = dev->dev_private;
 
-		DRM_IOREMAPFREE( dev_priv->cp_ring );
-		DRM_IOREMAPFREE( dev_priv->ring_rptr );
-		DRM_IOREMAPFREE( dev_priv->buffers );
+		if ( !dev_priv->is_pci ) {
+			DRM_IOREMAPFREE( dev_priv->cp_ring );
+			DRM_IOREMAPFREE( dev_priv->ring_rptr );
+			DRM_IOREMAPFREE( dev_priv->buffers );
+		}
 
 		DRM(free)( dev->dev_private, sizeof(drm_radeon_private_t),
 			   DRM_MEM_DRIVER );
@@ -993,7 +996,7 @@ int radeon_cp_stop( struct inode *inode, struct file *filp,
 	drm_radeon_private_t *dev_priv = dev->dev_private;
 	drm_radeon_cp_stop_t stop;
 	int ret;
-	DRM_DEBUG( "\n" );
+	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
 	LOCK_TEST_WITH_RETURN( dev );
 
@@ -1295,7 +1298,10 @@ int radeon_wait_ring( drm_radeon_private_t *dev_priv, int n )
 	}
 
 	/* FIXME: This return value is ignored in the BEGIN_RING macro! */
+#if RADEON_FIFO_DEBUG
+	radeon_status( dev_priv );
 	DRM_ERROR( "failed!\n" );
+#endif
 	return -EBUSY;
 }
 

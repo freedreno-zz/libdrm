@@ -151,28 +151,36 @@ int DRM(sg_alloc)( struct inode *inode, struct file *filp,
 	{
 	int error = 0;
 
-	for(i = 0; i < pages; i++) {
+	for ( i = 0 ; i < pages ; i++ ) {
 		unsigned long *tmp;
 
 		tmp = (unsigned long *)entry->pagelist[i]->virtual;
-		for(j = 0; j < PAGE_SIZE / sizeof(unsigned long); j++, tmp++) {
+		for ( j = 0 ;
+		      j < PAGE_SIZE / sizeof(unsigned long) ;
+		      j++, tmp++ ) {
 			*tmp = 0xcafebabe;
 		}
 		tmp = (unsigned long *)((u8 *)entry->virtual +
 					(PAGE_SIZE * i));
-		for(j = 0; j < PAGE_SIZE / sizeof(unsigned long); j++, tmp++) {
-			if(*tmp != 0xcafebabe && error == 0) {
+		for( j = 0 ;
+		     j < PAGE_SIZE / sizeof(unsigned long) ;
+		     j++, tmp++ ) {
+			if ( *tmp != 0xcafebabe && error == 0 ) {
 				error = 1;
-				printk("Scatter allocation error, pagelist"
-				       " does not match virtual mapping\n");
+				DRM_ERROR( "Scatter allocation error, "
+					   "pagelist does not match "
+					   "virtual mapping\n" );
 			}
 		}
 		tmp = (unsigned long *)entry->pagelist[i]->virtual;
-		for(j = 0; j < PAGE_SIZE / sizeof(unsigned long); j++, tmp++) {
+		for(j = 0 ;
+		    j < PAGE_SIZE / sizeof(unsigned long) ;
+		    j++, tmp++) {
 			*tmp = 0;
 		}
 	}
-	if(error == 0) printk("Scatter allocation matches pagelist\n");
+	if (error == 0)
+		DRM_ERROR( "Scatter allocation matches pagelist\n" );
 	}
 #endif
 

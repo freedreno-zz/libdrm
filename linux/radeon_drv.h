@@ -520,13 +520,15 @@ extern int radeon_cp_indirect( struct inode *inode, struct file *filp,
 
 #define RADEON_DEREF(reg)	*(volatile u32 *)RADEON_ADDR( reg )
 #ifdef __alpha__
-#define RADEON_READ(reg)		(_RADEON_READ((u32 *)RADEON_ADDR(reg)))
+#define RADEON_READ(reg)	(_RADEON_READ((u32 *)RADEON_ADDR( reg )))
 static inline u32 _RADEON_READ(u32 *addr) {
 	mb();
 	return *(volatile u32 *)addr;
 }
-#define RADEON_WRITE(reg,val)    \
-	do { wmb(); RADEON_DEREF(reg) = val; } while (0)
+#define RADEON_WRITE(reg,val) do {					\
+	wmb();
+	RADEON_DEREF(reg) = val;
+} while (0)
 #else
 #define RADEON_READ(reg)	RADEON_DEREF( reg )
 #define RADEON_WRITE(reg, val)	do { RADEON_DEREF( reg ) = val; } while (0)
@@ -534,13 +536,15 @@ static inline u32 _RADEON_READ(u32 *addr) {
 
 #define RADEON_DEREF8(reg)	*(volatile u8 *)RADEON_ADDR( reg )
 #ifdef __alpha__
-#define RADEON_READ8(reg)                _RADEON_READ8((u8 *)RADEON_ADDR(reg))
+#define RADEON_READ8(reg)	_RADEON_READ8((u8 *)RADEON_ADDR( reg ))
 static inline u8 _RADEON_READ8(u8 *addr) {
 	mb();
 	return *(volatile u8 *)addr;
 }
-#define RADEON_WRITE8(reg,val)   \
-	do { wmb(); RADEON_DEREF8(reg) = val; } while (0)
+#define RADEON_WRITE8(reg,val) do {					\
+	wmb();
+	RADEON_DEREF8( reg ) = val;
+} while (0)
 #else
 #define RADEON_READ8(reg)	RADEON_DEREF8( reg )
 #define RADEON_WRITE8(reg, val)	do { RADEON_DEREF8( reg ) = val; } while (0)

@@ -971,11 +971,11 @@ extern int            DRM(proc_cleanup)(int minor,
 				/* Scatter Gather Support (drm_scatter.h) */
 extern void           DRM(sg_cleanup)(drm_sg_mem_t *entry);
 extern int            DRM(sg_alloc)(struct inode *inode, struct file *filp,
-                                    unsigned int cmd, unsigned long arg);
-extern int	      DRM(sg_free)(struct inode *inode, struct file *filp,
-                                   unsigned int cmd, unsigned long arg);
+				    unsigned int cmd, unsigned long arg);
+extern int            DRM(sg_free)(struct inode *inode, struct file *filp,
+				   unsigned int cmd, unsigned long arg);
 
-                               /* ATI Pcigart support (ati_pcigart.h) */
+                               /* ATI PCIGART support (ati_pcigart.h) */
 extern unsigned long  DRM(ati_pcigart_init)(drm_device_t *dev);
 extern int            DRM(ati_pcigart_cleanup)(unsigned long address);
 

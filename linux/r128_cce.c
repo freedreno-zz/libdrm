@@ -570,9 +570,11 @@ int r128_do_cleanup_cce( drm_device_t *dev )
 	if ( dev->dev_private ) {
 		drm_r128_private_t *dev_priv = dev->dev_private;
 
-		DRM_IOREMAPFREE( dev_priv->cce_ring );
-		DRM_IOREMAPFREE( dev_priv->ring_rptr );
-		DRM_IOREMAPFREE( dev_priv->buffers );
+		if ( !dev_priv->is_pci ) {
+			DRM_IOREMAPFREE( dev_priv->cce_ring );
+			DRM_IOREMAPFREE( dev_priv->ring_rptr );
+			DRM_IOREMAPFREE( dev_priv->buffers );
+		}
 
 		DRM(free)( dev->dev_private, sizeof(drm_r128_private_t),
 			   DRM_MEM_DRIVER );
