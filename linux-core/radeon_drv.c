@@ -37,7 +37,7 @@
 
 #define DRIVER_NAME		"radeon"
 #define DRIVER_DESC		"ATI Radeon"
-#define DRIVER_DATE		"20010405"
+#define DRIVER_DATE		"20020306"
 
 #define DRIVER_MAJOR		1
 #define DRIVER_MINOR		3
@@ -50,6 +50,7 @@
  *     - Add stencil capability to clear ioctl (gareth, keith)
  *     - Increase MAX_TEXTURE_LEVELS (brian)
  * 1.3 - Add cmdbuf ioctl (keith)
+ *     - Add support for new radeon packets (keith)
  */
 #define DRIVER_IOCTLS							     \
  [DRM_IOCTL_NR(DRM_IOCTL_DMA)]               = { radeon_cp_buffers,  1, 0 }, \
