@@ -544,11 +544,20 @@ static int r128_do_init_cce( drm_device_t *dev, drm_r128_init_t *init )
 	R128_WRITE( R128_LAST_DISPATCH_REG,
 		    dev_priv->sarea_priv->last_dispatch );
 
-	if ( dev_priv->is_pci && r128_pcigart_init( dev ) < 0 ) {
-		DRM_ERROR( "failed to init PCI GART!\n" );
-		drm_free( dev_priv, sizeof(*dev_priv), DRM_MEM_DRIVER );
-		dev->dev_private = NULL;
-		return -EINVAL;
+	if ( dev_priv->is_pci ) {
+		dev_priv->phys_pci_gart = ati_pcigart_init( dev );
+		if( dev_priv->phys_pci_gart == 0 ) {
+			DRM_ERROR( "failed to init PCI GART!\n" );
+			drm_free( dev_priv, sizeof(*dev_priv), 
+				 DRM_MEM_DRIVER );
+			dev->dev_private = NULL;
+			return -EINVAL;
+		}
+		DRM_DEBUG( "%s: writing PCI_GART_PAGE...\n", __FUNCTION__ );
+		R128_WRITE( R128_PCI_GART_PAGE, 
+			    virt_to_bus( (void *)dev_priv->phys_pci_gart ) );
+		DRM_DEBUG( "%s: writing PCI_GART_PAGE... done.\n", 
+			   __FUNCTION__ );
 	}
 
 	r128_cce_init_ring_buffer( dev );
@@ -625,7 +634,7 @@ static int r128_do_cleanup_cce( drm_device_t *dev )
 			DO_IOREMAPFREE( dev_priv->ring_rptr );
 			DO_IOREMAPFREE( dev_priv->buffers );
 		} else {
-			r128_pcigart_cleanup( dev );
+			ati_pcigart_cleanup( dev_priv->phys_pci_gart );
 		}
 
 		drm_free( dev->dev_private, sizeof(drm_r128_private_t),

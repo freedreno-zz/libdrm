@@ -32,6 +32,8 @@
  *
  */
 
+#include "ati_pcigart.h"
+
 #ifndef __R128_DRV_H__
 #define __R128_DRV_H__
 
@@ -193,10 +195,6 @@ extern int  r128_rmctx(struct inode *inode, struct file *filp,
 
 extern int  r128_context_switch(drm_device_t *dev, int old, int new);
 extern int  r128_context_switch_complete(drm_device_t *dev, int new);
-
-				/* r128_pcigart.c */
-extern int r128_pcigart_cleanup(drm_device_t *dev);
-extern int r128_pcigart_init(drm_device_t *dev);
 
 /* Register definitions, register access macros and drmAddMap constants
  * for Rage 128 kernel driver.
@@ -410,11 +408,6 @@ extern int r128_pcigart_init(drm_device_t *dev);
 #define R128_LAST_DISPATCH_REG		R128_GUI_SCRATCH_REG1
 #define R128_MAX_VB_AGE			0x7fffffff
 #define R128_MAX_VB_VERTS		(0xffff)
-
-#define R128_PCIGART_TABLE_ORDER	3
-#define R128_PCIGART_TABLE_PAGES	(1 << 3)
-#define R128_MAX_PCIGART_PAGES		8192	/* 32 MB aperture */
-
 
 #define R128_BASE(reg)		((u32)(dev_priv->mmio->handle))
 #define R128_ADDR(reg)		(R128_BASE(reg) + reg)

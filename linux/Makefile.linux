@@ -143,7 +143,7 @@ I810HEADERS=	i810_drv.h $(DRMHEADERS)
 endif
 
 R128OBJS=	r128_drv.o r128_cce.o r128_bufs.o r128_context.o r128_state.o \
-		r128_pcigart.o
+		ati_pcigart.o
 R128HEADERS=	r128_drv.h r128_drm.h $(DRMHEADERS)
 
 RADEONOBJS=	radeon_drv.o radeon_cp.o radeon_bufs.o radeon_context.o \
