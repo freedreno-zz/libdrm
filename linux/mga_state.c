@@ -177,8 +177,7 @@ static void mgaG400EmitTex0( drm_mga_private_t *dev_priv,
 static void mgaG400EmitTex1( drm_mga_private_t *dev_priv, 
 			     drm_mga_buf_priv_t *buf_priv )
 {
-	drm_mga_sarea_t *sarea_priv = dev_priv->sarea_priv;
-	unsigned int *regs = sarea_priv->TexState[1];
+	unsigned int *regs = buf_priv->TexState[1];
 
 	PRIMLOCALS;
 	PRIMGETPTR(dev_priv);
@@ -215,8 +214,7 @@ static void mgaG400EmitTex1( drm_mga_private_t *dev_priv,
 static void mgaG400EmitPipe(drm_mga_private_t *dev_priv, 
 			    drm_mga_buf_priv_t *buf_priv)
 {
-	drm_mga_sarea_t *sarea_priv = dev_priv->sarea_priv;
-	unsigned int pipe = sarea_priv->WarpPipe;
+	unsigned int pipe = buf_priv->WarpPipe;
 	float fParam = 12800.0f;
 	PRIMLOCALS;
    
@@ -264,8 +262,7 @@ static void mgaG400EmitPipe(drm_mga_private_t *dev_priv,
 static void mgaG200EmitPipe( drm_mga_private_t *dev_priv,
 			     drm_mga_buf_priv_t *buf_priv )
 {
-	drm_mga_sarea_t *sarea_priv = dev_priv->sarea_priv;
-	unsigned int pipe = sarea_priv->WarpPipe;
+	unsigned int pipe = buf_priv->WarpPipe;
 	PRIMLOCALS;
 
 	PRIMGETPTR(dev_priv);
@@ -297,8 +294,13 @@ void mgaEmitState( drm_mga_private_t *dev_priv, drm_mga_buf_priv_t *buf_priv )
 	if (dev_priv->chipset == MGA_CARD_TYPE_G400) {	   
 		int multitex = buf_priv->WarpPipe & MGA_T2;
 
-		if (dirty & MGA_UPLOAD_PIPE) 
+/*  		printk("BUF PIPE: %x LOADED PIPE: %x\n", */
+/*  		       buf_priv->WarpPipe, dev_priv->WarpPipe); */
+
+		if (buf_priv->WarpPipe != dev_priv->WarpPipe) { 
 			mgaG400EmitPipe( dev_priv, buf_priv );
+			dev_priv->WarpPipe = buf_priv->WarpPipe;
+		}
 
 		if (dirty & MGA_UPLOAD_CTX)
 			mgaEmitContext( dev_priv, buf_priv );
@@ -309,8 +311,10 @@ void mgaEmitState( drm_mga_private_t *dev_priv, drm_mga_buf_priv_t *buf_priv )
 		if ((dirty & MGA_UPLOAD_TEX1) && multitex)
 			mgaG400EmitTex1( dev_priv, buf_priv );
 	} else {
-		if (dirty & MGA_UPLOAD_PIPE) 
+		if (buf_priv->WarpPipe != dev_priv->WarpPipe) { 
 			mgaG200EmitPipe( dev_priv, buf_priv );
+			dev_priv->WarpPipe = buf_priv->WarpPipe;
+		}
 
 		if (dirty & MGA_UPLOAD_CTX)
 			mgaEmitContext( dev_priv, buf_priv );

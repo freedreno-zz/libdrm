@@ -482,7 +482,7 @@ int mga_init(void)
 	}
 #ifdef CONFIG_MTRR
    	dev->agp->agp_mtrr = mtrr_add(dev->agp->agp_info.aper_base,
-				      dev->agp->agp_info.aper_size,
+				      dev->agp->agp_info.aper_size * 1024 * 1024,
 				      MTRR_TYPE_WRCOMB,
 				      1);
 #endif
@@ -527,7 +527,7 @@ void mga_cleanup(void)
 	   	int retval;
 	   	retval = mtrr_del(dev->agp->agp_mtrr, 
 				  dev->agp->agp_info.aper_base,
-				  dev->agp->agp_info.aper_size);
+				  dev->agp->agp_info.aper_size * 1024*1024);
 	   	DRM_DEBUG("mtrr_del = %d\n", retval);
 	}
 #endif

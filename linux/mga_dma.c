@@ -253,6 +253,8 @@ static int mga_dma_initialize(drm_device_t *dev, drm_mga_init_t *init) {
 
 	dev_priv->mAccess = init->mAccess;
 	
+	dev_priv->WarpPipe = -1;
+
 	if (MGA_VERBOSE) {
 	   DRM_DEBUG("chipset: %d ucode_size: %d backOffset: %x depthOffset: %x\n",
 		  dev_priv->chipset, dev_priv->warp_ucode_size, 
@@ -628,6 +630,7 @@ static void mga_dma_dispatch_tex_blit(drm_device_t *dev, drm_buf_t *buf )
 	   sarea_priv->dirty &= ~(MGA_DMA_FLUSH);
 	}
 
+
    	mga_flush_write_combine();
       	MGA_WRITE(MGAREG_PRIMADDRESS, dev_priv->prim_phys_head | TT_GENERAL);
 	MGA_WRITE(MGAREG_PRIMEND, (phys_head + num_dwords * 4) | use_agp);
@@ -643,27 +646,36 @@ static void mga_dma_dispatch_vertex(drm_device_t *dev, drm_buf_t *buf)
 
 	drm_buf_t *real_buf = dev->dma->buflist[ buf_priv->vertex_real_idx ];
 	unsigned long address = (unsigned long)real_buf->bus_address;
-	int length = buf->used;	/* this is correct */
+	int length = buf->used;	
 	int use_agp = PDEA_pagpxfer_enable;
 	int i = 0;
    	PRIMLOCALS;
 
 	PRIMRESET(dev_priv);
-	
 
-   	if (MGA_VERBOSE)
-		DRM_DEBUG("dispatch vertex addr 0x%lx, length 0x%x nbox %d\n", 
-		       address, length, buf_priv->nbox);
+		DRM_DEBUG("dispatch vertex %d addr 0x%lx, length 0x%x nbox %d\n", 
+		       buf->idx, address, length, buf_priv->nbox);
 
 	if (!buf_priv->vertex_discard) {
 
 		mgaEmitState( dev_priv, buf_priv );
 
 		do {
-			if (i < buf_priv->nbox) 
+			if (i < buf_priv->nbox) {
+				if (0)
+					DRM_DEBUG("idx %d Emit box %d/%d:"
+					       "%d,%d - %d,%d\n", 
+					       buf->idx,
+					       i, buf_priv->nbox,
+					       buf_priv->boxes[i].x1, 
+					       buf_priv->boxes[i].y1,
+					       buf_priv->boxes[i].x2, 
+					       buf_priv->boxes[i].y2);
+
+
 				mgaEmitClipRect( dev_priv, 
 						 &buf_priv->boxes[i] );
-
+			}
 
 			PRIMGETPTR(dev_priv);
 			PRIMOUTREG( MGAREG_DMAPAD, 0);
@@ -676,7 +688,6 @@ static void mga_dma_dispatch_vertex(drm_device_t *dev, drm_buf_t *buf)
 			PRIMADVANCE( dev_priv );	       
 		}  while (++i < buf_priv->nbox);
 	}
-	else DRM_DEBUG("discard\n");
 
    
    	dev_priv->last_sync_tag = mga_create_sync_tag(dev_priv);
@@ -688,9 +699,9 @@ static void mga_dma_dispatch_vertex(drm_device_t *dev, drm_buf_t *buf)
    	PRIMOUTREG(MGAREG_SOFTRAP, 0);
    
    	if(sarea_priv->dirty & MGA_DMA_FLUSH) {
-	   DRM_DEBUG("Dma top flush\n");	
-	   while((MGA_READ(MGAREG_STATUS) & 0x00030001) != 0x00020000) ;
-	   sarea_priv->dirty &= ~(MGA_DMA_FLUSH);
+		DRM_DEBUG("Dma top flush\n");	
+		while((MGA_READ(MGAREG_STATUS) & 0x00030001) != 0x00020000) ;
+		sarea_priv->dirty &= ~(MGA_DMA_FLUSH);
 	}
    
 	PRIMADVANCE( dev_priv );

@@ -76,7 +76,7 @@ int mga_addbufs_agp(struct inode *inode, struct file *filp, unsigned int cmd,
    DRM_DEBUG("count: %d\n", count);
    DRM_DEBUG("order: %d\n", order);
    DRM_DEBUG("size: %d\n", size);
-   DRM_DEBUG("agp_offset: %d\n", agp_offset);
+   DRM_DEBUG("agp_offset: %ld\n", agp_offset);
    DRM_DEBUG("alignment: %d\n", alignment);
    DRM_DEBUG("page_order: %d\n", page_order);
    DRM_DEBUG("total: %d\n", total);
@@ -121,7 +121,7 @@ int mga_addbufs_agp(struct inode *inode, struct file *filp, unsigned int cmd,
       buf->order = order;
       buf->used = 0;
 
-      DRM_DEBUG("offset : %d\n", offset);
+      DRM_DEBUG("offset : %ld\n", offset);
 
       buf->offset = offset; /* Hrm */
       buf->bus_address = dev->agp->base + agp_offset + offset;
@@ -185,7 +185,7 @@ int mga_addbufs_agp(struct inode *inode, struct file *filp, unsigned int cmd,
    DRM_DEBUG("count: %d\n", count);
    DRM_DEBUG("order: %d\n", order);
    DRM_DEBUG("size: %d\n", size);
-   DRM_DEBUG("agp_offset: %d\n", agp_offset);
+   DRM_DEBUG("agp_offset: %ld\n", agp_offset);
    DRM_DEBUG("alignment: %d\n", alignment);
    DRM_DEBUG("page_order: %d\n", page_order);
    DRM_DEBUG("total: %d\n", total);
@@ -193,7 +193,7 @@ int mga_addbufs_agp(struct inode *inode, struct file *filp, unsigned int cmd,
 
    dma->flags = _DRM_DMA_USE_AGP;
 
-   DRM_DEBUG("dma->flags : %lx\n", dma->flags);
+   DRM_DEBUG("dma->flags : %x\n", dma->flags);
 
    return 0;
 }
@@ -558,7 +558,7 @@ int mga_mapbufs(struct inode *inode, struct file *filp, unsigned int cmd,
 			   -EFAULT);
 
 	DRM_DEBUG("mga_mapbufs\n");
-   	DRM_DEBUG("dma->flags : %lx\n", dma->flags);
+   	DRM_DEBUG("dma->flags : %x\n", dma->flags);
    
    if (request.count >= dma->buf_count) {
       if(dma->flags & _DRM_DMA_USE_AGP) {
@@ -576,7 +576,7 @@ int mga_mapbufs(struct inode *inode, struct file *filp, unsigned int cmd,
 	 DRM_DEBUG("map->size : %lx\n", map->size);
 	 DRM_DEBUG("map->type : %d\n", map->type);
 	 DRM_DEBUG("map->flags : %x\n", map->flags);
-	 DRM_DEBUG("map->handle : %lx\n", map->handle);
+	 DRM_DEBUG("map->handle : %p\n", map->handle);
 	 DRM_DEBUG("map->mtrr : %d\n", map->mtrr);
 
 	 virtual = do_mmap(filp, 0, map->size, PROT_READ|PROT_WRITE,

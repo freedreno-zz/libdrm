@@ -154,12 +154,15 @@ typedef struct _xf86drmClipRectRec {
 #define MGA_UPLOAD_TEX0IMAGE  0x10
 #define MGA_UPLOAD_TEX1IMAGE  0x20
 #define MGA_UPLOAD_2D 	      0x40
-#define MGA_REQUIRE_QUIESCENT 0x80 /* handled client-side */
+#define MGA_WAIT_AGE          0x80 /* handled client-side */
 #define MGA_UPLOAD_CLIPRECTS  0x100
 #define MGA_DMA_FLUSH	      0x200 
 /* dirty flag when someone gets the lock quiescent */
 
-#define MGA_DMA_BUF_ORDER     16
+
+/* 64 buffers of 16k each, total 1 meg.
+ */
+#define MGA_DMA_BUF_ORDER     14
 #define MGA_DMA_BUF_SZ        (1<<MGA_DMA_BUF_ORDER)
 #define MGA_DMA_BUF_NR        63
 
@@ -184,6 +187,7 @@ typedef struct
    	unsigned int ContextState[MGA_CTX_SETUP_SIZE];
    	unsigned int ServerState[MGA_2D_SETUP_SIZE];
    	unsigned int TexState[2][MGA_TEX_SETUP_SIZE];
+
    	unsigned int WarpPipe;
    	unsigned int dirty;
 

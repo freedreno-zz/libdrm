@@ -50,6 +50,7 @@ typedef struct _drm_mga_private {
    	int sgram;
 	int use_agp;
    	mgaWarpIndex WarpIndex[MGA_MAX_G400_PIPES];
+	unsigned int WarpPipe;
    	__volatile__ unsigned long softrap_age;
    	atomic_t dispatch_lock;
    	atomic_t pending_bufs;

@@ -429,10 +429,10 @@ static void i810_dma_dispatch_vertex(drm_device_t *dev, drm_buf_t *buf)
 	int length = buf->used;	
 	int i = 0;
    	RING_LOCALS;
-
-   	if (I810_VERBOSE)
-		DRM_DEBUG("dispatch vertex addr 0x%lx, length 0x%x nbox %d\n", 
-		       address, length, buf_priv->nbox);
+	
+	if (0)
+		printk("dispatch vertex %d addr 0x%lx, length 0x%x nbox %d\n", 
+		       buf->idx, address, length, buf_priv->nbox);
 
    	sarea_priv->last_dispatch = buf_priv->age;
 	dev_priv->counter++;
