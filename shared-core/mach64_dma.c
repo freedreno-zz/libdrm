@@ -1328,14 +1328,7 @@ static void mach64_driver_pretakedown(drm_device_t *dev)
 	mach64_do_cleanup_dma( dev );					
 }
 
-struct drm_driver_fn DRM(fn_tbl) = {
-	NULL,                          /* preinit*/
-	NULL,                          /* postinit */
-	NULL,                          /* prerelease */
-	mach64_driver_pretakedown,     /* pretakedown */
-	NULL,                          /* postcleanup */
-	NULL,                          /* presetup */
-	NULL,                          /* postsetup */
-   	NULL,                          /* open_helper */
-	NULL,                          /* release */
-};
+void mach64_driver_register_fns(drm_device_t *dev)
+{
+	dev->fn_tbl.pretakedown = mach64_driver_pretakedown;
+}

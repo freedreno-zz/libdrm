@@ -302,6 +302,27 @@ typedef struct drm_vbl_sig {
 	int		pid;
 } drm_vbl_sig_t;
 
+/** 
+ * DRM device functions structure
+ */
+struct drm_device;
+
+struct drm_driver_fn {
+	int (*preinit)(struct drm_device *);
+	int (*postinit)(struct drm_device *);
+	void (*prerelease)(struct drm_device *, void *filp);
+	void (*pretakedown)(struct drm_device *);
+	int (*postcleanup)(struct drm_device *);
+	int (*presetup)(struct drm_device *);
+	int (*postsetup)(struct drm_device *);
+	void (*open_helper)(struct drm_device *, drm_file_t *);
+	void (*release)(struct drm_device *, void *filp);
+	void (*dma_ready)(struct drm_device *);
+	int (*dma_quiescent)(struct drm_device *);
+	int (*dma_flush_block_and_flush)(struct drm_device *, int context, drm_lock_flags_t flags);
+	int (*dma_flush_unblock)(struct drm_device *, int context, drm_lock_flags_t flags);
+};
+
 struct drm_device {
 #ifdef __NetBSD__
 	struct device	  device;	/* NetBSD's softc is an extension of struct device */
@@ -393,7 +414,10 @@ struct drm_device {
 	drm_sg_mem_t      *sg;  /* Scatter gather memory */
 	atomic_t          *ctx_bitmap;
 	void		  *dev_private;
+	struct drm_driver_fn fn_tbl;
 };
+
+extern void DRM(driver_register_fns)(struct drm_device *dev);
 
 extern int	     DRM(flags);
 

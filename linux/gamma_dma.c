@@ -941,18 +941,12 @@ static int gamma_driver_dma_quiescent(drm_device_t *dev)
 	return 0;
 }
 
-struct drm_driver_fn DRM(fn_tbl) = {
-	gamma_driver_preinit,                          /* preinit*/
-	NULL,                          /* postinit */
-	NULL,                          /* prerelease */
-	gamma_driver_pretakedown,       /* pretakedown */
-	NULL,                          /* postcleanup */
-	NULL,                          /* presetup */
-	NULL,                          /* postsetup */
-	NULL,                          /* open_helper */
-	NULL,
-	gamma_driver_dma_ready,
-	gamma_driver_dma_quiescent,
-	gamma_flush_block_and_flush,
-	gamma_flush_unblock,
-};
+void gamma_driver_register_fns(drm_device_t *dev)
+{
+	dev->fn_tbl.preinit = gamma_driver_preinit;
+	dev->fn_tbl.pretakedown = gamma_driver_pretakedown;
+	dev->fn_tbl.dma_ready = gamma_driver_dma_ready;
+	dev->fn_tbl.dma_quiescent = gamma_driver_dma_quiescent;
+	dev->fn_tbl.dma_flush_block_and_flush = gamma_flush_block_and_flush;
+	dev->fn_tbl.dma_flush_unblock = gamma_flush_unblock;
+}

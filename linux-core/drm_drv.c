@@ -238,8 +238,8 @@ static int DRM(setup)( drm_device_t *dev )
 {
 	int i;
 
-	if (dev->fn_tbl->presetup)
-		dev->fn_tbl->presetup(dev);
+	if (dev->fn_tbl.presetup)
+		dev->fn_tbl.presetup(dev);
 
 	atomic_set( &dev->ioctl_count, 0 );
 	atomic_set( &dev->vma_count, 0 );
@@ -346,8 +346,8 @@ static int DRM(setup)( drm_device_t *dev )
 	 * drm_select_queue fails between the time the interrupt is
 	 * initialized and the time the queues are initialized.
 	 */
-	if (dev->fn_tbl->postsetup)
-		dev->fn_tbl->postsetup(dev);
+	if (dev->fn_tbl.postsetup)
+		dev->fn_tbl.postsetup(dev);
 
 	return 0;
 }
@@ -373,8 +373,8 @@ static int DRM(takedown)( drm_device_t *dev )
 
 	DRM_DEBUG( "\n" );
 
-	if (dev->fn_tbl->pretakedown)
-	  dev->fn_tbl->pretakedown(dev);
+	if (dev->fn_tbl.pretakedown)
+		dev->fn_tbl.pretakedown(dev);
 #if __HAVE_IRQ
 	if ( dev->irq_enabled ) DRM(irq_uninstall)( dev );
 #endif
@@ -567,11 +567,11 @@ static int drm_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	dev->pci_func = PCI_FUNC(pdev->devfn);
 	dev->irq = pdev->irq;
 	
-	dev->fn_tbl = &DRM(fn_tbl);
+	DRM(driver_register_fns)(dev);
 
-	if (dev->fn_tbl->preinit)
-	  if ((retcode = dev->fn_tbl->preinit(dev)))
-	      goto error_out_unreg;
+	if (dev->fn_tbl.preinit)
+		if ((retcode = dev->fn_tbl.preinit(dev)))
+			goto error_out_unreg;
 
 #if __REALLY_HAVE_AGP
 	dev->agp = DRM(agp_init)();
@@ -610,9 +610,9 @@ static int drm_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 		pci_pretty_name(pdev)
 		);
 
-	if (dev->fn_tbl->postinit)
-	  if ((retcode = dev->fn_tbl->postinit(dev)))
-		goto error_out_unreg;
+	if (dev->fn_tbl.postinit)
+		if ((retcode = dev->fn_tbl.postinit(dev)))
+			goto error_out_unreg;
 
 
 	/*
@@ -880,8 +880,8 @@ int DRM(release)( struct inode *inode, struct file *filp )
 
 	DRM_DEBUG( "open_count = %d\n", dev->open_count );
 
-	if (dev->fn_tbl->prerelease)
-	  dev->fn_tbl->prerelease(filp, dev);
+	if (dev->fn_tbl.prerelease)
+		dev->fn_tbl.prerelease(dev, filp);
 
 	/* ========================================================
 	 * Begin inline drm_release
@@ -897,8 +897,8 @@ int DRM(release)( struct inode *inode, struct file *filp )
 			filp,
 			_DRM_LOCKING_CONTEXT(dev->lock.hw_lock->lock) );
 		
-		if (dev->fn_tbl->release)
-		  dev->fn_tbl->release(filp, dev);
+		if (dev->fn_tbl.release)
+			dev->fn_tbl.release(dev, filp);
 
 		DRM(lock_free)( dev, &dev->lock.hw_lock->lock,
 				_DRM_LOCKING_CONTEXT(dev->lock.hw_lock->lock) );
@@ -908,7 +908,7 @@ int DRM(release)( struct inode *inode, struct file *filp )
                                    processed via a callback to the X
                                    server. */
 	}
-	else if ( dev->fn_tbl->release && priv->lock_count && dev->lock.hw_lock ) {
+	else if ( dev->fn_tbl.release && priv->lock_count && dev->lock.hw_lock ) {
 		/* The lock is required to reclaim buffers */
 		DECLARE_WAITQUEUE( entry, current );
 
@@ -937,8 +937,8 @@ int DRM(release)( struct inode *inode, struct file *filp )
 		current->state = TASK_RUNNING;
 		remove_wait_queue( &dev->lock.lock_queue, &entry );
 		if( !retcode ) {
-			if (dev->fn_tbl->release)
-				dev->fn_tbl->release(filp, dev);
+			if (dev->fn_tbl.release)
+				dev->fn_tbl.release(dev, filp);
 			DRM(lock_free)( dev, &dev->lock.hw_lock->lock,
 					DRM_KERNEL_CONTEXT );
 		}
@@ -1116,8 +1116,8 @@ int DRM(lock)( struct inode *inode, struct file *filp,
 	q = dev->queuelist[lock.context];
 #endif
 
-	if (dev->fn_tbl->dma_flush_block_and_flush)
-		ret = dev->fn_tbl->dma_flush_block_and_flush(dev, lock.context, lock.flags);
+	if (dev->fn_tbl.dma_flush_block_and_flush)
+		ret = dev->fn_tbl.dma_flush_block_and_flush(dev, lock.context, lock.flags);
         if ( !ret ) {
                 add_wait_queue( &dev->lock.lock_queue, &entry );
                 for (;;) {
@@ -1146,8 +1146,8 @@ int DRM(lock)( struct inode *inode, struct file *filp,
                 remove_wait_queue( &dev->lock.lock_queue, &entry );
         }
 
-	if (dev->fn_tbl->dma_flush_unblock)
-		dev->fn_tbl->dma_flush_unblock(dev, lock.context, lock.flags);
+	if (dev->fn_tbl.dma_flush_unblock)
+		dev->fn_tbl.dma_flush_unblock(dev, lock.context, lock.flags);
 
         if ( !ret ) {
 		sigemptyset( &dev->sigmask );
@@ -1160,11 +1160,11 @@ int DRM(lock)( struct inode *inode, struct file *filp,
 		block_all_signals( DRM(notifier),
 				   &dev->sigdata, &dev->sigmask );
 
-		if (dev->fn_tbl->dma_ready && (lock.flags & _DRM_LOCK_READY))
-			dev->fn_tbl->dma_ready(dev);
+		if (dev->fn_tbl.dma_ready && (lock.flags & _DRM_LOCK_READY))
+			dev->fn_tbl.dma_ready(dev);
 			    
-		if ( dev->fn_tbl->dma_quiescent && (lock.flags & _DRM_LOCK_QUIESCENT ))
-			return dev->fn_tbl->dma_quiescent(dev);
+		if ( dev->fn_tbl.dma_quiescent && (lock.flags & _DRM_LOCK_QUIESCENT ))
+			return dev->fn_tbl.dma_quiescent(dev);
 
 		/* __HAVE_KERNEL_CTX_SWITCH isn't used by any of the
 		 * drm modules in the DRI cvs tree, but it is required

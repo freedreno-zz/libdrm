@@ -46,3 +46,7 @@
 #include "drm_proc.h"
 #include "drm_vm.h"
 #include "drm_stub.h"
+
+void DRM(driver_register_fns)(drm_device_t *dev)
+{
+}

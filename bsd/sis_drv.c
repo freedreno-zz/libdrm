@@ -50,3 +50,7 @@ DRIVER_MODULE(sisdrm, pci, sisdrv_driver, sisdrv_devclass, 0, 0);
 #elif defined(__NetBSD__)
 CFDRIVER_DECL(sis, DV_TTY, NULL);
 #endif /* __FreeBSD__ */
+
+void DRM(driver_register_fns)(drm_device_t *dev)
+{
+}

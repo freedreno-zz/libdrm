@@ -1596,23 +1596,21 @@ static void i830_driver_pretakedown(drm_device_t *dev)
 	i830_dma_cleanup( dev );
 }
 
-static void i830_driver_release(struct file *filp, drm_device_t *dev)
+static void i830_driver_release(drm_device_t *dev, struct file *filp)
 {
 	i830_reclaim_buffers(filp);
 }
 
-struct drm_driver_fn DRM(fn_tbl) = {
-	NULL,                          /* preinit*/
-	NULL,                          /* postinit */
-	NULL,                          /* prerelease */
-	i830_driver_pretakedown,       /* pretakedown */
-	NULL,                          /* postcleanup */
-	NULL,                          /* presetup */
-	NULL,                          /* postsetup */
-	NULL,                          /* open_helper */
-	i830_driver_release,           /* release */
-	NULL,
-	NULL,
-	NULL,
-	NULL
-};
+static int i830_driver_dma_quiescent(drm_device_t *dev)
+{
+	i830_dma_quiescent( dev );
+	return 0;
+}
+
+void i830_driver_register_fns(drm_device_t *dev)
+{
+	dev->fn_tbl.pretakedown = i830_driver_pretakedown;
+	dev->fn_tbl.release = i830_driver_release;
+	dev->fn_tbl.dma_quiescent = i830_driver_dma_quiescent;
+}
+
