@@ -433,10 +433,10 @@ static int r128_do_init_cce( drm_device_t *dev, drm_r128_init_t *init )
 	dev_priv->back_y	= init->back_y;
 
 	dev_priv->depth_bpp	= init->depth_bpp;
-	dev_priv->back_offset	= init->depth_offset;
-	dev_priv->back_pitch	= init->depth_pitch;
-	dev_priv->back_x	= init->depth_x;
-	dev_priv->back_y	= init->depth_y;
+	dev_priv->depth_offset	= init->depth_offset;
+	dev_priv->depth_pitch	= init->depth_pitch;
+	dev_priv->depth_x	= init->depth_x;
+	dev_priv->depth_y	= init->depth_y;
 
 	/* FIXME: We want multiple shared areas, including one shared
 	 * only by the X Server and kernel module.
@@ -492,13 +492,6 @@ static int r128_do_init_cce( drm_device_t *dev, drm_r128_init_t *init )
 
 	dev_priv->submit_age = 0;
 	R128_WRITE( R128_VB_AGE_REG, dev_priv->submit_age );
-
-	DRM_INFO( "agp=0x%08x ring=0x%08x rtpr=0x%08x\n",
-		  dev->agp->base,
-		  dev_priv->cce_ring->offset,
-		  dev_priv->ring_rptr->offset
-		  );
-
 
 	r128_cce_init_ring_buffer( dev );
 	r128_cce_load_microcode( dev_priv );

@@ -356,7 +356,8 @@ static void r128_cce_dispatch_clear( drm_device_t *dev,
 			int fx = x + dev_priv->front_x;
 			int fy = y + dev_priv->front_y;
 
-			DRM_DEBUG( "clear front\n");
+			DRM_DEBUG( "clear front: x=%d y=%d\n",
+				   dev_priv->front_x, dev_priv->front_y );
 			BEGIN_RING( 5 );
 
 			OUT_RING( CCE_PACKET3( R128_CNTL_PAINT_MULTI, 3 ) );
@@ -377,7 +378,8 @@ static void r128_cce_dispatch_clear( drm_device_t *dev,
 			int bx = x + dev_priv->back_x;
 			int by = y + dev_priv->back_y;
 
-			DRM_DEBUG( "clear back\n" );
+			DRM_DEBUG( "clear back: x=%d y=%d\n",
+				   dev_priv->back_x, dev_priv->back_y );
 			BEGIN_RING( 5 );
 
 			OUT_RING( CCE_PACKET3( R128_CNTL_PAINT_MULTI, 3 ) );
@@ -398,7 +400,8 @@ static void r128_cce_dispatch_clear( drm_device_t *dev,
 			int dx = x + dev_priv->depth_x;
 			int dy = y + dev_priv->depth_y;
 
-			DRM_DEBUG( "clear depth\n" );
+			DRM_DEBUG( "clear depth: x=%d y=%d\n",
+				   dev_priv->depth_x, dev_priv->depth_y );
 			BEGIN_RING( 7 );
 
 			OUT_RING( CCE_PACKET0( R128_DP_WRITE_MASK, 0 ) );
@@ -429,7 +432,7 @@ static void r128_cce_dispatch_swap( drm_device_t *dev )
 	u32 fb_bpp;
 	int i;
 	RING_LOCALS;
-	DRM_INFO( "%s\n", __FUNCTION__ );
+	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
 	switch ( dev_priv->fb_bpp ) {
 	case 16:
