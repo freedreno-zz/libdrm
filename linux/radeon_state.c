@@ -23,12 +23,12 @@
  * DEALINGS IN THE SOFTWARE.
  *
  * Authors:
- *    Kevin E. Martin <martin@valinux.com>
  *    Gareth Hughes <gareth@valinux.com>
- *
+ *    Kevin E. Martin <martin@valinux.com>
  */
 
 #define __NO_VERSION__
+#include "radeon.h"
 #include "drmP.h"
 #include "radeon_drv.h"
 #include "drm.h"
@@ -486,7 +486,8 @@ static void radeon_print_dirty( const char *msg, unsigned int flags )
 }
 
 static void radeon_cp_dispatch_clear( drm_device_t *dev,
-				      drm_radeon_clear_t *clear )
+				      drm_radeon_clear_t *clear,
+				      drm_radeon_clear_rect_t *depth_boxes )
 {
 	drm_radeon_private_t *dev_priv = dev->dev_private;
 	drm_radeon_sarea_t *sarea_priv = dev_priv->sarea_priv;
@@ -525,7 +526,7 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 			RADEON_WAIT_UNTIL_3D_IDLE();
 
 			OUT_RING( CP_PACKET0( RADEON_DP_WRITE_MASK, 0 ) );
-			OUT_RING( sarea_priv->context_state.rb3d_planemask );
+			OUT_RING( clear->color_mask );
 
 			ADVANCE_RING();
 
@@ -609,17 +610,17 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 				   RADEON_VTX_FMT_RADEON_MODE |
 				   (3 << RADEON_NUM_VERTICES_SHIFT)) );
 
-			OUT_RING( clear->rect.ui[CLEAR_X1] );
-			OUT_RING( clear->rect.ui[CLEAR_Y1] );
-			OUT_RING( clear->rect.ui[CLEAR_DEPTH] );
+			OUT_RING( depth_boxes[i].ui[CLEAR_X1] );
+			OUT_RING( depth_boxes[i].ui[CLEAR_Y1] );
+			OUT_RING( depth_boxes[i].ui[CLEAR_DEPTH] );
 
-			OUT_RING( clear->rect.ui[CLEAR_X1] );
-			OUT_RING( clear->rect.ui[CLEAR_Y2] );
-			OUT_RING( clear->rect.ui[CLEAR_DEPTH] );
+			OUT_RING( depth_boxes[i].ui[CLEAR_X1] );
+			OUT_RING( depth_boxes[i].ui[CLEAR_Y2] );
+			OUT_RING( depth_boxes[i].ui[CLEAR_DEPTH] );
 
-			OUT_RING( clear->rect.ui[CLEAR_X2] );
-			OUT_RING( clear->rect.ui[CLEAR_Y2] );
-			OUT_RING( clear->rect.ui[CLEAR_DEPTH] );
+			OUT_RING( depth_boxes[i].ui[CLEAR_X2] );
+			OUT_RING( depth_boxes[i].ui[CLEAR_Y2] );
+			OUT_RING( depth_boxes[i].ui[CLEAR_DEPTH] );
 
 			ADVANCE_RING();
 
@@ -778,7 +779,7 @@ static void radeon_cp_dispatch_vertex( drm_device_t *dev,
 
 	radeon_update_ring_snapshot( dev_priv );
 
-	if ( 1 )
+	if ( 0 )
 		radeon_print_dirty( "dispatch_vertex", sarea_priv->dirty );
 
 	if ( buf->used ) {
@@ -1118,6 +1119,7 @@ int radeon_cp_clear( struct inode *inode, struct file *filp,
 	drm_radeon_private_t *dev_priv = dev->dev_private;
 	drm_radeon_sarea_t *sarea_priv = dev_priv->sarea_priv;
 	drm_radeon_clear_t clear;
+	drm_radeon_clear_rect_t depth_boxes[RADEON_NR_SAREA_CLIPRECTS];
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
 	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||
@@ -1126,14 +1128,21 @@ int radeon_cp_clear( struct inode *inode, struct file *filp,
 		return -EINVAL;
 	}
 
-	if ( copy_from_user( &clear, (drm_radeon_clear_t *) arg,
+	if ( copy_from_user( &clear, (drm_radeon_clear_t *)arg,
 			     sizeof(clear) ) )
 		return -EFAULT;
+
+
+	RING_SPACE_TEST_WITH_RETURN( dev_priv );
 
 	if ( sarea_priv->nbox > RADEON_NR_SAREA_CLIPRECTS )
 		sarea_priv->nbox = RADEON_NR_SAREA_CLIPRECTS;
 
-	radeon_cp_dispatch_clear( dev, &clear );
+	if ( copy_from_user( &depth_boxes, clear.depth_boxes,
+			     sarea_priv->nbox * sizeof(depth_boxes[0]) ) )
+		return -EFAULT;
+
+	radeon_cp_dispatch_clear( dev, &clear, depth_boxes );
 
 	return 0;
 }
@@ -1152,6 +1161,8 @@ int radeon_cp_swap( struct inode *inode, struct file *filp,
 		DRM_ERROR( "%s called without lock held\n", __FUNCTION__ );
 		return -EINVAL;
 	}
+
+	RING_SPACE_TEST_WITH_RETURN( dev_priv );
 
 	if ( sarea_priv->nbox > RADEON_NR_SAREA_CLIPRECTS )
 		sarea_priv->nbox = RADEON_NR_SAREA_CLIPRECTS;
@@ -1207,7 +1218,8 @@ int radeon_cp_vertex( struct inode *inode, struct file *filp,
 		return -EINVAL;
 	}
 
-	VB_AGE_CHECK_WITH_RET( dev_priv );
+	RING_SPACE_TEST_WITH_RETURN( dev_priv );
+	VB_AGE_TEST_WITH_RETURN( dev_priv );
 
 	buf = dma->buflist[vertex.idx];
 	buf_priv = buf->dev_private;
@@ -1272,7 +1284,8 @@ int radeon_cp_indices( struct inode *inode, struct file *filp,
 		return -EINVAL;
 	}
 
-	VB_AGE_CHECK_WITH_RET( dev_priv );
+	RING_SPACE_TEST_WITH_RETURN( dev_priv );
+	VB_AGE_TEST_WITH_RETURN( dev_priv );
 
 	buf = dma->buflist[elts.idx];
 	buf_priv = buf->dev_private;
@@ -1336,7 +1349,8 @@ int radeon_cp_blit( struct inode *inode, struct file *filp,
 		return -EINVAL;
 	}
 
-	VB_AGE_CHECK_WITH_RET( dev_priv );
+	RING_SPACE_TEST_WITH_RETURN( dev_priv );
+	VB_AGE_TEST_WITH_RETURN( dev_priv );
 
 	return radeon_cp_dispatch_blit( dev, &blit );
 }
@@ -1346,6 +1360,7 @@ int radeon_cp_stipple( struct inode *inode, struct file *filp,
 {
 	drm_file_t *priv = filp->private_data;
 	drm_device_t *dev = priv->dev;
+	drm_radeon_private_t *dev_priv = dev->dev_private;
 	drm_radeon_stipple_t stipple;
 	u32 mask[32];
 
@@ -1362,6 +1377,8 @@ int radeon_cp_stipple( struct inode *inode, struct file *filp,
 	if ( copy_from_user( &mask, stipple.mask,
 			     32 * sizeof(u32) ) )
 		return -EFAULT;
+
+	RING_SPACE_TEST_WITH_RETURN( dev_priv );
 
 	radeon_cp_dispatch_stipple( dev, mask );
 
@@ -1423,7 +1440,8 @@ int radeon_cp_indirect( struct inode *inode, struct file *filp,
 		return -EINVAL;
 	}
 
-	VB_AGE_CHECK_WITH_RET( dev_priv );
+	RING_SPACE_TEST_WITH_RETURN( dev_priv );
+	VB_AGE_TEST_WITH_RETURN( dev_priv );
 
 	buf->used = indirect.end;
 	buf_priv->discard = indirect.discard;

@@ -72,10 +72,18 @@
 #endif
 
 #define __HAVE_DMA_QUIESCENT	1
-#define DRIVER_DMA_QUIESCENT()						\
-do {									\
+#define DRIVER_DMA_QUIESCENT() do {					\
 	drm_r128_private_t *dev_priv = dev->dev_private;		\
-	return r128_do_wait_for_idle( dev_priv );			\
+	return r128_do_cce_idle( dev_priv );				\
+} while (0)
+
+#define DRIVER_PRERELEASE() do {					\
+	if ( dev->dev_private ) {					\
+		drm_r128_private_t *dev_priv = dev->dev_private;	\
+		if ( dev_priv->page_flipping ) {			\
+			r128_do_cleanup_pageflip( dev );		\
+		}							\
+	}								\
 } while (0)
 
 #define DRIVER_PRETAKEDOWN() do {					\

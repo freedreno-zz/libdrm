@@ -50,6 +50,8 @@ typedef struct drm_radeon_ring_buffer {
 	u32 tail;
 	u32 tail_mask;
 	int space;
+
+	int high_mark;
 } drm_radeon_ring_buffer_t;
 
 typedef struct drm_radeon_depth_clear_t {
@@ -91,13 +93,13 @@ typedef struct drm_radeon_private {
 	u32 crtc_offset;
 	u32 crtc_offset_cntl;
 
-	unsigned int color_fmt;
+	u32 color_fmt;
 	unsigned int front_offset;
 	unsigned int front_pitch;
 	unsigned int back_offset;
 	unsigned int back_pitch;
 
-	unsigned int depth_fmt;
+	u32 depth_fmt;
 	unsigned int depth_offset;
 	unsigned int depth_pitch;
 
@@ -124,18 +126,6 @@ typedef struct drm_radeon_buf_priv {
    	drm_radeon_freelist_t *list_entry;
 } drm_radeon_buf_priv_t;
 
-				/* radeon_drv.c */
-extern int  radeon_version( struct inode *inode, struct file *filp,
-			    unsigned int cmd, unsigned long arg );
-extern int  radeon_open( struct inode *inode, struct file *filp );
-extern int  radeon_release( struct inode *inode, struct file *filp );
-extern int  radeon_ioctl( struct inode *inode, struct file *filp,
-			  unsigned int cmd, unsigned long arg );
-extern int  radeon_lock( struct inode *inode, struct file *filp,
-			 unsigned int cmd, unsigned long arg );
-extern int  radeon_unlock( struct inode *inode, struct file *filp,
-			   unsigned int cmd, unsigned long arg );
-
 				/* radeon_cp.c */
 extern int radeon_cp_init( struct inode *inode, struct file *filp,
 			   unsigned int cmd, unsigned long arg );
@@ -161,6 +151,7 @@ extern int radeon_wait_ring( drm_radeon_private_t *dev_priv, int n );
 extern void radeon_update_ring_snapshot( drm_radeon_private_t *dev_priv );
 
 extern int radeon_do_cp_idle( drm_radeon_private_t *dev_priv );
+extern int radeon_do_cleanup_cp( drm_device_t *dev );
 extern int radeon_do_cleanup_pageflip( drm_device_t *dev );
 
 				/* radeon_state.c */
@@ -178,31 +169,6 @@ extern int radeon_cp_stipple( struct inode *inode, struct file *filp,
 			      unsigned int cmd, unsigned long arg );
 extern int radeon_cp_indirect( struct inode *inode, struct file *filp,
 			       unsigned int cmd, unsigned long arg );
-
-				/* radeon_bufs.c */
-extern int radeon_addbufs(struct inode *inode, struct file *filp,
-			  unsigned int cmd, unsigned long arg);
-extern int radeon_mapbufs(struct inode *inode, struct file *filp,
-			  unsigned int cmd, unsigned long arg);
-
-				/* radeon_context.c */
-extern int  radeon_resctx(struct inode *inode, struct file *filp,
-			  unsigned int cmd, unsigned long arg);
-extern int  radeon_addctx(struct inode *inode, struct file *filp,
-			  unsigned int cmd, unsigned long arg);
-extern int  radeon_modctx(struct inode *inode, struct file *filp,
-			  unsigned int cmd, unsigned long arg);
-extern int  radeon_getctx(struct inode *inode, struct file *filp,
-			  unsigned int cmd, unsigned long arg);
-extern int  radeon_switchctx(struct inode *inode, struct file *filp,
-			     unsigned int cmd, unsigned long arg);
-extern int  radeon_newctx(struct inode *inode, struct file *filp,
-			  unsigned int cmd, unsigned long arg);
-extern int  radeon_rmctx(struct inode *inode, struct file *filp,
-			 unsigned int cmd, unsigned long arg);
-
-extern int  radeon_context_switch(drm_device_t *dev, int old, int new);
-extern int  radeon_context_switch_complete(drm_device_t *dev, int new);
 
 
 /* Register definitions, register access macros and drmAddMap constants
@@ -534,15 +500,17 @@ extern int  radeon_context_switch_complete(drm_device_t *dev, int new);
 #define RADEON_MAX_VB_AGE		0x7fffffff
 #define RADEON_MAX_VB_VERTS		(0xffff)
 
+#define RADEON_RING_HIGH_MARK		128
+
 
 #define RADEON_BASE(reg)	((u32)(dev_priv->mmio->handle))
 #define RADEON_ADDR(reg)	(RADEON_BASE(reg) + reg)
 
-#define RADEON_DEREF(reg)	*(__volatile__ u32 *)RADEON_ADDR(reg)
+#define RADEON_DEREF(reg)	*(volatile u32 *)RADEON_ADDR(reg)
 #define RADEON_READ(reg)	RADEON_DEREF(reg)
 #define RADEON_WRITE(reg,val)	do { RADEON_DEREF(reg) = val; } while (0)
 
-#define RADEON_DEREF8(reg)	*(__volatile__ u8 *)RADEON_ADDR(reg)
+#define RADEON_DEREF8(reg)	*(volatile u8 *)RADEON_ADDR(reg)
 #define RADEON_READ8(reg)	RADEON_DEREF8(reg)
 #define RADEON_WRITE8(reg,val)	do { RADEON_DEREF8(reg) = val; } while (0)
 
@@ -630,7 +598,25 @@ do {									\
  * Misc helper macros
  */
 
-#define VB_AGE_CHECK_WITH_RET( dev_priv )				\
+#define RING_SPACE_TEST_WITH_RETURN( dev_priv )				\
+do {									\
+	drm_radeon_ring_buffer_t *ring = &dev_priv->ring; int i;	\
+	if ( ring->space < ring->high_mark ) {				\
+		for ( i = 0 ; i < dev_priv->usec_timeout ; i++ ) {	\
+			ring->space = *ring->head - ring->tail;		\
+			if ( ring->space <= 0 )				\
+				ring->space += ring->size;		\
+			if ( ring->space >= ring->high_mark )		\
+				goto __ring_space_done;			\
+			udelay( 1 );					\
+		}							\
+		DRM_ERROR( "ring space check failed!\n" );		\
+		return -EBUSY;						\
+	}								\
+ __ring_space_done:							\
+} while (0)
+
+#define VB_AGE_TEST_WITH_RETURN( dev_priv )				\
 do {									\
 	drm_radeon_sarea_t *sarea_priv = dev_priv->sarea_priv;		\
 	if ( sarea_priv->last_dispatch >= RADEON_MAX_VB_AGE ) {		\

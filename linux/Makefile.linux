@@ -136,7 +136,7 @@ endif
 ifeq ($(AGP),1)
 MODCFLAGS += -DCONFIG_AGP -DCONFIG_AGP_MODULE
 #DRMOBJS += agpsupport.o
-MODS += mga.o r128.o
+MODS += mga.o r128.o radeon.o
 #ifeq ($(MACHINE),i386)
 #MODS += i810.o
 #endif
@@ -150,9 +150,8 @@ I810HEADERS=	i810_drv.h $(DRMHEADERS)
 R128OBJS=	r128_drv.o r128_drm.o r128_cce.o r128_state.o
 R128HEADERS=	r128.h r128_drv.h r128_drm.h $(DRMHEADERS)
 
-RADEONOBJS=	radeon_drv.o radeon_cp.o radeon_bufs.o radeon_context.o \
-		radeon_state.o
-RADEONHEADERS=	radeon_drv.h radeon_drm.h $(DRMHEADERS)
+RADEONOBJS=	radeon_drv.o radeon_cp.o radeon_state.o
+RADEONHEADERS=	radeon.h radeon_drv.h radeon_drm.h $(DRMHEADERS)
 endif
 
 ifeq ($(SIS),1)

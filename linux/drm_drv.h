@@ -88,6 +88,9 @@
 #ifndef DRIVER_POSTINIT
 #define DRIVER_POSTINIT()
 #endif
+#ifndef DRIVER_PRERELEASE
+#define DRIVER_PRERELEASE()
+#endif
 #ifndef DRIVER_PRETAKEDOWN
 #define DRIVER_PRETAKEDOWN()
 #endif
@@ -620,6 +623,8 @@ int DRM(release)( struct inode *inode, struct file *filp )
 	dev = priv->dev;
 
 	DRM_DEBUG( "open_count = %d\n", dev->open_count );
+
+	DRIVER_PRERELEASE();
 
 	/* ========================================================
 	 * Begin inline drm_release

@@ -109,18 +109,6 @@ typedef struct drm_r128_buf_priv {
    	drm_r128_freelist_t *list_entry;
 } drm_r128_buf_priv_t;
 
-				/* r128_drv.c */
-extern int  r128_version( struct inode *inode, struct file *filp,
-			  unsigned int cmd, unsigned long arg );
-extern int  r128_open( struct inode *inode, struct file *filp );
-extern int  r128_release( struct inode *inode, struct file *filp );
-extern int  r128_ioctl( struct inode *inode, struct file *filp,
-			unsigned int cmd, unsigned long arg );
-extern int  r128_lock( struct inode *inode, struct file *filp,
-		       unsigned int cmd, unsigned long arg );
-extern int  r128_unlock( struct inode *inode, struct file *filp,
-			 unsigned int cmd, unsigned long arg );
-
 				/* r128_cce.c */
 extern int r128_cce_init( struct inode *inode, struct file *filp,
 			  unsigned int cmd, unsigned long arg );
@@ -165,31 +153,6 @@ extern int r128_cce_stipple( struct inode *inode, struct file *filp,
 			     unsigned int cmd, unsigned long arg );
 extern int r128_cce_indirect( struct inode *inode, struct file *filp,
 			      unsigned int cmd, unsigned long arg );
-
-				/* r128_bufs.c */
-extern int r128_addbufs(struct inode *inode, struct file *filp,
-			unsigned int cmd, unsigned long arg);
-extern int r128_mapbufs(struct inode *inode, struct file *filp,
-			unsigned int cmd, unsigned long arg);
-
-				/* r128_context.c */
-extern int  r128_resctx(struct inode *inode, struct file *filp,
-			unsigned int cmd, unsigned long arg);
-extern int  r128_addctx(struct inode *inode, struct file *filp,
-		        unsigned int cmd, unsigned long arg);
-extern int  r128_modctx(struct inode *inode, struct file *filp,
-		        unsigned int cmd, unsigned long arg);
-extern int  r128_getctx(struct inode *inode, struct file *filp,
-		        unsigned int cmd, unsigned long arg);
-extern int  r128_switchctx(struct inode *inode, struct file *filp,
-			   unsigned int cmd, unsigned long arg);
-extern int  r128_newctx(struct inode *inode, struct file *filp,
-			unsigned int cmd, unsigned long arg);
-extern int  r128_rmctx(struct inode *inode, struct file *filp,
-		       unsigned int cmd, unsigned long arg);
-
-extern int  r128_context_switch(drm_device_t *dev, int old, int new);
-extern int  r128_context_switch_complete(drm_device_t *dev, int new);
 
 
 /* Register definitions, register access macros and drmAddMap constants

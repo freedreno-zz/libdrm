@@ -149,7 +149,7 @@ static int r128_do_wait_for_fifo( drm_r128_private_t *dev_priv, int entries )
 	return -EBUSY;
 }
 
-static int r128_do_wait_for_idle( drm_r128_private_t *dev_priv )
+int r128_do_wait_for_idle( drm_r128_private_t *dev_priv )
 {
 	int i, ret;
 
@@ -508,7 +508,7 @@ static int r128_do_init_cce( drm_device_t *dev, drm_r128_init_t *init )
 	return 0;
 }
 
-static int r128_do_cleanup_cce( drm_device_t *dev )
+int r128_do_cleanup_cce( drm_device_t *dev )
 {
 	if ( dev->dev_private ) {
 		drm_r128_private_t *dev_priv = dev->dev_private;
