@@ -114,7 +114,7 @@ int R128_READ_PLL(drm_device_t *dev, int addr)
 	return R128_READ(R128_CLOCK_CNTL_DATA);
 }
 
-
+#if 0
 static void r128_status( drm_r128_private_t *dev_priv )
 {
 	printk( "GUI_STAT           = 0x%08x\n",
@@ -130,6 +130,7 @@ static void r128_status( drm_r128_private_t *dev_priv )
 	printk( "PM4_BUFFER_CNTL    = 0x%08x\n",
 		(unsigned int)R128_READ( R128_PM4_BUFFER_CNTL ) );
 }
+#endif
 
 
 /* ================================================================
@@ -437,18 +438,23 @@ static int r128_do_init_cce( drm_device_t *dev, drm_r128_init_t *init )
 	dev_priv->fb_bpp	= init->fb_bpp;
 	dev_priv->front_offset	= init->front_offset;
 	dev_priv->front_pitch	= init->front_pitch;
-	dev_priv->front_x	= init->front_x;
-	dev_priv->front_y	= init->front_y;
 	dev_priv->back_offset	= init->back_offset;
 	dev_priv->back_pitch	= init->back_pitch;
-	dev_priv->back_x	= init->back_x;
-	dev_priv->back_y	= init->back_y;
 
 	dev_priv->depth_bpp	= init->depth_bpp;
 	dev_priv->depth_offset	= init->depth_offset;
 	dev_priv->depth_pitch	= init->depth_pitch;
-	dev_priv->depth_x	= init->depth_x;
-	dev_priv->depth_y	= init->depth_y;
+	dev_priv->span_offset	= init->span_offset;
+
+	dev_priv->front_pitch_offset_c = (((dev_priv->front_pitch/8) << 21) |
+					  (dev_priv->front_offset >> 5));
+	dev_priv->back_pitch_offset_c = (((dev_priv->back_pitch/8) << 21) |
+					 (dev_priv->back_offset >> 5));
+	dev_priv->depth_pitch_offset_c = (((dev_priv->depth_pitch/8) << 21) |
+					  (dev_priv->depth_offset >> 5) |
+					  R128_DST_TILE);
+	dev_priv->span_pitch_offset_c = (((dev_priv->depth_pitch/8) << 21) |
+					 (dev_priv->span_offset >> 5));
 
 	/* FIXME: We want multiple shared areas, including one shared
 	 * only by the X Server and kernel module.
@@ -666,6 +672,10 @@ int r128_cce_idle( struct inode *inode, struct file *filp,
 		return -EINVAL;
 	}
 
+	if ( dev_priv->cce_running ) {
+		r128_do_cce_flush( dev_priv );
+	}
+
 	return r128_do_cce_idle( dev_priv );
 }
 
@@ -692,6 +702,7 @@ int r128_engine_reset( struct inode *inode, struct file *filp,
 #define R128_BUFFER_USED	0xffffffff
 #define R128_BUFFER_FREE	0
 
+#if 0
 static int r128_freelist_init( drm_device_t *dev )
 {
 	drm_device_dma_t *dma = dev->dma;
@@ -737,6 +748,7 @@ static int r128_freelist_init( drm_device_t *dev )
 	return 0;
 
 }
+#endif
 
 drm_buf_t *r128_freelist_get( drm_device_t *dev )
 {
@@ -817,12 +829,15 @@ void r128_update_ring_snapshot( drm_r128_private_t *dev_priv )
 	drm_r128_ring_buffer_t *ring = &dev_priv->ring;
 
 	ring->space = *ring->head - ring->tail;
+#if R128_PERFORMANCE_BOXES
 	if ( ring->space == 0 )
 		atomic_inc( &dev_priv->idle_count );
+#endif
 	if ( ring->space <= 0 )
 		ring->space += ring->size;
 }
 
+#if 0
 static int r128_verify_command( drm_r128_private_t *dev_priv,
 				u32 cmd, int *size )
 {
@@ -963,6 +978,7 @@ static int r128_submit_packet_ring_insecure( drm_r128_private_t *dev_priv,
 #endif
 	return 0;
 }
+#endif
 
 /* Internal packet submission routine.  This uses the insecure versions
  * of the packet submission functions, and thus should only be used for

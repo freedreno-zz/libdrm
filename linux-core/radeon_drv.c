@@ -34,7 +34,7 @@
 
 #define RADEON_NAME		"radeon"
 #define RADEON_DESC		"ATI Radeon"
-#define RADEON_DATE		"20001108"
+#define RADEON_DATE		"20001223"
 #define RADEON_MAJOR		1
 #define RADEON_MINOR		0
 #define RADEON_PATCHLEVEL	0
@@ -258,8 +258,7 @@ static int radeon_takedown(drm_device_t *dev)
 		}
 		dev->agp->memory = NULL;
 
-		if (dev->agp->acquired && drm_agp.release)
-			(*drm_agp.release)();
+		if (dev->agp->acquired)	_drm_agp_release();
 
 		dev->agp->acquired = 0;
 		dev->agp->enabled  = 0;

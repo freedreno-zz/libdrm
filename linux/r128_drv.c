@@ -37,10 +37,10 @@
 
 #define R128_NAME		"r128"
 #define R128_DESC		"ATI Rage 128"
-#define R128_DATE		"20001106"
+#define R128_DATE		"20001215"
 #define R128_MAJOR		2
-#define R128_MINOR		0
-#define R128_PATCHLEVEL		0
+#define R128_MINOR		1
+#define R128_PATCHLEVEL		2
 
 static drm_device_t	r128_device;
 drm_ctx_t		r128_res_ctx;
@@ -119,6 +119,8 @@ static drm_ioctl_desc_t	      r128_ioctls[] = {
 	[DRM_IOCTL_NR(DRM_IOCTL_R128_VERTEX)]  = { r128_cce_vertex,   1, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_R128_INDICES)] = { r128_cce_indices,  1, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_R128_BLIT)]    = { r128_cce_blit,     1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_R128_DEPTH)]   = { r128_cce_depth,    1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_R128_STIPPLE)] = { r128_cce_stipple,  1, 0 },
 	[DRM_IOCTL_NR(DRM_IOCTL_R128_PACKET)]  = { r128_cce_packet,   1, 0 },
 };
 #define R128_IOCTL_COUNT DRM_ARRAY_SIZE(r128_ioctls)
@@ -261,8 +263,7 @@ static int r128_takedown(drm_device_t *dev)
 		}
 		dev->agp->memory = NULL;
 
-		if (dev->agp->acquired && drm_agp.release)
-			(*drm_agp.release)();
+		if (dev->agp->acquired)	_drm_agp_release();
 
 		dev->agp->acquired = 0;
 		dev->agp->enabled  = 0;
@@ -332,7 +333,7 @@ static int r128_takedown(drm_device_t *dev)
 /* r128_init is called via init_module at module load time, or via
  * linux/init/main.c (this is not currently supported). */
 
-static int r128_init(void)
+static int __init r128_init(void)
 {
 	int		      retcode;
 	drm_device_t	      *dev = &r128_device;
@@ -359,12 +360,12 @@ static int r128_init(void)
 
 #if defined(CONFIG_AGP) || defined(CONFIG_AGP_MODULE)
 	dev->agp    = drm_agp_init();
-      	if (dev->agp == NULL) {
-	   	DRM_ERROR("Cannot initialize agpgart module.\n");
-	   	drm_proc_cleanup();
-	   	misc_deregister(&r128_misc);
-	   	r128_takedown(dev);
-	   	return -ENOMEM;
+	if (dev->agp == NULL) {
+		DRM_ERROR("Cannot initialize agpgart module.\n");
+		drm_proc_cleanup();
+		misc_deregister(&r128_misc);
+		r128_takedown(dev);
+		return -ENOMEM;
 	}
 
 #ifdef CONFIG_MTRR
@@ -396,7 +397,7 @@ static int r128_init(void)
 
 /* r128_cleanup is called via cleanup_module at module unload time. */
 
-static void r128_cleanup(void)
+static void __exit r128_cleanup(void)
 {
 	drm_device_t	      *dev = &r128_device;
 
@@ -423,8 +424,8 @@ module_init(r128_init);
 module_exit(r128_cleanup);
 
 
-int r128_version(struct inode *inode, struct file *filp, unsigned int cmd,
-		  unsigned long arg)
+int r128_version(struct inode *inode, struct file *filp,
+		 unsigned int cmd, unsigned long arg)
 {
 	drm_version_t version;
 	int	      len;
@@ -516,8 +517,8 @@ int r128_release(struct inode *inode, struct file *filp)
 }
 
 /* r128_ioctl is called whenever a process performs an ioctl on /dev/drm. */
-int r128_ioctl(struct inode *inode, struct file *filp, unsigned int cmd,
-		unsigned long arg)
+int r128_ioctl(struct inode *inode, struct file *filp,
+	       unsigned int cmd, unsigned long arg)
 {
 	int		 nr	 = DRM_IOCTL_NR(cmd);
 	drm_file_t	 *priv	 = filp->private_data;
@@ -543,7 +544,7 @@ int r128_ioctl(struct inode *inode, struct file *filp, unsigned int cmd,
 			DRM_DEBUG("no function\n");
 			retcode = -EINVAL;
 		} else if ((ioctl->root_only && !capable(CAP_SYS_ADMIN))
-			    || (ioctl->auth_needed && !priv->authenticated)) {
+			   || (ioctl->auth_needed && !priv->authenticated)) {
 			retcode = -EACCES;
 		} else {
 			retcode = (func)(inode, filp, cmd, arg);
@@ -560,8 +561,8 @@ int r128_ioctl(struct inode *inode, struct file *filp, unsigned int cmd,
 	return retcode;
 }
 
-int r128_lock(struct inode *inode, struct file *filp, unsigned int cmd,
-	      unsigned long arg)
+int r128_lock(struct inode *inode, struct file *filp,
+	      unsigned int cmd, unsigned long arg)
 {
         drm_file_t        *priv   = filp->private_data;
         drm_device_t      *dev    = priv->dev;
@@ -656,8 +657,8 @@ int r128_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 }
 
 
-int r128_unlock(struct inode *inode, struct file *filp, unsigned int cmd,
-		 unsigned long arg)
+int r128_unlock(struct inode *inode, struct file *filp,
+		unsigned int cmd, unsigned long arg)
 {
 	drm_file_t	  *priv	  = filp->private_data;
 	drm_device_t	  *dev	  = priv->dev;
