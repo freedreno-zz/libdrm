@@ -171,6 +171,8 @@ extern int radeon_cp_cmdbuf( struct inode *inode, struct file *filp,
 			      unsigned int cmd, unsigned long arg );
 extern int radeon_cp_getparam( struct inode *inode, struct file *filp,
 			      unsigned int cmd, unsigned long arg );
+extern int radeon_cp_flip( struct inode *inode, struct file *filp,
+			   unsigned int cmd, unsigned long arg );
 
 
 

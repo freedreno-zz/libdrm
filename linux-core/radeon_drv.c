@@ -51,6 +51,8 @@
  *     - Increase MAX_TEXTURE_LEVELS (brian)
  * 1.3 - Add cmdbuf ioctl (keith)
  *     - Add support for new radeon packets (keith)
+ *     - Add getparam ioctl (keith)
+ *     - Add flip-buffers ioctl, deprecate fullscreen foo (keith).
  */
 #define DRIVER_IOCTLS							     \
  [DRM_IOCTL_NR(DRM_IOCTL_DMA)]               = { radeon_cp_buffers,  1, 0 }, \
@@ -70,7 +72,8 @@
  [DRM_IOCTL_NR(DRM_IOCTL_RADEON_INDIRECT)]   = { radeon_cp_indirect, 1, 1 }, \
  [DRM_IOCTL_NR(DRM_IOCTL_RADEON_VERTEX2)]    = { radeon_cp_vertex2,  1, 0 }, \
  [DRM_IOCTL_NR(DRM_IOCTL_RADEON_CMDBUF)]     = { radeon_cp_cmdbuf,   1, 0 }, \
- [DRM_IOCTL_NR(DRM_IOCTL_RADEON_GETPARAM)]  = { radeon_cp_getparam,   1, 0 },
+ [DRM_IOCTL_NR(DRM_IOCTL_RADEON_GETPARAM)]   = { radeon_cp_getparam, 1, 0 }, \
+ [DRM_IOCTL_NR(DRM_IOCTL_RADEON_FLIP)]       = { radeon_cp_flip,     1, 0 }, 
 
 
 #include "drm_agpsupport.h"

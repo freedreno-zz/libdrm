@@ -1144,60 +1144,12 @@ int radeon_engine_reset( struct inode *inode, struct file *filp,
  * Fullscreen mode
  */
 
-static int radeon_do_init_pageflip( drm_device_t *dev )
-{
-	drm_radeon_private_t *dev_priv = dev->dev_private;
-	DRM_DEBUG( "%s\n", __FUNCTION__ );
-
-	dev_priv->crtc_offset =      RADEON_READ( RADEON_CRTC_OFFSET );
-	dev_priv->crtc_offset_cntl = RADEON_READ( RADEON_CRTC_OFFSET_CNTL );
-
-	RADEON_WRITE( RADEON_CRTC_OFFSET, dev_priv->front_offset );
-	RADEON_WRITE( RADEON_CRTC_OFFSET_CNTL,
-		      dev_priv->crtc_offset_cntl |
-		      RADEON_CRTC_OFFSET_FLIP_CNTL );
-
-	dev_priv->page_flipping = 1;
-	dev_priv->current_page = 0;
-
-	return 0;
-}
-
-int radeon_do_cleanup_pageflip( drm_device_t *dev )
-{
-	drm_radeon_private_t *dev_priv = dev->dev_private;
-	DRM_DEBUG( "%s\n", __FUNCTION__ );
-
-	RADEON_WRITE( RADEON_CRTC_OFFSET,      dev_priv->crtc_offset );
-	RADEON_WRITE( RADEON_CRTC_OFFSET_CNTL, dev_priv->crtc_offset_cntl );
-
-	dev_priv->page_flipping = 0;
-	dev_priv->current_page = 0;
-
-	return 0;
-}
-
+/* KW: Deprecated to say the least:
+ */
 int radeon_fullscreen( struct inode *inode, struct file *filp,
 		       unsigned int cmd, unsigned long arg )
 {
-        drm_file_t *priv = filp->private_data;
-        drm_device_t *dev = priv->dev;
-	drm_radeon_fullscreen_t fs;
-
-	LOCK_TEST_WITH_RETURN( dev );
-
-	if ( copy_from_user( &fs, (drm_radeon_fullscreen_t *)arg,
-			     sizeof(fs) ) )
-		return -EFAULT;
-
-	switch ( fs.func ) {
-	case RADEON_INIT_FULLSCREEN:
-		return radeon_do_init_pageflip( dev );
-	case RADEON_CLEANUP_FULLSCREEN:
-		return radeon_do_cleanup_pageflip( dev );
-	}
-
-	return -EINVAL;
+	return 0;
 }
 
 

@@ -291,6 +291,8 @@ typedef struct {
 	drm_radeon_tex_region_t tex_list[RADEON_NR_TEX_HEAPS][RADEON_NR_TEX_REGIONS+1];
 	int tex_age[RADEON_NR_TEX_HEAPS];
 	int ctx_owner;
+        int pfState;                /* number of 3d windows (0,1,2ormore) */
+        int pfCurrentPage;	    /* which buffer is being displayed? */
 } drm_radeon_sarea_t;
 
 

@@ -51,7 +51,8 @@ static inline void radeon_emit_clip_rect( drm_radeon_private_t *dev_priv,
 	OUT_RING( CP_PACKET0( RADEON_RE_TOP_LEFT, 0 ) );
 	OUT_RING( (box->y1 << 16) | box->x1 );
 	OUT_RING( CP_PACKET0( RADEON_RE_WIDTH_HEIGHT, 0 ) );
-	OUT_RING( ((box->y2 - 1) << 16) | (box->x2 - 1) );
+/*	OUT_RING( ((box->y2 - 1) << 16) | (box->x2 - 1) );*/
+	OUT_RING( (box->y2 << 16) | box->x2 );
 	ADVANCE_RING();
 }
 
@@ -543,9 +544,17 @@ static void radeon_cp_dispatch_swap( drm_device_t *dev )
 			  RADEON_DP_SRC_SOURCE_MEMORY |
 			  RADEON_GMC_CLR_CMP_CNTL_DIS |
 			  RADEON_GMC_WR_MSK_DIS );
-
-		OUT_RING( dev_priv->back_pitch_offset );
-		OUT_RING( dev_priv->front_pitch_offset );
+		
+		/* Make this work even if front & back are flipped:
+		 */
+		if (dev_priv->current_page == 0) {
+			OUT_RING( dev_priv->back_pitch_offset );
+			OUT_RING( dev_priv->front_pitch_offset );
+		} 
+		else {
+			OUT_RING( dev_priv->front_pitch_offset );
+			OUT_RING( dev_priv->back_pitch_offset );
+		}
 
 		OUT_RING( (x << 16) | y );
 		OUT_RING( (x << 16) | y );
@@ -580,11 +589,12 @@ static void radeon_cp_dispatch_flip( drm_device_t *dev )
 	radeon_cp_performance_boxes( dev_priv );
 #endif
 
-	BEGIN_RING( 6 );
+	BEGIN_RING( 4 );
 
 	RADEON_WAIT_UNTIL_3D_IDLE();
+/*
 	RADEON_WAIT_UNTIL_PAGE_FLIPPED();
-
+*/
 	OUT_RING( CP_PACKET0( RADEON_CRTC_OFFSET, 0 ) );
 
 	if ( dev_priv->current_page == 0 ) {
@@ -602,6 +612,7 @@ static void radeon_cp_dispatch_flip( drm_device_t *dev )
 	 * performing the swapbuffer ioctl.
 	 */
 	dev_priv->sarea_priv->last_frame++;
+	dev_priv->sarea_priv->pfCurrentPage = dev_priv->current_page;
 
 	BEGIN_RING( 2 );
 
@@ -1045,21 +1056,67 @@ int radeon_cp_clear( struct inode *inode, struct file *filp,
 			     sarea_priv->nbox * sizeof(depth_boxes[0]) ) )
 		return -EFAULT;
 
-	/* Needed for depth clears via triangles???
-	 */
-	if ( sarea_priv->dirty & ~RADEON_UPLOAD_CLIPRECTS ) {
-		radeon_emit_state( dev_priv,
-				   &sarea_priv->context_state,
-				   sarea_priv->tex_state,
-				   sarea_priv->dirty );
-
-		sarea_priv->dirty &= ~(RADEON_UPLOAD_TEX0IMAGES |
-				       RADEON_UPLOAD_TEX1IMAGES |
-				       RADEON_UPLOAD_TEX2IMAGES |
-				       RADEON_REQUIRE_QUIESCENCE);
-	}
-
 	radeon_cp_dispatch_clear( dev, &clear, depth_boxes );
+
+	return 0;
+}
+
+
+
+/* Not sure why this isn't set all the time:
+ */ 
+static int radeon_do_init_pageflip( drm_device_t *dev )
+{
+	drm_radeon_private_t *dev_priv = dev->dev_private;
+	DRM_DEBUG( "%s\n", __FUNCTION__ );
+
+	dev_priv->crtc_offset =      RADEON_READ( RADEON_CRTC_OFFSET );
+	dev_priv->crtc_offset_cntl = RADEON_READ( RADEON_CRTC_OFFSET_CNTL );
+
+	RADEON_WRITE( RADEON_CRTC_OFFSET, dev_priv->front_offset );
+	RADEON_WRITE( RADEON_CRTC_OFFSET_CNTL,
+		      dev_priv->crtc_offset_cntl |
+		      RADEON_CRTC_OFFSET_FLIP_CNTL );
+
+	dev_priv->page_flipping = 1;
+	dev_priv->current_page = 0;
+
+	return 0;
+}
+
+int radeon_do_cleanup_pageflip( drm_device_t *dev )
+{
+	drm_radeon_private_t *dev_priv = dev->dev_private;
+	DRM_DEBUG( "%s\n", __FUNCTION__ );
+
+	RADEON_WRITE( RADEON_CRTC_OFFSET,      dev_priv->crtc_offset );
+	RADEON_WRITE( RADEON_CRTC_OFFSET_CNTL, dev_priv->crtc_offset_cntl );
+
+	dev_priv->page_flipping = 0;
+	dev_priv->current_page = 0;
+
+	return 0;
+}
+
+/* Swapping and flipping are different operations, need different ioctls.
+ * They can & should be intermixed to support multiple 3d windows.  
+ */
+int radeon_cp_flip( struct inode *inode, struct file *filp,
+		    unsigned int cmd, unsigned long arg )
+{
+	drm_file_t *priv = filp->private_data;
+	drm_device_t *dev = priv->dev;
+	drm_radeon_private_t *dev_priv = dev->dev_private;
+	DRM_DEBUG( "%s\n", __FUNCTION__ );
+
+	LOCK_TEST_WITH_RETURN( dev );
+
+	RING_SPACE_TEST_WITH_RETURN( dev_priv );
+
+	if (!dev_priv->page_flipping) 
+		radeon_do_init_pageflip( dev );
+		
+	radeon_cp_dispatch_flip( dev );
 
 	return 0;
 }
@@ -1080,12 +1137,8 @@ int radeon_cp_swap( struct inode *inode, struct file *filp,
 	if ( sarea_priv->nbox > RADEON_NR_SAREA_CLIPRECTS )
 		sarea_priv->nbox = RADEON_NR_SAREA_CLIPRECTS;
 
-	if ( !dev_priv->page_flipping ) {
-		radeon_cp_dispatch_swap( dev );
-		dev_priv->sarea_priv->ctx_owner = 0;
-	} else {
-		radeon_cp_dispatch_flip( dev );
-	}
+	radeon_cp_dispatch_swap( dev );
+	dev_priv->sarea_priv->ctx_owner = 0;
 
 	return 0;
 }
