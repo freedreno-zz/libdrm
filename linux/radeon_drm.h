@@ -26,6 +26,7 @@
  * Authors:
  *    Kevin E. Martin <martin@valinux.com>
  *    Gareth Hughes <gareth@valinux.com>
+ *    Keith Whitwell <keith_whitwell@yahoo.com>
  */
 
 #ifndef __RADEON_DRM_H__
@@ -46,7 +47,6 @@
 #define RADEON_UPLOAD_MASKS		0x00000010
 #define RADEON_UPLOAD_VIEWPORT		0x00000020
 #define RADEON_UPLOAD_SETUP		0x00000040
-#define RADEON_UPLOAD_TCL		0x00000080
 #define RADEON_UPLOAD_MISC		0x00000100
 #define RADEON_UPLOAD_TEX0		0x00000200
 #define RADEON_UPLOAD_TEX1		0x00000400
@@ -82,8 +82,6 @@
 
 #define RADEON_SCRATCH_REG_OFFSET	32
 
-/* Keep these small for testing
- */
 #define RADEON_NR_SAREA_CLIPRECTS	12
 
 /* There are 2 heaps (local/AGP).  Each region within a heap is a
@@ -202,8 +200,9 @@ typedef struct {
 } drm_radeon_tex_region_t;
 
 typedef struct {
-	/* The channel for communication of state information to the kernel
-	 * on firing a vertex buffer.
+	/* The channel for communication of state information to the
+	 * kernel on firing a vertex buffer with either of the
+	 * obsoleted vertex/index ioctls.
 	 */
 	drm_radeon_context_regs_t context_state;
 	drm_radeon_texture_regs_t tex_state[RADEON_MAX_TEXTURE_UNITS];
@@ -296,6 +295,15 @@ typedef struct drm_radeon_vertex {
 	int discard;			/* Client finished with buffer? */
 } drm_radeon_vertex_t;
 
+typedef struct drm_radeon_vertex {
+	int idx;			/* Index of vertex buffer */
+	int discard;			/* Client finished with buffer? */
+	int nr_states;
+	drm_radeon_state_t *state;
+	int nr_prims;
+	drm_radeon_prim_t *prim;
+} drm_radeon_vertex2_t;
+
 typedef struct drm_radeon_indices {
 	int prim;
 	int idx;
@@ -318,6 +326,16 @@ typedef struct drm_radeon_texture {
 	int height;
 	drm_radeon_tex_image_t *image;
 } drm_radeon_texture_t;
+
+typedef struct drm_radeon_texture2 {
+	int offset;
+	int pitch;
+	int format;
+	int width;			/* Texture image coordinates */
+	int height;
+	drm_radeon_tex_image_t blit;
+	const void *data;
+} drm_radeon_texture2_t;
 
 typedef struct drm_radeon_stipple {
 	unsigned int *mask;

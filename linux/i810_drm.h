@@ -88,6 +88,8 @@
 #define I810_TEXREG_MCS  7	/* GFX_OP_MAP_COORD_SETS ??? */
 #define I810_TEX_SETUP_SIZE 8
 
+/* Flags for clear ioctl
+ */
 #define I810_FRONT   0x1
 #define I810_BACK    0x2
 #define I810_DEPTH   0x4
@@ -188,6 +190,52 @@ typedef struct _drm_i810_copy_t {
 	int used;		/* nr bytes in use */
 	void *address;		/* Address to copy from */
 } drm_i810_copy_t;
+
+
+typedef struct _drm_i810_state {
+	unsigned int Setup[I810_CTX_SETUP_SIZE];
+	unsigned int BufferSetup[I810_DEST_SETUP_SIZE];
+	unsigned int TexSetup[2][I810_TEX_SETUP_SIZE];
+} drm_i810_state_t;
+
+#define PR_TRIANGLES         (0x0)
+#define PR_TRISTRIP_0        (0x1)
+#define PR_TRISTRIP_1        (0x2)
+#define PR_TRIFAN            (0x3)
+#define PR_POLYGON           (0x4)
+#define PR_LINES             (0x5)
+#define PR_LINESTRIP         (0x6)
+#define PR_RECTS             (0x7)
+
+typedef struct _drm_i810_prim {
+	int start;	
+	int finish;	
+	char prim;
+	char dirty;
+	char stateidx;
+} drm_i810_prim_t;
+
+
+#define I810_MAX_PRIMS 100
+#define I810_MAX_STATES 20
+
+/* Still uses the sarea to pass cliprects (fix?).  State and primitive
+ * information are passed directly as pointers to userspace data.
+ * Copying of vertex data is performed by this ioctl as well.  
+ * 
+ * This obsoletes _drm_i810_vertex, _drm_i810_copy and the state and
+ * primitive fields in the sarea.
+ */
+typedef struct _drm_i810_vertex2 {
+   	unsigned int idx;	   /* buffer index */
+	unsigned int discard;	   /* client is finished with the buffer? */
+	void *vertex_address;  
+	unsigned int nr_states;
+	drm_i810_state_t *state_address;
+	unsigned int nr_prims;
+	drm_i810_prim_t *prim_address;
+} drm_i810_vertex2_t;
+
 
 typedef struct drm_i810_dma {
 	void *virtual;

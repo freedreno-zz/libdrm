@@ -64,8 +64,6 @@ typedef struct drm_i810_private {
       	unsigned long hw_status_page;
    	unsigned long counter;
 
-   	atomic_t flush_done;
-   	wait_queue_head_t flush_queue;	/* Processes waiting until flush    */
 	drm_buf_t *mmap_buffer;
 
 
@@ -75,6 +73,12 @@ typedef struct drm_i810_private {
 	int depth_offset;
 	int w, h;
 	int pitch;
+
+	/* Temporaries to hold userspace data before submitting to the
+	 * ring.
+	 */
+	drm_i810_state_t statetmp[I810_MAX_STATES];
+	drm_i810_prim_t primtmp[I810_MAX_STATES];
 } drm_i810_private_t;
 
 				/* i810_dma.c */
@@ -89,17 +93,27 @@ extern void i810_reclaim_buffers(drm_device_t *dev, pid_t pid);
 extern int  i810_getage(struct inode *inode, struct file *filp,
 			unsigned int cmd, unsigned long arg);
 extern int i810_mmap_buffers(struct file *filp, struct vm_area_struct *vma);
+
+/* Obsolete:
+ */
 extern int i810_copybuf(struct inode *inode, struct file *filp,
 			unsigned int cmd, unsigned long arg);
+/* Obsolete:
+ */
 extern int i810_docopy(struct inode *inode, struct file *filp,
 		       unsigned int cmd, unsigned long arg);
 
 extern void i810_dma_quiescent(drm_device_t *dev);
 
-#define I810_VERBOSE 0
-
-
+/* Obsolete
+ */
 int i810_dma_vertex(struct inode *inode, struct file *filp,
+		    unsigned int cmd, unsigned long arg);
+
+/* Handles multiple prims/ioctl, does any necessary copying in this
+ * ioctl: 
+ */
+int i810_dma_vertex2(struct inode *inode, struct file *filp,
 		    unsigned int cmd, unsigned long arg);
 
 int i810_swap_bufs(struct inode *inode, struct file *filp,
