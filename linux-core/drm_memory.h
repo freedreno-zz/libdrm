@@ -96,13 +96,19 @@ void DRM(mem_init)(void)
 /* drm_mem_info is called whenever a process reads /dev/drm/mem. */
 
 static int DRM(_mem_info)(char *buf, char **start, off_t offset,
-			  int len, int *eof, void *data)
+			  int request, int *eof, void *data)
 {
 	drm_mem_stats_t *pt;
+	int             len = 0;
 
-	if (offset > 0) return 0; /* no partial requests */
-	len  = 0;
-	*eof = 1;
+	if (offset > DRM_PROC_LIMIT) {
+		*eof = 1;
+		return 0;
+	}
+	
+	*eof   = 0;
+	*start = &buf[offset];
+
 	DRM_PROC_PRINT("		  total counts			"
 		       " |    outstanding  \n");
 	DRM_PROC_PRINT("type	   alloc freed fail	bytes	   freed"
@@ -126,7 +132,9 @@ static int DRM(_mem_info)(char *buf, char **start, off_t offset,
 			       - (long)pt->bytes_freed);
 	}
 
-	return len;
+	if (len > request + offset) return request;
+	*eof = 1;
+	return len - offset;
 }
 
 int DRM(mem_info)(char *buf, char **start, off_t offset,

@@ -303,13 +303,13 @@ static inline unsigned long __cmpxchg(volatile void *ptr, unsigned long old,
 
 #define DRM_PROC_LIMIT (PAGE_SIZE-80)
 
-#define DRM_PROC_PRINT(fmt, arg...)	   \
-   len += sprintf(&buf[len], fmt , ##arg); \
-   if (len > DRM_PROC_LIMIT) return len;
+#define DRM_PROC_PRINT(fmt, arg...)					\
+   len += sprintf(&buf[len], fmt , ##arg);				\
+   if (len > DRM_PROC_LIMIT) { *eof = 1; return len - offset; }
 
-#define DRM_PROC_PRINT_RET(ret, fmt, arg...)	    \
-   len += sprintf(&buf[len], fmt , ##arg);	    \
-   if (len > DRM_PROC_LIMIT) { ret; return len; }
+#define DRM_PROC_PRINT_RET(ret, fmt, arg...)				\
+   len += sprintf(&buf[len], fmt , ##arg);				\
+   if (len > DRM_PROC_LIMIT) { ret; *eof = 1; return len - offset; }
 
 				/* Internal types and structures */
 #define DRM_ARRAY_SIZE(x) (sizeof(x)/sizeof(x[0]))
@@ -701,7 +701,7 @@ extern int          drm_proc_cleanup(int minor,
 				/* Memory management support (memory.c) */
 extern void	     DRM(mem_init)(void);
 extern int	     DRM(mem_info)(char *buf, char **start, off_t offset,
-				   int len, int *eof, void *data);
+				   int request, int *eof, void *data);
 extern void	     *DRM(alloc)(size_t size, int area);
 extern void	     *DRM(realloc)(void *oldpt, size_t oldsize, size_t size,
 				   int area);
