@@ -104,7 +104,9 @@ static drm_ioctl_desc_t	      radeon_ioctls[] = {
 	[DRM_IOCTL_NR(DRM_IOCTL_AGP_BIND)]      = { drm_agp_bind,	1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_AGP_UNBIND)]    = { drm_agp_unbind,	1, 1 },
 #endif
-
+	[DRM_IOCTL_NR(DRM_IOCTL_SG_ALLOC)]      = { drm_sg_alloc,     1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_SG_FREE)]       = { drm_sg_free,      1, 1 },
+   
 	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_CP_INIT)]  = { radeon_cp_init,   1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_CP_START)] = { radeon_cp_start,  1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_RADEON_CP_STOP)]  = { radeon_cp_stop,   1, 1 },
@@ -304,6 +306,12 @@ static int radeon_takedown(drm_device_t *dev)
 			case _DRM_AGP:
 				/* Do nothing here, because this is all
                                    handled in the AGP/GART driver. */
+				break;
+			case _DRM_SCATTER_GATHER:
+				if (dev->sg) {
+					drm_sg_cleanup(dev->sg);
+					dev->sg = NULL;
+				}
 				break;
 			}
 			drm_free(map, sizeof(*map), DRM_MEM_MAPS);

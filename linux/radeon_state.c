@@ -1385,7 +1385,7 @@ int radeon_cp_indirect( struct inode *inode, struct file *filp,
 		DRM_ERROR( "%s called without lock held\n", __FUNCTION__ );
 		return -EINVAL;
 	}
-	if ( !dev_priv || dev_priv->is_pci ) {
+	if ( !dev_priv ) {
 		DRM_ERROR( "%s called with a PCI card\n", __FUNCTION__ );
 		return -EINVAL;
 	}

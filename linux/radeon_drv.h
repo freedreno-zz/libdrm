@@ -30,6 +30,8 @@
  *
  */
 
+#include "ati_pcigart.h"
+
 #ifndef __RADEON_DRV_H__
 #define __RADEON_DRV_H__
 
@@ -106,6 +108,8 @@ typedef struct drm_radeon_private {
 	u32 depth_pitch_offset;
 
 	drm_radeon_depth_clear_t depth_clear;
+
+	unsigned long phys_pci_gart;
 
 	drm_map_t *sarea;
 	drm_map_t *fb;
