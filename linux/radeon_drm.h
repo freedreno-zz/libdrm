@@ -57,12 +57,14 @@
 #define RADEON_UPLOAD_TEX2IMAGES	0x00004000
 #define RADEON_UPLOAD_CLIPRECTS		0x00008000 /* handled client-side */
 #define RADEON_REQUIRE_QUIESCENCE	0x00010000
-#define RADEON_UPLOAD_ALL		0x0001ffff
-#define RADEON_UPLOAD_CONTEXT_ALL       0x000008ff
+#define RADEON_UPLOAD_ZBIAS		0x00020000 /* version 1.2 and newer */
+#define RADEON_UPLOAD_ALL		0x0003ffff
+#define RADEON_UPLOAD_CONTEXT_ALL       0x00010fff
 
 #define RADEON_FRONT			0x1
 #define RADEON_BACK			0x2
 #define RADEON_DEPTH			0x4
+#define RADEON_STENCIL                  0x8
 
 /* Primitive types
  */
@@ -160,18 +162,11 @@ typedef struct {
 	unsigned int re_misc;
 } drm_radeon_context_regs_t;
 
-
-/* Space is crucial; there is some redunancy here:
- */
 typedef struct {
-	unsigned int start;
-	unsigned int finish;
-	unsigned int dirty;
-	unsigned int prim:8;
-	unsigned int stateidx:8;
-	unsigned int numverts:16; /* overloaded as offset/64 for elt prims */
-        unsigned int vc_format;   /* vertex format */
-} drm_radeon_prim_t;
+	/* Zbias state */
+	unsigned int se_zbias_factor;			/* 0x1dac */
+	unsigned int se_zbias_constant;
+} drm_radeon_context2_regs_t;
 
 
 /* Setup registers for each texture unit
@@ -185,6 +180,25 @@ typedef struct {
 	unsigned int pp_tfactor;
 	unsigned int pp_border_color;
 } drm_radeon_texture_regs_t;
+
+/* Space is crucial; there is some redunancy here:
+ */
+typedef struct {
+	unsigned int start;
+	unsigned int finish;
+	unsigned int prim:8;
+	unsigned int stateidx:8;
+	unsigned int numverts:16; /* overloaded as offset/64 for elt prims */
+        unsigned int vc_format;   /* vertex format */
+} drm_radeon_prim_t;
+
+typedef struct {
+	drm_radeon_context_regs_t context;
+	drm_radeon_texture_regs_t tex[RADEON_MAX_TEXTURE_UNITS];
+	drm_radeon_context2_regs_t context2;
+	unsigned int dirty;
+} drm_radeon_state_t;
+
 
 typedef struct {
 	unsigned char next, prev;
@@ -277,7 +291,7 @@ typedef struct drm_radeon_clear {
 	unsigned int clear_color;
 	unsigned int clear_depth;
 	unsigned int color_mask;
-	unsigned int depth_mask;
+	unsigned int depth_mask;   /* misnamed field:  should be stencil */
 	drm_radeon_clear_rect_t *depth_boxes;
 } drm_radeon_clear_t;
 
@@ -292,7 +306,7 @@ typedef struct drm_radeon_vertex2 {
 	int idx;			/* Index of vertex buffer */
 	int discard;			/* Client finished with buffer? */
 	int nr_states;
-	drm_radeon_context_regs_t *state;
+	drm_radeon_state_t *state;
 	int nr_prims;
 	drm_radeon_prim_t *prim;
 } drm_radeon_vertex2_t;
@@ -319,16 +333,6 @@ typedef struct drm_radeon_texture {
 	int height;
 	drm_radeon_tex_image_t *image;
 } drm_radeon_texture_t;
-
-typedef struct drm_radeon_texture2 {
-	int offset;
-	int pitch;
-	int format;
-	int width;			/* Texture image coordinates */
-	int height;
-	drm_radeon_tex_image_t blit;
-	const void *data;
-} drm_radeon_texture2_t;
 
 typedef struct drm_radeon_stipple {
 	unsigned int *mask;

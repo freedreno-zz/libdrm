@@ -66,7 +66,6 @@
 #include "drm_context.h"
 #include "drm_dma.h"
 #include "drm_drawable.h"
-#include "drm_ioctl_table.h"
 #include "drm_drv.h"
 
 #ifndef MODULE
