@@ -483,7 +483,7 @@ typedef struct drm_scatter_gather {
 #define DRM_IOCTL_R128_CLEAR2		DRM_IOW( 0x51, drm_r128_clear2_t)
 
 /* Radeon specific ioctls */
-#define DRM_COMPAT_IOCTL_RADEON_CP_INIT DRM_IOW( 0x40, drm_radeon_init_t)
+#define DRM_IOCTL_RADEON_CP_INIT 	DRM_IOW( 0x40, drm_radeon_init_t)
 #define DRM_IOCTL_RADEON_CP_START	DRM_IO(  0x41)
 #define DRM_IOCTL_RADEON_CP_STOP	DRM_IOW( 0x42, drm_radeon_cp_stop_t)
 #define DRM_IOCTL_RADEON_CP_RESET	DRM_IO(  0x43)

@@ -240,8 +240,6 @@ typedef struct {
  * KW: actually it's illegal to change any of this (backwards compatibility).
  */
 
-#define DRM_IOCTL_RADEON_CP_INIT       DRM_IOW( 0x40, drm_radeon_init_t)
-
 typedef struct drm_radeon_init {
 	enum {
 		RADEON_INIT_CP    = 0x01,
