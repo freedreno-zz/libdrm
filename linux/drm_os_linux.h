@@ -15,6 +15,8 @@
 #define DRM_OS_WRITE32(addr, val)	writel(val, addr)
 #define DRM_OS_READMEMORYBARRIER	mb()
 #define DRM_OS_WRITEMEMORYBARRIER	wmb()
+#define DRM_OS_DEVICE	drm_file_t	*priv	= filp->private_data; \
+			drm_device_t	*dev	= priv->dev
 
 /* For data going from/to the kernel through the ioctl argument */
 #define DRM_OS_KRNFROMUSR(arg1, arg2, arg3) \

@@ -71,6 +71,8 @@
 #include <asm/pgalloc.h>
 #include "drm.h"
 
+#include "drm_os_linux.h"
+
 /* DRM template customization defaults
  */
 #ifndef __HAVE_AGP
