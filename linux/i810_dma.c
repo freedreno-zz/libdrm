@@ -609,12 +609,14 @@ static int i810_do_dma(drm_device_t *dev, int locked)
 	/* Always hold the hardware lock while dispatching.
 	 */
 
-	if (!locked && !drm_lock_take(&dev->lock.hw_lock->lock,
-				      DRM_KERNEL_CONTEXT)) {
-		atomic_inc(&dma->total_missed_lock);
-		clear_bit(0, &dev->dma_flag);
-		atomic_dec(&dev_priv->dispatch_lock);
-		return -EBUSY;
+   	if ( ((!locked) || 
+	      (atomic_read(&dev_priv->in_flush) != 1)) 
+	    && !drm_lock_take(&dev->lock.hw_lock->lock,
+			      DRM_KERNEL_CONTEXT)) {
+	   	atomic_inc(&dma->total_missed_lock);
+	   	clear_bit(0, &dev->dma_flag);
+	   	atomic_dec(&dev_priv->dispatch_lock);
+	   	return -EBUSY;
 	}
 
    	dma->next_queue	 = dev->queuelist[DRM_KERNEL_CONTEXT];
@@ -650,10 +652,11 @@ static int i810_do_dma(drm_device_t *dev, int locked)
 	atomic_add(buf->used, &dma->total_bytes);
 	atomic_inc(&dma->total_dmas);
 
-	if (!locked) {
-		if (drm_lock_free(dev, &dev->lock.hw_lock->lock,
+   	if ((!locked) 
+	    || (atomic_read(&dev_priv->in_flush) != 1)) {
+	   	if (drm_lock_free(dev, &dev->lock.hw_lock->lock,
 				  DRM_KERNEL_CONTEXT)) {
-			DRM_ERROR("\n");
+		   	DRM_ERROR("\n");
 		}
 	}
 
@@ -928,46 +931,6 @@ int i810_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 	if (lock.context < 0) {
 		return -EINVAL;
 	}
-   
-   	atomic_inc(&dev_priv->in_flush);
-   	printk("in_flush : %d\n", atomic_read(&dev_priv->in_flush));
-   	if(atomic_read(&dev_priv->in_flush) != 1) {
-	   atomic_dec(&dev_priv->in_flush);
-	   add_wait_queue(&dev->lock.lock_queue, &entry);
-	   for (;;) {
-	      /* Contention */
-	      atomic_inc(&dev->total_sleeps);
-	      current->state = TASK_INTERRUPTIBLE;
-	      current->policy |= SCHED_YIELD;
-	      atomic_inc(&dev_priv->in_flush);
-
-	      printk("in_flush_loop : %d\n", atomic_read(&dev_priv->in_flush));
-	      if(atomic_read(&dev_priv->in_flush) == 1) {
-		 break;
-	      }
-	      atomic_dec(&dev_priv->in_flush);
-	      printk("Calling lock schedule\n");
-	      schedule();
-	      if (signal_pending(current)) {
-		 ret = -ERESTARTSYS;
-		 break;
-	      }
-	   }
-	   current->state = TASK_RUNNING;
-	   remove_wait_queue(&dev->lock.lock_queue, &entry);
-	}
-   
-   	if (lock.flags & _DRM_LOCK_QUIESCENT) {
-	   ret = i810_flush_queue(dev);
-	   if(ret != 0) {
-	      atomic_dec(&dev_priv->in_flush);
-	      wake_up_interruptible(&dev->lock.lock_queue);
-	   }
-	} else if (ret == 0) {
-	   atomic_dec(&dev_priv->in_flush);
-	   wake_up_interruptible(&dev->lock.lock_queue);
-	}
-
 	/* Only one queue:
 	 */
 
@@ -1005,11 +968,27 @@ int i810_lock(struct inode *inode, struct file *filp, unsigned int cmd,
 	if (!ret) {
 		if (lock.flags & _DRM_LOCK_QUIESCENT) {
 		   printk("_DRM_LOCK_QUIESCENT\n");
+		   atomic_set(&dev_priv->in_flush, 1);
+		   i810_flush_queue(dev);
 		   i810_dma_quiescent(dev);
-		   atomic_dec(&dev_priv->in_flush);
-		   wake_up_interruptible(&dev->lock.lock_queue);
+		   atomic_set(&dev_priv->in_flush, 0);
 		}
 	}
 	printk("%d %s\n", lock.context, ret ? "interrupted" : "has lock");
 	return ret;
+}
+
+int i810_flush_ioctl(struct inode *inode, struct file *filp, 
+		     unsigned int cmd, unsigned long arg)
+{
+   	drm_file_t	  *priv	  = filp->private_data;
+   	drm_device_t	  *dev	  = priv->dev;
+   	drm_i810_private_t *dev_priv = (drm_i810_private_t *) dev->dev_private;
+   
+   	printk("i810_flush_ioctl\n");
+   	atomic_set(&dev_priv->in_flush, 1);
+   	i810_flush_queue(dev);
+   	i810_dma_quiescent(dev);
+   	atomic_set(&dev_priv->in_flush, 0);
+   	return 0;
 }

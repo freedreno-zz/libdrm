@@ -83,8 +83,9 @@ extern int  i810_control(struct inode *inode, struct file *filp,
 extern int  i810_lock(struct inode *inode, struct file *filp,
 		       unsigned int cmd, unsigned long arg);
 extern int  i810_dma_init(struct inode *inode, struct file *filp,
-			unsigned int cmd, unsigned long arg);
-
+			  unsigned int cmd, unsigned long arg);
+extern int  i810_flush_ioctl(struct inode *inode, struct file *filp,
+			     unsigned int cmd, unsigned long arg);
 
 				/* i810_bufs.c */
 extern int  i810_addbufs(struct inode *inode, struct file *filp, 

@@ -129,5 +129,5 @@ typedef struct {
 #define DRM_IOCTL_I810_INIT    DRM_IOW( 0x40, drm_i810_init_t)
 #define DRM_IOCTL_I810_VERTEX  DRM_IOW( 0x41, drm_i810_vertex_t)
 #define DRM_IOCTL_I810_DMA     DRM_IOW( 0x42, drm_i810_general_t)
-
+#define DRM_IOCTL_I810_FLUSH   DRM_IO ( 0x43)
 #endif /* _I810_DRM_H_ */
