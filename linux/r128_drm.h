@@ -69,11 +69,20 @@
 
 /* Vertex/indirect buffer size
  */
+#if 1
 #define R128_BUFFER_SIZE		16384
+#else
+#define R128_BUFFER_SIZE		(128 * 1024)
+#endif
+
+/* Byte offsets for indirect buffer data
+ */
+#define R128_INDEX_PRIM_OFFSET		20
+#define R128_HOSTDATA_BLIT_OFFSET	32
 
 /* 2048x2048 @ 32bpp texture requires this many indirect buffers
  */
-#define R128_MAX_BLIT_BUFFERS		256
+#define R128_MAX_BLIT_BUFFERS		((2048 * 2048 * 4) / R128_BUFFER_SIZE)
 
 /* Keep these small for testing.
  */
@@ -202,6 +211,11 @@ typedef struct drm_r128_init {
 	unsigned int agp_textures_offset;
 } drm_r128_init_t;
 
+typedef struct drm_r128_cce_stop {
+	int flush;
+	int idle;
+} drm_r128_cce_stop_t;
+
 typedef struct drm_r128_clear {
 	unsigned int flags;
 	int x, y, w, h;
@@ -214,9 +228,17 @@ typedef struct drm_r128_clear {
 typedef struct drm_r128_vertex {
 	int prim;
 	int idx;			/* Index of vertex buffer */
-	int used;			/* Amount of buffer used */
+	int count;			/* Number of vertices in buffer */
 	int discard;			/* Client finished with buffer? */
 } drm_r128_vertex_t;
+
+typedef struct drm_r128_indices {
+	int prim;
+	int idx;
+	int start;
+	int end;
+	int discard;			/* Client finished with buffer? */
+} drm_r128_indices_t;
 
 typedef struct drm_r128_blit_rect {
 	int index;

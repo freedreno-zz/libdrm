@@ -115,18 +115,20 @@ int R128_READ_PLL(drm_device_t *dev, int addr)
 }
 
 
-static void r128_status(drm_device_t *dev)
+static void r128_status( drm_r128_private_t *dev_priv )
 {
-	drm_r128_private_t *dev_priv = dev->dev_private;
-
-	printk("GUI_STAT           = 0x%08x\n",
-	       (unsigned int)R128_READ(R128_GUI_STAT));
-	printk("PM4_STAT           = 0x%08x\n",
-	       (unsigned int)R128_READ(R128_PM4_STAT));
-	printk("PM4_BUFFER_DL_WPTR = 0x%08x\n",
-	       (unsigned int)R128_READ(R128_PM4_BUFFER_DL_WPTR));
-	printk("PM4_BUFFER_DL_RPTR = 0x%08x\n",
-	       (unsigned int)R128_READ(R128_PM4_BUFFER_DL_RPTR));
+	printk( "GUI_STAT           = 0x%08x\n",
+		(unsigned int)R128_READ( R128_GUI_STAT ) );
+	printk( "PM4_STAT           = 0x%08x\n",
+		(unsigned int)R128_READ( R128_PM4_STAT ) );
+	printk( "PM4_BUFFER_DL_WPTR = 0x%08x\n",
+		(unsigned int)R128_READ( R128_PM4_BUFFER_DL_WPTR ) );
+	printk( "PM4_BUFFER_DL_RPTR = 0x%08x\n",
+		(unsigned int)R128_READ( R128_PM4_BUFFER_DL_RPTR ) );
+	printk( "PM4_MICRO_CNTL     = 0x%08x\n",
+		(unsigned int)R128_READ( R128_PM4_MICRO_CNTL ) );
+	printk( "PM4_BUFFER_CNTL    = 0x%08x\n",
+		(unsigned int)R128_READ( R128_PM4_BUFFER_CNTL ) );
 }
 
 
@@ -163,7 +165,7 @@ static int r128_do_wait_for_fifo( drm_r128_private_t *dev_priv, int entries )
 		udelay( 1 );
 	}
 
-	DRM_DEBUG( "%s failed!\n", __FUNCTION__ );
+	DRM_ERROR( "%s failed!\n", __FUNCTION__ );
 	return -EBUSY;
 }
 
@@ -182,7 +184,7 @@ static int r128_do_wait_for_idle( drm_r128_private_t *dev_priv )
 		udelay( 1 );
 	}
 
-	DRM_DEBUG( "%s failed!\n", __FUNCTION__ );
+	DRM_ERROR( "%s failed!\n", __FUNCTION__ );
 	return -EBUSY;
 }
 
@@ -238,7 +240,10 @@ static int r128_do_cce_idle( drm_r128_private_t *dev_priv )
 		udelay( 1 );
 	}
 
-	DRM_DEBUG( "%s failed!\n", __FUNCTION__ );
+#if 0
+	DRM_ERROR( "failed!\n" );
+	r128_status( dev_priv );
+#endif
 	return -EBUSY;
 }
 
@@ -390,6 +395,10 @@ static int r128_do_init_cce( drm_device_t *dev, drm_r128_init_t *init )
 
 	dev_priv->cce_mode = init->cce_mode;
 	dev_priv->cce_secure = init->cce_secure;
+
+	/* GH: Simple idle check.
+	 */
+	atomic_set( &dev_priv->idle_count, 0 );
 
 	/* We don't support anything other than bus-mastering ring mode,
 	 * but the ring can be in either AGP or PCI space for the ring
@@ -549,59 +558,63 @@ int r128_cce_start( struct inode *inode, struct file *filp,
         drm_file_t *priv = filp->private_data;
         drm_device_t *dev = priv->dev;
 	drm_r128_private_t *dev_priv = dev->dev_private;
+	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
 	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||
 	     dev->lock.pid != current->pid ) {
 		DRM_ERROR( "%s called without lock held\n", __FUNCTION__ );
 		return -EINVAL;
 	}
-	if ( !dev_priv )
-		return -EINVAL;
-
-	if ( dev_priv->cce_running || dev_priv->cce_mode == R128_PM4_NONPM4 )
+	if ( dev_priv->cce_running || dev_priv->cce_mode == R128_PM4_NONPM4 ) {
+		DRM_DEBUG( "%s while CCE running\n", __FUNCTION__ );
 		return 0;
+	}
 
 	r128_do_cce_start( dev_priv );
 
 	return 0;
 }
 
+/* Stop the CCE.  The engine must have been idled before calling this
+ * routine.
+ */
 int r128_cce_stop( struct inode *inode, struct file *filp,
 		   unsigned int cmd, unsigned long arg )
 {
         drm_file_t *priv = filp->private_data;
         drm_device_t *dev = priv->dev;
 	drm_r128_private_t *dev_priv = dev->dev_private;
+	drm_r128_cce_stop_t stop;
 	int ret;
+	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
 	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||
 	     dev->lock.pid != current->pid ) {
 		DRM_ERROR( "%s called without lock held\n", __FUNCTION__ );
 		return -EINVAL;
 	}
-	if ( !dev_priv ) {
-		DRM_DEBUG( "%s called before init done\n", __FUNCTION__ );
-		return -EINVAL;
-	}
 
-	if ( !dev_priv->cce_running || dev_priv->cce_mode == R128_PM4_NONPM4 ){
-		DRM_DEBUG( "%s while CCE not running\n", __FUNCTION__ );
-		return 0;
-	}
+	if ( copy_from_user( &stop, (drm_r128_init_t *)arg, sizeof(stop) ) )
+		return -EFAULT;
 
 	/* Flush any pending CCE commands.  This ensures any outstanding
 	 * commands are exectuted by the engine before we turn it off.
 	 */
-	r128_do_cce_flush( dev_priv );
+	if ( stop.flush ) {
+		r128_do_cce_flush( dev_priv );
+	}
 
 	/* If we fail to make the engine go idle, we return an error
 	 * code so that the DRM ioctl wrapper can try again.
 	 */
-	ret = r128_do_cce_idle( dev_priv );
-	if ( ret < 0 ) return ret;
+	if ( stop.idle ) {
+		ret = r128_do_cce_idle( dev_priv );
+		if ( ret < 0 ) return ret;
+	}
 
-	/* Finally, if we've managed to make the engine go idle, we
-	 * can turn off the CCE.
+	/* Finally, we can turn off the CCE.  If the engine isn't idle,
+	 * we will get some dropped triangles as they won't be fully
+	 * rendered before the CCE is shut down.
 	 */
 	r128_do_cce_stop( dev_priv );
 
@@ -619,6 +632,7 @@ int r128_cce_reset( struct inode *inode, struct file *filp,
         drm_file_t *priv = filp->private_data;
         drm_device_t *dev = priv->dev;
 	drm_r128_private_t *dev_priv = dev->dev_private;
+	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
 	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||
 	     dev->lock.pid != current->pid ) {
@@ -629,12 +643,6 @@ int r128_cce_reset( struct inode *inode, struct file *filp,
 		DRM_DEBUG( "%s called before init done\n", __FUNCTION__ );
 		return -EINVAL;
 	}
-#if 0
-	if ( !dev_priv->cce_running || dev_priv->cce_mode == R128_PM4_NONPM4 ){
-		DRM_DEBUG( "%s while CCE not running\n", __FUNCTION__ );
-		return 0;
-	}
-#endif
 
 	r128_do_cce_reset( dev_priv );
 
@@ -650,6 +658,7 @@ int r128_cce_idle( struct inode *inode, struct file *filp,
         drm_file_t *priv = filp->private_data;
         drm_device_t *dev = priv->dev;
 	drm_r128_private_t *dev_priv = dev->dev_private;
+	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
 	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||
 	     dev->lock.pid != current->pid ) {
@@ -657,7 +666,6 @@ int r128_cce_idle( struct inode *inode, struct file *filp,
 		return -EINVAL;
 	}
 
-	r128_do_cce_flush( dev_priv );
 	return r128_do_cce_idle( dev_priv );
 }
 
@@ -666,6 +674,7 @@ int r128_engine_reset( struct inode *inode, struct file *filp,
 {
         drm_file_t *priv = filp->private_data;
         drm_device_t *dev = priv->dev;
+	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
 	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||
 	     dev->lock.pid != current->pid ) {
@@ -790,7 +799,7 @@ int r128_wait_ring( drm_r128_private_t *dev_priv, int n )
 	int i;
 
 	for ( i = 0 ; i < dev_priv->usec_timeout ; i++ ) {
-		ring->space = *ring->head - dev_priv->ring.tail;
+		ring->space = *ring->head - ring->tail;
 		if ( ring->space <= 0 )
 			ring->space += ring->size;
 
@@ -807,7 +816,9 @@ void r128_update_ring_snapshot( drm_r128_private_t *dev_priv )
 {
 	drm_r128_ring_buffer_t *ring = &dev_priv->ring;
 
-	ring->space = *ring->head - dev_priv->ring.tail;
+	ring->space = *ring->head - ring->tail;
+	if ( ring->space == 0 )
+		atomic_inc( &dev_priv->idle_count );
 	if ( ring->space <= 0 )
 		ring->space += ring->size;
 }

@@ -68,6 +68,8 @@ typedef struct drm_r128_private {
 	int usec_timeout;
 	int is_pci;
 
+	atomic_t idle_count;
+
 	unsigned int fb_bpp;
 	unsigned int front_offset;
 	unsigned int front_pitch;
@@ -100,20 +102,6 @@ typedef struct drm_r128_buf_priv {
 	int dispatched;
    	drm_r128_freelist_t *list_entry;
 } drm_r128_buf_priv_t;
-
-#define R128_BLIT_PACKET_DATA_SIZE ((R128_BUFFER_SIZE / sizeof(u32)) - 8)
-
-typedef struct drm_r128_blit_packet {
-	u32 header;
-	u32 gui_master_cntl;
-	u32 dst_pitch_offset;
-	u32 fg_color;
-	u32 bg_color;
-	u16 x, y;		/* HACK: endian specific */
-	u16 width, height;
-	u32 dwords;
-	u32 data[R128_BLIT_PACKET_DATA_SIZE];
-} drm_r128_blit_packet_t;
 
 				/* r128_drv.c */
 extern int  r128_version( struct inode *inode, struct file *filp,
@@ -158,6 +146,8 @@ extern int r128_cce_swap( struct inode *inode, struct file *filp,
 			  unsigned int cmd, unsigned long arg );
 extern int r128_cce_vertex( struct inode *inode, struct file *filp,
 			    unsigned int cmd, unsigned long arg );
+extern int r128_cce_indices( struct inode *inode, struct file *filp,
+			     unsigned int cmd, unsigned long arg );
 extern int r128_cce_blit( struct inode *inode, struct file *filp,
 			  unsigned int cmd, unsigned long arg );
 
@@ -386,6 +376,8 @@ extern int  r128_context_switch_complete(drm_device_t *dev, int new);
 #define R128_LAST_DISPATCH_REG		R128_GUI_SCRATCH_REG1
 #define R128_MAX_VB_AGE			0xffffffff
 
+#define R128_MAX_VB_VERTS		(0xffff)
+
 
 #define R128_BASE(reg)		((unsigned long)(dev_priv->mmio->handle))
 #define R128_ADDR(reg)		(R128_BASE(reg) + reg)
@@ -439,9 +431,9 @@ extern int R128_READ_PLL(drm_device_t *dev, int addr);
 		r128_wait_ring( dev_priv, n * sizeof(u32) );		\
 	}								\
 	dev_priv->ring.space -= n * sizeof(u32);			\
+	ring = dev_priv->ring.start;					\
 	write = dev_priv->ring.tail;					\
 	mask = dev_priv->ring.tail_mask;				\
-	ring = dev_priv->ring.start;					\
 } while (0)
 
 #define ADVANCE_RING() do {						\
@@ -462,5 +454,7 @@ extern int R128_READ_PLL(drm_device_t *dev, int addr);
 	ring[write++] = x;						\
 	write &= mask;							\
 } while (0)
+
+#define R128_PERFORMANCE_BOXES	0
 
 #endif /* __R128_DRV_H__ */
