@@ -76,29 +76,9 @@
 #ifndef __HAVE_SG
 #define __HAVE_SG			0
 #endif
-#ifndef __HAVE_DRIVER_FOPS_READ
-#define __HAVE_DRIVER_FOPS_READ		0
-#endif
-#ifndef __HAVE_DRIVER_FOPS_POLL
-#define __HAVE_DRIVER_FOPS_POLL		0
-#endif
 
 #ifndef DRIVER_IOCTLS
 #define DRIVER_IOCTLS
-#endif
-#ifndef DRIVER_FOPS
-#define DRIVER_FOPS				\
-static struct file_operations	DRM(fops) = {	\
-	.owner   = THIS_MODULE,			\
-	.open	 = DRM(open),			\
-	.flush	 = DRM(flush),			\
-	.release = DRM(release),		\
-	.ioctl	 = DRM(ioctl),			\
-	.mmap	 = DRM(mmap),			\
-	.fasync  = DRM(fasync),			\
-	.poll	 = DRM(poll),			\
-	.read	 = DRM(read),			\
-}
 #endif
 
 static void __exit drm_cleanup( drm_device_t *dev );
@@ -137,7 +117,17 @@ drm_device_t            DRM(device)[MAX_DEVICES];
 int DRM(numdevs) = 0;
 int DRM(fb_loaded) = 0;
 
-DRIVER_FOPS;
+struct file_operations	DRM(fops) = {
+	.owner   = THIS_MODULE,
+	.open	 = DRM(open),
+	.flush	 = DRM(flush),
+	.release = DRM(release),
+	.ioctl	 = DRM(ioctl),
+	.mmap	 = DRM(mmap),
+	.fasync  = DRM(fasync),
+	.poll	 = DRM(poll),
+	.read	 = DRM(read),
+};
 
 /** Ioctl table */
 drm_ioctl_desc_t		  DRM(ioctls)[] = {
