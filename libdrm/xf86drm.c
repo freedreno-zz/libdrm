@@ -306,11 +306,12 @@ static int drmOpenByBusid(const char *busid)
     return -1;
 }
 
-static int drmOpenByName(const char *name, int startminor)
+static int drmOpenByName(const char *name)
 {
     int           i;
     int           fd;
     drmVersionPtr version;
+    char *        id;
     
     if (!drmAvailable()) {
 #if !defined(XFree86Server)
@@ -325,19 +326,33 @@ static int drmOpenByName(const char *name, int startminor)
 #endif
     }
 
-    for (i = startminor; i < DRM_MAX_MINOR; i++) {
+    /*
+     * Open the first minor number that matches the driver name and isn't
+     * already in use.  If it's in use it will have a busid assigned already.
+     */
+    for (i = 0; i < DRM_MAX_MINOR; i++) {
 	if ((fd = drmOpenMinor(i, 1)) >= 0) {
 	    if ((version = drmGetVersion(fd))) {
 		if (!strcmp(version->name, name)) {
 		    drmFreeVersion(version);
-		    return fd;
+		    id = drmGetBusid(fd);
+		    drmMsg("drmGetBusid returned '%s'\n", id ? id : "NULL");
+		    if (!id || !*id) {
+			if (id) {
+			    drmFreeBusid(id);
+			}
+			return fd;
+		    } else {
+			drmFreeBusid(id);
+		    }
+		} else {
+		    drmFreeVersion(version);
 		}
-		drmFreeVersion(version);
 	    }
+	    close(fd);
 	}
     }
 
-#if 0
 #ifdef __linux__
 				/* Backward-compatibility /proc support */
     for (i = 0; i < 8; i++) {
@@ -369,7 +384,6 @@ static int drmOpenByName(const char *name, int startminor)
 	}
     }
 #endif
-#endif
 
     return -1;
 }
@@ -382,8 +396,8 @@ static int drmOpenByName(const char *name, int startminor)
 int drmOpen(const char *name, const char *busid)
 {
 
-    if ((int)busid > 100) return drmOpenByBusid(busid);
-    return drmOpenByName(name, (int)busid);
+    if (busid) return drmOpenByBusid(busid);
+    return drmOpenByName(name);
 }
 
 void drmFreeVersion(drmVersionPtr v)
