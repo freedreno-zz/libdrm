@@ -517,7 +517,11 @@ struct drm_driver_fn {
 	int (*postcleanup)(struct drm_device *);
 	int (*presetup)(struct drm_device *);
 	int (*postsetup)(struct drm_device *);
+
+	/* these are opposites at the moment */
 	int (*open_helper)(struct drm_device *, drm_file_t *);
+	void (*free_filp_private)(struct drm_device *, drm_file_t *);
+
 	void (*release)(struct drm_device *, struct file *filp);
 	void (*dma_ready)(struct drm_device *);
 	int (*dma_quiescent)(struct drm_device *);
