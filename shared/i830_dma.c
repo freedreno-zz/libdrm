@@ -50,6 +50,11 @@ static void i830_print_status_page(drm_device_t *dev)
 	u32 *temp = dev_priv->hw_status_page;
    	int i;
 
+	if (!temp) {
+		DRM_DEBUG("no status page\n");
+		return;
+	}
+
    	DRM_DEBUG(  "hw_status: Interrupt Status : %x\n", temp[0]);
    	DRM_DEBUG(  "hw_status: LpRing Head ptr : %x\n", temp[1]);
    	DRM_DEBUG(  "hw_status: IRing Head ptr : %x\n", temp[2]);
@@ -58,8 +63,6 @@ static void i830_print_status_page(drm_device_t *dev)
    	for(i = 9; i < dma->buf_count + 9; i++) {
 	   	DRM_DEBUG( "buffer status idx : %d used: %d\n", i - 9, temp[i]);
 	}
-	
-	(void) temp;		/* quieten compiler */
 }
 
 
@@ -75,25 +78,23 @@ static int i830_dma_get_buffer2(drm_device_t *dev,
 	/* Never use the last dma buffer, hw errata.
 	 */
    	for (i = 0; i < dma->buf_count - 1; i++) {
-
 		buf = dma->buflist[i];
 	   	buf_priv = buf->dev_private;
 
-	   	if (cmpxchg(buf_priv->in_use, 
-			    I830_BUF_FREE, 
-			    I830_BUF_CLIENT) == I830_BUF_FREE)
-			goto got_buf;
+		if (cmpxchg(buf_priv->in_use, 
+ 			    I830_BUF_FREE,  
+ 			    I830_BUF_CLIENT) == I830_BUF_FREE) {
+
+			buf->filp = filp;
+			d->granted = 1;
+			d->request_idx = buf->idx;
+			d->request_size = buf->total;
+			d->virtual = 0;		/* already mapped */
+			return 0;
+		}
 	}
+
    	return DRM_ERR(ENOMEM);
-
- got_buf:
-	buf->filp = filp;
-	d->granted = 1;
-   	d->request_idx = buf->idx;
-   	d->request_size = buf->total;
-   	d->virtual = 0;		/* don't need to map - already done */
-
-	return 0;
 }
 
 
@@ -212,6 +213,7 @@ static int i830_freelist_init(drm_device_t *dev, drm_i830_private_t *dev_priv)
 							buf->total, dev);
 #endif
 	}
+
 	return 0;
 }
 
@@ -1574,8 +1576,7 @@ int i830_getbuf2( DRM_IOCTL_ARGS )
 	DRM_DEBUG("i830_dma: %d returning %d, granted = %d\n",
 		  current->pid, retcode, d.granted);
 
-	if (DRM_COPY_TO_USER((drm_dma_t *)data, &d, sizeof(d)))
-		return DRM_ERR(EFAULT);
+	DRM_COPY_TO_USER_IOCTL((drm_i830_dma_t *)data, d, sizeof(d));
 
    	sarea_priv->last_dispatch = (int) hw_status[5];
 
@@ -1584,7 +1585,7 @@ int i830_getbuf2( DRM_IOCTL_ARGS )
 
 int i830_copybuf( DRM_IOCTL_ARGS )
 {
-	/* Never copy - 2.4.x doesn't need it */
+	/* Deprecated */
 	return 0;
 }
 
