@@ -491,6 +491,7 @@ typedef struct drm_scatter_gather {
 #define DRM_IOCTL_RADEON_TEXTURE	DRM_IOWR(0x4e, drm_radeon_texture_t)
 #define DRM_IOCTL_RADEON_VERTEX2	DRM_IOW( 0x4f, drm_radeon_vertex_t)
 #define DRM_IOCTL_RADEON_CMDBUF  	DRM_IOW( 0x50, drm_radeon_cmd_buffer_t)
+#define DRM_IOCTL_RADEON_GETPARAM	DRM_IOWR(0x51, drm_radeon_getparam_t)
 
 /* Gamma specific ioctls */
 #define DRM_IOCTL_GAMMA_INIT		DRM_IOW( 0x40, drm_gamma_init_t)

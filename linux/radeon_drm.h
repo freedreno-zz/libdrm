@@ -98,8 +98,10 @@
 #define RADEON_CMD_PACKET      1 /* emit one of the register packets above */
 #define RADEON_CMD_SCALARS     2 /* emit scalar data */
 #define RADEON_CMD_VECTORS     3 /* emit vector data */
-#define RADEON_CMD_PRIMITIVE   4 /* emit a primitive from current dma buf */
-#define RADEON_CMD_DMA_DISCARD 5 /* discard current dma buf */
+#define RADEON_CMD_DMA_DISCARD 4 /* discard current dma buf */
+#define RADEON_CMD_PACKET3     5 /* emit hw packet */
+#define RADEON_CMD_PACKET3_CLIP 6 /* emit hw packet wrapped in cliprects */
+
 
 typedef union {
 	int i;
@@ -115,9 +117,6 @@ typedef union {
 	struct { 
 		char cmd_type, offset, stride, count; 
 	} vectors;
-	struct { 
-		char cmd_type, buf_idx, pad0, pad1; 
-	} primitive;
 	struct { 
 		char cmd_type, buf_idx, pad0, pad1; 
 	} dma;
@@ -145,7 +144,6 @@ typedef union {
 /* Byte offsets for indirect buffer data
  */
 #define RADEON_INDEX_PRIM_OFFSET	20
-#define RADEON_HOSTDATA_BLIT_OFFSET	32
 
 #define RADEON_SCRATCH_REG_OFFSET	32
 
@@ -253,13 +251,6 @@ typedef struct {
         unsigned int vc_format;   /* vertex format */
 } drm_radeon_prim_t;
 
-typedef struct {
-	unsigned int start;
-	unsigned int finish;
-	unsigned int prim;
-	unsigned int numverts; /* overloaded as offset/64 for elt prims */
-        unsigned int vc_format;   /* vertex format */
-} drm_radeon_tcl_prim_t;
 
 typedef struct {
 	drm_radeon_context_regs_t context;
@@ -436,5 +427,16 @@ typedef struct drm_radeon_indirect {
 	int end;
 	int discard;
 } drm_radeon_indirect_t;
+
+
+/* 1.3: An ioctl to get parameters that aren't available to the 3d
+ * client any other way.  
+ */
+#define RADEON_PARAM_AGP_BUFFER_OFFSET 0x1
+
+typedef struct drm_radeon_getparam {
+	int param;
+	int *value;
+} drm_radeon_getparam_t;
 
 #endif

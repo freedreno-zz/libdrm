@@ -71,14 +71,7 @@ typedef struct drm_radeon_private {
 
    	drm_radeon_freelist_t *head;
    	drm_radeon_freelist_t *tail;
-/* FIXME: ROTATE_BUFS is a hask to cycle through bufs until freelist
-   code is used.  Note this hides a problem with the scratch register
-   (used to keep track of last buffer completed) being written to before
-   the last buffer has actually completed rendering. */
-#define ROTATE_BUFS 1
-#if ROTATE_BUFS
 	int last_buf;
-#endif
 	volatile u32 *scratch;
 
 	int usec_timeout;
@@ -120,10 +113,6 @@ typedef struct drm_radeon_private {
 
 typedef struct drm_radeon_buf_priv {
 	u32 age;
-	int prim;
-	int discard;
-	int dispatched;
-   	drm_radeon_freelist_t *list_entry;
 } drm_radeon_buf_priv_t;
 
 				/* radeon_cp.c */
@@ -179,6 +168,8 @@ extern int radeon_cp_indirect( struct inode *inode, struct file *filp,
 extern int radeon_cp_vertex2( struct inode *inode, struct file *filp,
 			      unsigned int cmd, unsigned long arg );
 extern int radeon_cp_cmdbuf( struct inode *inode, struct file *filp,
+			      unsigned int cmd, unsigned long arg );
+extern int radeon_cp_getparam( struct inode *inode, struct file *filp,
 			      unsigned int cmd, unsigned long arg );
 
 
@@ -467,8 +458,10 @@ extern int radeon_cp_cmdbuf( struct inode *inode, struct file *filp,
 #define RADEON_CP_PACKET3		0xC0000000
 #	define RADEON_3D_RNDR_GEN_INDX_PRIM	0x00002300
 #	define RADEON_WAIT_FOR_IDLE		0x00002600
+#	define RADEON_3D_DRAW_VBUF		0x00002800
 #	define RADEON_3D_DRAW_IMMD		0x00002900
-#	define RADEON_3D_CLEAR_ZMASK		0x00003200
+#	define RADEON_3D_DRAW_INDX		0x00002A00
+#	define RADEON_3D_LOAD_VBPNTR		0x00002F00
 #	define RADEON_CNTL_HOSTDATA_BLT		0x00009400
 #	define RADEON_CNTL_PAINT_MULTI		0x00009A00
 #	define RADEON_CNTL_BITBLT_MULTI		0x00009B00
