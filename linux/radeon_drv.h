@@ -326,9 +326,9 @@ extern int  radeon_context_switch_complete(drm_device_t *dev, int new);
 #	define RADEON_Z_TEST_MASK		(7 << 4)
 #	define RADEON_Z_TEST_ALWAYS		(7 << 4)
 #	define RADEON_STENCIL_TEST_ALWAYS	(7 << 12)
-#	define RADEON_STENCIL_S_FAIL_KEEP	(0 << 16)
-#	define RADEON_STENCIL_ZPASS_KEEP	(0 << 20)
-#	define RADEON_STENCIL_ZFAIL_KEEP	(0 << 20)
+#	define RADEON_STENCIL_FAIL_REPLACE	(2 << 16)
+#	define RADEON_STENCIL_ZPASS_REPLACE	(2 << 20)
+#	define RADEON_STENCIL_ZFAIL_REPLACE	(2 << 24)
 #	define RADEON_Z_WRITE_ENABLE		(1 << 30)
 #define RADEON_RBBM_SOFT_RESET		0x00f0
 #	define RADEON_SOFT_RESET_CP		(1 <<  0)
@@ -703,6 +703,11 @@ do {									\
 	}								\
 	ring[write++] = (x);						\
 	write &= mask;							\
+} while (0)
+
+#define OUT_RING_REG( reg, val ) do {					\
+	OUT_RING( CP_PACKET0( reg, 0 ) );				\
+	OUT_RING( val );						\
 } while (0)
 
 #define RADEON_PERFORMANCE_BOXES	0

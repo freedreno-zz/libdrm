@@ -57,7 +57,7 @@
 #define RADEON_FRONT			0x1
 #define RADEON_BACK			0x2
 #define RADEON_DEPTH			0x4
-
+#define RADEON_STENCIL			0x8
 
 /* Vertex/indirect buffer size
  */
@@ -141,6 +141,8 @@ typedef struct {
 	unsigned int se_vport_yoffset;
 	unsigned int se_vport_zscale;
 	unsigned int se_vport_zoffset;
+	unsigned int se_zbias_factor;
+	unsigned int se_zbias_constant;
 } drm_radeon_viewport_state_t;
 
 /* Setup state */
@@ -212,12 +214,12 @@ typedef struct {
 /* Space is crucial; there is some redunancy here:
  */
 typedef struct {
-	unsigned int start;	
-	unsigned int finish;	
+	unsigned int start;
+	unsigned int finish;
 	unsigned int prim:8;
 	unsigned int stateidx:8;
 	unsigned int numverts:16; /* overloaded as offset/64 for elt prims */
-        unsigned int vc_format;		
+        unsigned int vc_format;
 } drm_radeon_prim_t;
 
 /* Really need a bigger area to hold the primitive and state data:
@@ -304,6 +306,7 @@ typedef struct drm_radeon_clear {
 	unsigned int clear_color;
 	unsigned int clear_colormask;
 	unsigned int clear_depth;
+	unsigned int clear_stencil;
 	union {
 		float f[5];
 		unsigned int ui[5];

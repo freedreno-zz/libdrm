@@ -23,9 +23,8 @@
  * DEALINGS IN THE SOFTWARE.
  *
  * Authors:
- *    Kevin E. Martin <martin@valinux.com>
  *    Gareth Hughes <gareth@valinux.com>
- *
+ *    Kevin E. Martin <martin@valinux.com>
  */
 
 #define __NO_VERSION__
@@ -141,15 +140,17 @@ static inline void radeon_emit_viewport( drm_radeon_private_t *dev_priv,
 	RING_LOCALS;
 	DRM_DEBUG( "    %s\n", __FUNCTION__ );
 
-	BEGIN_RING( 7 );
+	BEGIN_RING( 9 );
 
-	OUT_RING( CP_PACKET0( RADEON_SE_VPORT_XSCALE, 5 ) );
+	OUT_RING( CP_PACKET0( RADEON_SE_VPORT_XSCALE, 7 ) );
 	OUT_RING( viewport->se_vport_xscale );
 	OUT_RING( viewport->se_vport_xoffset );
 	OUT_RING( viewport->se_vport_yscale );
 	OUT_RING( viewport->se_vport_yoffset );
 	OUT_RING( viewport->se_vport_zscale );
 	OUT_RING( viewport->se_vport_zoffset );
+	OUT_RING( viewport->se_zbias_factor );
+	OUT_RING( viewport->se_zbias_constant );
 
 	ADVANCE_RING();
 }
@@ -440,12 +441,14 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 {
 	drm_radeon_private_t *dev_priv = dev->dev_private;
 	drm_radeon_sarea_t *sarea_priv = dev_priv->sarea_priv;
+	drm_radeon_depth_clear_t *depth_clear = &dev_priv->depth_clear;
 	int nbox = sarea_priv->nbox;
 	drm_clip_rect_t *pbox = sarea_priv->boxes;
 	unsigned int flags = clear->flags;
+	u32 rb3d_cntl = 0, rb3d_stencilrefmask= 0;
 	int i;
 	RING_LOCALS;
-	DRM_DEBUG( "%s\n", __FUNCTION__ );
+	DRM_DEBUG( __FUNCTION__": flags = 0x%x\n", flags );
 
 	radeon_update_ring_snapshot( dev_priv );
 
@@ -455,6 +458,32 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 		flags &= ~(RADEON_FRONT | RADEON_BACK);
 		if ( tmp & RADEON_FRONT ) flags |= RADEON_BACK;
 		if ( tmp & RADEON_BACK )  flags |= RADEON_FRONT;
+	}
+
+	/* We have to clear the depth and/or stencil buffers by
+	 * rendering a quad into just those buffers.  Thus, we have to
+	 * make sure the 3D engine is configured correctly.
+	 */
+	if ( flags & (RADEON_DEPTH | RADEON_STENCIL) ) {
+		if ( sarea_priv->state[0].dirty ) {
+			radeon_emit_state( dev_priv,
+					   &sarea_priv->state[0] );
+		}
+		rb3d_cntl = depth_clear->rb3d_cntl;
+
+		if ( flags & RADEON_DEPTH ) {
+			rb3d_cntl |=  RADEON_Z_ENABLE;
+		} else {
+			rb3d_cntl &= ~RADEON_Z_ENABLE;
+		}
+
+		if ( flags & RADEON_STENCIL ) {
+			rb3d_cntl |=  RADEON_STENCIL_ENABLE;
+			rb3d_stencilrefmask = clear->clear_stencil;
+		} else {
+			rb3d_cntl &= ~RADEON_STENCIL_ENABLE;
+			rb3d_stencilrefmask = 0x00000000;
+		}
 	}
 
 	for ( i = 0 ; i < nbox ; i++ ) {
@@ -522,34 +551,28 @@ static void radeon_cp_dispatch_clear( drm_device_t *dev,
 			OUT_RING( (w << 16) | h );
 
 			ADVANCE_RING();
-
 		}
 
-		if ( flags & RADEON_DEPTH ) {
-			drm_radeon_depth_clear_t *depth_clear =
-			   &dev_priv->depth_clear;
-
-			if ( sarea_priv->state[0].dirty ) {
-				radeon_emit_state( dev_priv,
-						   &sarea_priv->state[0] );
-			}
-
-			/* FIXME: Render a rectangle to clear the depth
-			 * buffer.  So much for those "fast Z clears"...
+		if ( flags & (RADEON_DEPTH | RADEON_STENCIL) ) {
+			/* FIXME: Emit cliprect...
 			 */
-			BEGIN_RING( 23 );
+
+			BEGIN_RING( 25 );
 
 			RADEON_WAIT_UNTIL_2D_IDLE();
 
 			OUT_RING( CP_PACKET0( RADEON_PP_CNTL, 1 ) );
 			OUT_RING( 0x00000000 );
-			OUT_RING( depth_clear->rb3d_cntl );
-			OUT_RING( CP_PACKET0( RADEON_RB3D_ZSTENCILCNTL, 0 ) );
-			OUT_RING( depth_clear->rb3d_zstencilcntl );
-			OUT_RING( CP_PACKET0( RADEON_RB3D_PLANEMASK, 0 ) );
-			OUT_RING( 0x00000000 );
-			OUT_RING( CP_PACKET0( RADEON_SE_CNTL, 0 ) );
-			OUT_RING( depth_clear->se_cntl );
+			OUT_RING( rb3d_cntl );
+
+			OUT_RING_REG( RADEON_RB3D_ZSTENCILCNTL,
+				      depth_clear->rb3d_zstencilcntl );
+			OUT_RING_REG( RADEON_RB3D_STENCILREFMASK,
+				      rb3d_stencilrefmask );
+			OUT_RING_REG( RADEON_RB3D_PLANEMASK,
+				      0x00000000 );
+			OUT_RING_REG( RADEON_SE_CNTL,
+				      depth_clear->se_cntl );
 
 			OUT_RING( CP_PACKET3( RADEON_3D_DRAW_IMMD, 10 ) );
 			OUT_RING( RADEON_VTX_Z_PRESENT );
@@ -722,7 +745,7 @@ static void radeon_cp_dispatch_vertex( drm_device_t *dev,
 	int i = 0;
 	RING_LOCALS;
 
-	DRM_DEBUG( "%s: nbox=%d %d..%d prim %x nvert %d\n", 
+	DRM_DEBUG( "%s: nbox=%d %d..%d prim %x nvert %d\n",
 		__FUNCTION__, sarea_priv->nbox,
 		prim->start, prim->finish, prim->prim,
 		numverts);
@@ -730,7 +753,7 @@ static void radeon_cp_dispatch_vertex( drm_device_t *dev,
 	radeon_update_ring_snapshot( dev_priv );
 
 	buf_priv->dispatched = 1;
-	
+
 	do {
 		/* Emit the next set of up to three cliprects */
 		if ( i < sarea_priv->nbox ) {
@@ -791,7 +814,7 @@ static void radeon_cp_dispatch_indirect( drm_device_t *dev,
 		   buf->idx, start, end );
 
 	radeon_update_ring_snapshot( dev_priv );
-	
+
 	if ( start != end ) {
 		int offset = (dev_priv->agp_buffers_offset
 			      + buf->offset + start);
@@ -842,20 +865,20 @@ static void radeon_cp_dispatch_indices( drm_device_t *dev,
 /*  		offset); */
 
 	radeon_update_ring_snapshot( dev_priv );
-	
+
 	if ( start < prim->finish ) {
 		buf_priv->dispatched = 1;
 
 		dwords = (prim->finish - prim->start + 3) / sizeof(u32);
 
-		data = (u32 *)((char *)dev_priv->buffers->handle + 
+		data = (u32 *)((char *)dev_priv->buffers->handle +
 			       elt_buf->offset + prim->start);
 
 		data[0] = CP_PACKET3( RADEON_3D_RNDR_GEN_INDX_PRIM, dwords-2 );
 		data[1] = offset;
 		data[2] = RADEON_MAX_VB_VERTS;
 		data[3] = prim->vc_format;
-		data[4] = (prim->prim | 
+		data[4] = (prim->prim |
 			   RADEON_PRIM_WALK_IND |
 			   RADEON_COLOR_ORDER_RGBA |
 			   RADEON_VTX_FMT_RADEON_MODE |
@@ -872,7 +895,7 @@ static void radeon_cp_dispatch_indices( drm_device_t *dev,
 /*  		printk("data[3]: %x\n", data[3]); */
 /*  		printk("data[4]: %x\n", data[4]); */
 /*  		for (i = 0 ; i < 10 ; i++) */
-/*  		   printk("%d: %d\n", i, ((short *)(data+5))[i]); */		
+/*  		   printk("%d: %d\n", i, ((short *)(data+5))[i]); */
 /*  		printk("...\n"); */
 
 		if (1)
@@ -883,8 +906,8 @@ static void radeon_cp_dispatch_indices( drm_device_t *dev,
 						       &sarea_priv->boxes[i] );
 			}
 
-			radeon_cp_dispatch_indirect( dev, elt_buf, 
-						     prim->start, 
+			radeon_cp_dispatch_indirect( dev, elt_buf,
+						     prim->start,
 						     prim->finish );
 
 			i++;
@@ -1157,11 +1180,11 @@ int radeon_cp_vertex( struct inode *inode, struct file *filp,
 		}
 
 		if ( prim->stateidx != 0xff ) {
-			radeon_emit_state( dev_priv, 
+			radeon_emit_state( dev_priv,
 					   &sarea_priv->state[prim->stateidx] );
 		}
 
-		if ( prim->finish <= prim->start ) 
+		if ( prim->finish <= prim->start )
 		   continue;
 
 		if ( prim->start & 0x7 ) {
@@ -1174,7 +1197,7 @@ int radeon_cp_vertex( struct inode *inode, struct file *filp,
 		} else {
 			radeon_cp_dispatch_vertex( dev, buf, prim );
 		}
-			
+
 	}
 
 	if (vertex.discard) {
