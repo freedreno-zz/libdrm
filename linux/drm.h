@@ -1,4 +1,4 @@
-z/* drm.h -- Header for Direct Rendering Manager -*- linux-c -*-
+/* drm.h -- Header for Direct Rendering Manager -*- linux-c -*-
  * Created: Mon Jan  4 10:05:05 1999 by faith@precisioninsight.com
  *
  * Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.

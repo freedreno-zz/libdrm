@@ -29,7 +29,6 @@
  *    Gareth Hughes <gareth@valinux.com>
  */
 
-
 #include <sys/types.h>
 
 #include "mga.h"
@@ -37,16 +36,6 @@
 #include "drm.h"
 #include "mga_drm.h"
 #include "mga_drv.h"
-
-#define DRIVER_AUTHOR		"Gareth Hughes, VA Linux Systems Inc."
-
-#define DRIVER_NAME		"mga"
-#define DRIVER_DESC		"Matrox G200/G400"
-#define DRIVER_DATE		"20010321"
-
-#define DRIVER_MAJOR		3
-#define DRIVER_MINOR		0
-#define DRIVER_PATCHLEVEL	2
 
 /* List acquired from http://www.yourvote.com/pci/pcihdr.h and xc/xc/programs/Xserver/hw/xfree86/common/xf86PciInfo.h
  * Please report to anholt@teleport.com inaccuracies or if a chip you have works that is marked unsupported here.
@@ -58,25 +47,6 @@ drm_chipinfo_t DRM(devicelist)[] = {
 	{0, 0, 0, NULL}
 };
 
-#define DRIVER_IOCTLS							   \
-	[DRM_IOCTL_NR(DRM_IOCTL_DMA)]	      = { mga_dma_buffers, 1, 0 }, \
-	[DRM_IOCTL_NR(DRM_IOCTL_MGA_INIT)]    = { mga_dma_init,    1, 1 }, \
-	[DRM_IOCTL_NR(DRM_IOCTL_MGA_FLUSH)]   = { mga_dma_flush,   1, 0 }, \
-	[DRM_IOCTL_NR(DRM_IOCTL_MGA_RESET)]   = { mga_dma_reset,   1, 0 }, \
-	[DRM_IOCTL_NR(DRM_IOCTL_MGA_SWAP)]    = { mga_dma_swap,    1, 0 }, \
-	[DRM_IOCTL_NR(DRM_IOCTL_MGA_CLEAR)]   = { mga_dma_clear,   1, 0 }, \
-	[DRM_IOCTL_NR(DRM_IOCTL_MGA_VERTEX)]  = { mga_dma_vertex,  1, 0 }, \
-	[DRM_IOCTL_NR(DRM_IOCTL_MGA_INDICES)] = { mga_dma_indices, 1, 0 }, \
-	[DRM_IOCTL_NR(DRM_IOCTL_MGA_ILOAD)]   = { mga_dma_iload,   1, 0 }, \
-	[DRM_IOCTL_NR(DRM_IOCTL_MGA_BLIT)]    = { mga_dma_blit,    1, 0 },
-
-
-#define __HAVE_COUNTERS         3
-#define __HAVE_COUNTER6         _DRM_STAT_IRQ
-#define __HAVE_COUNTER7         _DRM_STAT_PRIMARY
-#define __HAVE_COUNTER8         _DRM_STAT_SECONDARY
-
-
 #include "drm_agpsupport.h"
 #include "drm_auth.h"
 #include "drm_bufs.h"
@@ -84,8 +54,6 @@ drm_chipinfo_t DRM(devicelist)[] = {
 #include "drm_dma.h"
 #include "drm_drawable.h"
 #include "drm_drv.h"
-
-
 #include "drm_fops.h"
 #include "drm_init.h"
 #include "drm_ioctl.h"
