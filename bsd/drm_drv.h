@@ -225,9 +225,10 @@ static int DRM(probe)(device_t dev)
 	const char *s = NULL;
 	int pciid, vendor, device;
    
+
 	/* Cope with agp bridge device?
 	 */
-	if (!strcmp(device_get_name(dev), "drm"))
+	if (!strcmp(device_get_name(dev), "drmsub"))
 		pciid = pci_get_devid(device_get_parent(dev));
 	else
 		pciid = pci_get_devid(dev);
@@ -263,8 +264,13 @@ static device_method_t DRM(methods)[] = {
 	{ 0, 0 }
 };
 
+
+#ifndef DRM_DEV_NAME
+#define DRM_DEV_NAME "drm"
+#endif
+
 static driver_t DRM(driver) = {
-	"drm",
+	DRM_DEV_NAME,
 	DRM(methods),
 	sizeof(drm_device_t),
 };
@@ -660,9 +666,7 @@ static int DRM(init)( device_t nbdev )
 	dev = device_get_softc(nbdev);
 	memset( (void *)dev, 0, sizeof(*dev) );
 
-	printf("%s: %s\n", __FUNCTION__, device_get_name(nbdev));
-
-	if (!strcmp(device_get_name(nbdev), "drm"))
+	if (!strcmp(device_get_name(nbdev), "drmsub"))
 		dev->device = device_get_parent(nbdev);
 	else
 		dev->device = nbdev;

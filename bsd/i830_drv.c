@@ -29,6 +29,9 @@
  * $FreeBSD: src/sys/dev/drm/i830_drv.c,v 1.6 2003/04/25 01:18:46 anholt Exp $
  */
 
+
+#define DRM_DEV_NAME "drmsub"
+
 #include "i830.h"
 #include "drmP.h"
 #include "drm.h"
