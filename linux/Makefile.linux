@@ -60,13 +60,6 @@ GAMMAHEADERS=   gamma_drv.h $(DRMHEADERS)
 TDFXOBJS=       tdfx_drv.o tdfx_context.o
 TDFXHEADERS=    tdfx_drv.h $(DRMHEADERS)
 
-R128OBJS=	r128_drv.o r128_cce.o r128_bufs.o r128_context.o r128_state.o
-R128HEADERS=	r128_drv.h r128_drm.h $(DRMHEADERS)
-
-RADEONOBJS=	radeon_drv.o radeon_cp.o radeon_bufs.o radeon_context.o \
-		radeon_state.o
-RADEONHEADERS=	radeon_drv.h radeon_drm.h $(DRMHEADERS)
-
 INC=		/usr/include
 
 CFLAGS=		-O2 $(WARNINGS)
@@ -147,6 +140,13 @@ MGAHEADERS=	mga_drv.h $(DRMHEADERS)
 
 I810OBJS=	i810_drv.o i810_dma.o i810_bufs.o i810_context.o
 I810HEADERS=	i810_drv.h $(DRMHEADERS)
+
+R128OBJS=	r128_drv.o r128_cce.o r128_bufs.o r128_context.o r128_state.o
+R128HEADERS=	r128_drv.h r128_drm.h $(DRMHEADERS)
+
+RADEONOBJS=	radeon_drv.o radeon_cp.o radeon_bufs.o radeon_context.o \
+		radeon_state.o
+RADEONHEADERS=	radeon_drv.h radeon_drm.h $(DRMHEADERS)
 endif
 
 ifeq ($(SIS),1)
@@ -160,6 +160,7 @@ MODS += sis.o
 
 SISOBJS=	sis_drv.o sis_context.o sis_ds.o sis_mm.o
 SISHEADERS=	sis_drv.h sis_ds.h sis_drm.h $(DRMHEADERS)
+MODCFLAGS += -DCONFIG_DRM_SIS
 endif
 
 all::;@echo === KERNEL HEADERS IN $(TREE)
