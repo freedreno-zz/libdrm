@@ -66,6 +66,10 @@ typedef struct drm_gamma_init {
 
    	int sarea_priv_offset;
 	int pcimode;
+	unsigned int mmio0;
+	unsigned int mmio1;
+	unsigned int mmio2;
+	unsigned int mmio3;
 	unsigned int buffers_offset;
 } drm_gamma_init_t;
 

@@ -264,19 +264,10 @@ static int gamma_do_dma(drm_device_t *dev, int locked)
 	buf->time_dispatched = get_cycles();
 #endif
 
-/* WE NOW ARE ON LOGICAL PAGES!!! */
-#if 0
-printk("0x%x 0x%x 0x%x\n",dev_priv->buffers->handle,dev_priv->buffers->size,dev_priv->buffers->offset);
-printk("start of dma buffer 0x%x 0x%x 0x%x 0x%x\n",
-		*(unsigned int *)dev_priv->buffers->handle,
-		*(unsigned int *)((void*)dev_priv->buffers->handle+(buf->idx<<12)+4),
-		*(unsigned int *)((void*)dev_priv->buffers->handle+(buf->idx<<12)+8),
-		*(unsigned int *)((void*)dev_priv->buffers->handle+(buf->idx<<12)+12));
-#endif
-address = buf->idx << 12;
-#if 1
+	/* WE NOW ARE ON LOGICAL PAGES!!! - overriding address */
+	address = buf->idx << 12;
+
 	gamma_dma_dispatch(dev, address, length);
-#endif
 	gamma_free_buffer(dev, dma->this_buffer);
 	dma->this_buffer = buf;
 
@@ -641,8 +632,7 @@ int gamma_dma(struct inode *inode, struct file *filp, unsigned int cmd,
 
 static int gamma_do_init_dma( drm_device_t *dev, drm_gamma_init_t *init )
 {
-	drm_gamma_private_t *dev_priv =					
-				(drm_gamma_private_t *)dev->dev_private;
+	drm_gamma_private_t *dev_priv;
 	drm_device_dma_t    *dma = dev->dma;
 	drm_buf_t	    *buf;
 	unsigned int        *pagebuf;
@@ -651,6 +641,38 @@ static int gamma_do_init_dma( drm_device_t *dev, drm_gamma_init_t *init )
 	unsigned int	    *pgt;
 
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
+
+	dev_priv = DRM(alloc)( sizeof(drm_gamma_private_t), 
+							DRM_MEM_DRIVER );
+	if ( !dev_priv )
+		return -ENOMEM;
+
+	dev->dev_private = (void *)dev_priv;
+
+	memset( dev_priv, 0, sizeof(drm_gamma_private_t) );
+
+#if 0
+	dev_priv->sarea_priv =
+			(drm_gamma_sarea_t *)((u8 *)dev_priv->sarea->handle +
+				    init->sarea_priv_offset);
+#endif
+
+	DRM_FIND_MAP( dev_priv->mmio0, init->mmio0 );
+	DRM_FIND_MAP( dev_priv->mmio1, init->mmio1 );
+	DRM_FIND_MAP( dev_priv->mmio2, init->mmio2 );
+	DRM_FIND_MAP( dev_priv->mmio3, init->mmio3 );
+
+printk("dma map is 0x%x 0x%x 0x%x 0x%x\n",	
+dev_priv->mmio0,
+dev_priv->mmio1,
+dev_priv->mmio2,
+dev_priv->mmio3);
+
+printk("dma map is 0x%x 0x%x 0x%x 0x%x\n",	
+dev_priv->mmio0->handle, 
+dev_priv->mmio1->handle, 
+dev_priv->mmio2->handle, 
+dev_priv->mmio3->handle); 
 
 	if (init->pcimode) {
 		buf = dma->buflist[GLINT_DRI_BUF_COUNT];
@@ -664,20 +686,7 @@ static int gamma_do_init_dma( drm_device_t *dev, drm_gamma_init_t *init )
 
 		buf = dma->buflist[GLINT_DRI_BUF_COUNT];
 	} else {
-		/* some of this currently isn't used */
-		dev_priv = DRM(alloc)( sizeof(drm_gamma_private_t), 
-							DRM_MEM_DRIVER );
-		if ( !dev_priv )
-			return -ENOMEM;
-		dev->dev_private = (void *)dev_priv;
-
-		memset( dev_priv, 0, sizeof(drm_gamma_private_t) );
-
 		DRM_FIND_MAP( dev_priv->buffers, init->buffers_offset );
-
-		dev_priv->sarea_priv =
-			(drm_gamma_sarea_t *)((u8 *)dev_priv->sarea->handle +
-				    init->sarea_priv_offset);
 
 		DRM_IOREMAP( dev_priv->buffers );
 
