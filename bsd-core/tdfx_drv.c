@@ -30,9 +30,6 @@
  *    Gareth Hughes <gareth@valinux.com>
  */
 
-
-#include <sys/types.h>
-
 #include "tdfx.h"
 #include "drmP.h"
 

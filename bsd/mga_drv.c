@@ -29,8 +29,6 @@
  *    Gareth Hughes <gareth@valinux.com>
  */
 
-#include <sys/types.h>
-
 #include "mga.h"
 #include "drmP.h"
 #include "drm.h"

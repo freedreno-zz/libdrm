@@ -27,8 +27,6 @@
  *    Gareth Hughes <gareth@valinux.com>
  */
 
-#include <sys/types.h>
-
 #include "radeon.h"
 #include "drmP.h"
 #include "drm.h"
