@@ -544,8 +544,13 @@ int DRM(irq_install)( drm_device_t *dev, int irq )
 	}
 	
 #ifdef __FreeBSD__
+#if __FreeBSD_version < 500000
 	retcode = bus_setup_intr(dev->device, dev->irqr, INTR_TYPE_TTY,
 				 DRM(dma_service), dev, &dev->irqh);
+#else
+	retcode = bus_setup_intr(dev->device, dev->irqr, INTR_TYPE_TTY | INTR_MPSAFE,
+				 DRM(dma_service), dev, &dev->irqh);
+#endif
 	if ( retcode ) {
 #elif defined(__NetBSD__)
 	dev->irqh = pci_intr_establish(&dev->pa.pa_pc, dev->ih, IPL_TTY,
