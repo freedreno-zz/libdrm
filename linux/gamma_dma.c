@@ -37,40 +37,6 @@
 #include <linux/interrupt.h>	/* For task queue support */
 #include <linux/delay.h>
 
-#if 0
-#define DO_IOREMAP( _map )						\
-do {									\
-	(_map)->handle = DRM(ioremap)( (_map)->offset, (_map)->size );	\
-} while (0)
-
-#define DO_IOREMAPFREE( _map )						\
-do {									\
-	if ( (_map)->handle && (_map)->size )				\
-		DRM(ioremapfree)( (_map)->handle, (_map)->size );	\
-} while (0)
-
-#define DO_FIND_MAP( _map, _offset )					\
-do {									\
-	int _i;								\
-	for ( _i = 0 ; _i < dev->map_count ; _i++ ) {			\
-		if ( dev->maplist[_i]->offset == _offset ) {		\
-			_map = dev->maplist[_i];			\
-			break;						\
-		}							\
-	}								\
-} while (0)
-#endif
-
-/* WARNING!!! MAGIC NUMBER!!!  The number of regions already added to the
-   kernel must be specified here.  Currently, the number is 2.	This must
-   match the order the X server uses for instantiating register regions ,
-   or must be passed in a new ioctl. */
-#define GAMMA_REG(reg)						   \
-	(2							   \
-	 + ((reg < 0x1000)					   \
-	    ? 0							   \
-	    : ((reg < 0x10000) ? 1 : ((reg < 0x11000) ? 2 : 3))))
-
 #define GAMMA_OFF(reg)						   \
 	((reg < 0x1000)						   \
 	 ? reg							   \
@@ -80,7 +46,12 @@ do {									\
 	       ? (reg - 0x10000)				   \
 	       : (reg - 0x11000))))
 
-#define GAMMA_BASE(reg)	 ((unsigned long)dev->maplist[GAMMA_REG(reg)]->handle)
+#define GAMMA_BASE(reg)  ((unsigned long)				\
+	((reg < 0x1000)  ? dev_priv->mmio0->handle :			\
+ 	((reg < 0x10000) ? dev_priv->mmio1->handle :			\
+ 	((reg < 0x11000) ? dev_priv->mmio2->handle :			\
+			   dev_priv->mmio3->handle))))
+
 #define GAMMA_ADDR(reg)	 (GAMMA_BASE(reg) + GAMMA_OFF(reg))
 #define GAMMA_DEREF(reg) *(__volatile__ int *)GAMMA_ADDR(reg)
 #define GAMMA_READ(reg)	 GAMMA_DEREF(reg)
@@ -107,6 +78,8 @@ do {									\
 static inline void gamma_dma_dispatch(drm_device_t *dev, unsigned long address,
 				      unsigned long length)
 {
+	drm_gamma_private_t *dev_priv = (drm_gamma_private_t *)
+						dev->dev_private;
 	GAMMA_WRITE(GAMMA_DMAADDRESS, virt_to_phys((void *)address));
 	while (GAMMA_READ(GAMMA_GCOMMANDSTATUS) != 4)
 		;
@@ -115,6 +88,8 @@ static inline void gamma_dma_dispatch(drm_device_t *dev, unsigned long address,
 
 void gamma_dma_quiescent_single(drm_device_t *dev)
 {
+	drm_gamma_private_t *dev_priv = (drm_gamma_private_t *)
+						dev->dev_private;
 	while (GAMMA_READ(GAMMA_DMACOUNT))
 		;
 	while (GAMMA_READ(GAMMA_INFIFOSPACE) < 3)
@@ -131,6 +106,8 @@ void gamma_dma_quiescent_single(drm_device_t *dev)
 
 void gamma_dma_quiescent_dual(drm_device_t *dev)
 {
+	drm_gamma_private_t *dev_priv = (drm_gamma_private_t *)
+						dev->dev_private;
 	while (GAMMA_READ(GAMMA_DMACOUNT))
 		;
 	while (GAMMA_READ(GAMMA_INFIFOSPACE) < 3)
@@ -156,18 +133,24 @@ void gamma_dma_quiescent_dual(drm_device_t *dev)
 
 void gamma_dma_ready(drm_device_t *dev)
 {
+	drm_gamma_private_t *dev_priv = (drm_gamma_private_t *)
+						dev->dev_private;
 	while (GAMMA_READ(GAMMA_DMACOUNT))
 		;
 }
 
 static inline int gamma_dma_is_ready(drm_device_t *dev)
 {
+	drm_gamma_private_t *dev_priv = (drm_gamma_private_t *)
+						dev->dev_private;
 	return !GAMMA_READ(GAMMA_DMACOUNT);
 }
 
 static void gamma_dma_service(int irq, void *device, struct pt_regs *regs)
 {
 	drm_device_t	 *dev = (drm_device_t *)device;
+	drm_gamma_private_t *dev_priv = (drm_gamma_private_t *)
+						dev->dev_private;
 	drm_device_dma_t *dma = dev->dma;
 	
 	atomic_inc(&dev->counts[6]); /* _DRM_STAT_IRQ */
@@ -638,6 +621,8 @@ int gamma_dma(struct inode *inode, struct file *filp, unsigned int cmd,
 
 int gamma_irq_install(drm_device_t *dev, int irq)
 {
+	drm_gamma_private_t *dev_priv = (drm_gamma_private_t *)
+						dev->dev_private;
 	int retcode;
 
 	if (!irq)     return -EINVAL;
@@ -692,6 +677,8 @@ int gamma_irq_install(drm_device_t *dev, int irq)
 
 int gamma_irq_uninstall(drm_device_t *dev)
 {
+	drm_gamma_private_t *dev_priv = (drm_gamma_private_t *)
+						dev->dev_private;
 	int irq;
 
 	down(&dev->struct_sem);
