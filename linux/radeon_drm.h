@@ -153,27 +153,23 @@ typedef struct {
 	/* Setup state */
 	unsigned int se_cntl_status;			/* 0x2140 */
 
-#ifdef TCL_ENABLE
-	/* TCL state */
-	radeon_color_regs_t se_tcl_material_emmissive;	/* 0x2210 */
-	radeon_color_regs_t se_tcl_material_ambient;
-	radeon_color_regs_t se_tcl_material_diffuse;
-	radeon_color_regs_t se_tcl_material_specular;
-	unsigned int se_tcl_shininess;
-	unsigned int se_tcl_output_vtx_fmt;
-	unsigned int se_tcl_output_vtx_sel;
-	unsigned int se_tcl_matrix_select_0;
-	unsigned int se_tcl_matrix_select_1;
-	unsigned int se_tcl_ucp_vert_blend_ctl;
-	unsigned int se_tcl_texture_proc_ctl;
-	unsigned int se_tcl_light_model_ctl;
-	unsigned int se_tcl_per_light_ctl[4];
-#endif
-
 	/* Misc state */
 	unsigned int re_top_left;			/* 0x26c0 */
 	unsigned int re_misc;
 } drm_radeon_context_regs_t;
+
+
+/* Space is crucial; there is some redunancy here:
+ */
+typedef struct {
+	unsigned int start;
+	unsigned int finish;
+	unsigned int prim:8;
+	unsigned int stateidx:8;
+	unsigned int numverts:16; /* overloaded as offset/64 for elt prims */
+        unsigned int vc_format;   /* vertex format */
+} drm_radeon_prim_t;
+
 
 /* Setup registers for each texture unit
  */
@@ -187,10 +183,6 @@ typedef struct {
 
 	unsigned int pp_border_color;
 
-#ifdef CUBIC_ENABLE
-	unsigned int pp_cubic_faces;
-	unsigned int pp_cubic_offset[5];
-#endif
 } drm_radeon_texture_regs_t;
 
 typedef struct {
@@ -295,11 +287,11 @@ typedef struct drm_radeon_vertex {
 	int discard;			/* Client finished with buffer? */
 } drm_radeon_vertex_t;
 
-typedef struct drm_radeon_vertex {
+typedef struct drm_radeon_vertex2 {
 	int idx;			/* Index of vertex buffer */
 	int discard;			/* Client finished with buffer? */
 	int nr_states;
-	drm_radeon_state_t *state;
+	drm_radeon_context_regs_t *state;
 	int nr_prims;
 	drm_radeon_prim_t *prim;
 } drm_radeon_vertex2_t;
