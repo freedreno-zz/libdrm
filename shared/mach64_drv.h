@@ -728,16 +728,6 @@ mach64_update_ring_snapshot( drm_mach64_private_t *dev_priv )
 	}
 }
 
-#define LOCK_TEST_WITH_RETURN( dev )					\
-do {									\
-	if ( !_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ) ||		\
-	     dev->lock.pid != DRM_CURRENTPID ) {			\
-		DRM_ERROR( "%s called without lock held\n",		\
-			   __FUNCTION__ );				\
-		return DRM_ERR(EINVAL);					\
-	}								\
-} while (0)
-
 /* FIXME: right now this is needed to ensure free buffers for state emits */
 /* CHECKME: I've disabled this as it isn't necessary - we already wait for free buffers */
 #define RING_SPACE_TEST_WITH_RETURN( dev_priv )
@@ -867,7 +857,7 @@ do {						\
 } while(0)
 
 /* FIXME: use a private set of smaller buffers for state emits, clears, and swaps? */
-#define DMAGETPTR( dev_priv, n )					\
+#define DMAGETPTR( filp, dev_priv, n )					\
 do {									\
 	if ( MACH64_VERBOSE ) {						\
 		DRM_INFO( "DMAGETPTR( %d ) in %s\n",			\
@@ -884,7 +874,7 @@ do {									\
 			   __FUNCTION__ );				\
 		return DRM_ERR(EFAULT);					\
 	}								\
-	_buf->pid = DRM_CURRENTPID;					\
+	_buf->filp = filp;						\
 	_outcount = 0;							\
 									\
         _buf_wptr = GETBUFPTR( _buf );					\

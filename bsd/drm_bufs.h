@@ -27,6 +27,7 @@
  * Authors:
  *    Rickard E. (Rik) Faith <faith@valinux.com>
  *    Gareth Hughes <gareth@valinux.com>
+ * $FreeBSD: src/sys/dev/drm/drm_bufs.h,v 1.4 2003/03/09 02:08:28 anholt Exp $
  */
 
 #include "drmP.h"
@@ -69,18 +70,26 @@ int DRM(order)( unsigned long size )
 int DRM(addmap)( DRM_IOCTL_ARGS )
 {
 	DRM_DEVICE;
-	drm_map_t *map;
+	drm_map_t request;
+	drm_local_map_t *map;
 	drm_map_list_entry_t *list;
 	
 	if (!(dev->flags & (FREAD|FWRITE)))
 		return DRM_ERR(EACCES); /* Require read/write */
 
-	map = (drm_map_t *) DRM(alloc)( sizeof(*map), DRM_MEM_MAPS );
+	DRM_COPY_FROM_USER_IOCTL( request, (drm_map_t *)data, sizeof(drm_map_t) );
+
+	map = (drm_local_map_t *) DRM(alloc)( sizeof(*map), DRM_MEM_MAPS );
 	if ( !map )
 		return DRM_ERR(ENOMEM);
 
-	*map = *(drm_map_t *)data;
-
+	map->offset = request.offset;
+	map->size = request.size;
+	map->type = request.type;
+	map->flags = request.flags;
+	map->mtrr   = -1;
+	map->handle = 0;
+	
 	/* Only allow shared memory to be removable since we only keep enough
 	 * book keeping information about shared memory to allow for removal
 	 * when processes fork.
@@ -95,22 +104,14 @@ int DRM(addmap)( DRM_IOCTL_ARGS )
 		DRM(free)( map, sizeof(*map), DRM_MEM_MAPS );
 		return DRM_ERR(EINVAL);
 	}
-	map->mtrr   = -1;
-	map->handle = 0;
 
 	switch ( map->type ) {
 	case _DRM_REGISTERS:
 	case _DRM_FRAME_BUFFER:
-#if !defined(__sparc__) && !defined(__alpha__)
-		if ( map->offset + map->size < map->offset
-		) {
+		if ( map->offset + map->size < map->offset ) {
 			DRM(free)( map, sizeof(*map), DRM_MEM_MAPS );
 			return DRM_ERR(EINVAL);
 		}
-#endif
-#ifdef __alpha__
-		map->offset += dev->hose->mem_space->start;
-#endif
 #if __REALLY_HAVE_MTRR
 		if ( map->type == _DRM_FRAME_BUFFER ||
 		     (map->flags & _DRM_WRITE_COMBINING) ) {
@@ -130,14 +131,12 @@ int DRM(addmap)( DRM_IOCTL_ARGS )
 			mtrrmap.base = map->offset;
 			mtrrmap.len = map->size;
 			mtrrmap.type = MTRR_TYPE_WC;
-			mtrrmap.flags = MTRR_PRIVATE | MTRR_VALID;
-			mtrrmap.owner = p->p_pid;
-			/* USER? KERNEL? XXX */
-			map->mtrr = mtrr_get( &mtrrmap, &one, p, MTRR_GETSET_KERNEL );
+			mtrrmap.flags = MTRR_VALID;
+			map->mtrr = mtrr_set( &mtrrmap, &one, p, MTRR_GETSET_KERNEL );
 #endif
 		}
 #endif /* __REALLY_HAVE_MTRR */
-		map->handle = DRM(ioremap)( map->offset, map->size );
+		DRM_IOREMAP(map);
 		break;
 
 	case _DRM_SHM:
@@ -155,9 +154,6 @@ int DRM(addmap)( DRM_IOCTL_ARGS )
 		break;
 #if __REALLY_HAVE_AGP
 	case _DRM_AGP:
-#ifdef __alpha__
-		map->offset += dev->hose->mem_space->start;
-#endif
 		map->offset += dev->agp->base;
 		map->mtrr   = dev->agp->agp_mtrr; /* for getmap */
 		break;
@@ -187,11 +183,19 @@ int DRM(addmap)( DRM_IOCTL_ARGS )
 	TAILQ_INSERT_TAIL(dev->maplist, list, link);
 	DRM_UNLOCK;
 
-	*(drm_map_t *)data = *map;
+	request.offset = map->offset;
+	request.size = map->size;
+	request.type = map->type;
+	request.flags = map->flags;
+	request.mtrr   = map->mtrr;
+	request.handle = map->handle;
 
-	if ( map->type != _DRM_SHM ) {
-		((drm_map_t *)data)->handle = (void *)map->offset;
+	if ( request.type != _DRM_SHM ) {
+		request.handle = (void *)request.offset;
 	}
+
+	DRM_COPY_TO_USER_IOCTL( (drm_map_t *)data, request, sizeof(drm_map_t) );
+
 	return 0;
 }
 
@@ -204,7 +208,7 @@ int DRM(rmmap)( DRM_IOCTL_ARGS )
 {
 	DRM_DEVICE;
 	drm_map_list_entry_t *list;
-	drm_map_t *map;
+	drm_local_map_t *map;
 	drm_map_t request;
 	int found_maps = 0;
 
@@ -257,7 +261,7 @@ int DRM(rmmap)( DRM_IOCTL_ARGS )
 #endif
 			}
 #endif
-			DRM(ioremapfree)(map->handle, map->size);
+			DRM(ioremapfree)( map );
 			break;
 		case _DRM_SHM:
 			DRM(free)( map->handle, map->size, DRM_MEM_SAREA );
@@ -413,7 +417,7 @@ int DRM(addbufs_agp)( DRM_IOCTL_ARGS )
 		buf->waiting = 0;
 		buf->pending = 0;
 		buf->dma_wait = 0;
-		buf->pid     = 0;
+		buf->filp    = NULL;
 
 		buf->dev_priv_size = sizeof(DRIVER_BUF_PRIV_T);
 		buf->dev_private = DRM(alloc)( sizeof(DRIVER_BUF_PRIV_T),
@@ -621,7 +625,7 @@ int DRM(addbufs_pci)( DRM_IOCTL_ARGS )
 			buf->waiting = 0;
 			buf->pending = 0;
 			buf->dma_wait = 0;
-			buf->pid     = 0;
+			buf->filp    = NULL;
 #if __HAVE_DMA_HISTOGRAM
 			buf->time_queued     = 0;
 			buf->time_dispatched = 0;
@@ -774,7 +778,7 @@ int DRM(addbufs_sg)( DRM_IOCTL_ARGS )
 		buf->waiting = 0;
 		buf->pending = 0;
 		buf->dma_wait = 0;
-		buf->pid     = 0;
+		buf->filp    = NULL;
 
 		buf->dev_priv_size = sizeof(DRIVER_BUF_PRIV_T);
 		buf->dev_private = DRM(alloc)( sizeof(DRIVER_BUF_PRIV_T),
@@ -858,16 +862,16 @@ int DRM(addbufs)( DRM_IOCTL_ARGS )
 
 #if __REALLY_HAVE_AGP
 	if ( request.flags & _DRM_AGP_BUFFER )
-		return DRM(addbufs_agp)( kdev, cmd, data, flags, p );
+		return DRM(addbufs_agp)( kdev, cmd, data, flags, p, filp );
 	else
 #endif
 #if __REALLY_HAVE_SG
 	if ( request.flags & _DRM_SG_BUFFER )
-		return DRM(addbufs_sg)( kdev, cmd, data, flags, p );
+		return DRM(addbufs_sg)( kdev, cmd, data, flags, p, filp );
 	else
 #endif
 #if __HAVE_PCI_DMA
-		return DRM(addbufs_pci)( kdev, cmd, data, flags, p );
+		return DRM(addbufs_pci)( kdev, cmd, data, flags, p, filp );
 #else
 		return DRM_ERR(EINVAL);
 #endif
@@ -991,9 +995,9 @@ int DRM(freebufs)( DRM_IOCTL_ARGS )
 			return DRM_ERR(EINVAL);
 		}
 		buf = dma->buflist[idx];
-		if ( buf->pid != DRM_CURRENTPID ) {
-			DRM_ERROR( "Process %d freeing buffer owned by %d\n",
-				   DRM_CURRENTPID, buf->pid );
+		if ( buf->filp != filp ) {
+			DRM_ERROR("Process %d freeing buffer not owned\n",
+				   DRM_CURRENTPID);
 			return DRM_ERR(EINVAL);
 		}
 		DRM(free_buffer)( dev, buf );
@@ -1018,6 +1022,7 @@ int DRM(mapbufs)( DRM_IOCTL_ARGS )
 #endif /* __FreeBSD__ */
 #ifdef __NetBSD__
 	struct vnode *vn;
+	struct vmspace *vms = p->p_vmspace;
 #endif /* __NetBSD__ */
 
 	drm_buf_map_t request;
@@ -1043,7 +1048,7 @@ int DRM(mapbufs)( DRM_IOCTL_ARGS )
 	if ( request.count >= dma->buf_count ) {
 		if ( (__HAVE_AGP && (dma->flags & _DRM_DMA_USE_AGP)) ||
 		     (__HAVE_SG && (dma->flags & _DRM_DMA_USE_SG)) ) {
-			drm_map_t *map = DRIVER_AGP_BUFFERS_MAP( dev );
+			drm_local_map_t *map = DRIVER_AGP_BUFFERS_MAP( dev );
 
 			if ( !map ) {
 				retcode = EINVAL;

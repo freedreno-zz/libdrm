@@ -27,6 +27,8 @@
  * Authors:
  *    Rickard E. (Rik) Faith <faith@valinux.com>
  *    Gareth Hughes <gareth@valinux.com>
+ *
+ * $FreeBSD: src/sys/dev/drm/drm_ioctl.h,v 1.3 2003/03/09 02:08:28 anholt Exp $
  */
 
 #include "drmP.h"
@@ -136,7 +138,7 @@ int DRM(getmap)( DRM_IOCTL_ARGS )
 {
 	DRM_DEVICE;
 	drm_map_t    map;
-	drm_map_t    *mapinlist;
+	drm_local_map_t    *mapinlist;
 	drm_map_list_entry_t *list;
 	int          idx;
 	int	     i = 0;

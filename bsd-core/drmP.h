@@ -27,6 +27,7 @@
  * Authors:
  *    Rickard E. (Rik) Faith <faith@valinux.com>
  *    Gareth Hughes <gareth@valinux.com>
+ * $FreeBSD: src/sys/dev/drm/drmP.h,v 1.3 2003/03/09 02:08:28 anholt Exp $
  */
 
 #ifndef _DRM_P_H_
@@ -95,21 +96,20 @@ typedef struct drm_file drm_file_t;
 #define DRM_MEM_MAGIC	   3
 #define DRM_MEM_IOCTLS	   4
 #define DRM_MEM_MAPS	   5
-#define DRM_MEM_VMAS	   6
-#define DRM_MEM_BUFS	   7
-#define DRM_MEM_SEGS	   8
-#define DRM_MEM_PAGES	   9
-#define DRM_MEM_FILES	  10
-#define DRM_MEM_QUEUES	  11
-#define DRM_MEM_CMDS	  12
-#define DRM_MEM_MAPPINGS  13
-#define DRM_MEM_BUFLISTS  14
-#define DRM_MEM_AGPLISTS  15
-#define DRM_MEM_TOTALAGP  16
-#define DRM_MEM_BOUNDAGP  17
-#define DRM_MEM_CTXBITMAP 18
-#define DRM_MEM_STUB      19
-#define DRM_MEM_SGLISTS   20
+#define DRM_MEM_BUFS	   6
+#define DRM_MEM_SEGS	   7
+#define DRM_MEM_PAGES	   8
+#define DRM_MEM_FILES	  9
+#define DRM_MEM_QUEUES	  10
+#define DRM_MEM_CMDS	  11
+#define DRM_MEM_MAPPINGS  12
+#define DRM_MEM_BUFLISTS  13
+#define DRM_MEM_AGPLISTS  14
+#define DRM_MEM_TOTALAGP  15
+#define DRM_MEM_BOUNDAGP  16
+#define DRM_MEM_CTXBITMAP 17
+#define DRM_MEM_STUB	  18
+#define DRM_MEM_SGLISTS	  19
 
 #define DRM_MAX_CTXBITMAP (PAGE_SIZE * 8)
 
@@ -121,15 +121,15 @@ typedef struct drm_file drm_file_t;
 
 				/* Mapping helper macros */
 #define DRM_IOREMAP(map)						\
-	(map)->handle = DRM(ioremap)( (map)->offset, (map)->size )
+	(map)->handle = DRM(ioremap)( dev, map )
 
 #define DRM_IOREMAP_NOCACHE(map)					\
-	(map)->handle = DRM(ioremap_nocache)((map)->offset, (map)->size)
+	(map)->handle = DRM(ioremap_nocache)( dev, map )
 
 #define DRM_IOREMAPFREE(map)						\
 	do {								\
 		if ( (map)->handle && (map)->size )			\
-			DRM(ioremapfree)( (map)->handle, (map)->size );	\
+			DRM(ioremapfree)( map );			\
 	} while (0)
 
 				/* Internal types and structures */
@@ -152,15 +152,10 @@ typedef struct drm_pci_list {
 } drm_pci_list_t;
 
 typedef struct drm_ioctl_desc {
-	d_ioctl_t            *func;
+	int		     (*func)(DRM_IOCTL_ARGS);
 	int		     auth_needed;
 	int		     root_only;
 } drm_ioctl_desc_t;
-
-typedef struct drm_devstate {
-	pid_t		  owner;	/* X server pid holding x_lock */
-
-} drm_devstate_t;
 
 typedef struct drm_magic_entry {
 	drm_magic_t	       magic;
@@ -172,12 +167,6 @@ typedef struct drm_magic_head {
 	struct drm_magic_entry *head;
 	struct drm_magic_entry *tail;
 } drm_magic_head_t;
-
-typedef struct drm_vma_entry {
-	struct vm_area_struct *vma;
-	struct drm_vma_entry  *next;
-	pid_t		      pid;
-} drm_vma_entry_t;
 
 typedef struct drm_buf {
 	int		  idx;	       /* Index into master buflist	     */
@@ -191,7 +180,7 @@ typedef struct drm_buf {
 	__volatile__ int  waiting;     /* On kernel DMA queue		     */
 	__volatile__ int  pending;     /* On hardware DMA queue		     */
 	wait_queue_head_t dma_wait;    /* Processes waiting		     */
-	pid_t		  pid;	       /* PID of holding process	     */
+	DRMFILE		  filp;	       /* Unique identifier of holding process */
 	int		  context;     /* Kernel queue for this buffer	     */
 	int		  while_locked;/* Dispatch this buffer while locked  */
 	enum {
@@ -308,7 +297,7 @@ typedef struct drm_queue {
 
 typedef struct drm_lock_data {
 	drm_hw_lock_t	  *hw_lock;	/* Hardware lock		   */
-	pid_t		  pid;		/* PID of lock holder (0=kernel)   */
+	DRMFILE		  filp;	        /* Unique identifier of holding process (NULL is kernel)*/
 	wait_queue_head_t lock_queue;	/* Queue of blocked processes	   */
 	unsigned long	  lock_time;	/* Time of last lock in jiffies	   */
 } drm_lock_data_t;
@@ -377,7 +366,6 @@ typedef struct drm_sg_mem {
 	unsigned long   handle;
 	void            *virtual;
 	int             pages;
-	struct page     **pagelist;
 	dma_addr_t	*busaddr;
 } drm_sg_mem_t;
 
@@ -386,10 +374,23 @@ typedef struct drm_sigdata {
 	drm_hw_lock_t *lock;
 } drm_sigdata_t;
 
+typedef struct drm_local_map {
+	unsigned long	offset;	 /* Physical address (0 for SAREA)*/
+	unsigned long	size;	 /* Physical size (bytes)	    */
+	drm_map_type_t	type;	 /* Type of memory mapped		    */
+	drm_map_flags_t flags;	 /* Flags				    */
+	void		*handle; /* User-space: "Handle" to pass to mmap    */
+				 /* Kernel-space: kernel-virtual address    */
+	int		mtrr;	 /* MTRR slot used			    */
+				 /* Private data			    */
+	bus_space_tag_t iot;
+	bus_space_handle_t ioh;
+} drm_local_map_t;
+
 typedef TAILQ_HEAD(drm_map_list, drm_map_list_entry) drm_map_list_t;
 typedef struct drm_map_list_entry {
 	TAILQ_ENTRY(drm_map_list_entry) link;
-	drm_map_t	*map;
+	drm_local_map_t	*map;
 } drm_map_list_entry_t;
 
 TAILQ_HEAD(drm_vbl_sig_list, drm_vbl_sig);
@@ -423,7 +424,6 @@ struct drm_device {
 				/* Usage Counters */
 	int		  open_count;	/* Outstanding files open	   */
 	atomic_t	  ioctl_count;	/* Outstanding IOCTLs pending	   */
-	atomic_t	  vma_count;	/* Outstanding vma areas open	   */
 	int		  buf_use;	/* Buffers in use -- cannot alloc  */
 	atomic_t	  buf_alloc;	/* Buffer allocation in progress   */
 
@@ -440,10 +440,9 @@ struct drm_device {
 	drm_map_list_t	  *maplist;	/* Linked list of regions	   */
 	int		  map_count;	/* Number of mappable regions	   */
 
-	drm_map_t	  **context_sareas;
+	drm_local_map_t	  **context_sareas;
 	int		  max_context;
 
-	drm_vma_entry_t	  *vmalist;	/* List of vmas (for debugging)	   */
 	drm_lock_data_t	  lock;		/* Information on hardware lock	   */
 
 				/* DMA queues (contexts) */
@@ -454,9 +453,9 @@ struct drm_device {
 	drm_device_dma_t  *dma;		/* Optional pointer for DMA support */
 
 				/* Context support */
-#ifdef __FreeBSD__
 	int		  irq;		/* Interrupt used by board	   */
 	int		  irqrid;		/* Interrupt used by board	   */
+#ifdef __FreeBSD__
 	struct resource   *irqr;	/* Resource for interrupt used by board	   */
 #elif defined(__NetBSD__)
 	struct pci_attach_args  pa;
@@ -477,8 +476,10 @@ struct drm_device {
 #if __HAVE_VBL_IRQ
    	wait_queue_head_t vbl_queue;	/* vbl wait channel */
    	atomic_t          vbl_received;
+#if 0 /* vbl signals are untested, ntested */
 	struct drm_vbl_sig_list vbl_sig_list;
 	DRM_SPINTYPE      vbl_lock;
+#endif
 #endif
 	cycles_t	  ctx_start;
 	cycles_t	  lck_start;
@@ -530,15 +531,16 @@ extern int	     DRM(write_string)(drm_device_t *dev, const char *s);
 
 				/* Memory management support (drm_memory.h) */
 extern void	     DRM(mem_init)(void);
+extern void	     DRM(mem_uninit)(void);
 extern void	     *DRM(alloc)(size_t size, int area);
 extern void	     *DRM(realloc)(void *oldpt, size_t oldsize, size_t size,
 				   int area);
 extern char	     *DRM(strdup)(const char *s, int area);
 extern void	     DRM(strfree)(char *s, int area);
 extern void	     DRM(free)(void *pt, size_t size, int area);
-extern void	     *DRM(ioremap)(unsigned long offset, unsigned long size);
-extern void	     *DRM(ioremap_nocache)(unsigned long offset, unsigned long size);
-extern void	     DRM(ioremapfree)(void *pt, unsigned long size);
+extern void	     *DRM(ioremap)(drm_device_t *dev, drm_local_map_t *map);
+extern void	     *DRM(ioremap_nocache)(drm_device_t *dev, drm_local_map_t *map);
+extern void	     DRM(ioremapfree)(drm_local_map_t *map);
 
 #if __REALLY_HAVE_AGP
 extern agp_memory    *DRM(alloc_agp)(int pages, u32 type);
@@ -580,7 +582,7 @@ extern int	     DRM(order)( unsigned long size );
 extern int	     DRM(dma_setup)(drm_device_t *dev);
 extern void	     DRM(dma_takedown)(drm_device_t *dev);
 extern void	     DRM(free_buffer)(drm_device_t *dev, drm_buf_t *buf);
-extern void	     DRM(reclaim_buffers)(drm_device_t *dev, pid_t pid);
+extern void	     DRM(reclaim_buffers)(drm_device_t *dev, DRMFILE filp);
 #if __HAVE_OLD_DMA
 /* GH: This is a dirty hack for now...
  */
@@ -651,6 +653,83 @@ extern int            DRM(ati_pcigart_cleanup)(drm_device_t *dev,
 					       unsigned long addr,
 					       dma_addr_t bus_addr);
 #endif
+
+/* Locking IOCTL support (drm_drv.h) */
+extern int		DRM(lock)(DRM_IOCTL_ARGS);
+extern int		DRM(unlock)(DRM_IOCTL_ARGS);
+
+/* Misc. IOCTL support (drm_ioctl.h) */
+extern int		DRM(irq_busid)(DRM_IOCTL_ARGS);
+extern int		DRM(getunique)(DRM_IOCTL_ARGS);
+extern int		DRM(setunique)(DRM_IOCTL_ARGS);
+extern int		DRM(getmap)(DRM_IOCTL_ARGS);
+extern int		DRM(getclient)(DRM_IOCTL_ARGS);
+extern int		DRM(getstats)(DRM_IOCTL_ARGS);
+
+/* Context IOCTL support (drm_context.h) */
+extern int		DRM(resctx)(DRM_IOCTL_ARGS);
+extern int		DRM(addctx)(DRM_IOCTL_ARGS);
+extern int		DRM(modctx)(DRM_IOCTL_ARGS);
+extern int		DRM(getctx)(DRM_IOCTL_ARGS);
+extern int		DRM(switchctx)(DRM_IOCTL_ARGS);
+extern int		DRM(newctx)(DRM_IOCTL_ARGS);
+extern int		DRM(rmctx)(DRM_IOCTL_ARGS);
+extern int		DRM(setsareactx)(DRM_IOCTL_ARGS);
+extern int		DRM(getsareactx)(DRM_IOCTL_ARGS);
+
+/* Drawable IOCTL support (drm_drawable.h) */
+extern int		DRM(adddraw)(DRM_IOCTL_ARGS);
+extern int		DRM(rmdraw)(DRM_IOCTL_ARGS);
+
+/* Authentication IOCTL support (drm_auth.h) */
+extern int		DRM(getmagic)(DRM_IOCTL_ARGS);
+extern int		DRM(authmagic)(DRM_IOCTL_ARGS);
+
+/* Locking IOCTL support (drm_lock.h) */
+extern int		DRM(block)(DRM_IOCTL_ARGS);
+extern int		DRM(unblock)(DRM_IOCTL_ARGS);
+extern int		DRM(finish)(DRM_IOCTL_ARGS);
+
+/* Buffer management support (drm_bufs.h) */
+extern int		DRM(addmap)(DRM_IOCTL_ARGS);
+extern int		DRM(rmmap)(DRM_IOCTL_ARGS);
+#if __HAVE_DMA
+extern int		DRM(addbufs_agp)(DRM_IOCTL_ARGS);
+extern int		DRM(addbufs_pci)(DRM_IOCTL_ARGS);
+extern int		DRM(addbufs_sg)(DRM_IOCTL_ARGS);
+extern int		DRM(addbufs)(DRM_IOCTL_ARGS);
+extern int		DRM(infobufs)(DRM_IOCTL_ARGS);
+extern int		DRM(markbufs)(DRM_IOCTL_ARGS);
+extern int		DRM(freebufs)(DRM_IOCTL_ARGS);
+extern int		DRM(mapbufs)(DRM_IOCTL_ARGS);
+#endif
+
+/* DMA support (drm_dma.h) */
+#if __HAVE_DMA
+extern int		DRM(control)(DRM_IOCTL_ARGS);
+#endif
+#if __HAVE_VBL_IRQ
+extern int		DRM(wait_vblank)(DRM_IOCTL_ARGS);
+#endif
+
+/* AGP/GART support (drm_agpsupport.h) */
+#if __REALLY_HAVE_AGP
+extern int		DRM(agp_acquire)(DRM_IOCTL_ARGS);
+extern int		DRM(agp_release)(DRM_IOCTL_ARGS);
+extern int		DRM(agp_enable)(DRM_IOCTL_ARGS);
+extern int		DRM(agp_info)(DRM_IOCTL_ARGS);
+extern int		DRM(agp_alloc)(DRM_IOCTL_ARGS);
+extern int		DRM(agp_free)(DRM_IOCTL_ARGS);
+extern int		DRM(agp_unbind)(DRM_IOCTL_ARGS);
+extern int		DRM(agp_bind)(DRM_IOCTL_ARGS);
+#endif
+
+/* Scatter Gather Support (drm_scatter.h) */
+#if __HAVE_SG
+extern int		DRM(sg_alloc)(DRM_IOCTL_ARGS);
+extern int		DRM(sg_free)(DRM_IOCTL_ARGS);
+#endif
+
 
 #endif /* __KERNEL__ */
 #endif /* _DRM_P_H_ */

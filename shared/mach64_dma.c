@@ -1013,7 +1013,7 @@ int mach64_dma_idle( DRM_IOCTL_ARGS )
 
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
-	LOCK_TEST_WITH_RETURN( dev );
+	LOCK_TEST_WITH_RETURN( dev, filp );
 
 	return mach64_do_dma_idle( dev_priv );
 }
@@ -1025,7 +1025,7 @@ int mach64_dma_flush( DRM_IOCTL_ARGS )
 
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
-	LOCK_TEST_WITH_RETURN( dev );
+	LOCK_TEST_WITH_RETURN( dev, filp );
 
 	return mach64_do_dma_flush( dev_priv );
 }
@@ -1037,7 +1037,7 @@ int mach64_engine_reset( DRM_IOCTL_ARGS )
 	
 	DRM_DEBUG( "%s\n", __FUNCTION__ );
 
-	LOCK_TEST_WITH_RETURN( dev );
+	LOCK_TEST_WITH_RETURN( dev, filp );
 
 	return mach64_do_engine_reset( dev_priv );
 }
@@ -1228,7 +1228,7 @@ _freelist_entry_found:
  * DMA buffer request and submission IOCTL handler
  */
 
-static int mach64_dma_get_buffers( drm_device_t *dev, drm_dma_t *d )
+static int mach64_dma_get_buffers( DRMFILE filp, drm_device_t *dev, drm_dma_t *d )
 {
 	int i;
 	drm_buf_t *buf;
@@ -1242,7 +1242,7 @@ static int mach64_dma_get_buffers( drm_device_t *dev, drm_dma_t *d )
 		if ( !buf ) return DRM_ERR(EAGAIN);
 #endif
 
-		buf->pid = DRM_CURRENTPID;
+		buf->filp = filp;
 
 		if ( DRM_COPY_TO_USER( &d->request_indices[i], &buf->idx,
 				   sizeof(buf->idx) ) )
@@ -1263,7 +1263,7 @@ int mach64_dma_buffers( DRM_IOCTL_ARGS )
 	drm_dma_t d;
         int ret = 0;
 
-        LOCK_TEST_WITH_RETURN( dev );
+        LOCK_TEST_WITH_RETURN( dev, filp );
 
 	DRM_COPY_FROM_USER_IOCTL( d, (drm_dma_t *)data, sizeof(d) );
 
@@ -1289,7 +1289,7 @@ int mach64_dma_buffers( DRM_IOCTL_ARGS )
 
 	if ( d.request_count ) 
 	{
-		ret = mach64_dma_get_buffers( dev, &d );
+		ret = mach64_dma_get_buffers( filp, dev, &d );
 	}
 
 	DRM_COPY_TO_USER_IOCTL( (drm_dma_t *)data, d, sizeof(d) );
