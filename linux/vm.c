@@ -1,6 +1,6 @@
 /* vm.c -- Memory mapping for DRM -*- linux-c -*-
  * Created: Mon Jan  4 08:58:31 1999 by faith@precisioninsight.com
- * Revised: Mon Feb 14 00:16:45 2000 by kevin@precisioninsight.com
+ * Revised: Tue Apr 11 01:55:12 2000 by kevin@precisioninsight.com
  *
  * Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
  * All Rights Reserved.
@@ -265,6 +265,10 @@ int drm_mmap(struct file *filp, struct vm_area_struct *vma)
 				     vma->vm_end - vma->vm_start,
 				     vma->vm_page_prot))
 				return -EAGAIN;
+		DRM_DEBUG("   Type = %d; start = 0x%lx, end = 0x%lx,"
+			  " offset = 0x%lx\n",
+			  map->type,
+			  vma->vm_start, vma->vm_end, VM_OFFSET(vma));
 		vma->vm_ops = &drm_vm_ops;
 		break;
 	case _DRM_SHM:

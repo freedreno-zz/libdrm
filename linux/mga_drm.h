@@ -1,4 +1,4 @@
-/* mga_drm_public.h -- Public header for the Matrox g200/g400 driver -*- linux-c -*-
+/* mga_drm.h -- Public header for the Matrox g200/g400 driver -*- linux-c -*-
  * Created: Tue Jan 25 01:50:01 1999 by jhartmann@precisioninsight.com
  *
  * Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
@@ -26,12 +26,17 @@
  * Authors: Jeff Hartmann <jhartmann@precisioninsight.com>
  *          Keith Whitwell <keithw@precisioninsight.com>
  *
- * $XFree86: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/kernel/mga_drm_public.h,v 1.1 2000/02/11 17:26:07 dawes Exp $
+ * $XFree86$
  */
 
-#ifndef _MGA_DRM_PUBLIC_H_
-#define _MGA_DRM_PUBLIC_H_
+#ifndef _MGA_DRM_H_
+#define _MGA_DRM_H_
 
+/* WARNING: If you change any of these defines, make sure to change the
+ * defines in the Xserver file (xf86drmMga.h)
+ */
+#ifndef _MGA_DEFINES_
+#define _MGA_DEFINES_
 #define MGA_F  0x1		/* fog */
 #define MGA_A  0x2		/* alpha */
 #define MGA_S  0x4		/* specular */
@@ -61,51 +66,9 @@
 
 #define MGA_CARD_TYPE_G200 1
 #define MGA_CARD_TYPE_G400 2
-
-
-typedef struct _drm_mga_warp_index {
-   	int installed;
-   	unsigned long phys_addr;
-   	int size;
-} mgaWarpIndex;
-
-typedef struct drm_mga_init {
-   	enum { 
-	   	MGA_INIT_DMA = 0x01,
-	       	MGA_CLEANUP_DMA = 0x02
-	} func;
-   	int reserved_map_agpstart;
-   	int reserved_map_idx;
-   	int buffer_map_idx;
-   	int sarea_priv_offset;
-   	int primary_size;
-   	int warp_ucode_size;
-   	int frontOffset;
-   	int backOffset;
-   	int depthOffset;
-   	int textureOffset;
-   	int textureSize;
-        int agpTextureOffset;
-        int agpTextureSize;
-   	int cpp;
-   	int stride;
-   	int sgram;
-	int chipset;
-   	mgaWarpIndex WarpIndex[MGA_MAX_WARP_PIPES];
-	int mAccess;
-} drm_mga_init_t;
-
-typedef struct _xf86drmClipRectRec {
-   	unsigned short x1;
-   	unsigned short y1;
-   	unsigned short x2;
-   	unsigned short y2;
-} xf86drmClipRectRec;
-
 #define MGA_FRONT   0x1
 #define MGA_BACK    0x2
 #define MGA_DEPTH   0x4
-
 
 /* 3d state excluding texture units:
  */
@@ -155,19 +118,15 @@ typedef struct _xf86drmClipRectRec {
 #define MGA_DMA_FLUSH	      0x200 /* set when someone gets the lock
                                        quiescent */
 
-
 /* 64 buffers of 16k each, total 1 meg.
  */
 #define MGA_DMA_BUF_ORDER     14
 #define MGA_DMA_BUF_SZ        (1<<MGA_DMA_BUF_ORDER)
 #define MGA_DMA_BUF_NR        63
 
-
 /* Keep these small for testing.
  */
 #define MGA_NR_SAREA_CLIPRECTS 8
-
-
 
 /* 2 heaps (1 for card, 1 for agp), each divided into upto 128
  * regions, subject to a minimum region size of (1<<16) == 64k. 
@@ -175,22 +134,56 @@ typedef struct _xf86drmClipRectRec {
  * Clients may subdivide regions internally, but when sharing between
  * clients, the region size is the minimum granularity. 
  */
+
 #define MGA_CARD_HEAP 0
 #define MGA_AGP_HEAP  1
 #define MGA_NR_TEX_HEAPS 2
 #define MGA_NR_TEX_REGIONS 16
 #define MGA_LOG_MIN_TEX_REGION_SIZE 16
+#endif
 
-typedef struct {
+typedef struct _drm_mga_warp_index {
+   	int installed;
+   	unsigned long phys_addr;
+   	int size;
+} drm_mga_warp_index_t;
+
+typedef struct drm_mga_init {
+   	enum { 
+	   	MGA_INIT_DMA = 0x01,
+	       	MGA_CLEANUP_DMA = 0x02
+	} func;
+   	int reserved_map_agpstart;
+   	int reserved_map_idx;
+   	int buffer_map_idx;
+   	int sarea_priv_offset;
+   	int primary_size;
+   	int warp_ucode_size;
+   	int frontOffset;
+   	int backOffset;
+   	int depthOffset;
+   	int textureOffset;
+   	int textureSize;
+        int agpTextureOffset;
+        int agpTextureSize;
+   	int cpp;
+   	int stride;
+   	int sgram;
+	int chipset;
+   	drm_mga_warp_index_t WarpIndex[MGA_MAX_WARP_PIPES];
+	int mAccess;
+} drm_mga_init_t;
+
+/* Warning: if you change the sarea structure, you must change the Xserver
+ * structures as well */
+
+typedef struct _drm_mga_tex_region {
 	unsigned char next, prev;	
 	unsigned char in_use;	
 	int age;			
-} mgaTexRegion;
+} drm_mga_tex_region_t;
 
-
-
-typedef struct 
-{
+typedef struct _drm_mga_sarea {
 	/* The channel for communication of state information to the kernel
 	 * on firing a vertex dma buffer.
 	 */
@@ -201,7 +194,7 @@ typedef struct
    	unsigned int dirty;
 
    	unsigned int nbox;
-   	xf86drmClipRectRec boxes[MGA_NR_SAREA_CLIPRECTS];
+   	drm_clip_rect_t boxes[MGA_NR_SAREA_CLIPRECTS];
 
 
 	/* Information about the most recently used 3d drawable.  The
@@ -222,7 +215,7 @@ typedef struct
         unsigned int exported_nback;
 	int exported_back_x, exported_front_x, exported_w;	
 	int exported_back_y, exported_front_y, exported_h;
-   	xf86drmClipRectRec exported_boxes[MGA_NR_SAREA_CLIPRECTS];
+   	drm_clip_rect_t exported_boxes[MGA_NR_SAREA_CLIPRECTS];
    
 	/* Counters for aging textures and for client-side throttling.
 	 */
@@ -233,58 +226,36 @@ typedef struct
 
 	/* LRU lists for texture memory in agp space and on the card
 	 */
-	mgaTexRegion texList[MGA_NR_TEX_HEAPS][MGA_NR_TEX_REGIONS+1];	
-	unsigned int texAge[MGA_NR_TEX_HEAPS];	      
+	drm_mga_tex_region_t texList[MGA_NR_TEX_HEAPS][MGA_NR_TEX_REGIONS+1];
+	unsigned int texAge[MGA_NR_TEX_HEAPS];
 	
 	/* Mechanism to validate card state.
 	 */
-   	int ctxOwner;		
-
-
+   	int ctxOwner;
 } drm_mga_sarea_t;	
-
 
 /* Device specific ioctls:
  */
-typedef struct {
-   	int idx;
+typedef struct _drm_mga_clear {
 	int clear_color;
 	int clear_depth;
 	int flags;
 } drm_mga_clear_t;
 
-typedef struct {
-   	int idx;
+typedef struct _drm_mga_swap {
+   	int dummy;
 } drm_mga_swap_t;
 
-typedef struct {
-	unsigned int destOrg;
+typedef struct _drm_mga_iload {
 	int idx;
 	int length;
+	unsigned int destOrg;
 } drm_mga_iload_t;
 
-
-/* These may be placeholders if we have more cliprects than
- * MGA_NR_SAREA_CLIPRECTS.  In that case, idx != real_idx; idx is
- * the number of a bogus buffer, real_idx is the real buffer to be
- * rendered multiple times.  
- *
- * This is a hack to work around assumptions built into the drm, and
- * may shortly be removed.
- */
-typedef struct {
-   	int idx;		/* buffer to queue and free on completion */
-   	int real_idx;		/* buffer to execute */
-	int real_used;		/* buf->used in for real buffer */
-	int discard;		/*  */
+typedef struct _drm_mga_vertex {
+   	int idx;		/* buffer to queue */
+	int used;		/* bytes in use */
+	int discard;		/* client finished with buffer?  */
 } drm_mga_vertex_t;
-
-
-#define DRM_IOCTL_MGA_INIT    DRM_IOW( 0x40, drm_mga_init_t)
-#define DRM_IOCTL_MGA_SWAP    DRM_IOW( 0x41, drm_mga_swap_t)
-#define DRM_IOCTL_MGA_CLEAR   DRM_IOW( 0x42, drm_mga_clear_t)
-#define DRM_IOCTL_MGA_ILOAD   DRM_IOW( 0x43, drm_mga_iload_t)
-#define DRM_IOCTL_MGA_VERTEX  DRM_IOW( 0x44, drm_mga_vertex_t)
-#define DRM_IOCTL_MGA_FLUSH   DRM_IOW( 0x45, drm_lock_t )
 
 #endif

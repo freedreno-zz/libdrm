@@ -53,7 +53,7 @@
 #include <linux/agp_backend.h>
 #endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,1,0)
-#include <linux/spinlock.h>
+#include <linux/tqueue.h>
 #include <linux/poll.h>
 #endif
 #include "drm.h"
@@ -93,7 +93,7 @@
 #define DRM_MEM_BOUNDAGP  17
 #define DRM_MEM_CTXBITMAP 18
 
-#define DRM_MAX_CTXBITMAP (PAGE_SIZE * 4 * 8)
+#define DRM_MAX_CTXBITMAP (PAGE_SIZE * 8)
 
 				/* Backward compatibility section */
 				/* _PAGE_WT changed to _PAGE_PWT in 2.2.6 */

@@ -817,7 +817,7 @@ int drmAgpVersionMajor(int fd)
 {
     drm_agp_info_t i;
 
-    if (ioctl(fd, DRM_IOCTL_AGP_INFO, &i)) return 0;
+    if (ioctl(fd, DRM_IOCTL_AGP_INFO, &i)) return -errno;
     return i.agp_version_major;
 }
 

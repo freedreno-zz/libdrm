@@ -23,7 +23,8 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
  * 
- * Author: Rickard E. (Rik) Faith <faith@precisioninsight.com>
+ * Authors: Rickard E. (Rik) Faith <faith@precisioninsight.com>
+ *          Kevin E. Martin <kevin@precisioninsight.com>
  * 
  * $XFree86$
  *
@@ -37,10 +38,10 @@ EXPORT_SYMBOL(r128_cleanup);
 
 #define R128_NAME	 "r128"
 #define R128_DESC	 "r128"
-#define R128_DATE	 "19991213"
+#define R128_DATE	 "20000405"
 #define R128_MAJOR	 0
 #define R128_MINOR	 0
-#define R128_PATCHLEVEL  1
+#define R128_PATCHLEVEL  2
 
 static drm_device_t	      r128_device;
 drm_ctx_t	              r128_res_ctx;
@@ -95,6 +96,11 @@ static drm_ioctl_desc_t	      r128_ioctls[] = {
 	[DRM_IOCTL_NR(DRM_IOCTL_AGP_FREE)]    = { drm_agp_free,    1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_AGP_BIND)]    = { drm_agp_bind,    1, 1 },
 	[DRM_IOCTL_NR(DRM_IOCTL_AGP_UNBIND)]  = { drm_agp_unbind,  1, 1 },
+
+	[DRM_IOCTL_NR(DRM_IOCTL_R128_INIT)]           = { r128_init_cce,        1, 1 },
+	[DRM_IOCTL_NR(DRM_IOCTL_R128_ENGINE_RESET)]   = { r128_engine_reset,    1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_R128_SUBMIT_PACKETS)] = { r128_submit_packets,  1, 0 },
+	[DRM_IOCTL_NR(DRM_IOCTL_R128_WAIT_FOR_IDLE)]  = { r128_wait_for_idle,   1, 0 },
 };
 #define R128_IOCTL_COUNT DRM_ARRAY_SIZE(r128_ioctls)
 

@@ -1,6 +1,6 @@
 /* drm.h -- Header for Direct Rendering Manager -*- linux-c -*-
  * Created: Mon Jan  4 10:05:05 1999 by faith@precisioninsight.com
- * Revised: Mon Feb 14 00:15:23 2000 by kevin@precisioninsight.com
+ * Revised: Sun Apr  9 20:33:27 2000 by kevin@precisioninsight.com
  *
  * Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
  * All rights reserved.
@@ -61,6 +61,20 @@ typedef unsigned int  drm_context_t;
 typedef unsigned int  drm_drawable_t;
 typedef unsigned int  drm_magic_t;
 
+/* Warning: If you change this structure, make sure you change 
+ * XF86DRIClipRectRec in the server as well */
+
+typedef struct drm_clip_rect {
+           unsigned short x1;
+           unsigned short y1;
+           unsigned short x2;
+           unsigned short y2;
+} drm_clip_rect_t;
+
+/* Seperate include files for the i810/mga specific structures */
+#include "mga_drm.h"
+#include "i810_drm.h"
+#include "r128_drm.h"
 
 typedef struct drm_version {
 	int    version_major;	  /* Major version			    */
@@ -321,5 +335,25 @@ typedef struct drm_agp_info {
 #define DRM_IOCTL_AGP_BIND    DRM_IOWR(0x36, drm_agp_binding_t)
 #define DRM_IOCTL_AGP_UNBIND  DRM_IOW( 0x37, drm_agp_binding_t)
 
-/* 0x40 is reserved for mga dma init */
+/* Mga specific ioctls */
+#define DRM_IOCTL_MGA_INIT    DRM_IOW( 0x40, drm_mga_init_t)
+#define DRM_IOCTL_MGA_SWAP    DRM_IOW( 0x41, drm_mga_swap_t)
+#define DRM_IOCTL_MGA_CLEAR   DRM_IOW( 0x42, drm_mga_clear_t)
+#define DRM_IOCTL_MGA_ILOAD   DRM_IOW( 0x43, drm_mga_iload_t)
+#define DRM_IOCTL_MGA_VERTEX  DRM_IOW( 0x44, drm_mga_vertex_t)
+#define DRM_IOCTL_MGA_FLUSH   DRM_IOW( 0x45, drm_lock_t )
+
+/* I810 specific ioctls */
+#define DRM_IOCTL_I810_INIT    DRM_IOW( 0x40, drm_i810_init_t)
+#define DRM_IOCTL_I810_VERTEX  DRM_IOW( 0x41, drm_i810_vertex_t)
+#define DRM_IOCTL_I810_DMA     DRM_IOW( 0x42, drm_i810_general_t)
+#define DRM_IOCTL_I810_FLUSH   DRM_IO ( 0x43)
+#define DRM_IOCTL_I810_GETAGE  DRM_IO ( 0x44)
+
+/* Rage 128 specific ioctls */
+#define DRM_IOCTL_R128_INIT		DRM_IOW( 0x40, drm_r128_init_t)
+#define DRM_IOCTL_R128_ENGINE_RESET	DRM_IO(  0x41)
+#define DRM_IOCTL_R128_SUBMIT_PACKETS	DRM_IOW( 0x42, drm_r128_packet_t)
+#define DRM_IOCTL_R128_WAIT_FOR_IDLE	DRM_IO(  0x43)
+
 #endif

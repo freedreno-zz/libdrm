@@ -24,20 +24,19 @@
  * DEALINGS IN THE SOFTWARE.
  *
  * Authors: Jeff Hartmann <jhartmann@precisioninsight.com>
- *          Keith Whitwell <keithw@precisioninsight.com>
+ * 	    Keith Whitwell <keithw@precisioninsight.com>
  *
- * $XFree86: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/kernel/mga_state.c,v 1.1 2000/02/11 17:26:08 dawes Exp $
+ * $XFree86$
  *
  */
  
 #define __NO_VERSION__
 #include "drmP.h"
 #include "mga_drv.h"
-#include "mgareg_flags.h"
-#include "mga_dma.h"
 #include "drm.h"
 
-static void mgaEmitClipRect( drm_mga_private_t *dev_priv, xf86drmClipRectRec *box )
+static void mgaEmitClipRect( drm_mga_private_t *dev_priv, 
+			     drm_clip_rect_t *box )
 {
    	drm_mga_sarea_t *sarea_priv = dev_priv->sarea_priv;
 	unsigned int *regs = sarea_priv->ContextState;
@@ -299,9 +298,6 @@ static void mgaEmitState( drm_mga_private_t *dev_priv )
 	if (dev_priv->chipset == MGA_CARD_TYPE_G400) {	   
 		int multitex = sarea_priv->WarpPipe & MGA_T2;
 
-/*  		DRM_DEBUG("BUF PIPE: %x LOADED PIPE: %x\n", */
-/*  		       sarea_priv->WarpPipe, dev_priv->WarpPipe); */
-
 		if (sarea_priv->WarpPipe != dev_priv->WarpPipe) { 
 			mgaG400EmitPipe( dev_priv );
 			dev_priv->WarpPipe = sarea_priv->WarpPipe;
@@ -339,15 +335,6 @@ static void mgaEmitState( drm_mga_private_t *dev_priv )
 	}
 }
 
-/* WARNING if you change any of the state functions 
- * verify these numbers */
-
-static int mgaCalcState( drm_mga_private_t *dev_priv )
-{
-	/* It doesn't hurt to overestimate.
-	 */
-	return 25+15+30+25;
-}
 
 /* Disallow all write destinations except the front and backbuffer.
  */
@@ -392,7 +379,7 @@ static int mgaVerifyState( drm_mga_private_t *dev_priv )
 	unsigned int dirty = sarea_priv->dirty;
 	int rv = 0;
 
-   	if (sarea_priv->nbox >= MGA_NR_SAREA_CLIPRECTS)
+   	if (sarea_priv->nbox > MGA_NR_SAREA_CLIPRECTS)
      		sarea_priv->nbox = MGA_NR_SAREA_CLIPRECTS;
 
 	if (dirty & MGA_UPLOAD_CTX)
@@ -436,10 +423,10 @@ static int mgaVerifyIload( drm_mga_private_t *dev_priv,
 /* This copies a 64 byte aligned agp region to the frambuffer
  * with a standard blit, the ioctl needs to do checking */
 
-static inline void mga_dma_dispatch_tex_blit( drm_device_t *dev, 
-					      unsigned long bus_address, 
-					      int length, 
-					      unsigned int destOrg )
+static void mga_dma_dispatch_tex_blit( drm_device_t *dev, 
+				       unsigned long bus_address, 
+				       int length, 
+				       unsigned int destOrg )
 {
    	drm_mga_private_t *dev_priv = dev->dev_private;
    	int use_agp = PDEA_pagpxfer_enable | 0x00000001;
@@ -476,9 +463,8 @@ static inline void mga_dma_dispatch_tex_blit( drm_device_t *dev,
     	PRIMADVANCE(dev_priv);
 }
 
-static inline void mga_dma_dispatch_vertex(drm_device_t *dev, 
-					   drm_buf_t *buf, int real_idx,
-					   int idx)
+static void mga_dma_dispatch_vertex(drm_device_t *dev, 
+				    drm_buf_t *buf)
 {
    	drm_mga_private_t *dev_priv = dev->dev_private;
 	drm_mga_buf_priv_t *buf_priv = buf->dev_private;
@@ -490,17 +476,22 @@ static inline void mga_dma_dispatch_vertex(drm_device_t *dev,
    	int primary_needed;
       	PRIMLOCALS;
 
-	DRM_DEBUG("dispatch vertex %d addr 0x%lx, length 0x%x nbox %d dirty %x\n", 
-		  buf->idx, address, length, sarea_priv->nbox, sarea_priv->dirty);
+	DRM_DEBUG("dispatch vertex %d addr 0x%lx, "
+		  "length 0x%x nbox %d dirty %x\n", 
+		  buf->idx, address, length, 
+		  sarea_priv->nbox, sarea_priv->dirty);
 
 
    	dev_priv->last_sync_tag = mga_create_sync_tag(dev);
-   	if(real_idx == idx) { 
+
+   	if (buf_priv->discard) { 
 		buf_priv->my_freelist->age = dev_priv->last_sync_tag;
 	   	mga_freelist_put(dev, buf);
 	}
 
-	/* Overestimating this doesn't hurt.
+
+	/* WARNING: if you change any of the state functions verify
+	 * these numbers (Overestimating this doesn't hurt).  
 	 */
 	primary_needed = (25+15+30+25+ 
 			  10 + 
@@ -509,31 +500,34 @@ static inline void mga_dma_dispatch_vertex(drm_device_t *dev,
 
    	PRIM_OVERFLOW(dev, dev_priv, primary_needed);
    	mgaEmitState( dev_priv );
-   	do {
-	   	if (i < sarea_priv->nbox) {
-		   	DRM_DEBUG("idx %d Emit box %d/%d:"
-				  "%d,%d - %d,%d\n", 
-				  buf->idx,
-				  i, sarea_priv->nbox,
-				  sarea_priv->boxes[i].x1, 
-				  sarea_priv->boxes[i].y1,
-				  sarea_priv->boxes[i].x2, 
-				  sarea_priv->boxes[i].y2);
-		   
-		   	mgaEmitClipRect( dev_priv, 
-					&sarea_priv->boxes[i] );
-		}
 
-	   	PRIMGETPTR(dev_priv);
-	   	PRIMOUTREG( MGAREG_DMAPAD, 0);
-	   	PRIMOUTREG( MGAREG_DMAPAD, 0);
-	   	PRIMOUTREG( MGAREG_SECADDRESS, 
-			   ((__u32)address) | TT_VERTEX);
-	   	PRIMOUTREG( MGAREG_SECEND, 
-			   (((__u32)(address + length)) | 
-			    use_agp));
-	   	PRIMADVANCE( dev_priv );	       
-	}  while (++i < sarea_priv->nbox);
+	if (buf->used) {
+		do {
+			if (i < sarea_priv->nbox) {
+				DRM_DEBUG("idx %d Emit box %d/%d:"
+					  "%d,%d - %d,%d\n", 
+					  buf->idx,
+					  i, sarea_priv->nbox,
+					  sarea_priv->boxes[i].x1, 
+					  sarea_priv->boxes[i].y1,
+					  sarea_priv->boxes[i].x2, 
+					  sarea_priv->boxes[i].y2);
+				
+				mgaEmitClipRect( dev_priv, 
+						 &sarea_priv->boxes[i] );
+			}
+			
+			PRIMGETPTR(dev_priv);
+			PRIMOUTREG( MGAREG_DMAPAD, 0);
+			PRIMOUTREG( MGAREG_DMAPAD, 0);
+			PRIMOUTREG( MGAREG_SECADDRESS, 
+				    ((__u32)address) | TT_VERTEX);
+			PRIMOUTREG( MGAREG_SECEND, 
+				    (((__u32)(address + length)) | 
+				     use_agp));
+			PRIMADVANCE( dev_priv );	       
+		}  while (++i < sarea_priv->nbox);
+	}
 
 	PRIMGETPTR( dev_priv );
    	PRIMOUTREG(MGAREG_DMAPAD, 0);
@@ -543,44 +537,16 @@ static inline void mga_dma_dispatch_vertex(drm_device_t *dev,
 	PRIMADVANCE( dev_priv );
 }
 
-/* Not currently used
- */
-static inline void mga_dma_dispatch_general(drm_device_t *dev, drm_buf_t *buf)
-{
-   	drm_mga_private_t *dev_priv = dev->dev_private;
-   	drm_mga_buf_priv_t *buf_priv = buf->dev_private;
-	unsigned long address = (unsigned long)buf->bus_address;
-	int length = buf->used;
-	int use_agp = PDEA_pagpxfer_enable;
-   	PRIMLOCALS;
 
-   	PRIM_OVERFLOW(dev, dev_priv, 10);
-   	PRIMGETPTR(dev_priv);
-
-      	dev_priv->last_sync_tag = mga_create_sync_tag(dev);
-   	buf_priv->my_freelist->age = dev_priv->last_sync_tag;
-   	mga_freelist_put(dev, buf);
-
-	PRIMOUTREG( MGAREG_DMAPAD, 0);
-	PRIMOUTREG( MGAREG_DMAPAD, 0);
-   	PRIMOUTREG( MGAREG_SECADDRESS, ((__u32)address) | TT_GENERAL);
-	PRIMOUTREG( MGAREG_SECEND, (((__u32)(address + length)) | use_agp));
-	PRIMOUTREG( MGAREG_DMAPAD, 0);
-	PRIMOUTREG( MGAREG_DMAPAD, 0);
-	PRIMOUTREG( MGAREG_DMAPAD, 0);
-      	PRIMOUTREG( MGAREG_DWGSYNC, dev_priv->last_sync_tag);
-   	PRIMADVANCE(dev_priv);   
-}
-
-static inline void mga_dma_dispatch_clear( drm_device_t *dev, int flags, 
-					  unsigned int clear_color,
-					  unsigned int clear_zval )
+static void mga_dma_dispatch_clear( drm_device_t *dev, int flags, 
+				    unsigned int clear_color,
+				    unsigned int clear_zval )
 {
    	drm_mga_private_t *dev_priv = dev->dev_private;
       	drm_mga_sarea_t *sarea_priv = dev_priv->sarea_priv;
 	unsigned int *regs = sarea_priv->ContextState;
 	int nbox = sarea_priv->nbox;
-	xf86drmClipRectRec *pbox = sarea_priv->boxes;
+	drm_clip_rect_t *pbox = sarea_priv->boxes;
 	unsigned int cmd;
 	int i;
    	int primary_needed;
@@ -657,13 +623,13 @@ static inline void mga_dma_dispatch_clear( drm_device_t *dev, int flags,
 	PRIMADVANCE(dev_priv);
 }
 
-static inline void mga_dma_dispatch_swap( drm_device_t *dev )
+static void mga_dma_dispatch_swap( drm_device_t *dev )
 {
    	drm_mga_private_t *dev_priv = dev->dev_private;
       	drm_mga_sarea_t *sarea_priv = dev_priv->sarea_priv;
 	unsigned int *regs = sarea_priv->ContextState;
 	int nbox = sarea_priv->nbox;
-	xf86drmClipRectRec *pbox = sarea_priv->boxes;
+	drm_clip_rect_t *pbox = sarea_priv->boxes;
 	int i;
    	int primary_needed;
    	PRIMLOCALS;
@@ -690,8 +656,8 @@ static inline void mga_dma_dispatch_swap( drm_device_t *dev )
 		unsigned int start = pbox[i].y1 * dev_priv->stride/2;
 		
 	   	DRM_DEBUG("dispatch swap %d,%d-%d,%d!\n",
-		       pbox[i].x1, pbox[i].y1,
-		       pbox[i].x2, pbox[i].y2);
+			  pbox[i].x1, pbox[i].y1,
+			  pbox[i].x2, pbox[i].y2);
 
 		PRIMOUTREG(MGAREG_AR0, start + pbox[i].x2 - 1);
 		PRIMOUTREG(MGAREG_AR3, start + pbox[i].x1);		
@@ -721,13 +687,17 @@ int mga_clear_bufs(struct inode *inode, struct file *filp,
    	drm_mga_sarea_t *sarea_priv = dev_priv->sarea_priv;
       	__volatile__ unsigned int *status = 
      		(__volatile__ unsigned int *)dev_priv->status_page;
-
 	drm_mga_clear_t clear;
 
    	copy_from_user_ret(&clear, (drm_mga_clear_t *)arg, sizeof(clear), 
 			   -EFAULT);
+
+	if(!_DRM_LOCK_IS_HELD(dev->lock.hw_lock->lock)) {
+		DRM_ERROR("mga_clear_bufs called without lock held\n");
+		return -EINVAL;
+	}
    
-   	if (sarea_priv->nbox >= MGA_NR_SAREA_CLIPRECTS)
+   	if (sarea_priv->nbox > MGA_NR_SAREA_CLIPRECTS)
      		sarea_priv->nbox = MGA_NR_SAREA_CLIPRECTS;
 
 	/* Make sure we restore the 3D state next time.
@@ -752,7 +722,12 @@ int mga_swap_bufs(struct inode *inode, struct file *filp,
       	__volatile__ unsigned int *status = 
      		(__volatile__ unsigned int *)dev_priv->status_page;
    
-      	if (sarea_priv->nbox >= MGA_NR_SAREA_CLIPRECTS)
+	if(!_DRM_LOCK_IS_HELD(dev->lock.hw_lock->lock)) {
+		DRM_ERROR("mga_swap_bufs called without lock held\n");
+		return -EINVAL;
+	}
+
+      	if (sarea_priv->nbox > MGA_NR_SAREA_CLIPRECTS)
      		sarea_priv->nbox = MGA_NR_SAREA_CLIPRECTS;
 
 	/* Make sure we restore the 3D state next time.
@@ -786,6 +761,11 @@ int mga_iload(struct inode *inode, struct file *filp,
  	copy_from_user_ret(&iload, (drm_mga_iload_t *)arg, sizeof(iload),
  			   -EFAULT);
 
+	if(!_DRM_LOCK_IS_HELD(dev->lock.hw_lock->lock)) {
+		DRM_ERROR("mga_iload called without lock held\n");
+		return -EINVAL;
+	}
+
    	buf = dma->buflist[ iload.idx ];
 	buf_priv = buf->dev_private;
    	bus_address = buf->bus_address;
@@ -805,6 +785,7 @@ int mga_iload(struct inode *inode, struct file *filp,
    	mga_dma_dispatch_tex_blit(dev, bus_address, iload.length, 
 				  iload.destOrg);
    	buf_priv->my_freelist->age = dev_priv->last_sync_tag;
+	buf_priv->discard = 1;
     	mga_freelist_put(dev, buf);
 	mga_dma_schedule(dev, 1);
     	sarea_priv->last_dispatch = status[1];
@@ -828,27 +809,29 @@ int mga_vertex(struct inode *inode, struct file *filp,
 	copy_from_user_ret(&vertex, (drm_mga_vertex_t *)arg, sizeof(vertex),
 			   -EFAULT);
    
+	if(!_DRM_LOCK_IS_HELD(dev->lock.hw_lock->lock)) {
+		DRM_ERROR("mga_vertex called without lock held\n");
+		return -EINVAL;
+	}
 
 	DRM_DEBUG("mga_vertex\n");
-	buf = dma->buflist[ vertex.real_idx ];
+
+	buf = dma->buflist[ vertex.idx ];
    	buf_priv = buf->dev_private;
+
+	buf->used = vertex.used;
+	buf_priv->discard = vertex.discard;
    
 	if (!mgaVerifyState(dev_priv)) {
-	   if(vertex.real_idx == vertex.idx) { 
+	   if (vertex.discard) { 
 	     	buf_priv->my_freelist->age = dev_priv->last_sync_tag;
 	      	mga_freelist_put(dev, buf);
 	   }
 	   return -EINVAL;
 	}
 
-	buf->used = vertex.real_used;
-   	if(vertex.discard) {
-	      	buf_priv->my_freelist->age = dev_priv->last_sync_tag;
-	   	mga_freelist_put(dev, buf);
-	} else {
-	   	mga_dma_dispatch_vertex(dev, buf, vertex.real_idx, 
-					vertex.idx);
-	}
+	mga_dma_dispatch_vertex(dev, buf);
+
    	PRIMUPDATE(dev_priv);
 	mga_dma_schedule(dev, 1);
       	sarea_priv->last_dispatch = status[1];
@@ -857,13 +840,13 @@ int mga_vertex(struct inode *inode, struct file *filp,
 
 static int mga_dma_get_buffers(drm_device_t *dev, drm_dma_t *d)
 {
-	int		  i;
-	drm_buf_t	  *buf;
+	int i;
+	drm_buf_t *buf;
 
 	for (i = d->granted_count; i < d->request_count; i++) {
 		buf = mga_freelist_get(dev);
 		if (!buf) break;
-		buf->pid     = current->pid;
+		buf->pid = current->pid;
 		copy_to_user_ret(&d->request_indices[i],
 				 &buf->idx,
 				 sizeof(buf->idx),
@@ -893,6 +876,11 @@ int mga_dma(struct inode *inode, struct file *filp, unsigned int cmd,
    	copy_from_user_ret(&d, (drm_dma_t *)arg, sizeof(d), -EFAULT);
 	DRM_DEBUG("%d %d: %d send, %d req\n",
 		  current->pid, d.context, d.send_count, d.request_count);
+
+	if(!_DRM_LOCK_IS_HELD(dev->lock.hw_lock->lock)) {
+		DRM_ERROR("mga_dma called without lock held\n");
+		return -EINVAL;
+	}
 
 	/* Please don't send us buffers.
 	 */

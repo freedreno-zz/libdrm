@@ -23,7 +23,8 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
  * 
- * Author: Rickard E. (Rik) Faith <faith@precisioninsight.com>
+ * Authors: Rickard E. (Rik) Faith <faith@precisioninsight.com>
+ *          Kevin E. Martin <kevin@precisioninsight.com>
  *
  * $XFree86$
  * 
@@ -32,6 +33,21 @@
 #ifndef _R128_DRV_H_
 #define _R128_DRV_H_
 
+typedef struct drm_r128_private {
+	int               cce_mode;
+	int               cce_fifo_size;
+	int               cce_is_bm_mode;
+	int               cce_secure;
+
+	drm_r128_sarea_t *sarea_priv;
+
+	__volatile__ u32 *ring_read_ptr;
+
+	u32              *ring_start;
+	u32              *ring_end;
+	int               ring_size;
+	int               ring_entries;
+} drm_r128_private_t;
 				/* r128_drv.c */
 extern int  r128_init(void);
 extern void r128_cleanup(void);
@@ -46,8 +62,17 @@ extern int  r128_lock(struct inode *inode, struct file *filp,
 extern int  r128_unlock(struct inode *inode, struct file *filp,
 			 unsigned int cmd, unsigned long arg);
 
-				/* r128_context.c */
+				/* r128_dma.c */
+extern int r128_init_cce(struct inode *inode, struct file *filp,
+			 unsigned int cmd, unsigned long arg);
+extern int r128_engine_reset(struct inode *inode, struct file *filp,
+			     unsigned int cmd, unsigned long arg);
+extern int r128_submit_packets(struct inode *inode, struct file *filp,
+			       unsigned int cmd, unsigned long arg);
+extern int r128_wait_for_idle(struct inode *inode, struct file *filp,
+			      unsigned int cmd, unsigned long arg);
 
+				/* r128_context.c */
 extern int  r128_resctx(struct inode *inode, struct file *filp,
 			unsigned int cmd, unsigned long arg);
 extern int  r128_addctx(struct inode *inode, struct file *filp,

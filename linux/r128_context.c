@@ -39,7 +39,9 @@ extern drm_ctx_t r128_res_ctx;
 
 static int r128_alloc_queue(drm_device_t *dev)
 {
+#if 0
 	static int context = 0;
+#endif
 
 	return drm_ctxbitmap_next(dev);
 }

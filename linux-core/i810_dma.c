@@ -24,21 +24,18 @@
  * DEALINGS IN THE SOFTWARE.
  *
  * Authors: Rickard E. (Rik) Faith <faith@precisioninsight.com>
- *          Jeff Hartmann <jhartmann@precisioninsight.com>
+ *	    Jeff Hartmann <jhartmann@precisioninsight.com>
  *          Keith Whitwell <keithw@precisioninsight.com>
  *
- * $XFree86: xc/programs/Xserver/hw/xfree86/os-support/linux/drm/kernel/i810_dma.c,v 1.1 2000/02/11 17:26:04 dawes Exp $
+ * $XFree86$
  *
  */
 
 #define __NO_VERSION__
 #include "drmP.h"
-#include "i810_drm_public.h"
 #include "i810_drv.h"
-#include "i810_dma.h"
 
 #include <linux/interrupt.h>	/* For task queue support */
-#include <linux/time.h>		/* For do_gettimeofday    */
 
 #define I810_BUF_FREE		1
 #define I810_BUF_USED		0
@@ -56,27 +53,29 @@
 
 #define RING_LOCALS	unsigned int outring, ringmask; volatile char *virt;
 
-#define BEGIN_LP_RING(n) do {					\
-   if (I810_VERBOSE)						\
-      DRM_DEBUG("BEGIN_LP_RING(%d) in %s\n", n, __FUNCTION__);	\
-   if (dev_priv->ring.space < n*4) i810_wait_ring(dev, n*4, 0);	\
-   dev_priv->ring.space -= n*4;					\
-   outring = dev_priv->ring.tail;				\
-   ringmask = dev_priv->ring.tail_mask;				\
-   virt = dev_priv->ring.virtual_start;				\
+#define BEGIN_LP_RING(n) do {				\
+	if (I810_VERBOSE)				\
+		DRM_DEBUG("BEGIN_LP_RING(%d) in %s\n",	\
+			  n, __FUNCTION__);		\
+	if (dev_priv->ring.space < n*4) 		\
+		i810_wait_ring(dev, n*4);		\
+	dev_priv->ring.space -= n*4;			\
+	outring = dev_priv->ring.tail;			\
+	ringmask = dev_priv->ring.tail_mask;		\
+	virt = dev_priv->ring.virtual_start;		\
 } while (0)
 
 #define ADVANCE_LP_RING() do {					\
-    if (I810_VERBOSE) DRM_DEBUG("ADVANCE_LP_RING\n");		\
-    dev_priv->ring.tail = outring;                      	\
-    I810_WRITE(LP_RING + RING_TAIL, outring);			\
+	if (I810_VERBOSE) DRM_DEBUG("ADVANCE_LP_RING\n");	\
+	dev_priv->ring.tail = outring;				\
+	I810_WRITE(LP_RING + RING_TAIL, outring);		\
 } while(0)
 
-#define OUT_RING(n) do {				\
-   if (I810_VERBOSE) DRM_DEBUG("   OUT_RING %x\n", (int)(n));	\
-   *(volatile unsigned int *)(virt + outring) = n;	\
-   outring += 4;					\
-   outring &= ringmask;					\
+#define OUT_RING(n) do {						\
+	if (I810_VERBOSE) DRM_DEBUG("   OUT_RING %x\n", (int)(n));	\
+	*(volatile unsigned int *)(virt + outring) = n;			\
+	outring += 4;							\
+	outring &= ringmask;						\
 } while (0);
 
 static inline void i810_print_status_page(drm_device_t *dev)
@@ -111,7 +110,7 @@ static drm_buf_t *i810_freelist_get(drm_device_t *dev)
 	   	used = cmpxchg(buf_priv->in_use, I810_BUF_FREE, 
 			       I810_BUF_USED);
 	   	if(used == I810_BUF_FREE) {
-		   return buf;
+			return buf;
 		}
 	}
    	return NULL;
@@ -160,28 +159,28 @@ static int i810_dma_get_buffers(drm_device_t *dev, drm_dma_t *d)
 
 static unsigned long i810_alloc_page(drm_device_t *dev)
 {
-   unsigned long address;
+	unsigned long address;
    
-   address = __get_free_page(GFP_KERNEL);
-   if(address == 0UL) {
-      return 0;
-   }
-   atomic_inc(&mem_map[MAP_NR((void *) address)].count);
-   set_bit(PG_locked, &mem_map[MAP_NR((void *) address)].flags);
+	address = __get_free_page(GFP_KERNEL);
+	if(address == 0UL) 
+		return 0;
+	
+	atomic_inc(&mem_map[MAP_NR((void *) address)].count);
+	set_bit(PG_locked, &mem_map[MAP_NR((void *) address)].flags);
    
-   return address;
+	return address;
 }
 
 static void i810_free_page(drm_device_t *dev, unsigned long page)
 {
-   if(page == 0UL) {
-      return;
-   }
-   atomic_dec(&mem_map[MAP_NR((void *) page)].count);
-   clear_bit(PG_locked, &mem_map[MAP_NR((void *) page)].flags);
-   wake_up(&mem_map[MAP_NR((void *) page)].wait);
-   free_page(page);
-   return;
+	if(page == 0UL) 
+		return;
+	
+	atomic_dec(&mem_map[MAP_NR((void *) page)].count);
+	clear_bit(PG_locked, &mem_map[MAP_NR((void *) page)].flags);
+	wake_up(&mem_map[MAP_NR((void *) page)].wait);
+	free_page(page);
+	return;
 }
 
 static int i810_dma_cleanup(drm_device_t *dev)
@@ -206,24 +205,14 @@ static int i810_dma_cleanup(drm_device_t *dev)
    	return 0;
 }
 
-static int __gettimeinmillis(void)
-{
-   int millis;
-   
-   millis = ((jiffies / HZ) * 1000) + ((jiffies % HZ) * (1000 / HZ));
-   return millis;
-}
-
-static int i810_wait_ring(drm_device_t *dev, int n, int timeout_millis)
+static int i810_wait_ring(drm_device_t *dev, int n)
 {
    	drm_i810_private_t *dev_priv = dev->dev_private;
    	drm_i810_ring_buffer_t *ring = &(dev_priv->ring);
    	int iters = 0;
-   	int startTime = 0;
-   	int curTime = 0;
-   
-      	if (timeout_millis == 0) timeout_millis = 3000;
-      
+   	unsigned long end;
+
+	end = jiffies + (HZ*3);
    	while (ring->space < n) {
 	   	int i;
 	
@@ -233,10 +222,7 @@ static int i810_wait_ring(drm_device_t *dev, int n, int timeout_millis)
 	   	if (ring->space < 0) ring->space += ring->Size;
 	   
 	   	iters++;
-	   	curTime = __gettimeinmillis();
-	   	if (startTime == 0 || curTime < startTime /*wrap case*/) {
-		   	startTime = curTime;
-	   	} else if (curTime - startTime > timeout_millis) {
+		if((signed)(end - jiffies) <= 0) {
 		   	DRM_ERROR("space: %d wanted %d\n", ring->space, n);
 		   	DRM_ERROR("lockup\n");
 		   	goto out_wait_ring;
@@ -244,8 +230,8 @@ static int i810_wait_ring(drm_device_t *dev, int n, int timeout_millis)
 
 	   	for (i = 0 ; i < 2000 ; i++) ;
 	}
-out_wait_ring:
-   
+
+out_wait_ring:   
    	return iters;
 }
 
@@ -380,27 +366,27 @@ int i810_dma_init(struct inode *inode, struct file *filp,
    	return retcode;
 }
 
-static inline void i810_dma_dispatch_general(drm_device_t *dev, drm_buf_t *buf)
+static void i810_dma_dispatch_general(drm_device_t *dev, drm_buf_t *buf,
+				      int used )
 {
       	drm_i810_private_t *dev_priv = dev->dev_private;
    	drm_i810_buf_priv_t *buf_priv = buf->dev_private;
 	unsigned long address = (unsigned long)buf->bus_address;
 	unsigned long start = address - dev->agp->base;
-   	int length = buf->used;
    	RING_LOCALS;
 
    	dev_priv->counter++;
    	DRM_DEBUG(  "dispatch counter : %ld\n", dev_priv->counter);
    	DRM_DEBUG(  "i810_dma_dispatch\n");
    	DRM_DEBUG(  "start : 0x%lx\n", start);
-	DRM_DEBUG(  "length : 0x%x\n", length);
-   	DRM_DEBUG(  "start + length - 4 : 0x%lx\n", start + length - 4);
+	DRM_DEBUG(  "used : 0x%x\n", used);
+   	DRM_DEBUG(  "start + used - 4 : 0x%lx\n", start + used - 4);
    	i810_kernel_lost_context(dev);
 
    	BEGIN_LP_RING(10);
    	OUT_RING( CMD_OP_BATCH_BUFFER );
    	OUT_RING( start | BB1_PROTECTED );
-   	OUT_RING( start + length - 4 );
+   	OUT_RING( start + used - 4 );
       	OUT_RING( CMD_STORE_DWORD_IDX );
    	OUT_RING( 20 );
    	OUT_RING( dev_priv->counter );
@@ -411,35 +397,37 @@ static inline void i810_dma_dispatch_general(drm_device_t *dev, drm_buf_t *buf)
       	ADVANCE_LP_RING();
 }
 
-static inline void i810_dma_dispatch_vertex(drm_device_t *dev, drm_buf_t *buf)
+static void i810_dma_dispatch_vertex(drm_device_t *dev, 
+				     drm_buf_t *buf,
+				     int discard,
+				     int used)
 {
    	drm_i810_private_t *dev_priv = dev->dev_private;
 	drm_i810_buf_priv_t *buf_priv = buf->dev_private;
-	drm_buf_t *real_buf = dev->dma->buflist[ buf_priv->vertex_real_idx ];
    	drm_i810_sarea_t *sarea_priv = dev_priv->sarea_priv;
-   	xf86drmClipRectRec *box = sarea_priv->boxes;
+   	drm_clip_rect_t *box = sarea_priv->boxes;
    	int nbox = sarea_priv->nbox;
-	unsigned long address = (unsigned long)real_buf->bus_address;
-	unsigned long start = address - dev->agp->base;
-	int length = buf->used;	
+	unsigned long address = (unsigned long)buf->bus_address;
+	unsigned long start = address - dev->agp->base;     
 	int i = 0;
    	RING_LOCALS;
 
    
-   	if(nbox > I810_NR_SAREA_CLIPRECTS) nbox = I810_NR_SAREA_CLIPRECTS;
+   	if (nbox > I810_NR_SAREA_CLIPRECTS) 
+		nbox = I810_NR_SAREA_CLIPRECTS;
    
-   	DRM_DEBUG("dispatch vertex addr 0x%lx, length 0x%x nbox %d\n", 
-		  address, length, buf_priv->nbox);
+   	DRM_DEBUG("dispatch vertex addr 0x%lx, used 0x%x nbox %d\n", 
+		  address, used, nbox);
 
    	dev_priv->counter++;
    	DRM_DEBUG(  "dispatch counter : %ld\n", dev_priv->counter);
    	DRM_DEBUG(  "i810_dma_dispatch\n");
    	DRM_DEBUG(  "start : %lx\n", start);
-	DRM_DEBUG(  "length : %d\n", length);
-   	DRM_DEBUG(  "start + length - 4 : %ld\n", start + length - 4);
+	DRM_DEBUG(  "used : %d\n", used);
+   	DRM_DEBUG(  "start + used - 4 : %ld\n", start + used - 4);
    	i810_kernel_lost_context(dev);
 
-	if (!buf_priv->vertex_discard) {
+	if (used) {
 		do {
 			if (i < nbox) {
 				BEGIN_LP_RING(4);
@@ -447,27 +435,33 @@ static inline void i810_dma_dispatch_vertex(drm_device_t *dev, drm_buf_t *buf)
 					  SC_ENABLE );
 				OUT_RING( GFX_OP_SCISSOR_INFO );
 				OUT_RING( box[i].x1 | (box[i].y1 << 16) );
-				OUT_RING( (box[i].x2-1) | ((box[i].y2-1) << 16) );
+				OUT_RING( (box[i].x2-1) | ((box[i].y2-1)<<16) );
 				ADVANCE_LP_RING();
 			}
 			
 			BEGIN_LP_RING(4);
 			OUT_RING( CMD_OP_BATCH_BUFFER );
 			OUT_RING( start | BB1_PROTECTED );
-			OUT_RING( start + length - 4 );
+			OUT_RING( start + used - 4 );
 			OUT_RING( 0 );
 			ADVANCE_LP_RING();
 			
 		} while (++i < nbox);
 	}
 
-	BEGIN_LP_RING(8);
-      	OUT_RING( CMD_STORE_DWORD_IDX );
-   	OUT_RING( 20 );
-   	OUT_RING( dev_priv->counter );
-      	OUT_RING( CMD_STORE_DWORD_IDX );
-   	OUT_RING( buf_priv->my_use_idx );
-   	OUT_RING( I810_BUF_FREE );
+	BEGIN_LP_RING(10);
+	OUT_RING( CMD_STORE_DWORD_IDX );
+	OUT_RING( 20 );
+	OUT_RING( dev_priv->counter );
+	OUT_RING( 0 );
+
+	if (discard) {
+		OUT_RING( CMD_STORE_DWORD_IDX );
+		OUT_RING( buf_priv->my_use_idx );
+		OUT_RING( I810_BUF_FREE );
+		OUT_RING( 0 );
+	}
+
       	OUT_RING( CMD_REPORT_HEAD );
 	OUT_RING( 0 );
    	ADVANCE_LP_RING();
@@ -649,10 +643,7 @@ static void i810_dma_quiescent(drm_device_t *dev)
 {
       	DECLARE_WAITQUEUE(entry, current);
   	drm_i810_private_t *dev_priv = (drm_i810_private_t *)dev->dev_private;
-   	int startTime = 0;
-   	int curTime = 0;
-      	int timeout_millis = 3000;
-      
+	unsigned long end;      
 
    	if(dev_priv == NULL) {
 	   	return;
@@ -660,13 +651,12 @@ static void i810_dma_quiescent(drm_device_t *dev)
       	atomic_set(&dev_priv->flush_done, 0);
    	current->state = TASK_INTERRUPTIBLE;
    	add_wait_queue(&dev_priv->flush_queue, &entry);
+   	end = jiffies + (HZ*3);
+   
    	for (;;) {
 	      	i810_dma_quiescent_emit(dev);
 	   	if (atomic_read(&dev_priv->flush_done) == 1) break;
-	   	curTime = __gettimeinmillis();
-	   	if (startTime == 0 || curTime < startTime /*wrap case*/) {
-		   	startTime = curTime;
-	   	} else if (curTime - startTime > timeout_millis) {
+		if((signed)(end - jiffies) <= 0) {
 		   	DRM_ERROR("lockup\n");
 		   	break;
 		}	   
@@ -686,11 +676,8 @@ static int i810_flush_queue(drm_device_t *dev)
 {
    	DECLARE_WAITQUEUE(entry, current);
   	drm_i810_private_t *dev_priv = (drm_i810_private_t *)dev->dev_private;
-   	int ret = 0;
-   	int startTime = 0;
-   	int curTime = 0;
-      	int timeout_millis = 3000;
-      
+	unsigned long end;
+   	int ret = 0;      
 
    	if(dev_priv == NULL) {
 	   	return 0;
@@ -698,13 +685,11 @@ static int i810_flush_queue(drm_device_t *dev)
       	atomic_set(&dev_priv->flush_done, 0);
    	current->state = TASK_INTERRUPTIBLE;
    	add_wait_queue(&dev_priv->flush_queue, &entry);
+   	end = jiffies + (HZ*3);
    	for (;;) {
 	      	i810_dma_emit_flush(dev);
 	   	if (atomic_read(&dev_priv->flush_done) == 1) break;
-	   	curTime = __gettimeinmillis();
-	   	if (startTime == 0 || curTime < startTime /*wrap case*/) {
-		   	startTime = curTime;
-	   	} else if (curTime - startTime > timeout_millis) {
+		if((signed)(end - jiffies) <= 0) {
 		   	DRM_ERROR("lockup\n");
 		   	break;
 		}	   
@@ -729,17 +714,17 @@ void i810_reclaim_buffers(drm_device_t *dev, pid_t pid)
 
 	if (!dma) return;
       	if(dev->dev_private == NULL) return;
-
+	if(dma->buflist == NULL) return;
         i810_flush_queue(dev);
 
 	for (i = 0; i < dma->buf_count; i++) {
 	   	drm_buf_t *buf = dma->buflist[ i ];
 	   	drm_i810_buf_priv_t *buf_priv = buf->dev_private;
-
-		if (buf->pid == pid) {
-		   	/* Only buffers that need to get reclaimed ever 
-			 * get set to free */
-		   	if(buf_priv == NULL) return;
+	   
+		/* Only buffers that need to get reclaimed ever 
+		 * get set to free 
+		 */
+		if (buf->pid == pid && buf_priv) {
 		   	cmpxchg(buf_priv->in_use, 
 				I810_BUF_USED, I810_BUF_FREE);
 		}
@@ -835,6 +820,11 @@ int i810_flush_ioctl(struct inode *inode, struct file *filp,
    	drm_device_t	  *dev	  = priv->dev;
    
    	DRM_DEBUG("i810_flush_ioctl\n");
+   	if(!_DRM_LOCK_IS_HELD(dev->lock.hw_lock->lock)) {
+		DRM_ERROR("i810_flush_ioctl called without lock held\n");
+		return -EINVAL;
+	}
+
    	i810_flush_queue(dev);
    	return 0;
 }
@@ -844,41 +834,22 @@ static int i810DmaGeneral(drm_device_t *dev, drm_i810_general_t *args)
 	drm_device_dma_t *dma = dev->dma;
    	drm_buf_t *buf = dma->buflist[ args->idx ];
    	
-	buf->used = args->used;
-
-   	DRM_DEBUG("i810DmaGeneral idx %d used %d\n", args->idx, buf->used);
-   
-	if (!buf->used) {
-		DRM_ERROR("0 length buffer\n");
+	if (!args->used) {
 	   	i810_freelist_put(dev, buf);
-		return 0;
+	} else {  
+		i810_dma_dispatch_general( dev, buf, args->used );
+		atomic_add(args->used, &dma->total_bytes);
+		atomic_inc(&dma->total_dmas);
 	}
-   
-   	i810_dma_dispatch_general( dev, buf );
-   	atomic_add(buf->used, &dma->total_bytes);
-	atomic_inc(&dma->total_dmas);
-
 	return 0; 
 }
 
 static int i810DmaVertex(drm_device_t *dev, drm_i810_vertex_t *args)
 {
 	drm_device_dma_t *dma = dev->dma;
-	drm_i810_buf_priv_t *buf_priv;
-	drm_buf_t *buf;
-
-
-	buf = dma->buflist[ args->idx ];
-	buf->used = args->real_used;
-
-   	DRM_DEBUG("i810DmaVertex idx %d used %d\n", args->idx, buf->used);
-
-	buf_priv = buf->dev_private;
-	buf_priv->vertex_real_idx = args->real_idx;
-	buf_priv->vertex_discard = args->discard;
-   
-   	i810_dma_dispatch_vertex( dev, buf);
-   	atomic_add(buf->used, &dma->total_bytes);
+	drm_buf_t *buf = dma->buflist[ args->idx ];
+   	i810_dma_dispatch_vertex( dev, buf, args->discard, args->used );
+   	atomic_add(args->used, &dma->total_bytes);
 	atomic_inc(&dma->total_dmas);
    	return 0;
 }
@@ -902,7 +873,13 @@ int i810_dma_general(struct inode *inode, struct file *filp,
 	DRM_DEBUG("i810 dma general idx %d used %d\n",
 		  general.idx, general.used);
    
+   	if(!_DRM_LOCK_IS_HELD(dev->lock.hw_lock->lock)) {
+		DRM_ERROR("i810_dma_general called without lock held\n");
+		return -EINVAL;
+	}
+
 	retcode = i810DmaGeneral(dev, &general);
+	sarea_priv->last_enqueue = dev_priv->counter-1;
    	sarea_priv->last_dispatch = (int) hw_status[5];
    
 	return retcode;
@@ -922,12 +899,16 @@ int i810_dma_vertex(struct inode *inode, struct file *filp,
 
 	copy_from_user_ret(&vertex, (drm_i810_vertex_t *)arg, sizeof(vertex),
 			   -EFAULT);
-   
-	DRM_DEBUG("i810 dma vertex, idx %d used %d real_idx %d discard %d\n",
-		  vertex.idx, vertex.real_used, vertex.real_idx,
-		  vertex.discard);
+   	if(!_DRM_LOCK_IS_HELD(dev->lock.hw_lock->lock)) {
+		DRM_ERROR("i810_dma_vertex called without lock held\n");
+		return -EINVAL;
+	}
+
+	DRM_DEBUG("i810 dma vertex, idx %d used %d discard %d\n",
+		  vertex.idx, vertex.used, vertex.discard);
 
 	retcode = i810DmaVertex(dev, &vertex);
+	sarea_priv->last_enqueue = dev_priv->counter-1;
    	sarea_priv->last_dispatch = (int) hw_status[5];
    
 	return retcode;
@@ -965,6 +946,11 @@ int i810_dma(struct inode *inode, struct file *filp, unsigned int cmd,
    	copy_from_user_ret(&d, (drm_dma_t *)arg, sizeof(d), -EFAULT);
 	DRM_DEBUG("%d %d: %d send, %d req\n",
 		  current->pid, d.context, d.send_count, d.request_count);
+   
+	if(!_DRM_LOCK_IS_HELD(dev->lock.hw_lock->lock)) {
+		DRM_ERROR("i810_dma called without lock held\n");
+		return -EINVAL;
+	}
 
 	/* Please don't send us buffers.
 	 */
