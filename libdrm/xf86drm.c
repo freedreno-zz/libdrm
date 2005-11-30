@@ -891,7 +891,7 @@ int drmAddMap(int fd,
     map.type    = type;
     map.flags   = flags;
     if (ioctl(fd, DRM_IOCTL_ADD_MAP, &map)) return -errno;
-    if (handle) *handle = (drm_handle_t)map.handle;
+    if (handle) *handle = (drm_handle_t)(unsigned long)map.handle;
     return 0;
 }
 
@@ -899,7 +899,7 @@ int drmRmMap(int fd, drm_handle_t handle)
 {
     drm_map_t map;
 
-    map.handle = (void *)handle;
+    map.handle = (void *)(unsigned long)handle;
 
     if(ioctl(fd, DRM_IOCTL_RM_MAP, &map)) return -errno;
     return 0;
@@ -1502,7 +1502,7 @@ int drmAgpEnable(int fd, unsigned long mode)
  * arguments in a drm_agp_buffer structure.
  */
 int drmAgpAlloc(int fd, unsigned long size, unsigned long type,
-		unsigned long *address, unsigned long *handle)
+		unsigned long *address, drm_handle_t *handle)
 {
     drm_agp_buffer_t b;
 
@@ -1529,7 +1529,7 @@ int drmAgpAlloc(int fd, unsigned long size, unsigned long type,
  * This function is a wrapper around the DRM_IOCTL_AGP_FREE ioctl, passing the
  * argument in a drm_agp_buffer structure.
  */
-int drmAgpFree(int fd, unsigned long handle)
+int drmAgpFree(int fd, drm_handle_t handle)
 {
     drm_agp_buffer_t b;
 
@@ -1553,7 +1553,7 @@ int drmAgpFree(int fd, unsigned long handle)
  * This function is a wrapper around the DRM_IOCTL_AGP_BIND ioctl, passing the
  * argument in a drm_agp_binding structure.
  */
-int drmAgpBind(int fd, unsigned long handle, unsigned long offset)
+int drmAgpBind(int fd, drm_handle_t handle, unsigned long offset)
 {
     drm_agp_binding_t b;
 
@@ -1576,7 +1576,7 @@ int drmAgpBind(int fd, unsigned long handle, unsigned long offset)
  * This function is a wrapper around the DRM_IOCTL_AGP_UNBIND ioctl, passing
  * the argument in a drm_agp_binding structure.
  */
-int drmAgpUnbind(int fd, unsigned long handle)
+int drmAgpUnbind(int fd, drm_handle_t handle)
 {
     drm_agp_binding_t b;
 
@@ -1766,7 +1766,7 @@ unsigned int drmAgpDeviceId(int fd)
     return i.id_device;
 }
 
-int drmScatterGatherAlloc(int fd, unsigned long size, unsigned long *handle)
+int drmScatterGatherAlloc(int fd, unsigned long size, drm_handle_t *handle)
 {
     drm_scatter_gather_t sg;
 
@@ -1778,7 +1778,7 @@ int drmScatterGatherAlloc(int fd, unsigned long size, unsigned long *handle)
     return 0;
 }
 
-int drmScatterGatherFree(int fd, unsigned long handle)
+int drmScatterGatherFree(int fd, drm_handle_t handle)
 {
     drm_scatter_gather_t sg;
 
@@ -1945,7 +1945,7 @@ int drmAddContextPrivateMapping(int fd, drm_context_t ctx_id, drm_handle_t handl
     drm_ctx_priv_map_t map;
 
     map.ctx_id = ctx_id;
-    map.handle = (void *)handle;
+    map.handle = (void *)(unsigned long)handle;
 
     if (ioctl(fd, DRM_IOCTL_SET_SAREA_CTX, &map)) return -errno;
     return 0;
@@ -1958,7 +1958,7 @@ int drmGetContextPrivateMapping(int fd, drm_context_t ctx_id, drm_handle_t * han
     map.ctx_id = ctx_id;
 
     if (ioctl(fd, DRM_IOCTL_GET_SAREA_CTX, &map)) return -errno;
-    if (handle) *handle = (drm_handle_t)map.handle;
+    if (handle) *handle = (drm_handle_t)(unsigned long)map.handle;
 
     return 0;
 }
@@ -1975,7 +1975,7 @@ int drmGetMap(int fd, int idx, drm_handle_t *offset, drmSize *size,
     *size   = map.size;
     *type   = map.type;
     *flags  = map.flags;
-    *handle = (unsigned long)map.handle;
+    *handle = (drm_handle_t)(unsigned long)map.handle;
     *mtrr   = map.mtrr;
     return 0;
 }
@@ -1998,7 +1998,7 @@ int drmGetClient(int fd, int idx, int *auth, int *pid, int *uid,
 int drmGetStats(int fd, drmStatsT *stats)
 {
     drm_stats_t s;
-    int         i;
+    unsigned int i;
 
     if (ioctl(fd, DRM_IOCTL_GET_STATS, &s)) return -errno;
 
