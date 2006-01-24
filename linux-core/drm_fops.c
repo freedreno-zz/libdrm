@@ -250,6 +250,7 @@ static int drm_open_helper(struct inode *inode, struct file *filp, drm_device_t 
 	/* for compatibility root is always authenticated */
 	priv->authenticated = capable(CAP_SYS_ADMIN);
 	priv->lock_count = 0;
+	INIT_LIST_HEAD(&priv->ttms);
 
 	if (dev->driver->open) {
 		ret = dev->driver->open(dev, priv);
@@ -332,6 +333,7 @@ int drm_release(struct inode *inode, struct file *filp)
 	drm_file_t *priv = filp->private_data;
 	drm_device_t *dev;
 	int retcode = 0;
+	struct list_head *list = NULL, *next = NULL;
 
 	lock_kernel();
 	dev = priv->head->dev;
@@ -447,10 +449,18 @@ int drm_release(struct inode *inode, struct file *filp)
 	} else {
 		dev->file_last = priv->prev;
 	}
+
+	list_for_each_safe(list, next, &priv->ttms) {
+		drm_map_list_t *entry = list_entry(list, drm_map_list_t, head);
+		drm_destroy_ttm((drm_ttm_t *) entry->map->offset);
+		list_del(list);
+	}
+
 	up(&dev->struct_sem);
 
 	if (dev->driver->postclose)
 		dev->driver->postclose(dev, priv);
+
 	drm_free(priv, sizeof(*priv), DRM_MEM_FILES);
 
 	/* ========================================================

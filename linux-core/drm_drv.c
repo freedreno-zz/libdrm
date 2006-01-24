@@ -119,6 +119,7 @@ drm_ioctl_desc_t drm_ioctls[] = {
 	[DRM_IOCTL_NR(DRM_IOCTL_SG_FREE)] = {drm_sg_free, DRM_AUTH|DRM_MASTER|DRM_ROOT_ONLY},
 
 	[DRM_IOCTL_NR(DRM_IOCTL_WAIT_VBLANK)] = {drm_wait_vblank, 0},
+	[DRM_IOCTL_NR(DRM_IOCTL_TTM)] = {drm_ttm_ioctl, DRM_AUTH}
 };
 
 #define DRIVER_IOCTL_COUNT	DRM_ARRAY_SIZE( drm_ioctls )
@@ -350,6 +351,9 @@ static void __exit drm_cleanup(drm_device_t * dev)
 		drm_free(dev->maplist, sizeof(*dev->maplist), DRM_MEM_MAPS);
 		dev->maplist = NULL;
 	}
+
+	drm_remove_hashtab(&dev->maphash);
+	drm_remove_hashtab(&dev->ttmreghash);
 
 	if (!drm_fb_loaded)
 		pci_disable_device(dev->pdev);

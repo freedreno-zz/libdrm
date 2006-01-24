@@ -1,4 +1,4 @@
-/**
+/*
  * \file drm_vm.c
  * Memory mapping for DRM
  *
@@ -40,6 +40,8 @@
 
 static void drm_vm_close(struct vm_area_struct *vma);
 static void drm_vm_open(struct vm_area_struct *vma);
+static void drm_vm_ttm_close(struct vm_area_struct *vma);
+static void drm_vm_ttm_open(struct vm_area_struct *vma);
 
 /**
  * \c nopage method for AGP virtual memory.
@@ -60,6 +62,7 @@ static __inline__ struct page *drm_do_vm_nopage(struct vm_area_struct *vma,
 	drm_map_t *map = NULL;
 	drm_map_list_t *r_list;
 	struct list_head *list;
+	void *hash_val;
 
 	/*
 	 * Find the right map
@@ -70,6 +73,14 @@ static __inline__ struct page *drm_do_vm_nopage(struct vm_area_struct *vma,
 	if (!dev->agp || !dev->agp->cant_use_aperture)
 		goto vm_nopage_error;
 
+	if (drm_get_ht_val(&dev->maphash, 
+			   (VM_OFFSET(vma) -DRM_MAP_HASH_OFFSET) >> PAGE_SHIFT,
+			   &hash_val)) {
+		goto vm_nopage_error;
+	}
+	map = ((drm_map_list_t *) hash_val)->map;
+
+#if DRM_LIST
 	list_for_each(list, &dev->maplist->head) {
 		r_list = list_entry(list, drm_map_list_t, head);
 		map = r_list->map;
@@ -78,6 +89,7 @@ static __inline__ struct page *drm_do_vm_nopage(struct vm_area_struct *vma,
 		if (r_list->user_token == VM_OFFSET(vma))
 			break;
 	}
+#endif
 
 	if (map && map->type == _DRM_AGP) {
 		unsigned long offset = address - vma->vm_start;
@@ -166,6 +178,40 @@ static __inline__ struct page *drm_do_vm_shm_nopage(struct vm_area_struct *vma,
 	return page;
 }
 
+static __inline__ struct page *drm_do_vm_ttm_nopage(struct vm_area_struct *vma,
+						    unsigned long address)
+{
+	drm_ttm_vma_list_t *entry = (drm_ttm_vma_list_t *)
+		vma->vm_private_data; 
+	drm_map_t *map;
+	unsigned long page_offset;
+	struct page *page;
+	drm_ttm_t *ttm; 
+
+	if (address > vma->vm_end)
+		return NOPAGE_SIGBUS;	/* Disallow mremap */
+	if (!entry)
+		return NOPAGE_OOM;	/* Nothing allocated */
+
+	map = (drm_map_t *) entry->map;
+	ttm = (drm_ttm_t *) map->offset;
+	page_offset = (address - vma->vm_start) >> PAGE_SHIFT;
+	page = ttm->pages[page_offset];
+	if (!page) {
+		page = ttm->pages[page_offset] = 
+			alloc_page(GFP_USER);
+		SetPageLocked(page);
+	}
+	if (!page) 
+		return NOPAGE_OOM;
+	get_page(page);
+	vma->vm_page_prot = ttm->nocached[page_offset] ? 
+		pgprot_noncached(entry->orig_protection):
+		entry->orig_protection;
+
+	return page;
+}
+
 /**
  * \c close method for shared virtual memory.
  *
@@ -245,6 +291,9 @@ static void drm_vm_shm_close(struct vm_area_struct *vma)
 				dmah.busaddr = map->offset;
 				dmah.size = map->size;
 				__drm_pci_free(dev, &dmah);
+				break;
+			case _DRM_TTM:
+				drm_destroy_ttm((drm_ttm_t *) map->offset);
 				break;
 			}
 			drm_free(map, sizeof(*map), DRM_MEM_MAPS);
@@ -361,6 +410,14 @@ static struct page *drm_vm_sg_nopage(struct vm_area_struct *vma,
 	return drm_do_vm_sg_nopage(vma, address);
 }
 
+static struct page *drm_vm_ttm_nopage(struct vm_area_struct *vma,
+				     unsigned long address, int *type)
+{
+	if (type)
+		*type = VM_FAULT_MINOR;
+	return drm_do_vm_ttm_nopage(vma, address);
+}
+
 #else				/* LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,0) */
 
 static struct page *drm_vm_nopage(struct vm_area_struct *vma,
@@ -385,6 +442,12 @@ static struct page *drm_vm_sg_nopage(struct vm_area_struct *vma,
 				     unsigned long address, int unused)
 {
 	return drm_do_vm_sg_nopage(vma, address);
+}
+
+static struct page *drm_vm_sg_nopage(struct vm_area_struct *vma,
+				     unsigned long address, int unused)
+{
+	return drm_do_vm_ttm_nopage(vma, address);
 }
 
 #endif
@@ -417,6 +480,12 @@ static struct vm_operations_struct drm_vm_sg_ops = {
 	.close = drm_vm_close,
 };
 
+static struct vm_operations_struct drm_vm_ttm_ops = {
+	.nopage = drm_vm_ttm_nopage,
+	.open = drm_vm_ttm_open,
+	.close = drm_vm_ttm_close,
+};
+
 /**
  * \c open method for shared virtual memory.
  *
@@ -443,6 +512,32 @@ static void drm_vm_open(struct vm_area_struct *vma)
 		vma_entry->pid = current->pid;
 		dev->vmalist = vma_entry;
 		up(&dev->struct_sem);
+	}
+}
+
+static void drm_vm_ttm_open(struct vm_area_struct *vma)
+{
+  
+
+	drm_ttm_vma_list_t *entry, *tmp_vma = 
+		(drm_ttm_vma_list_t *) vma->vm_private_data;
+	drm_map_t *map;
+	drm_ttm_t *ttm;
+
+	drm_vm_open(vma);
+	entry = drm_calloc(1, sizeof(*entry), DRM_MEM_VMAS);
+	if (entry) {
+	        *entry = *tmp_vma;
+		map = (drm_map_t *) entry->map;
+		ttm = (drm_ttm_t *) map->offset;
+		atomic_inc(&ttm->vma_count);
+		INIT_LIST_HEAD(&entry->head);
+		entry->vma = vma;
+		entry->orig_protection = vma->vm_page_prot;
+		list_add_tail(&entry->head, &ttm->vma_list->head);
+		vma->vm_private_data = (void *) entry;
+		DRM_DEBUG("Added VMA to ttm at 0x%016lx\n", 
+			  (unsigned long) ttm);
 	}
 }
 
@@ -478,6 +573,38 @@ static void drm_vm_close(struct vm_area_struct *vma)
 	}
 	up(&dev->struct_sem);
 }
+
+static void drm_vm_ttm_close(struct vm_area_struct *vma)
+{
+	drm_ttm_vma_list_t *ttm_vma = 
+		(drm_ttm_vma_list_t *) vma->vm_private_data;
+	drm_map_t *map; 
+	drm_ttm_t *ttm; 
+	int found_maps;
+	struct list_head *list;
+	drm_map_list_t *r_list;
+
+	drm_vm_close(vma); 
+	if (ttm_vma) {
+		map = (drm_map_t *) ttm_vma->map;
+		ttm = (drm_ttm_t *) map->offset; 
+		list_del(&ttm_vma->head);
+		drm_free(ttm_vma, sizeof(*ttm_vma), DRM_MEM_VMAS);
+		atomic_dec(&ttm->vma_count);
+		found_maps = 0;
+		list = &ttm->dev->maplist->head;
+		list_for_each(list, &ttm->owner->ttms) {
+			r_list = list_entry(list, drm_map_list_t, head);
+			if (r_list->map == map)
+				found_maps++;
+		}
+		if (!found_maps) {
+			drm_destroy_ttm(ttm);
+		}
+	}
+	return;
+}
+
 
 /**
  * mmap DMA memory.
@@ -559,6 +686,7 @@ int drm_mmap(struct file *filp, struct vm_area_struct *vma)
 	drm_map_list_t *r_list;
 	unsigned long offset = 0;
 	struct list_head *list;
+	void *hash_val;
 
 	DRM_DEBUG("start = 0x%lx, end = 0x%lx, offset = 0x%lx\n",
 		  vma->vm_start, vma->vm_end, VM_OFFSET(vma));
@@ -578,6 +706,16 @@ int drm_mmap(struct file *filp, struct vm_area_struct *vma)
 	    )
 		return drm_mmap_dma(filp, vma);
 
+	
+	if (drm_get_ht_val(&dev->maphash, 
+			   (VM_OFFSET(vma) -DRM_MAP_HASH_OFFSET) >> PAGE_SHIFT,
+			   &hash_val)) {
+		return -EINVAL;
+	}
+	map = ((drm_map_list_t *) hash_val)->map;
+
+#if DRM_LIST
+
 	/* A sequential search of a linked list is
 	   fine here because: 1) there will only be
 	   about 5-10 entries in the list and, 2) a
@@ -594,6 +732,7 @@ int drm_mmap(struct file *filp, struct vm_area_struct *vma)
 		if (r_list->user_token == VM_OFFSET(vma))
 			break;
 	}
+#endif
 
 	if (!map || ((map->flags & _DRM_RESTRICTED) && !capable(CAP_SYS_ADMIN)))
 		return -EPERM;
@@ -701,6 +840,17 @@ int drm_mmap(struct file *filp, struct vm_area_struct *vma)
 		vma->vm_flags |= VM_RESERVED;
 #endif
 		break;
+	case _DRM_TTM: {
+		drm_ttm_vma_list_t tmp_vma;
+		tmp_vma.orig_protection = vma->vm_page_prot;
+		tmp_vma.map = map;
+		vma->vm_ops = &drm_vm_ttm_ops;
+		vma->vm_private_data = (void *) &tmp_vma;
+		vma->vm_file = filp;
+		vma->vm_flags |= VM_RESERVED;
+		drm_vm_ttm_open(vma);
+		return 0;
+	}
 	default:
 		return -EINVAL;	/* This should never happen. */
 	}

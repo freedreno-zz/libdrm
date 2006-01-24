@@ -32,7 +32,9 @@
  */
 
 #include "drmP.h"
+#include "drm_ttm.h"
 #include <linux/module.h>
+#include <asm/page.h>
 
 #if __OS_HAS_AGP
 
@@ -550,5 +552,130 @@ int drm_agp_unbind_memory(DRM_AGP_MEM * handle)
 		return -EINVAL;
 	return agp_unbind_memory(handle);
 }
+
+/*
+ * AGP ttm backend interface.
+ */
+
+typedef struct drm_agp_ttm_priv {
+	DRM_AGP_MEM *mem;
+	struct agp_bridge_data *bridge;
+	int populated;
+} drm_agp_ttm_priv;
+
+
+static int drm_agp_needs_cache_adjust(struct drm_ttm_backend *backend) {
+	return TRUE;
+}
+
+#define AGP_MEM_USER (1 << 16)
+
+static int drm_agp_populate(struct drm_ttm_backend *backend, unsigned long num_pages, 
+			    struct page **pages) {
+
+	drm_agp_ttm_priv *agp_priv = (drm_agp_ttm_priv *) backend->private;
+	struct page **cur_page, **last_page = pages + num_pages;
+	DRM_AGP_MEM *mem;
+
+	DRM_DEBUG("drm_agp_populate_ttm\n");
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,11)
+	mem = drm_agp_allocate_memory(num_pages, AGP_MEM_USER);
+#else
+	mem = drm_agp_allocate_memory(agp_priv->bridge, num_pages, AGP_MEM_USER);
+#endif
+	if (!mem) 
+		return -1;
+
+	DRM_DEBUG("Current page count is %d\n", mem->page_count);
+	mem->page_count = 0;
+	for (cur_page = pages; cur_page < last_page; ++cur_page) {
+		mem->memory[mem->page_count++] = page_to_phys(*cur_page);
+	}
+	agp_priv->mem = mem;
+	return 0;
+}
+
+static int drm_agp_bind_ttm(struct drm_ttm_backend *backend, unsigned long offset) {
+
+	drm_agp_ttm_priv *agp_priv = (drm_agp_ttm_priv *) backend->private;
+	DRM_AGP_MEM *mem = agp_priv->mem;
+
+	DRM_DEBUG("drm_agp_bind_ttm\n");
+	mem->is_flushed = TRUE;
+	return drm_agp_bind_memory(mem, offset);
+}
+
+static int drm_agp_unbind_ttm(struct drm_ttm_backend *backend) {
+
+	drm_agp_ttm_priv *agp_priv = (drm_agp_ttm_priv *) backend->private;
+
+	DRM_DEBUG("drm_agp_unbind_ttm\n");
+	return drm_agp_unbind_memory(agp_priv->mem);
+}
+
+static void drm_agp_clear_ttm(struct drm_ttm_backend *backend) {
+
+	drm_agp_ttm_priv *agp_priv = (drm_agp_ttm_priv *) backend->private;
+	DRM_AGP_MEM *mem = agp_priv->mem;
+
+	DRM_DEBUG("drm_agp_clear_ttm\n");
+	if (mem) {
+		if (mem->is_bound) {
+			drm_agp_unbind_memory(mem);
+		}
+		agp_free_memory(mem);
+	}
+	agp_priv->mem = NULL;
+}
+
+void drm_agp_destroy_ttm(struct drm_ttm_backend *backend) {
+
+	drm_agp_ttm_priv *agp_priv; 
+	
+	if (backend) {
+	  DRM_DEBUG("drm_agp_destroy_ttm\n");
+	  agp_priv = (drm_agp_ttm_priv *) backend->private;
+		if (agp_priv) {
+			if (agp_priv->mem) {
+				drm_agp_clear_ttm(backend);
+			}
+			drm_free(agp_priv, sizeof(*agp_priv), DRM_MEM_MAPPINGS);
+		}
+		drm_free(backend, sizeof(*backend), DRM_MEM_MAPPINGS);
+	}
+}
+	
+
+
+
+drm_ttm_backend_t *drm_agp_init_ttm(struct drm_device *dev) {
+
+	drm_ttm_backend_t *agp_be = drm_calloc(1, sizeof(*agp_be), DRM_MEM_MAPPINGS);
+	drm_agp_ttm_priv *agp_priv;
+
+	DRM_DEBUG("drm_agp_init_ttm\n");
+	if (!agp_be)
+		return NULL;
+	
+	agp_priv = drm_calloc(1, sizeof(agp_priv), DRM_MEM_MAPPINGS);
+	
+	if (!agp_priv) {
+		drm_free(agp_be, sizeof(*agp_be), DRM_MEM_MAPPINGS);
+		return NULL;
+	}
+	
+	agp_priv->mem = NULL;
+	agp_priv->bridge = dev->agp->bridge;
+	agp_priv->populated = FALSE;
+	agp_be->private = (void *) agp_priv;
+	agp_be->needs_cache_adjust = drm_agp_needs_cache_adjust;
+	agp_be->populate = drm_agp_populate;
+	agp_be->clear = drm_agp_clear_ttm;
+	agp_be->bind = drm_agp_bind_ttm;
+	agp_be->unbind = drm_agp_unbind_ttm;
+	agp_be->destroy = drm_agp_destroy_ttm;
+	return agp_be;
+}
+EXPORT_SYMBOL(drm_agp_init_ttm);
 
 #endif				/* __OS_HAS_AGP */

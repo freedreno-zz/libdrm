@@ -69,6 +69,7 @@ static drm_map_list_t *drm_find_matching_map(drm_device_t *dev,
 /*
  * Used to allocate 32-bit handles for mappings.
  */
+
 #define START_RANGE 0x10000000
 #define END_RANGE 0x40000000
 
@@ -301,9 +302,15 @@ int drm_addmap_core(drm_device_t * dev, unsigned int offset,
 	list_add(&list->head, &dev->maplist->head);
 	/* Assign a 32-bit handle */
 	/* We do it here so that dev->struct_sem protects the increment */
-	list->user_token = HandleID(map->type==_DRM_SHM
-				    ? (unsigned long)map->handle
-				    : map->offset, dev);
+
+	if (drm_insert_ht_val(&dev->maphash, (void *)list, &list->user_token)) {
+		drm_free(map, sizeof(*map), DRM_MEM_MAPS);
+		drm_free(list, sizeof(*list), DRM_MEM_MAPS);
+		up(&dev->struct_sem);
+		return -ENOMEM;
+	}
+	list->user_token = (list->user_token << PAGE_SHIFT) + DRM_MAP_HASH_OFFSET;
+
 	up(&dev->struct_sem);
 
 	*maplist = list;
@@ -342,7 +349,7 @@ int drm_addmap_ioctl(struct inode *inode, struct file *filp,
 		return -EFAULT;
 	}
 
-	if (!(capable(CAP_SYS_ADMIN) || map.type == _DRM_AGP))
+	if (!(capable(CAP_SYS_ADMIN) || map.type == _DRM_AGP ))
 		return -EPERM;
 
 	err = drm_addmap_core( dev, map.offset, map.size, map.type, map.flags,
@@ -376,26 +383,22 @@ int drm_addmap_ioctl(struct inode *inode, struct file *filp,
  */
 int drm_rmmap_locked(drm_device_t *dev, drm_local_map_t *map)
 {
-	struct list_head *list;
+        struct list_head *list, *next;
 	drm_map_list_t *r_list = NULL;
 	drm_dma_handle_t dmah;
 
+	DRM_ERROR("rmmap locked called %d\n", map->type);
 	/* Find the list entry for the map and remove it */
-	list_for_each(list, &dev->maplist->head) {
+	list_for_each_safe(list, next, &dev->maplist->head) {
 		r_list = list_entry(list, drm_map_list_t, head);
 
 		if (r_list->map == map) {
 			list_del(list);
+			drm_remove_ht_val(&dev->maphash, 
+					  (r_list->user_token - DRM_MAP_HASH_OFFSET) >> PAGE_SHIFT);
 			drm_free(list, sizeof(*list), DRM_MEM_MAPS);
 			break;
 		}
-	}
-
-	/* List has wrapped around to the head pointer, or it's empty and we
-	 * didn't find anything.
-	 */
-	if (list == (&dev->maplist->head)) {
-		return -EINVAL;
 	}
 
 	switch (map->type) {
@@ -421,6 +424,9 @@ int drm_rmmap_locked(drm_device_t *dev, drm_local_map_t *map)
 		dmah.busaddr = map->offset;
 		dmah.size = map->size;
 		__drm_pci_free(dev, &dmah);
+		break;
+	case _DRM_TTM:
+		/* Shouldn't get here */
 		break;
 	}
 	drm_free(map, sizeof(*map), DRM_MEM_MAPS);
@@ -479,13 +485,12 @@ int drm_rmmap_ioctl(struct inode *inode, struct file *filp,
 	/* List has wrapped around to the head pointer, or its empty we didn't
 	 * find anything.
 	 */
-	if (list == (&dev->maplist->head)) {
+
+	if (!map) {
+		DRM_ERROR("No map found to remove\n");
 		up(&dev->struct_sem);
 		return -EINVAL;
 	}
-
-	if (!map)
-		return -EINVAL;
 
 	/* Register and framebuffer maps are permanent */
 	if ((map->type == _DRM_REGISTERS) || (map->type == _DRM_FRAME_BUFFER)) {
@@ -1672,5 +1677,4 @@ int drm_order( unsigned long size )
 	return order;
 }
 EXPORT_SYMBOL(drm_order);
-
 

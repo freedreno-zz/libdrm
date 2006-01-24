@@ -82,6 +82,15 @@ static int fill_in_dev(drm_device_t * dev, struct pci_dev *pdev,
 	if (dev->maplist == NULL)
 		return -ENOMEM;
 	INIT_LIST_HEAD(&dev->maplist->head);
+	if (drm_create_hashtab(&dev->ttmreghash, 10)) {
+		drm_free(dev->maplist,sizeof(*dev->maplist), DRM_MEM_MAPS);
+		return -ENOMEM;
+	}
+	if (drm_create_hashtab(&dev->maphash, 10)) {
+		drm_remove_hashtab(&dev->ttmreghash);
+		drm_free(dev->maplist,sizeof(*dev->maplist), DRM_MEM_MAPS);
+		return -ENOMEM;
+	}
 
 	/* the DRM has 6 counters */
 	dev->counters = 6;

@@ -150,6 +150,8 @@
 #define DRM_MEM_CTXLIST  21
 
 #define DRM_MAX_CTXBITMAP (PAGE_SIZE * 8)
+#define DRM_MAP_HASH_OFFSET 0x10000000
+
 
 /*@}*/
 
@@ -389,6 +391,7 @@ typedef struct drm_file {
 	struct drm_head *head;
 	int remove_auth_on_close;
 	unsigned long lock_count;
+        struct list_head ttms;
 	void *driver_priv;
 } drm_file_t;
 
@@ -502,6 +505,7 @@ typedef struct drm_map_list {
 	struct list_head head;		/**< list head */
 	drm_map_t *map;			/**< mapping */
 	unsigned int user_token;
+        void *private;
 } drm_map_list_t;
 
 typedef drm_map_t drm_local_map_t;
@@ -540,6 +544,7 @@ typedef struct ati_pcigart_info {
  * in this family
  */
 struct drm_device;
+#include "drm_ttm.h"
 struct drm_driver {
 	int (*load) (struct drm_device *, unsigned long flags);
 	int (*firstopen) (struct drm_device *);
@@ -583,6 +588,7 @@ struct drm_driver {
 	unsigned long (*get_map_ofs) (drm_map_t * map);
 	unsigned long (*get_reg_ofs) (struct drm_device * dev);
 	void (*set_version) (struct drm_device * dev, drm_set_version_t * sv);
+        drm_ttm_backend_t * (*create_ttm_backend_entry) (struct drm_device *dev);
 
 	int major;
 	int minor;
@@ -612,6 +618,13 @@ typedef struct drm_head {
 	dev_t device;			/**< Device number for mknod */
 	struct class_device *dev_class;
 } drm_head_t;
+
+typedef struct drm_closedhash {
+	unsigned int size;
+	unsigned int order;
+	unsigned int fill;
+	void **table;
+} drm_closedhash_t;
 
 /**
  * DRM device structure. This structure represent a complete card that
@@ -658,6 +671,8 @@ typedef struct drm_device {
 	/*@{ */
 	drm_map_list_t *maplist;	/**< Linked list of regions */
 	int map_count;			/**< Number of mappable regions */
+	drm_closedhash_t maphash;       /**< Hashed list of maps */
+	drm_closedhash_t ttmreghash;    /**< Hashed list of ttm regions */
 
 	/** \name Context handle management */
 	/*@{ */
@@ -920,6 +935,18 @@ extern unsigned long drm_get_resource_start(drm_device_t *dev,
 extern unsigned long drm_get_resource_len(drm_device_t *dev,
 					  unsigned int resource);
 
+/* 
+ * Closed hash table support drm_hashtab.c
+ */
+extern void drm_remove_hashtab(drm_closedhash_t *ht);
+extern int drm_remove_ht_val(drm_closedhash_t *ht, unsigned int hash);
+extern int drm_get_ht_val(drm_closedhash_t *ht, unsigned int hash, void **item);
+extern int drm_insert_ht_val(drm_closedhash_t *ht, void *item, unsigned int *hash);
+extern int drm_create_hashtab(drm_closedhash_t *ht, unsigned int order);
+extern int drm_find_ht_item(drm_closedhash_t *ht, void *item, unsigned int *hash);
+
+
+
 				/* DMA support (drm_dma.h) */
 extern int drm_dma_setup(drm_device_t * dev);
 extern void drm_dma_takedown(drm_device_t * dev);
@@ -974,6 +1001,7 @@ extern DRM_AGP_MEM *drm_agp_allocate_memory(struct agp_bridge_data *bridge, size
 extern int drm_agp_free_memory(DRM_AGP_MEM * handle);
 extern int drm_agp_bind_memory(DRM_AGP_MEM * handle, off_t start);
 extern int drm_agp_unbind_memory(DRM_AGP_MEM * handle);
+extern drm_ttm_backend_t *drm_agp_init_ttm(struct drm_device *dev);
 
 				/* Stub support (drm_stub.h) */
 extern int drm_get_dev(struct pci_dev *pdev, const struct pci_device_id *ent,
@@ -1019,6 +1047,11 @@ extern void drm_sysfs_destroy(struct drm_sysfs_class *cs);
 extern struct class_device *drm_sysfs_device_add(struct drm_sysfs_class *cs,
 						 drm_head_t * head);
 extern void drm_sysfs_device_remove(struct class_device *class_dev);
+
+                               /* ttm support (drm_ttm.c) */
+
+int drm_add_ttm(drm_device_t *dev, unsigned size, drm_map_list_t **maplist);
+
 
 /* Inline replacements for DRM_IOREMAP macros */
 static __inline__ void drm_core_ioremap(struct drm_map *map,
