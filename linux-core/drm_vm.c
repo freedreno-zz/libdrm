@@ -200,10 +200,10 @@ static __inline__ struct page *drm_do_vm_ttm_nopage(struct vm_area_struct *vma,
 	if (!page) {
 		page = ttm->pages[page_offset] = 
 			alloc_page(GFP_USER);
-		SetPageLocked(page);
 	}
 	if (!page) 
 		return NOPAGE_OOM;
+	SetPageLocked(page);
 	get_page(page);
 	vma->vm_page_prot = ttm->nocached[page_offset] ? 
 		pgprot_noncached(entry->orig_protection):

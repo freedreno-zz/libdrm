@@ -564,13 +564,13 @@ typedef struct drm_agp_ttm_priv {
 } drm_agp_ttm_priv;
 
 
-static int drm_agp_needs_cache_adjust(struct drm_ttm_backend *backend) {
+static int drm_agp_needs_cache_adjust(drm_ttm_backend_t *backend) {
 	return TRUE;
 }
 
 #define AGP_MEM_USER (1 << 16)
 
-static int drm_agp_populate(struct drm_ttm_backend *backend, unsigned long num_pages, 
+static int drm_agp_populate(drm_ttm_backend_t *backend, unsigned long num_pages, 
 			    struct page **pages) {
 
 	drm_agp_ttm_priv *agp_priv = (drm_agp_ttm_priv *) backend->private;
@@ -595,7 +595,7 @@ static int drm_agp_populate(struct drm_ttm_backend *backend, unsigned long num_p
 	return 0;
 }
 
-static int drm_agp_bind_ttm(struct drm_ttm_backend *backend, unsigned long offset) {
+static int drm_agp_bind_ttm(drm_ttm_backend_t *backend, unsigned long offset) {
 
 	drm_agp_ttm_priv *agp_priv = (drm_agp_ttm_priv *) backend->private;
 	DRM_AGP_MEM *mem = agp_priv->mem;
@@ -605,7 +605,7 @@ static int drm_agp_bind_ttm(struct drm_ttm_backend *backend, unsigned long offse
 	return drm_agp_bind_memory(mem, offset);
 }
 
-static int drm_agp_unbind_ttm(struct drm_ttm_backend *backend) {
+static int drm_agp_unbind_ttm(drm_ttm_backend_t *backend) {
 
 	drm_agp_ttm_priv *agp_priv = (drm_agp_ttm_priv *) backend->private;
 
@@ -613,7 +613,7 @@ static int drm_agp_unbind_ttm(struct drm_ttm_backend *backend) {
 	return drm_agp_unbind_memory(agp_priv->mem);
 }
 
-static void drm_agp_clear_ttm(struct drm_ttm_backend *backend) {
+static void drm_agp_clear_ttm(drm_ttm_backend_t *backend) {
 
 	drm_agp_ttm_priv *agp_priv = (drm_agp_ttm_priv *) backend->private;
 	DRM_AGP_MEM *mem = agp_priv->mem;
@@ -628,7 +628,7 @@ static void drm_agp_clear_ttm(struct drm_ttm_backend *backend) {
 	agp_priv->mem = NULL;
 }
 
-void drm_agp_destroy_ttm(struct drm_ttm_backend *backend) {
+void drm_agp_destroy_ttm(drm_ttm_backend_t *backend) {
 
 	drm_agp_ttm_priv *agp_priv; 
 	

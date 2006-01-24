@@ -378,12 +378,12 @@ int drm_bind_ttm_region(drm_ttm_t * ttm, unsigned long page_offset,
 		cur_page = ttm->pages + (page_offset + i);
 		if (!*cur_page) {
 			*cur_page = alloc_page(GFP_USER);
-			SetPageLocked(*cur_page);
 			if (!*cur_page) {
 				DRM_ERROR("Page allocation failed\n");
 				drm_unbind_ttm_region(entry);
 				return -ENOMEM;
 			}
+			SetPageLocked(*cur_page);
 		}
 	}
 
