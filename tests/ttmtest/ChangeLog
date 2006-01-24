@@ -1,5 +1,12 @@
 2006-01-24  Thomas Hellström  <thomas-at-tungstengraphics.com>
 
+	* configure.ac:
+	* src/ttmtest.c:
+
+	Fixed include path.
+
+2006-01-24  Thomas Hellström  <thomas-at-tungstengraphics.com>
+
 	* AUTHORS:
 	* Makefile.am:
 	* configure.ac:
