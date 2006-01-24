@@ -259,7 +259,8 @@ typedef enum drm_map_type {
 	_DRM_SHM = 2,		  /**< shared, cached */
 	_DRM_AGP = 3,		  /**< AGP/GART */
 	_DRM_SCATTER_GATHER = 4,  /**< Scatter/gather memory for PCI DMA */
-	_DRM_CONSISTENT = 5	  /**< Consistent memory for PCI DMA */
+	_DRM_CONSISTENT = 5,	  /**< Consistent memory for PCI DMA */
+	_DRM_TTM = 6	          /**< Consistent memory for PCI DMA */
 } drm_map_type_t;
 
 /**
@@ -630,6 +631,29 @@ typedef struct drm_set_version {
 } drm_set_version_t;
 
 /**
+ * DRM_IOCTL_TTM
+*/
+
+typedef struct drm_ttm_arg {
+	enum{
+		ttm_add,
+		ttm_remove,
+		ttm_bind,
+		ttm_unbind,
+		ttm_evict,
+		ttm_rebind
+	} op;
+	drm_handle_t handle;
+	unsigned region;
+	unsigned aper_offset;
+        unsigned page_offset;
+        unsigned num_pages;
+	unsigned size;
+        unsigned max_regions;
+} drm_ttm_arg_t;
+
+
+/**
  * \name Ioctls Definitions
  */
 /*@{*/
@@ -693,6 +717,7 @@ typedef struct drm_set_version {
 #define DRM_IOCTL_SG_FREE		DRM_IOW( 0x39, drm_scatter_gather_t)
 
 #define DRM_IOCTL_WAIT_VBLANK		DRM_IOWR(0x3a, drm_wait_vblank_t)
+#define DRM_IOCTL_TTM                   DRM_IOWR(0x3b, drm_ttm_arg_t)
 
 /*@}*/
 
