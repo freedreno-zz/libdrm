@@ -251,6 +251,7 @@ static int drm_open_helper(struct inode *inode, struct file *filp, drm_device_t 
 	priv->authenticated = capable(CAP_SYS_ADMIN);
 	priv->lock_count = 0;
 	INIT_LIST_HEAD(&priv->ttms);
+	INIT_LIST_HEAD(&priv->anon_ttm_regs);
 
 	if (dev->driver->open) {
 		ret = dev->driver->open(dev, priv);
@@ -334,6 +335,7 @@ int drm_release(struct inode *inode, struct file *filp)
 	drm_device_t *dev;
 	int retcode = 0;
 	struct list_head *list = NULL, *next = NULL;
+	unsigned hash;
 
 	lock_kernel();
 	dev = priv->head->dev;
@@ -452,9 +454,26 @@ int drm_release(struct inode *inode, struct file *filp)
 
 	list_for_each_safe(list, next, &priv->ttms) {
 		drm_map_list_t *entry = list_entry(list, drm_map_list_t, head);
-		drm_destroy_ttm((drm_ttm_t *) entry->map->offset);
 		list_del(list);
+		if (!drm_find_ht_item(&dev->maphash, entry, &hash)) {
+			drm_remove_ht_val(&dev->maphash, hash);
+		}
+		if (!drm_destroy_ttm((drm_ttm_t *) entry->map->offset))
+			drm_free(entry->map, sizeof(*entry->map), 
+				 DRM_MEM_MAPS);
+		drm_free(entry, sizeof(*entry), DRM_MEM_MAPS);
 	}
+	list=NULL;
+	next=NULL;
+	list_for_each_safe(list, next, &priv->anon_ttm_regs) {
+		drm_ttm_backend_list_t *entry = 
+			list_entry(list, drm_ttm_backend_list_t, head);
+ 		list_del(list);
+		if (!drm_find_ht_item(&dev->ttmreghash, entry, &hash)) {
+			drm_remove_ht_val(&dev->ttmreghash, hash);
+		}
+		drm_user_unbind_region(entry);
+ 	}
 
 	up(&dev->struct_sem);
 

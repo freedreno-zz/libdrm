@@ -111,7 +111,7 @@ static void drm_change_protection(struct vm_area_struct *vma,
 	} while (pgd++, addr = next, addr != end);
 }
 
-void drm_destroy_ttm(drm_ttm_t * ttm)
+int drm_destroy_ttm(drm_ttm_t * ttm)
 {
 
 	int i;
@@ -120,16 +120,14 @@ void drm_destroy_ttm(drm_ttm_t * ttm)
 	unsigned hash;
 
 	if (!ttm)
-		return;
+		return 0;
 
 	if (atomic_read(&ttm->vma_count) > 0) {
 		DRM_DEBUG("VMAs are still alive. Skipping destruction.\n");
-		return;
+		return -1;
 	} else {
 		DRM_DEBUG("About to really destroy ttm.\n");
 	}
-
-	ttm->in_dtor = TRUE;
 
 	if (ttm->be_list) {
 		list_for_each_safe(list, next, &ttm->be_list->head) {
@@ -143,7 +141,6 @@ void drm_destroy_ttm(drm_ttm_t * ttm)
 
 		drm_free(ttm->be_list, sizeof(*ttm->be_list), DRM_MEM_MAPS);
 	}
-
 
 	if (ttm->pages) {
 		for (i = 0; i < ttm->num_pages; ++i) {
@@ -176,13 +173,14 @@ void drm_destroy_ttm(drm_ttm_t * ttm)
 		drm_free(ttm->vma_list, sizeof(*ttm->vma_list), DRM_MEM_MAPS);
 	}
 	drm_free(ttm, sizeof(*ttm), DRM_MEM_MAPS);
+	return 0;
 }
 
 /*
  * FIXME: Avoid using vmalloc for the page- and nocached tables?
  */
 
-drm_ttm_t *drm_init_ttm(struct drm_device *dev, unsigned long size)
+drm_ttm_t *drm_init_ttm(struct drm_device * dev, unsigned long size)
 {
 
 	drm_ttm_t *ttm = drm_calloc(1, sizeof(*ttm), DRM_MEM_MAPS);
@@ -229,7 +227,6 @@ drm_ttm_t *drm_init_ttm(struct drm_device *dev, unsigned long size)
 
 	ttm->lhandle = (unsigned long)ttm;
 	ttm->dev = dev;
-	ttm->in_dtor = FALSE;
 	return ttm;
 }
 
@@ -308,9 +305,9 @@ void drm_unbind_ttm_region(drm_ttm_backend_list_t * entry)
 	list_del(&entry->head);
 
 	if (be) {
-	        be->clear(entry->be);
+		be->clear(entry->be);
 		if (be->needs_cache_adjust(be)) {
-			if (!ttm->in_dtor)
+			if (atomic_read(&ttm->vma_count) > 0)
 				spin_lock(&current->mm->page_table_lock);
 			unmap_vma_pages(ttm, entry->page_offset,
 					entry->num_pages);
@@ -329,7 +326,7 @@ void drm_unbind_ttm_region(drm_ttm_backend_list_t * entry)
 			restore_vma_protection(ttm, entry->page_offset,
 					       entry->num_pages);
 			global_flush_tlb();
-			if (!ttm->in_dtor)
+			if (atomic_read(&ttm->vma_count) > 0)
 				spin_unlock(&current->mm->page_table_lock);
 		}
 		be->destroy(be);
@@ -415,6 +412,7 @@ int drm_bind_ttm_region(drm_ttm_t * ttm, unsigned long page_offset,
 		drm_unbind_ttm_region(entry);
 		return ret;
 	}
+	entry->bound = TRUE;
 	*region = entry;
 
 	return 0;
@@ -425,7 +423,7 @@ int drm_evict_ttm_region(drm_ttm_backend_list_t * entry)
 
 	int ret;
 
-	if (!entry)
+	if (!entry || !entry->bound)
 		return -EINVAL;
 
 	if (0 != (ret = entry->be->unbind(entry->be))) {
@@ -442,11 +440,107 @@ int drm_rebind_ttm_region(drm_ttm_backend_list_t * entry,
 
 	int ret;
 
-	if (!entry)
+	if (!entry || entry->bound)
 		return -EINVAL;
 	if (0 != (ret = entry->be->bind(entry->be, aper_offset))) {
-		entry->bound = TRUE;
+		return ret;
 	}
+	entry->bound = TRUE;
+	return 0;
+}
+
+void drm_user_unbind_region(drm_ttm_backend_list_t * entry)
+{
+	drm_ttm_backend_t *be;
+	struct page **cur_page;
+	int i;
+
+	if (!entry || entry->owner)
+		return;
+
+	be = entry->be;
+	if (!be) {
+		drm_free(entry, sizeof(*entry), DRM_MEM_MAPS);
+		return;
+	}
+
+	if (entry->bound) {
+		be->unbind(be);
+	}
+
+	if (entry->anon_pages) {
+		cur_page = entry->anon_pages;
+		for (i = 0; i < entry->anon_locked; ++i) {
+			if (!PageReserved(*cur_page))
+				SetPageDirty(*cur_page);
+			page_cache_release(*cur_page);
+			cur_page++;
+		}
+		vfree(entry->anon_pages);
+	}
+
+	be->destroy(be);
+	drm_free(entry, sizeof(*entry), DRM_MEM_MAPS);
+}
+
+int drm_user_bind_region(drm_device_t * dev, unsigned long start, int len,
+			 unsigned long aper_offset,
+			 drm_ttm_backend_list_t ** entry)
+{
+	drm_ttm_backend_list_t *tmp;
+	drm_ttm_backend_t *be;
+	int ret;
+
+	if (len <= 0)
+		return -EINVAL;
+	if (!dev->driver->create_ttm_backend_entry)
+		return -EFAULT;
+	tmp = drm_calloc(1, sizeof(*tmp), DRM_MEM_MAPS);
+
+	if (!tmp)
+		return -ENOMEM;
+
+	be = dev->driver->create_ttm_backend_entry(dev);
+	if (!be) {
+		drm_user_unbind_region(tmp);
+		return -ENOMEM;
+	}
+	if (be->needs_cache_adjust(be)) {
+		drm_user_unbind_region(tmp);
+		return -EFAULT;
+	}
+
+	tmp->anon_pages = vmalloc(sizeof(*(tmp->anon_pages)) * len);
+
+	if (!tmp->anon_pages) {
+		drm_user_unbind_region(tmp);
+		return -ENOMEM;
+	}
+
+	down_read(&current->mm->mmap_sem);
+	ret = get_user_pages(current, current->mm, start, len, 1, 0,
+			     tmp->anon_pages, NULL);
+	up_read(&current->mm->mmap_sem);
+
+	if (ret != len) {
+		drm_user_unbind_region(tmp);
+		return -EPERM;
+	}
+	tmp->anon_locked = len;
+
+	ret = be->populate(be, len, tmp->anon_pages);
+
+	if (!ret)
+		ret = be->bind(be, aper_offset);
+
+	if (ret) {
+		drm_user_unbind_region(tmp);
+		return ret;
+	}
+
+	tmp->bound = TRUE;
+	*entry = tmp;
+
 	return 0;
 }
 
@@ -481,7 +575,6 @@ int drm_add_ttm(drm_device_t * dev, unsigned size, drm_map_list_t ** maplist)
 	}
 	map->handle = (void *)list;
 
-	down(&dev->struct_sem);
 	if (drm_insert_ht_val(&dev->maphash, map->handle, &list->user_token)) {
 		drm_destroy_ttm(ttm);
 		drm_free(map, sizeof(*map), DRM_MEM_MAPS);
@@ -489,7 +582,6 @@ int drm_add_ttm(drm_device_t * dev, unsigned size, drm_map_list_t ** maplist)
 		up(&dev->struct_sem);
 		return -ENOMEM;
 	}
-	up(&dev->struct_sem);
 
 	list->user_token =
 	    (list->user_token << PAGE_SHIFT) + DRM_MAP_HASH_OFFSET;
@@ -512,125 +604,189 @@ int drm_ttm_ioctl(DRM_IOCTL_ARGS)
 	drm_ttm_t *ttm;
 	drm_ttm_arg_t ttm_arg;
 	int ret;
+	unsigned long start;
+	unsigned long end;
+	int len;
+	unsigned hash;
 
 	DRM_COPY_FROM_USER_IOCTL(ttm_arg, (void __user *)data, sizeof(ttm_arg));
 
 	switch (ttm_arg.op) {
-	case ttm_add:{
-			ret = drm_add_ttm(dev, ttm_arg.size, &map_list);
-			if (ret)
-				return ret;
-			list_add(&map_list->head, &priv->ttms);
-			ttm_arg.handle = (uint32_t) map_list->user_token;
-			ttm = (drm_ttm_t *) map_list->map->offset;
-			ttm->owner = priv;
-			break;
-		}
-	case ttm_remove:{
-			down(&dev->struct_sem);
-
-			if (drm_get_ht_val(&dev->maphash,
-					   (ttm_arg.handle -
-					    DRM_MAP_HASH_OFFSET) >> PAGE_SHIFT,
-					   &hash_val)) {
-				up(&dev->struct_sem);
-				return -EINVAL;
-			}
-			map_list = (drm_map_list_t *) hash_val;
-			map = map_list->map;
-			list_del(&map_list->head);
-
-			if (!map || map->type != _DRM_TTM) {
-				DRM_ERROR("No ttm map found to remove\n");
-				up(&dev->struct_sem);
-				return -EINVAL;
-			}
-			ttm = (drm_ttm_t *) map->offset;
-			if (ttm->owner != priv) {
-				DRM_ERROR("Wrong ttm owner\n");
-			}
-			spin_lock(&current->mm->page_table_lock);
-			drm_destroy_ttm((drm_ttm_t *) map->offset);
-			spin_unlock(&current->mm->page_table_lock);
-			drm_free(map, sizeof(map), DRM_MEM_MAPS);
+	case ttm_add:
+		down(&dev->struct_sem);
+		ret = drm_add_ttm(dev, ttm_arg.size, &map_list);
+		if (ret) {
 			up(&dev->struct_sem);
-			return 0;
+			return ret;
 		}
-	case ttm_bind:{
-			LOCK_TEST_WITH_RETURN(dev, filp);
-
-			if (drm_get_ht_val(&dev->maphash,
-					   (ttm_arg.handle -
-					    DRM_MAP_HASH_OFFSET) >> PAGE_SHIFT,
-					   &hash_val)) {
-				return -EINVAL;
-			}
-			map_list = (drm_map_list_t *) hash_val;
-			map = map_list->map;
-			if (!map || map->type != _DRM_TTM) {
-				DRM_ERROR("No ttm map found to bind\n");
-				return -EINVAL;
-			}
-			ttm = (drm_ttm_t *) map->offset;
-			if (ttm->owner != priv) {
-				DRM_ERROR("Wrong ttm owner\n");
-				return -EINVAL;
-			}
-
-			if ((ret = drm_bind_ttm_region(ttm, ttm_arg.page_offset,
-						       ttm_arg.num_pages,
-						       ttm_arg.aper_offset,
-						       &entry))) {
-				return ret;
-			}
-			if ((ret =
-			     drm_insert_ht_val(&ttm->dev->ttmreghash, entry,
-					       &ttm_arg.region))) {
-				drm_unbind_ttm_region(entry);
-				return ret;
-			}
-			break;
+		list_add(&map_list->head, &priv->ttms);
+		ttm = (drm_ttm_t *) map_list->map->offset;
+		ttm->owner = priv;
+		up(&dev->struct_sem);
+		ttm_arg.handle = (uint32_t) map_list->user_token;
+		break;
+	case ttm_remove:
+		down(&dev->struct_sem);
+		if (drm_get_ht_val(&dev->maphash,
+				   hash = (ttm_arg.handle -
+					   DRM_MAP_HASH_OFFSET) >> PAGE_SHIFT,
+				   &hash_val)) {
+			up(&dev->struct_sem);
+			return -EINVAL;
 		}
-	case ttm_unbind:{
-			LOCK_TEST_WITH_RETURN(dev, filp);
+		map_list = (drm_map_list_t *) hash_val;
+		map = map_list->map;
 
-			if (drm_get_ht_val
-			    (&dev->ttmreghash, ttm_arg.region, &hash_val)) {
-				return -EINVAL;
-			}
-			entry = (drm_ttm_backend_list_t *) hash_val;
+		if (!map || map->type != _DRM_TTM) {
+			DRM_ERROR("No ttm map found to remove\n");
+			up(&dev->struct_sem);
+			return -EINVAL;
+		}
+		ttm = (drm_ttm_t *) map->offset;
+		if (ttm->owner != priv) {
+			DRM_ERROR("Wrong ttm owner\n");
+			up(&dev->struct_sem);
+			return -EPERM;
+		}
+		drm_destroy_ttm((drm_ttm_t *) map->offset);
+		list_del(&map_list->head);
+		ret = drm_remove_ht_val(&dev->maphash, hash);
+		up(&dev->struct_sem);
+		if (!ret)
+			drm_free(map, sizeof(*map), DRM_MEM_MAPS);
+		drm_free(map_list, sizeof(*map_list), DRM_MEM_MAPS);
+		return 0;
+	case ttm_bind:
+		LOCK_TEST_WITH_RETURN(dev, filp);
+
+		down(&dev->struct_sem);
+		if (drm_get_ht_val(&dev->maphash,
+				   (ttm_arg.handle -
+				    DRM_MAP_HASH_OFFSET) >> PAGE_SHIFT,
+				   &hash_val)) {
+			up(&dev->struct_sem);
+			return -EINVAL;
+		}
+		map_list = (drm_map_list_t *) hash_val;
+		map = map_list->map;
+		if (!map || map->type != _DRM_TTM) {
+			DRM_ERROR("No ttm map found to bind\n");
+			up(&dev->struct_sem);
+			return -EINVAL;
+		}
+		ttm = (drm_ttm_t *) map->offset;
+		if (ttm->owner != priv) {
+			DRM_ERROR("Wrong ttm owner\n");
+			up(&dev->struct_sem);
+			return -EINVAL;
+		}
+
+		if ((ret = drm_bind_ttm_region(ttm, ttm_arg.page_offset,
+					       ttm_arg.num_pages,
+					       ttm_arg.aper_offset, &entry))) {
+			up(&dev->struct_sem);
+			return ret;
+		}
+		if ((ret =
+		     drm_insert_ht_val(&dev->ttmreghash, entry,
+				       &ttm_arg.region))) {
 			drm_unbind_ttm_region(entry);
-			drm_remove_ht_val(&dev->ttmreghash, ttm_arg.region);
-			return 0;
+			up(&dev->struct_sem);
+			return ret;
 		}
-	case ttm_evict:{
-			LOCK_TEST_WITH_RETURN(dev, filp);
+		up(&dev->struct_sem);
+		break;
+	case ttm_bind_user:
 
-			if (drm_get_ht_val
-			    (&dev->ttmreghash, ttm_arg.region, &hash_val)) {
-				return -EINVAL;
-			}
-			entry = (drm_ttm_backend_list_t *) hash_val;
-			if ((ret = drm_evict_ttm_region(entry))) {
-				return ret;
-			}
-			break;
-		}
-	case ttm_rebind:{
-			LOCK_TEST_WITH_RETURN(dev, filp);
+		LOCK_TEST_WITH_RETURN(dev, filp);
 
-			if (drm_get_ht_val
-			    (&dev->ttmreghash, ttm_arg.region, &hash_val)) {
-				return -EINVAL;
-			}
-			entry = (drm_ttm_backend_list_t *) hash_val;
-			if ((ret =
-			     drm_rebind_ttm_region(entry,
-						   ttm_arg.aper_offset))) {
-				return ret;
-			}
-			break;
+		end = (unsigned long)ttm_arg.addr + ttm_arg.size;
+		start = ((unsigned long)ttm_arg.addr) & (PAGE_SIZE - 1);
+		end = (end + PAGE_SIZE - 1) & (PAGE_SIZE - 1);
+		len = ((end - start) >> PAGE_SHIFT) + 1;
+		if (len <= 0)
+			return -EINVAL;
+
+		down(&dev->struct_sem);
+		ret =
+		    drm_user_bind_region(dev, start, len, ttm_arg.aper_offset,
+					 &entry);
+		if (ret) {
+			up(&dev->struct_sem);
+			return ret;
 		}
+		entry->anon_owner = priv;
+		if ((ret = drm_insert_ht_val(&dev->ttmreghash, entry,
+					     &ttm_arg.region))) {
+			drm_user_unbind_region(entry);
+			up(&dev->struct_sem);
+			return ret;
+		}
+		list_add(&entry->head, &priv->anon_ttm_regs);
+		up(&dev->struct_sem);
+		break;
+
+	case ttm_unbind:
+		LOCK_TEST_WITH_RETURN(dev, filp);
+
+		down(&dev->struct_sem);
+
+		if (drm_get_ht_val(&dev->ttmreghash, ttm_arg.region, &hash_val)) {
+			up(&dev->struct_sem);
+			return -EINVAL;
+		}
+		entry = (drm_ttm_backend_list_t *) hash_val;
+		if (entry->owner) {
+			if (entry->owner->owner == priv) {
+				drm_remove_ht_val(&dev->ttmreghash,
+						  ttm_arg.region);
+				drm_unbind_ttm_region(entry);
+			} else {
+				up(&dev->struct_sem);
+				return -EPERM;
+			}
+		} else {
+			if (entry->anon_owner == priv) {
+				list_del(&entry->head);
+				drm_user_unbind_region(entry);
+			} else {
+				up(&dev->struct_sem);
+				return -EPERM;
+			}
+		}
+		up(&dev->struct_sem);
+
+		return 0;
+	case ttm_evict:
+		LOCK_TEST_WITH_RETURN(dev, filp);
+
+		down(&dev->struct_sem);
+		if (drm_get_ht_val(&dev->ttmreghash, ttm_arg.region, &hash_val)) {
+			up(&dev->struct_sem);
+			return -EINVAL;
+		}
+		entry = (drm_ttm_backend_list_t *) hash_val;
+		if ((ret = drm_evict_ttm_region(entry))) {
+			up(&dev->struct_sem);
+			return ret;
+		}
+		up(&dev->struct_sem);
+		return 0;
+	case ttm_rebind:
+		LOCK_TEST_WITH_RETURN(dev, filp);
+
+		down(&dev->struct_sem);
+		if (drm_get_ht_val(&dev->ttmreghash, ttm_arg.region, &hash_val)) {
+			up(&dev->struct_sem);
+			return -EINVAL;
+		}
+		entry = (drm_ttm_backend_list_t *) hash_val;
+		if ((ret = drm_rebind_ttm_region(entry, ttm_arg.aper_offset))) {
+			up(&dev->struct_sem);
+			return ret;
+		}
+		up(&dev->struct_sem);
+		return 0;
 	default:
 		return -EINVAL;
 	}

@@ -639,6 +639,7 @@ typedef struct drm_ttm_arg {
 		ttm_add,
 		ttm_remove,
 		ttm_bind,
+		ttm_bind_user,
 		ttm_unbind,
 		ttm_evict,
 		ttm_rebind
@@ -650,6 +651,7 @@ typedef struct drm_ttm_arg {
         unsigned num_pages;
 	unsigned size;
         unsigned max_regions;
+        char __user *addr;
 } drm_ttm_arg_t;
 
 

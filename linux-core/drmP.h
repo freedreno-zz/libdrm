@@ -392,6 +392,7 @@ typedef struct drm_file {
 	int remove_auth_on_close;
 	unsigned long lock_count;
         struct list_head ttms;
+        struct list_head anon_ttm_regs;
 	void *driver_priv;
 } drm_file_t;
 

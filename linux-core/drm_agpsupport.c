@@ -586,7 +586,7 @@ static int drm_agp_populate(drm_ttm_backend_t *backend, unsigned long num_pages,
 	if (!mem) 
 		return -1;
 
-	DRM_DEBUG("Current page count is %d\n", mem->page_count);
+	DRM_DEBUG("Current page count is %ld\n", (long) mem->page_count);
 	mem->page_count = 0;
 	for (cur_page = pages; cur_page < last_page; ++cur_page) {
 		mem->memory[mem->page_count++] = page_to_phys(*cur_page);

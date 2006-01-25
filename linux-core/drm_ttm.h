@@ -32,6 +32,9 @@ typedef struct drm_ttm_backend_list {
 	unsigned num_pages;
 	int bound;
 	struct drm_ttm *owner;
+	drm_file_t *anon_owner;
+	struct page **anon_pages;
+	int anon_locked;
 } drm_ttm_backend_list_t;
 
 typedef struct drm_ttm_vma_list {
@@ -51,7 +54,6 @@ typedef struct drm_ttm {
 	drm_ttm_backend_list_t *be_list;
 	atomic_t vma_count;
 	drm_file_t *owner;
-        int in_dtor;
 } drm_ttm_t;
 
 /*
@@ -100,9 +102,8 @@ int drm_rebind_ttm_region(drm_ttm_backend_list_t * entry,
  * when the last vma exits.
  */
 
-void drm_destroy_ttm(drm_ttm_t * ttm);
-
-
+int drm_destroy_ttm(drm_ttm_t * ttm);
+void drm_user_unbind_region(drm_ttm_backend_list_t * entry);
 
 int drm_ttm_ioctl(DRM_IOCTL_ARGS);
 

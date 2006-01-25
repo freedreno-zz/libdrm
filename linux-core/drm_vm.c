@@ -583,24 +583,30 @@ static void drm_vm_ttm_close(struct vm_area_struct *vma)
 	int found_maps;
 	struct list_head *list;
 	drm_map_list_t *r_list;
+	drm_device_t *dev;
 
 	drm_vm_close(vma); 
 	if (ttm_vma) {
 		map = (drm_map_t *) ttm_vma->map;
-		ttm = (drm_ttm_t *) map->offset; 
+		ttm = (drm_ttm_t *) map->offset;
+		dev = ttm->dev;
+		down(&dev->struct_sem);
 		list_del(&ttm_vma->head);
 		drm_free(ttm_vma, sizeof(*ttm_vma), DRM_MEM_VMAS);
 		atomic_dec(&ttm->vma_count);
 		found_maps = 0;
-		list = &ttm->dev->maplist->head;
+		list = NULL;
 		list_for_each(list, &ttm->owner->ttms) {
 			r_list = list_entry(list, drm_map_list_t, head);
 			if (r_list->map == map)
 				found_maps++;
 		}
 		if (!found_maps) {
-			drm_destroy_ttm(ttm);
+			if (!drm_destroy_ttm(ttm)) {
+				drm_free(map, sizeof(*map), DRM_MEM_MAPS);
+			}
 		}
+		up(&dev->struct_sem);
 	}
 	return;
 }
