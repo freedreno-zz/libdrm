@@ -395,6 +395,7 @@ int drm_bind_ttm_region(drm_ttm_t * ttm, unsigned long page_offset,
 			if (page_address(*cur_page) != NULL
 			    && PageHighMem(*cur_page)) {
 				DRM_ERROR("Illegal mapped HighMem Page\n");
+				spin_unlock(&current->mm->page_table_lock);
 				drm_unbind_ttm_region(entry);
 				return -EINVAL;
 			}
