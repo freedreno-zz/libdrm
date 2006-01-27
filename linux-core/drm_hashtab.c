@@ -45,7 +45,6 @@ int drm_get_ht_val(drm_closedhash_t * ht, unsigned int hash, void **item)
 {
 
 	if (hash >= ht->size || !ht->table[hash]) {
-		DRM_ERROR("Illegal hash value\n");
 		return DRM_ERR(EINVAL);
 	}
 	*item = ht->table[hash];
@@ -88,7 +87,6 @@ int drm_remove_ht_val(drm_closedhash_t * ht, unsigned int hash)
 {
 
 	if (hash >= ht->size) {
-		DRM_ERROR("Illegal hash value\n");
 		return DRM_ERR(EINVAL);
 	}
 	ht->table[hash] = NULL;

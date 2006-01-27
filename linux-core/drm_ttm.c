@@ -183,10 +183,12 @@ int drm_destroy_ttm(drm_ttm_t * ttm)
 drm_ttm_t *drm_init_ttm(struct drm_device * dev, unsigned long size)
 {
 
+	drm_ttm_t *ttm;
+
 	if (!dev->driver->create_ttm_backend_entry)
 		return NULL;
 
-	drm_ttm_t *ttm = drm_calloc(1, sizeof(*ttm), DRM_MEM_MAPS);
+	ttm = drm_calloc(1, sizeof(*ttm), DRM_MEM_MAPS);
 	if (!ttm)
 		return NULL;
 
@@ -511,6 +513,8 @@ int drm_user_bind_region(drm_device_t * dev, unsigned long start, int len,
 		return -ENOMEM;
 
 	be = dev->driver->create_ttm_backend_entry(dev);
+	tmp->be = be;
+
 	if (!be) {
 		drm_user_unbind_region(tmp);
 		return -ENOMEM;
@@ -534,6 +538,8 @@ int drm_user_bind_region(drm_device_t * dev, unsigned long start, int len,
 
 	if (ret != len) {
 		drm_user_unbind_region(tmp);
+		DRM_ERROR("Could not lock %d pages. Return code was %d\n",
+			  len,ret);
 		return -EPERM;
 	}
 	tmp->anon_locked = len;
@@ -711,9 +717,9 @@ int drm_ttm_ioctl(DRM_IOCTL_ARGS)
 		LOCK_TEST_WITH_RETURN(dev, filp);
 
 		end = (unsigned long)ttm_arg.addr + ttm_arg.size;
-		start = ((unsigned long)ttm_arg.addr) & (PAGE_SIZE - 1);
-		end = (end + PAGE_SIZE - 1) & (PAGE_SIZE - 1);
-		len = ((end - start) >> PAGE_SHIFT) + 1;
+		start = ((unsigned long)ttm_arg.addr) & ~(PAGE_SIZE - 1);
+		end = (end + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
+		len = ((end - start) >> PAGE_SHIFT);
 		if (len <= 0)
 			return -EINVAL;
 
