@@ -63,6 +63,7 @@ static struct drm_driver driver = {
 	.dma_quiescent = i830_driver_dma_quiescent,
 	.get_map_ofs = drm_core_get_map_ofs,
 	.get_reg_ofs = drm_core_get_reg_ofs,
+	.create_ttm_backend_entry = NULL, 
 #if USE_IRQS
 	.irq_preinstall = i830_driver_irq_preinstall,
 	.irq_postinstall = i830_driver_irq_postinstall,

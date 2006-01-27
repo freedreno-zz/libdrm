@@ -183,6 +183,9 @@ int drm_destroy_ttm(drm_ttm_t * ttm)
 drm_ttm_t *drm_init_ttm(struct drm_device * dev, unsigned long size)
 {
 
+	if (!dev->driver->create_ttm_backend_entry)
+		return NULL;
+
 	drm_ttm_t *ttm = drm_calloc(1, sizeof(*ttm), DRM_MEM_MAPS);
 	if (!ttm)
 		return NULL;
@@ -235,6 +238,7 @@ static void restore_vma_protection(drm_ttm_t * ttm, unsigned long page_offset,
 {
 	struct list_head *list;
 
+	return;
 	list_for_each(list, &ttm->vma_list->head) {
 		drm_ttm_vma_list_t *entry =
 		    list_entry(list, drm_ttm_vma_list_t, head);
@@ -252,6 +256,7 @@ static void set_vma_nocached(drm_ttm_t * ttm, unsigned long page_offset,
 {
 	struct list_head *list;
 
+	return;
 	list_for_each(list, &ttm->vma_list->head) {
 		drm_ttm_vma_list_t *entry =
 		    list_entry(list, drm_ttm_vma_list_t, head);
@@ -307,6 +312,7 @@ void drm_unbind_ttm_region(drm_ttm_backend_list_t * entry)
 	if (be) {
 		be->clear(entry->be);
 		if (be->needs_cache_adjust(be)) {
+		        down_write(&current->mm->mmap_sem);
 			if (atomic_read(&ttm->vma_count) > 0)
 				spin_lock(&current->mm->page_table_lock);
 			unmap_vma_pages(ttm, entry->page_offset,
@@ -328,6 +334,7 @@ void drm_unbind_ttm_region(drm_ttm_backend_list_t * entry)
 			global_flush_tlb();
 			if (atomic_read(&ttm->vma_count) > 0)
 				spin_unlock(&current->mm->page_table_lock);
+		        up_write(&current->mm->mmap_sem);
 		}
 		be->destroy(be);
 	}
@@ -385,6 +392,7 @@ int drm_bind_ttm_region(drm_ttm_t * ttm, unsigned long page_offset,
 	}
 
 	if (be->needs_cache_adjust(be)) {
+	        down_write(&current->mm->mmap_sem);
 		spin_lock(&current->mm->page_table_lock);
 		unmap_vma_pages(ttm, page_offset, n_pages);
 		for (i = 0; i < entry->num_pages; ++i) {
@@ -392,6 +400,7 @@ int drm_bind_ttm_region(drm_ttm_t * ttm, unsigned long page_offset,
 			if (page_address(*cur_page) != NULL
 			    && PageHighMem(*cur_page)) {
 				DRM_ERROR("Illegal mapped HighMem Page\n");
+				up_write(&current->mm->mmap_sem);
 				spin_unlock(&current->mm->page_table_lock);
 				drm_unbind_ttm_region(entry);
 				return -EINVAL;
@@ -402,6 +411,7 @@ int drm_bind_ttm_region(drm_ttm_t * ttm, unsigned long page_offset,
 		set_vma_nocached(ttm, page_offset, n_pages);
 		global_flush_tlb();
 		spin_unlock(&current->mm->page_table_lock);
+	        up_write(&current->mm->mmap_sem);
 	}
 	if ((ret = be->populate(be, n_pages, ttm->pages + page_offset))) {
 		drm_unbind_ttm_region(entry);

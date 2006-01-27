@@ -43,6 +43,18 @@ static void drm_vm_open(struct vm_area_struct *vma);
 static void drm_vm_ttm_close(struct vm_area_struct *vma);
 static void drm_vm_ttm_open(struct vm_area_struct *vma);
 
+/*
+ * FIXME: We don't really want this. We want an exported version of the
+ * mm subsystem's protection_map!
+ */
+
+
+static pgprot_t drm_prot_map[16] = {
+	__P000, __P001, __P010, __P011, __P100, __P101, __P110, __P111,
+	__S000, __S001, __S010, __S011, __S100, __S101, __S110, __S111
+};
+
+
 /**
  * \c nopage method for AGP virtual memory.
  *
@@ -187,6 +199,7 @@ static __inline__ struct page *drm_do_vm_ttm_nopage(struct vm_area_struct *vma,
 	unsigned long page_offset;
 	struct page *page;
 	drm_ttm_t *ttm; 
+	pgprot_t default_prot;
 
 	if (address > vma->vm_end)
 		return NOPAGE_SIGBUS;	/* Disallow mremap */
@@ -205,9 +218,17 @@ static __inline__ struct page *drm_do_vm_ttm_nopage(struct vm_area_struct *vma,
 		return NOPAGE_OOM;
 	SetPageLocked(page);
 	get_page(page);
+
+	/*
+	 * FIXME: Potential security hazard: Have someone export the
+	 * mm subsystem's protection_map instead. Otherwise we will
+	 * duplicate code.
+	 */
+
+	default_prot = drm_prot_map[vma->vm_flags & 0x0f];
 	vma->vm_page_prot = ttm->nocached[page_offset] ? 
-		pgprot_noncached(entry->orig_protection):
-		entry->orig_protection;
+		pgprot_noncached(default_prot):
+		default_prot;
 
 	return page;
 }
@@ -523,8 +544,12 @@ static void drm_vm_ttm_open(struct vm_area_struct *vma)
 		(drm_ttm_vma_list_t *) vma->vm_private_data;
 	drm_map_t *map;
 	drm_ttm_t *ttm;
+	drm_file_t *priv = vma->vm_file->private_data;
+	drm_device_t *dev = priv->head->dev;
+
 
 	drm_vm_open(vma);
+	down(&dev->struct_sem);
 	entry = drm_calloc(1, sizeof(*entry), DRM_MEM_VMAS);
 	if (entry) {
 	        *entry = *tmp_vma;
@@ -539,6 +564,7 @@ static void drm_vm_ttm_open(struct vm_area_struct *vma)
 		DRM_DEBUG("Added VMA to ttm at 0x%016lx\n", 
 			  (unsigned long) ttm);
 	}
+	up(&dev->struct_sem);
 }
 
 /**

@@ -47,6 +47,7 @@ static struct drm_driver driver = {
 	.reclaim_buffers = savage_reclaim_buffers,
 	.get_map_ofs = drm_core_get_map_ofs,
 	.get_reg_ofs = drm_core_get_reg_ofs,
+	.create_ttm_backend_entry = NULL, 
 	.ioctls = savage_ioctls,
 	.dma_ioctl = savage_bci_buffers,
 	.fops = {

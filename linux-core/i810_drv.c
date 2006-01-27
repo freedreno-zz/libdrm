@@ -56,6 +56,7 @@ static struct drm_driver driver = {
 	.dma_quiescent = i810_driver_dma_quiescent,
 	.get_map_ofs = drm_core_get_map_ofs,
 	.get_reg_ofs = drm_core_get_reg_ofs,
+	.create_ttm_backend_entry = NULL, 
 	.ioctls = i810_ioctls,
 	.fops = {
 		.owner = THIS_MODULE,
