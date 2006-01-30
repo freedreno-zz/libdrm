@@ -111,6 +111,37 @@ static void drm_change_protection(struct vm_area_struct *vma,
 	} while (pgd++, addr = next, addr != end);
 }
 
+static int unmap_vma_pages(drm_ttm_t * ttm, unsigned long page_offset,
+			   unsigned long num_pages)
+{
+	struct list_head *list;
+	struct page **first_page = ttm->pages + page_offset;
+	struct page **last_page = ttm->pages + (page_offset + num_pages);
+	struct page **cur_page;
+
+	list_for_each(list, &ttm->vma_list->head) {
+		drm_ttm_vma_list_t *entry =
+		    list_entry(list, drm_ttm_vma_list_t, head);
+		drm_change_protection(entry->vma,
+				      entry->vma->vm_start +
+				      (page_offset << PAGE_SHIFT),
+				      entry->vma->vm_start +
+				      ((page_offset + num_pages) << PAGE_SHIFT),
+				      entry->vma->vm_page_prot, TRUE);
+
+	}
+
+	for (cur_page = first_page; cur_page != last_page; ++cur_page) {
+		if (page_mapcount(*cur_page) != 0) {
+			DRM_ERROR("Mapped page detected. Map count is %d\n",
+				  page_mapcount(*cur_page));
+			return -1;
+		}
+	}
+	return 0;
+}
+
+
 int drm_destroy_ttm(drm_ttm_t * ttm)
 {
 
@@ -142,6 +173,7 @@ int drm_destroy_ttm(drm_ttm_t * ttm)
 		drm_free(ttm->be_list, sizeof(*ttm->be_list), DRM_MEM_MAPS);
 	}
 
+	down_write(&current->mm->mmap_sem);
 	if (ttm->pages) {
 		for (i = 0; i < ttm->num_pages; ++i) {
 			cur_page = ttm->pages + i;
@@ -173,6 +205,8 @@ int drm_destroy_ttm(drm_ttm_t * ttm)
 		drm_free(ttm->vma_list, sizeof(*ttm->vma_list), DRM_MEM_MAPS);
 	}
 	drm_free(ttm, sizeof(*ttm), DRM_MEM_MAPS);
+	up_write(&current->mm->mmap_sem);
+
 	return 0;
 }
 
@@ -235,77 +269,45 @@ drm_ttm_t *drm_init_ttm(struct drm_device * dev, unsigned long size)
 	return ttm;
 }
 
-static void restore_vma_protection(drm_ttm_t * ttm, unsigned long page_offset,
-				   unsigned long num_pages)
+static int drm_set_caching(drm_ttm_t *ttm, unsigned long page_offset, 
+			   unsigned long num_pages, int noncached)
 {
-	struct list_head *list;
-
-	return;
-	list_for_each(list, &ttm->vma_list->head) {
-		drm_ttm_vma_list_t *entry =
-		    list_entry(list, drm_ttm_vma_list_t, head);
-		drm_change_protection(entry->vma,
-				      entry->vma->vm_start +
-				      (page_offset << PAGE_SHIFT),
-				      entry->vma->vm_start +
-				      ((page_offset + num_pages) << PAGE_SHIFT),
-				      entry->orig_protection, FALSE);
-	}
-}
-
-static void set_vma_nocached(drm_ttm_t * ttm, unsigned long page_offset,
-			     unsigned long num_pages)
-{
-	struct list_head *list;
-
-	return;
-	list_for_each(list, &ttm->vma_list->head) {
-		drm_ttm_vma_list_t *entry =
-		    list_entry(list, drm_ttm_vma_list_t, head);
-		drm_change_protection(entry->vma,
-				      entry->vma->vm_start +
-				      (page_offset << PAGE_SHIFT),
-				      entry->vma->vm_start +
-				      ((page_offset + num_pages) << PAGE_SHIFT),
-				      pgprot_noncached(entry->vma->
-						       vm_page_prot), FALSE);
-	}
-}
-
-static int unmap_vma_pages(drm_ttm_t * ttm, unsigned long page_offset,
-			   unsigned long num_pages)
-{
-	struct list_head *list;
-	struct page **first_page = ttm->pages + page_offset;
-	struct page **last_page = ttm->pages + (page_offset + num_pages);
+	int i;
 	struct page **cur_page;
+	pgprot_t attr = (noncached) ? PAGE_KERNEL_NOCACHE : PAGE_KERNEL;
+	int do_spinlock = atomic_read(&ttm->vma_count) > 0;
 
-	list_for_each(list, &ttm->vma_list->head) {
-		drm_ttm_vma_list_t *entry =
-		    list_entry(list, drm_ttm_vma_list_t, head);
-		drm_change_protection(entry->vma,
-				      entry->vma->vm_start +
-				      (page_offset << PAGE_SHIFT),
-				      entry->vma->vm_start +
-				      ((page_offset + num_pages) << PAGE_SHIFT),
-				      entry->vma->vm_page_prot, TRUE);
-
+	down_write(&current->mm->mmap_sem);
+	if (do_spinlock) {
+		spin_lock(&current->mm->page_table_lock);
+		unmap_vma_pages(ttm, page_offset, num_pages);
 	}
-
-	for (cur_page = first_page; cur_page != last_page; ++cur_page) {
-		if (page_mapcount(*cur_page) != 0) {
-			DRM_ERROR("Mapped page detected. Map count is %d\n",
-				  page_mapcount(*cur_page));
-			return -1;
+	for (i = 0; i < num_pages; ++i) {
+		cur_page = ttm->pages + (page_offset + i);
+		if (*cur_page) {
+			if (PageHighMem(*cur_page)) {
+				if (noncached && page_address(*cur_page) != NULL) {
+					DRM_ERROR("Illegal mapped HighMem Page\n");
+					up_write(&current->mm->mmap_sem);
+					spin_unlock(&current->mm->page_table_lock);
+					return -EINVAL;
+				}
+			} else {
+				change_page_attr(*cur_page, 1, attr);
+				ttm->nocached[page_offset + i] = noncached;
+			}		
 		}
 	}
+	global_flush_tlb();
+	if (do_spinlock)
+		spin_unlock(&current->mm->page_table_lock);
+	up_write(&current->mm->mmap_sem);
 	return 0;
 }
 
+
 void drm_unbind_ttm_region(drm_ttm_backend_list_t * entry)
 {
-	struct page **cur_page;
-	int i, cur;
 	drm_ttm_backend_t *be = entry->be;
 	drm_ttm_t *ttm = entry->owner;
 
@@ -314,33 +316,32 @@ void drm_unbind_ttm_region(drm_ttm_backend_list_t * entry)
 	if (be) {
 		be->clear(entry->be);
 		if (be->needs_cache_adjust(be)) {
-		        down_write(&current->mm->mmap_sem);
-			if (atomic_read(&ttm->vma_count) > 0)
-				spin_lock(&current->mm->page_table_lock);
-			unmap_vma_pages(ttm, entry->page_offset,
-					entry->num_pages);
-			for (i = 0; i < entry->num_pages; ++i) {
-				cur = entry->page_offset + i;
-				if (ttm->nocached[cur]) {
-					cur_page = ttm->pages + cur;
-					if (*cur_page &&
-					    !PageHighMem(*cur_page)) {
-						change_page_attr(*cur_page, 1,
-								 PAGE_KERNEL);
-					}
-					ttm->nocached[cur] = FALSE;
-				}
-			}
-			restore_vma_protection(ttm, entry->page_offset,
-					       entry->num_pages);
-			global_flush_tlb();
-			if (atomic_read(&ttm->vma_count) > 0)
-				spin_unlock(&current->mm->page_table_lock);
-		        up_write(&current->mm->mmap_sem);
+			drm_set_caching(ttm, entry->page_offset, entry->num_pages, 
+					FALSE);
 		}
 		be->destroy(be);
 	}
 	drm_free(entry, sizeof(*entry), DRM_MEM_MAPS);
+}
+
+int drm_search_ttm_region(unsigned long pg_offset, unsigned long n_pages,
+			  struct list_head *be) {
+
+	struct list_head *list;
+	unsigned long end_offset = pg_offset + n_pages -1;
+
+	list_for_each(list, be) {
+		drm_ttm_backend_list_t *entry =
+			list_entry(list, drm_ttm_backend_list_t, head);
+		if ((pg_offset <= entry->page_offset && 
+		     end_offset >= entry->page_offset) || 
+		    (entry->page_offset <= pg_offset && 
+		     (entry->page_offset + entry->num_pages -1) >= pg_offset)) {
+			DRM_ERROR("Overlapping regions\n");
+			return -EINVAL;
+		}
+	}
+	return 0;
 }
 
 int drm_bind_ttm_region(drm_ttm_t * ttm, unsigned long page_offset,
@@ -353,15 +354,15 @@ int drm_bind_ttm_region(drm_ttm_t * ttm, unsigned long page_offset,
 	drm_ttm_backend_t *be;
 	int ret, i;
 
-	if ((page_offset + n_pages) > ttm->num_pages) {
+	if ((page_offset + n_pages) > ttm->num_pages || n_pages == 0) {
 		DRM_ERROR("Region Doesn't fit ttm\n");
 		return -EINVAL;
 	}
 
-	/*
-	 * FIXME: Check for overlapping regions.
-	 */
-
+	if ((ret = drm_search_ttm_region(page_offset, n_pages,
+					 &ttm->be_list->head)))
+		return ret;
+	    
 	entry = drm_calloc(1, sizeof(*entry), DRM_MEM_MAPS);
 	if (!entry)
 		return -ENOMEM;
@@ -394,27 +395,9 @@ int drm_bind_ttm_region(drm_ttm_t * ttm, unsigned long page_offset,
 	}
 
 	if (be->needs_cache_adjust(be)) {
-	        down_write(&current->mm->mmap_sem);
-		spin_lock(&current->mm->page_table_lock);
-		unmap_vma_pages(ttm, page_offset, n_pages);
-		for (i = 0; i < entry->num_pages; ++i) {
-			cur_page = ttm->pages + (page_offset + i);
-			if (page_address(*cur_page) != NULL
-			    && PageHighMem(*cur_page)) {
-				DRM_ERROR("Illegal mapped HighMem Page\n");
-				up_write(&current->mm->mmap_sem);
-				spin_unlock(&current->mm->page_table_lock);
-				drm_unbind_ttm_region(entry);
-				return -EINVAL;
-			}
-			change_page_attr(*cur_page, 1, PAGE_KERNEL_NOCACHE);
-			ttm->nocached[page_offset + i] = TRUE;
-		}
-		set_vma_nocached(ttm, page_offset, n_pages);
-		global_flush_tlb();
-		spin_unlock(&current->mm->page_table_lock);
-	        up_write(&current->mm->mmap_sem);
+		drm_set_caching(ttm, page_offset, n_pages, TRUE);
 	}
+
 	if ((ret = be->populate(be, n_pages, ttm->pages + page_offset))) {
 		drm_unbind_ttm_region(entry);
 		return ret;

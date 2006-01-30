@@ -557,18 +557,16 @@ int drm_agp_unbind_memory(DRM_AGP_MEM * handle)
  * AGP ttm backend interface.
  */
 
-typedef struct drm_agp_ttm_priv {
-	DRM_AGP_MEM *mem;
-	struct agp_bridge_data *bridge;
-	int populated;
-} drm_agp_ttm_priv;
-
-
-static int drm_agp_needs_cache_adjust(drm_ttm_backend_t *backend) {
+static int drm_agp_needs_cache_adjust_true(drm_ttm_backend_t *backend) {
 	return TRUE;
 }
 
+static int drm_agp_needs_cache_adjust_false(drm_ttm_backend_t *backend) {
+	return FALSE;
+}
+
 #define AGP_MEM_USER (1 << 16)
+#define AGP_MEM_UCACHED (2 << 16)
 
 static int drm_agp_populate(drm_ttm_backend_t *backend, unsigned long num_pages, 
 			    struct page **pages) {
@@ -579,9 +577,9 @@ static int drm_agp_populate(drm_ttm_backend_t *backend, unsigned long num_pages,
 
 	DRM_DEBUG("drm_agp_populate_ttm\n");
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,11)
-	mem = drm_agp_allocate_memory(num_pages, AGP_MEM_USER);
+	mem = drm_agp_allocate_memory(num_pages, agp_priv->mem_type);
 #else
-	mem = drm_agp_allocate_memory(agp_priv->bridge, num_pages, AGP_MEM_USER);
+	mem = drm_agp_allocate_memory(agp_priv->bridge, num_pages, agp_priv->mem_type);
 #endif
 	if (!mem) 
 		return -1;
@@ -648,7 +646,7 @@ void drm_agp_destroy_ttm(drm_ttm_backend_t *backend) {
 
 
 
-drm_ttm_backend_t *drm_agp_init_ttm(struct drm_device *dev) {
+drm_ttm_backend_t *drm_agp_init_ttm_uncached(struct drm_device *dev) {
 
 	drm_ttm_backend_t *agp_be = drm_calloc(1, sizeof(*agp_be), DRM_MEM_MAPPINGS);
 	drm_agp_ttm_priv *agp_priv;
@@ -665,10 +663,11 @@ drm_ttm_backend_t *drm_agp_init_ttm(struct drm_device *dev) {
 	}
 	
 	agp_priv->mem = NULL;
+	agp_priv->mem_type = AGP_MEM_USER;
 	agp_priv->bridge = dev->agp->bridge;
 	agp_priv->populated = FALSE;
 	agp_be->private = (void *) agp_priv;
-	agp_be->needs_cache_adjust = drm_agp_needs_cache_adjust;
+	agp_be->needs_cache_adjust = drm_agp_needs_cache_adjust_true;
 	agp_be->populate = drm_agp_populate;
 	agp_be->clear = drm_agp_clear_ttm;
 	agp_be->bind = drm_agp_bind_ttm;
@@ -676,6 +675,38 @@ drm_ttm_backend_t *drm_agp_init_ttm(struct drm_device *dev) {
 	agp_be->destroy = drm_agp_destroy_ttm;
 	return agp_be;
 }
-EXPORT_SYMBOL(drm_agp_init_ttm);
+EXPORT_SYMBOL(drm_agp_init_ttm_uncached);
+
+
+drm_ttm_backend_t *drm_agp_init_ttm_cached(struct drm_device *dev) {
+
+	drm_ttm_backend_t *agp_be = drm_calloc(1, sizeof(*agp_be), DRM_MEM_MAPPINGS);
+	drm_agp_ttm_priv *agp_priv;
+
+	DRM_DEBUG("drm_agp_init_ttm\n");
+	if (!agp_be)
+		return NULL;
+	
+	agp_priv = drm_calloc(1, sizeof(agp_priv), DRM_MEM_MAPPINGS);
+	
+	if (!agp_priv) {
+		drm_free(agp_be, sizeof(*agp_be), DRM_MEM_MAPPINGS);
+		return NULL;
+	}
+	
+	agp_priv->mem = NULL;
+	agp_priv->mem_type = AGP_MEM_UCACHED;
+	agp_priv->bridge = dev->agp->bridge;
+	agp_priv->populated = FALSE;
+	agp_be->private = (void *) agp_priv;
+	agp_be->needs_cache_adjust = drm_agp_needs_cache_adjust_false;
+	agp_be->populate = drm_agp_populate;
+	agp_be->clear = drm_agp_clear_ttm;
+	agp_be->bind = drm_agp_bind_ttm;
+	agp_be->unbind = drm_agp_unbind_ttm;
+	agp_be->destroy = drm_agp_destroy_ttm;
+	return agp_be;
+}
+EXPORT_SYMBOL(drm_agp_init_ttm_cached);
 
 #endif				/* __OS_HAS_AGP */
