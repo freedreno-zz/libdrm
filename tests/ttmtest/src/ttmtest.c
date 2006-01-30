@@ -1,16 +1,18 @@
+
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
 
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
-#include <drm.h>
+#include <drm/drm.h>
 #include "xf86dri.h"
 #include "xf86drm.h"
 #include "stdio.h"
 #include "sys/types.h"
 #include <unistd.h>
 #include <string.h>
+#include "sys/mman.h"
 
 typedef struct
 {
@@ -46,6 +48,7 @@ typedef struct
     int ddxDriverPatch;
 } TinyDRIContext;
 
+#ifndef __x86_64__
 static unsigned
 fastrdtsc(void)
 {
@@ -58,6 +61,19 @@ fastrdtsc(void)
 
     return eax;
 }
+#else
+static unsigned
+fastrdtsc(void)
+{
+    unsigned eax;
+    __asm__ volatile ("\t"
+	"cpuid\n\t" ".byte 0x0f, 0x31\n\t" :"=a" (eax)
+	:"0"(0)
+		      :"ecx", "edx", "ebx", "cc");
+
+    return eax;
+}
+#endif
 
 static unsigned
 time_diff(unsigned t, unsigned t2)
@@ -169,6 +185,30 @@ testAGP(TinyDRIContext * ctx)
 	    t2 = fastrdtsc();
 	    printf("Uncached read took %u clocks\n", time_diff(t1, t2));
 
+#ifdef BUGCHECK
+
+	    /*
+	     * Change to read-only.
+	     */
+	    if (mprotect(ttmAddress, TTMSIZE, PROT_READ | PROT_WRITE)) {
+		fprintf(stderr, "Memprotect failed\n");
+	    }
+	    if (mprotect(ttmAddress, TTMSIZE, PROT_WRITE)) {
+		fprintf(stderr, "Memprotect failed\n");
+	    }
+	    if (mprotect(ttmAddress, TTMSIZE, PROT_READ)) {
+		fprintf(stderr, "Memprotect failed\n");
+	    }
+	    t1 = fastrdtsc();
+	    a = 0;
+	    for (j = 0; j < USESIZE; ++j) {
+		a += ((volatile unsigned *)ttmAddress)[j];
+	    }
+	    t2 = fastrdtsc();
+
+	    printf("Mprotected read took %u clocks\n", time_diff(t1, t2));
+#endif
+
 	    drmGetLock(ctx->drmFD, ctx->hwContext, 0);
 
 	    t1 = fastrdtsc();
@@ -179,7 +219,7 @@ testAGP(TinyDRIContext * ctx)
 	    t2 = fastrdtsc();
 	    printf("Evict took %u clocks.\n", time_diff(t1, t2));
 	    t1 = fastrdtsc();
-	    arg.op = ttm_remap;
+	    arg.op = ttm_rebind;
 	    if (ioctl(ctx->drmFD, DRM_IOCTL_TTM, &arg)) {
 		perror("Could not Rebind.");
 	    }
@@ -193,7 +233,6 @@ testAGP(TinyDRIContext * ctx)
 	    }
 	    t2 = fastrdtsc();
 	    printf("Unbind took %u clocks.\n", time_diff(t1, t2));
-
 	    drmUnlock(ctx->drmFD, ctx->hwContext);
 
 	    t1 = fastrdtsc();
@@ -204,14 +243,43 @@ testAGP(TinyDRIContext * ctx)
 	    t2 = fastrdtsc();
 	    printf("Page-faulting cached read took %u clocks\n\n\n",
 		time_diff(t1, t2));
-
 	}
-	drmUnmap(ttmAddress, TTMSIZE);
 
+	drmUnmap(ttmAddress, TTMSIZE);  
+	ttmAddress = malloc(TTMSIZE);
+	memset(ttmAddress, 0, USESIZE*4); 
+	arg.op = ttm_bind_user;
+	arg.addr = ttmAddress;
+	arg.size = USESIZE*4;
+	drmGetLock(ctx->drmFD, ctx->hwContext, 0);
+
+	t1 = fastrdtsc();
+	if (ioctl(ctx->drmFD, DRM_IOCTL_TTM, &arg)) {
+	    perror("Could not user bind");
+	} else {
+	    printf("User bound region is %d\n", arg.region);
+	}
+	t2 = fastrdtsc();
+
+	drmUnlock(ctx->drmFD, ctx->hwContext);
+	printf("User binding took %u clocks\n", time_diff(t1, t2));
+   
+	drmGetLock(ctx->drmFD, ctx->hwContext, 0);
+
+	t1 = fastrdtsc();
+	arg.op = ttm_unbind;
+	if (ioctl(ctx->drmFD, DRM_IOCTL_TTM, &arg)) {
+	    perror("Could not user unbind");
+	}
+	t2 = fastrdtsc();
+	drmUnlock(ctx->drmFD, ctx->hwContext);
+
+	printf("User unbind took %u clocks\n", time_diff(t1, t2));
+
+	free(ttmAddress);
     } else {
 	perror("Could not map");
     }
-
     arg.op = ttm_remove;
     if (ioctl(ctx->drmFD, DRM_IOCTL_TTM, &arg) != 0) {
 	perror("Could not remove map");
