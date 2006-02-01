@@ -458,6 +458,7 @@ int drm_release(struct inode *inode, struct file *filp)
 		if (!drm_find_ht_item(&dev->maphash, entry, &hash)) {
 			drm_remove_ht_val(&dev->maphash, hash);
 		}
+		DRM_ERROR("About to destroy ttm\n");
 		if (!drm_destroy_ttm((drm_ttm_t *) entry->map->offset))
 			drm_free(entry->map, sizeof(*entry->map), 
 				 DRM_MEM_MAPS);

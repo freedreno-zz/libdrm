@@ -35,6 +35,13 @@ typedef struct drm_ttm_backend_list {
 	drm_file_t *anon_owner;
 	struct page **anon_pages;
 	int anon_locked;
+	struct drm_mm_node *mm_node;
+	struct drm_ttm_mm *mm;
+	enum {
+		ttm_bound,
+		ttm_evicted,
+		ttm_unbound
+	} state;
 } drm_ttm_backend_list_t;
 
 typedef struct drm_ttm_vma_list {
@@ -56,11 +63,26 @@ typedef struct drm_ttm {
 	drm_file_t *owner;
 } drm_ttm_t;
 
+typedef struct drm_ttm_mm_priv {
+	struct list_head lru;
+	uint32_t fence;
+	int fence_valid;
+	drm_ttm_backend_list_t *region;
+} drm_ttm_mm_priv_t;
+
+typedef struct drm_ttm_mm {
+	struct drm_device *dev;
+	drm_mm_t mm;
+	struct list_head lru_head;
+	 uint32_t(*emit_fence) (struct drm_device * dev);
+	void (*wait_fence) (struct drm_device * dev, uint32_t fence);
+	int (*test_fence) (struct drm_device * dev, uint32_t fence);
+} drm_ttm_mm_t;
+
 /*
  * Initialize a ttm. Currently the size is fixed. Currently drmAddMap calls this function
- * and creates a DRM map of type _DRM_TTM, and returns a reference to that map to the caller.
- * However, since drmAddMap is root only, It would be better to create a separate IOCTL for the
- * TTM user interface.
+ * and creates a DRM map of type _DRM_TTM, and returns a reference to that map to the 
+ * caller.
  */
 
 drm_ttm_t *drm_init_ttm(struct drm_device *dev, unsigned long size);
@@ -68,7 +90,8 @@ drm_ttm_t *drm_init_ttm(struct drm_device *dev, unsigned long size);
 /*
  * Bind a part of the ttm starting at page_offset size n_pages into the GTT, at
  * aperture offset aper_offset. The region handle will be used to reference this
- * bound region in the future. Note that the region may be the whole ttm. Regions should not overlap.
+ * bound region in the future. Note that the region may be the whole ttm. 
+ * Regions should not overlap.
  * This function sets all affected pages as noncacheable and flushes cashes and TLB.
  */
 

@@ -147,7 +147,8 @@
 #define DRM_MEM_CTXBITMAP 18
 #define DRM_MEM_STUB      19
 #define DRM_MEM_SGLISTS   20
-#define DRM_MEM_CTXLIST  21
+#define DRM_MEM_CTXLIST   21
+#define DRM_MEM_MM        22
 
 #define DRM_MAX_CTXBITMAP (PAGE_SIZE * 8)
 #define DRM_MAP_HASH_OFFSET 0x10000000
@@ -527,6 +528,7 @@ typedef struct drm_vbl_sig {
 	struct task_struct *task;
 } drm_vbl_sig_t;
 
+
 /* location of GART table */
 #define DRM_ATI_GART_MAIN 1
 #define DRM_ATI_GART_FB   2
@@ -545,7 +547,27 @@ typedef struct ati_pcigart_info {
  * in this family
  */
 struct drm_device;
+
+/* 
+ * Generic memory manager structs
+ */
+
+typedef struct drm_mm_node {
+	struct list_head fl_entry;
+	struct list_head ml_entry;
+	int free;
+	unsigned long start;
+	unsigned long size;
+	void *private;
+} drm_mm_node_t;
+
+typedef struct drm_mm {
+	spinlock_t mm_lock;
+	drm_mm_node_t root_node;
+} drm_mm_t;
+
 #include "drm_ttm.h"
+
 struct drm_driver {
 	int (*load) (struct drm_device *, unsigned long flags);
 	int (*firstopen) (struct drm_device *);
@@ -590,6 +612,7 @@ struct drm_driver {
 	unsigned long (*get_reg_ofs) (struct drm_device * dev);
 	void (*set_version) (struct drm_device * dev, drm_set_version_t * sv);
         drm_ttm_backend_t * (*create_ttm_backend_entry) (struct drm_device *dev);
+	drm_mm_t * (*ttm_mm) (struct drm_device *dev);
 
 	int major;
 	int minor;
@@ -1067,6 +1090,15 @@ extern void drm_sysfs_device_remove(struct class_device *class_dev);
 
 int drm_add_ttm(drm_device_t *dev, unsigned size, drm_map_list_t **maplist);
 
+/* 
+ * Basic memory manager support (drm_mm.c) 
+ */
+
+drm_mm_node_t * drm_mm_get_block_locked(drm_mm_node_t * parent, unsigned long size);
+void drm_mm_put_block_locked(drm_mm_t *mm, drm_mm_node_t *cur);
+drm_mm_node_t *drm_mm_search_free_locked(const drm_mm_t *mm, unsigned long size, 
+					 int best_match);
+int drm_mm_init(drm_mm_t *mm, unsigned long start, unsigned long size);
 
 /* Inline replacements for DRM_IOREMAP macros */
 static __inline__ void drm_core_ioremap(struct drm_map *map,
