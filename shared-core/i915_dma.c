@@ -192,10 +192,12 @@ static int i915_initialize(drm_device_t * dev,
 	DRM_DEBUG("Enabled hardware status page\n");
 
 #ifdef DRM_HAS_TTM
-	drm_mm_init(&dev_priv->ttm_mm.mm, 51200, 14336);
+	drm_mm_init(&dev_priv->ttm_mm.mm, 51200, 1536);
 	dev_priv->ttm_mm.emit_fence = i915_emit_fence;
 	dev_priv->ttm_mm.wait_fence = i915_wait_fence;
 	dev_priv->ttm_mm.test_fence = i915_test_fence;
+	INIT_LIST_HEAD(&dev_priv->ttm_mm.lru_head);
+	dev_priv->ttm_mm.dev = dev;
 #endif
 	dev->dev_private = (void *)dev_priv;
 

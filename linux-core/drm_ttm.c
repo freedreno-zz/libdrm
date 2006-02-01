@@ -304,11 +304,37 @@ static int drm_set_caching(drm_ttm_t * ttm, unsigned long page_offset,
 	return 0;
 }
 
+
+static void remove_ttm_region(drm_ttm_backend_list_t * entry) {
+
+	drm_mm_node_t *mm_node = entry->mm_node;
+	drm_ttm_mm_priv_t *mm_priv;
+	drm_ttm_mm_t *mm = entry->mm;
+
+	if (!mm_node) 
+		return;
+
+	entry->mm_node = NULL;
+	mm_priv = (drm_ttm_mm_priv_t *)mm_node->private;
+	if (!mm_priv)
+		return;
+
+	if (mm_priv->fence_valid)
+		mm->wait_fence(mm->dev, mm_priv->fence); 
+	mm_node->private = NULL;
+	spin_lock(&mm->mm.mm_lock);
+	list_del(&mm_priv->lru);
+	drm_mm_put_block_locked(&mm->mm, mm_node);
+	spin_unlock(&mm->mm.mm_lock);
+	drm_free(mm_priv, sizeof(*mm_priv), DRM_MEM_MM);
+}
+
 void drm_unbind_ttm_region(drm_ttm_backend_list_t * entry)
 {
 	drm_ttm_backend_t *be = entry->be;
 	drm_ttm_t *ttm = entry->owner;
 
+	remove_ttm_region(entry);
 	if (be) {
 		switch(entry->state) {
 		case ttm_bound:
@@ -326,28 +352,6 @@ void drm_unbind_ttm_region(drm_ttm_backend_list_t * entry)
 	entry->state = ttm_unbound;		
 }
 
-static void remove_ttm_region(drm_ttm_backend_list_t * entry) {
-
-	drm_mm_node_t *mm_node = entry->mm_node;
-	drm_ttm_mm_priv_t *mm_priv;
-	drm_ttm_mm_t *mm = entry->mm;
-
-	if (!mm_node) 
-		return;
-
-	entry->mm_node = NULL;
-	mm_priv = (drm_ttm_mm_priv_t *)mm_node->private;
-	if (!mm_priv)
-		return;
-
-	mm->wait_fence(mm->dev, mm_priv->fence);
-	mm_node->private = NULL;
-	spin_lock(&mm->mm.mm_lock);
-	list_del(&mm_priv->lru);
-	drm_mm_put_block_locked(&mm->mm, mm_node);
-	spin_unlock(&mm->mm.mm_lock);
-	drm_free(mm_priv, sizeof(*mm_priv), DRM_MEM_MM);
-}
 
 
 void drm_destroy_ttm_region(drm_ttm_backend_list_t * entry)
@@ -357,7 +361,6 @@ void drm_destroy_ttm_region(drm_ttm_backend_list_t * entry)
 
 	list_del(&entry->head);
 	remove_ttm_region(entry);
-
 	if (be) {
 		be->clear(entry->be);
 		if (be->needs_cache_adjust(be)) {
@@ -427,7 +430,7 @@ int drm_create_ttm_region(drm_ttm_t *ttm, unsigned long page_offset,
 	entry->owner = ttm;
 
 	INIT_LIST_HEAD(&entry->head);
-	list_add(&entry->head, &ttm->be_list->head);
+	list_add_tail(&entry->head, &ttm->be_list->head);
 
 	for (i = 0; i < entry->num_pages; ++i) {
 		cur_page = ttm->pages + (page_offset + i);
@@ -646,6 +649,129 @@ int drm_add_ttm(drm_device_t * dev, unsigned size, drm_map_list_t ** maplist)
 	return 0;
 }
 
+
+/*
+ * Fence all unfenced regions in the global lru list. 
+ */
+
+static void drm_ttm_fence_regions(drm_ttm_mm_t * mm, uint32_t fence)
+{
+	struct list_head *list;
+
+	spin_lock(&mm->mm.mm_lock);
+
+	list_for_each_prev(list, &mm->lru_head) {
+		drm_ttm_mm_priv_t *entry =
+		    list_entry(list, drm_ttm_mm_priv_t, lru);
+		if (entry->fence_valid)
+			break;
+		entry->fence = fence;
+		entry->fence_valid = TRUE;
+	}
+
+	spin_unlock(&mm->mm.mm_lock);
+}
+
+/*
+ * Make sure a backend entry is present in the TT. If it is not, try to allocate
+ * TT space and put it in there. If we're out of space, start evicting old entries
+ * from the head of the global lru list, which is sorted in fence order.
+ * Finally move the entry to the tail of the lru list.
+ */
+
+static int drm_validate_ttm_region(drm_ttm_backend_list_t * entry,
+				   unsigned  *aper_offset)
+{
+	drm_mm_node_t *mm_node = entry->mm_node;
+	drm_ttm_mm_t *mm = entry->mm;
+	spinlock_t *mm_lock = &mm->mm.mm_lock;
+	uint32_t evict_fence;
+	uint32_t cur_fence = 0;
+	int have_fence = FALSE;
+	struct list_head *list;
+	drm_ttm_mm_priv_t *evict_priv;
+	drm_ttm_mm_priv_t *mm_priv;
+	drm_mm_node_t *evict_node;
+
+	if (!entry->mm_node) {
+		mm_priv = drm_alloc(sizeof(*mm_priv), DRM_MEM_MM);
+		if (!mm_priv)
+			return -ENOMEM;
+	} else {
+		mm_priv = mm_node->private;
+	}
+
+	spin_lock(mm_lock);
+	while (!mm_node) {
+		mm_node =
+		    drm_mm_search_free_locked(&entry->mm->mm, entry->num_pages,
+					      0);
+		if (!mm_node) {
+
+			/*
+			 * We're out of space. Start evicting entries from the head of the
+			 * lru_list. The do loop below is needed since we release the 
+			 * spinlock while waiting for fence.
+			 */
+
+			do {
+				list = entry->mm->lru_head.next;
+				evict_priv =
+				    list_entry(list, drm_ttm_mm_priv_t, lru);
+				evict_fence = evict_priv->fence;
+				if (have_fence
+				    && ((cur_fence - evict_fence) < (1 << 23)))
+					break;
+				spin_unlock(mm_lock);
+				mm->wait_fence(mm->dev, evict_fence);
+				spin_lock(mm_lock);
+				cur_fence = evict_fence;
+				have_fence = TRUE;
+			} while (TRUE);
+
+			drm_evict_ttm_region(evict_priv->region);
+			list_del(list);
+			evict_node = evict_priv->region->mm_node;
+			evict_node->private = NULL;
+
+			drm_mm_put_block_locked(&mm->mm,
+						evict_priv->region->mm_node);
+			evict_priv->region->mm_node = NULL;
+			drm_free(evict_priv, sizeof(*evict_priv), DRM_MEM_MM);
+
+		}
+	}
+
+	if (!entry->mm_node) {
+		mm_node = drm_mm_get_block_locked(mm_node, entry->num_pages);
+		mm_node->private = mm_priv;
+		mm_priv->region = entry;
+		entry->mm_node = mm_node;
+	} else {
+		list_del_init(&mm_priv->lru);
+	}
+
+	mm_priv->fence_valid = FALSE;
+	list_add_tail(&mm_priv->lru, &mm->lru_head);
+
+	switch (entry->state) {
+	case ttm_bound:
+		break;
+	case ttm_evicted:
+		drm_rebind_ttm_region(entry, mm_node->start);
+		break;
+	case ttm_unbound:
+	default:
+		drm_bind_ttm_region(entry, mm_node->start); 
+		break;
+	}
+
+	spin_unlock(mm_lock);
+	*aper_offset = mm_node->start;
+	return 0;
+}
+
+
 int drm_ttm_ioctl(DRM_IOCTL_ARGS)
 {
 
@@ -662,6 +788,7 @@ int drm_ttm_ioctl(DRM_IOCTL_ARGS)
 	unsigned long end;
 	int len;
 	unsigned hash;
+	drm_ttm_mm_t *ttm_mm;
 
 	DRM_COPY_FROM_USER_IOCTL(ttm_arg, (void __user *)data, sizeof(ttm_arg));
 	DRM_ERROR("Entering ttm IOCTL %d\n", ttm_arg.op);
@@ -743,6 +870,9 @@ int drm_ttm_ioctl(DRM_IOCTL_ARGS)
 			up(&dev->struct_sem);
 			return ret;
 		}
+
+		ttm_mm = entry->mm;
+		drm_ttm_fence_regions(ttm_mm, ttm_mm->emit_fence(dev));
 		if ((ret =
 		     drm_insert_ht_val(&dev->ttmreghash, entry,
 				       &ttm_arg.region))) {
@@ -750,11 +880,14 @@ int drm_ttm_ioctl(DRM_IOCTL_ARGS)
 			up(&dev->struct_sem);
 			return ret;
 		}
-		if ((ret = drm_bind_ttm_region(entry, ttm_arg.aper_offset))) {
+
+		if ((ret = drm_validate_ttm_region(entry, &ttm_arg.aper_offset))) {
 			drm_destroy_ttm_region(entry);
 			up(&dev->struct_sem);
 			return ret;
 		}
+		DRM_ERROR("Aper offset is 0x%x\n", ttm_arg.aper_offset);
+
 		up(&dev->struct_sem);
 		break;
 	case ttm_bind_user:
@@ -857,127 +990,6 @@ int drm_ttm_ioctl(DRM_IOCTL_ARGS)
 	}
 
 	DRM_COPY_TO_USER_IOCTL((void __user *)data, ttm_arg, sizeof(ttm_arg));
-	return 0;
-}
-
-/*
- * Fence all unfenced regions in the global lru list. 
- */
-
-static void drm_ttm_fence_regions(drm_ttm_mm_t * mm, uint32_t fence)
-{
-	struct list_head *list;
-
-	spin_lock(&mm->mm.mm_lock);
-
-	list_for_each_prev(list, &mm->lru_head) {
-		drm_ttm_mm_priv_t *entry =
-		    list_entry(list, drm_ttm_mm_priv_t, lru);
-		if (entry->fence_valid)
-			break;
-		entry->fence = fence;
-		entry->fence_valid = TRUE;
-	}
-
-	spin_unlock(&mm->mm.mm_lock);
-}
-
-/*
- * Make sure a backend entry is present in the TT. If it is not, try to allocate
- * TT space and put it in there. If we're out of space, start evicting old entries
- * from the head of the global lru list, which is sorted in fence order.
- * Finally move the entry to the tail of the lru list.
- */
-
-static int validate_ttm_region(drm_ttm_backend_list_t * entry,
-			       unsigned long *aper_offset)
-{
-	drm_mm_node_t *mm_node = entry->mm_node;
-	drm_ttm_mm_t *mm = entry->mm;
-	spinlock_t *mm_lock = &mm->mm.mm_lock;
-	uint32_t evict_fence;
-	uint32_t cur_fence = 0;
-	int have_fence = FALSE;
-	struct list_head *list;
-	drm_ttm_mm_priv_t *evict_priv;
-	drm_ttm_mm_priv_t *mm_priv;
-	drm_mm_node_t *evict_node;
-
-	if (!entry->mm_node) {
-		mm_priv = drm_alloc(sizeof(*mm_priv), DRM_MEM_MM);
-		if (!mm_priv)
-			return -ENOMEM;
-	} else {
-		mm_priv = mm_node->private;
-	}
-
-	spin_lock(mm_lock);
-	while (!mm_node) {
-		mm_node =
-		    drm_mm_search_free_locked(&entry->mm->mm, entry->num_pages,
-					      0);
-		if (!mm_node) {
-
-			/*
-			 * We're out of space. Start evicting entries from the head of the
-			 * lru_list. The do loop below is needed since we release the 
-			 * spinlock while waiting for fence.
-			 */
-
-			do {
-				list = entry->mm->lru_head.next;
-				evict_priv =
-				    list_entry(list, drm_ttm_mm_priv_t, lru);
-				evict_fence = evict_priv->fence;
-				if (have_fence
-				    && ((cur_fence - evict_fence) < (1 << 23)))
-					break;
-				spin_unlock(mm_lock);
-				mm->wait_fence(mm->dev, evict_fence);
-				spin_lock(mm_lock);
-				cur_fence = evict_fence;
-				have_fence = TRUE;
-			} while (TRUE);
-
-			drm_evict_ttm_region(evict_priv->region);
-			list_del(list);
-			evict_node = evict_priv->region->mm_node;
-			evict_node->private = NULL;
-
-			drm_mm_put_block_locked(&mm->mm,
-						evict_priv->region->mm_node);
-			evict_priv->region->mm_node = NULL;
-			drm_free(evict_priv, sizeof(*evict_priv), DRM_MEM_MM);
-
-		}
-	}
-
-	if (!entry->mm_node) {
-		mm_node = drm_mm_get_block_locked(mm_node, entry->num_pages);
-		mm_node->private = mm_priv;
-		mm_priv->region = entry;
-		entry->mm_node = mm_node;
-	} else {
-		list_del_init(&mm_priv->lru);
-	}
-
-	mm_priv->fence_valid = FALSE;
-	list_add_tail(&mm_priv->lru, &mm->lru_head);
-
-	switch (entry->state) {
-	case ttm_bound:
-		break;
-	case ttm_evicted:
-		drm_rebind_ttm_region(entry, mm_node->start);
-		break;
-	case ttm_unbound:
-	default:
-		drm_bind_ttm_region(entry, mm_node->start); 
-		break;
-	}
-
-	spin_unlock(mm_lock);
-	*aper_offset = mm_node->start;
 	return 0;
 }
 

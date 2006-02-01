@@ -82,7 +82,6 @@ void drm_mm_put_block_locked(drm_mm_t * mm, drm_mm_node_t * cur)
 	if (cur_head->prev != root_head) {
 		prev_node = list_entry(cur_head->prev, drm_mm_node_t, ml_entry);
 		if (prev_node->free) {
-			DRM_ERROR("Merging with free block ahead\n");
 			prev_node->size += cur->size;
 			merged = TRUE;
 		}
@@ -91,14 +90,12 @@ void drm_mm_put_block_locked(drm_mm_t * mm, drm_mm_node_t * cur)
 		next_node = list_entry(cur_head->next, drm_mm_node_t, ml_entry);
 		if (next_node->free) {
 			if (merged) {
-				DRM_ERROR("Merging also with free block aft.\n");
 				prev_node->size += next_node->size;
 				list_del(&next_node->ml_entry);
 				list_del(&next_node->fl_entry);
 				drm_free(next_node, sizeof(*next_node),
 					 DRM_MEM_MM);
 			} else {
-				DRM_ERROR("Merging with block aft.\n");
 				next_node->size += cur->size;
 				next_node->start = cur->start;
 				merged = TRUE;
@@ -108,12 +105,9 @@ void drm_mm_put_block_locked(drm_mm_t * mm, drm_mm_node_t * cur)
 	if (!merged) {
 		cur->free = TRUE;
 		list_add(&cur->fl_entry, &list_root->fl_entry);
-		DRM_ERROR("Adding myself to free list.\n");
-
 	} else {
 		list_del(&cur->ml_entry);
 		drm_free(cur, sizeof(*cur), DRM_MEM_MM);
-		DRM_ERROR("Deleting myself.\n");
 	}
 }
 
@@ -148,6 +142,9 @@ int drm_mm_init(drm_mm_t * mm, unsigned long start, unsigned long size)
 {
 	drm_mm_node_t *child;
 
+
+	INIT_LIST_HEAD(&mm->root_node.ml_entry);
+	INIT_LIST_HEAD(&mm->root_node.fl_entry);
 	child = (drm_mm_node_t *) drm_alloc(sizeof(*child), DRM_MEM_MM);
 	if (!child)
 		return -ENOMEM;
