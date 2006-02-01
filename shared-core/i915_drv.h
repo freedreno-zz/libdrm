@@ -96,6 +96,9 @@ typedef struct drm_i915_private {
 	int allow_batchbuffer;
 	struct mem_block *agp_heap;
 	unsigned int sr01, adpa, ppcr, dvob, dvoc, lvds;
+#ifdef DRM_HAS_TTM
+	drm_ttm_mm_t ttm_mm;
+#endif
 } drm_i915_private_t;
 
 extern drm_ioctl_desc_t i915_ioctls[];
@@ -119,6 +122,11 @@ extern irqreturn_t i915_driver_irq_handler(DRM_IRQ_ARGS);
 extern void i915_driver_irq_preinstall(drm_device_t * dev);
 extern void i915_driver_irq_postinstall(drm_device_t * dev);
 extern void i915_driver_irq_uninstall(drm_device_t * dev);
+
+extern uint32_t i915_emit_fence(drm_device_t * dev);
+extern int i915_wait_fence(drm_device_t * dev, uint32_t fence);
+extern int i915_test_fence(drm_device_t * dev, uint32_t fence);
+extern drm_ttm_mm_t *i915_ttm_mm(drm_device_t *dev);
 
 /* i915_mem.c */
 extern int i915_mem_alloc(DRM_IOCTL_ARGS);

@@ -31,6 +31,7 @@
 #include "i915_drm.h"
 #include "i915_drv.h"
 
+
 /* Really want an OS-independent resettable timer.  Would like to have
  * this loop run for (eg) 3 sec, but have the timer reset every time
  * the head pointer changes, so that EBUSY only happens if the ring
@@ -190,6 +191,12 @@ static int i915_initialize(drm_device_t * dev,
 	I915_WRITE(0x02080, dev_priv->dma_status_page);
 	DRM_DEBUG("Enabled hardware status page\n");
 
+#ifdef DRM_HAS_TTM
+	drm_mm_init(&dev_priv->ttm_mm.mm, 51200, 14336);
+	dev_priv->ttm_mm.emit_fence = i915_emit_fence;
+	dev_priv->ttm_mm.wait_fence = i915_wait_fence;
+	dev_priv->ttm_mm.test_fence = i915_test_fence;
+#endif
 	dev->dev_private = (void *)dev_priv;
 
 	return 0;

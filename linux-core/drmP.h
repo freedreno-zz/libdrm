@@ -612,7 +612,7 @@ struct drm_driver {
 	unsigned long (*get_reg_ofs) (struct drm_device * dev);
 	void (*set_version) (struct drm_device * dev, drm_set_version_t * sv);
         drm_ttm_backend_t * (*create_ttm_backend_entry) (struct drm_device *dev);
-	drm_mm_t * (*ttm_mm) (struct drm_device *dev);
+	drm_ttm_mm_t * (*ttm_mm) (struct drm_device *dev);
 
 	int major;
 	int minor;

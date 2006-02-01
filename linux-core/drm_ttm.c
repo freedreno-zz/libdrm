@@ -166,7 +166,7 @@ int drm_destroy_ttm(drm_ttm_t * ttm)
 			if (!drm_find_ht_item(&ttm->dev->ttmreghash,
 					      list, &hash))
 				drm_remove_ht_val(&ttm->dev->ttmreghash, hash);
-			drm_unbind_ttm_region(entry);
+			drm_destroy_ttm_region(entry);
 		}
 
 		drm_free(ttm->be_list, sizeof(*ttm->be_list), DRM_MEM_MAPS);
@@ -309,7 +309,54 @@ void drm_unbind_ttm_region(drm_ttm_backend_list_t * entry)
 	drm_ttm_backend_t *be = entry->be;
 	drm_ttm_t *ttm = entry->owner;
 
+	if (be) {
+		switch(entry->state) {
+		case ttm_bound:
+			be->unbind(entry->be);
+		case ttm_evicted:
+			if (ttm && be->needs_cache_adjust(be)) {
+				drm_set_caching(ttm, entry->page_offset,
+						entry->num_pages, FALSE);
+			}
+			break;
+		default:
+			break;
+		}
+	}
+	entry->state = ttm_unbound;		
+}
+
+static void remove_ttm_region(drm_ttm_backend_list_t * entry) {
+
+	drm_mm_node_t *mm_node = entry->mm_node;
+	drm_ttm_mm_priv_t *mm_priv;
+	drm_ttm_mm_t *mm = entry->mm;
+
+	if (!mm_node) 
+		return;
+
+	entry->mm_node = NULL;
+	mm_priv = (drm_ttm_mm_priv_t *)mm_node->private;
+	if (!mm_priv)
+		return;
+
+	mm->wait_fence(mm->dev, mm_priv->fence);
+	mm_node->private = NULL;
+	spin_lock(&mm->mm.mm_lock);
+	list_del(&mm_priv->lru);
+	drm_mm_put_block_locked(&mm->mm, mm_node);
+	spin_unlock(&mm->mm.mm_lock);
+	drm_free(mm_priv, sizeof(*mm_priv), DRM_MEM_MM);
+}
+
+
+void drm_destroy_ttm_region(drm_ttm_backend_list_t * entry)
+{
+	drm_ttm_backend_t *be = entry->be;
+	drm_ttm_t *ttm = entry->owner;
+
 	list_del(&entry->head);
+	remove_ttm_region(entry);
 
 	if (be) {
 		be->clear(entry->be);
@@ -332,6 +379,8 @@ int drm_search_ttm_region(unsigned long pg_offset, unsigned long n_pages,
 	list_for_each(list, be) {
 		drm_ttm_backend_list_t *entry =
 		    list_entry(list, drm_ttm_backend_list_t, head);
+		DRM_ERROR("%lu %lu %u %u\n", pg_offset, n_pages,
+		       entry->page_offset, entry->num_pages);
 		if ((pg_offset <= entry->page_offset &&
 		     end_offset >= entry->page_offset) ||
 		    (entry->page_offset <= pg_offset &&
@@ -344,11 +393,9 @@ int drm_search_ttm_region(unsigned long pg_offset, unsigned long n_pages,
 	return 0;
 }
 
-int drm_bind_ttm_region(drm_ttm_t * ttm, unsigned long page_offset,
-			unsigned long n_pages, unsigned long aper_offset,
-			drm_ttm_backend_list_t ** region)
+int drm_create_ttm_region(drm_ttm_t *ttm, unsigned long page_offset,
+			  unsigned long n_pages, drm_ttm_backend_list_t **region)
 {
-
 	struct page **cur_page;
 	drm_ttm_backend_list_t *entry;
 	drm_ttm_backend_t *be;
@@ -373,7 +420,7 @@ int drm_bind_ttm_region(drm_ttm_t * ttm, unsigned long page_offset,
 		DRM_ERROR("Couldn't create backend.\n");
 		return -EINVAL;
 	}
-	entry->bound = FALSE;
+	entry->state = ttm_unbound;
 	entry->page_offset = page_offset;
 	entry->num_pages = n_pages;
 	entry->be = be;
@@ -388,31 +435,42 @@ int drm_bind_ttm_region(drm_ttm_t * ttm, unsigned long page_offset,
 			*cur_page = alloc_page(GFP_USER);
 			if (!*cur_page) {
 				DRM_ERROR("Page allocation failed\n");
-				drm_unbind_ttm_region(entry);
+				drm_destroy_ttm_region(entry);
 				return -ENOMEM;
 			}
 			SetPageLocked(*cur_page);
 		}
 	}
 
-	if (be->needs_cache_adjust(be)) {
-		drm_set_caching(ttm, page_offset, n_pages, TRUE);
-	}
-
 	if ((ret = be->populate(be, n_pages, ttm->pages + page_offset))) {
-		drm_unbind_ttm_region(entry);
+		drm_destroy_ttm_region(entry);
 		DRM_ERROR("Couldn't populate backend.\n");
 		return ret;
 	}
+	entry->mm_node = NULL;
+	entry->mm = ttm->dev->driver->ttm_mm(ttm->dev);
+	*region = entry;
+	return 0;
+}
+
+
+int drm_bind_ttm_region(drm_ttm_backend_list_t * region, unsigned long aper_offset)
+{
+
+	drm_ttm_backend_t *be = region->be;
+	drm_ttm_t *ttm = region->owner;
+	int ret;
+
+	if (ttm && be->needs_cache_adjust(be)) {
+		drm_set_caching(ttm, region->page_offset, region->num_pages, TRUE);
+	}
 
 	if ((ret = be->bind(be, aper_offset))) {
-		drm_unbind_ttm_region(entry);
+		drm_unbind_ttm_region(region);
 		DRM_ERROR("Couldn't bind backend.\n");
 		return ret;
 	}
-	entry->bound = TRUE;
-	*region = entry;
-
+	region->state = ttm_bound;
 	return 0;
 }
 
@@ -421,14 +479,14 @@ int drm_evict_ttm_region(drm_ttm_backend_list_t * entry)
 
 	int ret;
 
-	if (!entry || !entry->bound)
+	if (!entry || entry->state != ttm_bound)
 		return -EINVAL;
 
 	if (0 != (ret = entry->be->unbind(entry->be))) {
 		return ret;
 	}
 
-	entry->bound = FALSE;
+	entry->state = ttm_evicted;
 	return 0;
 }
 
@@ -438,16 +496,16 @@ int drm_rebind_ttm_region(drm_ttm_backend_list_t * entry,
 
 	int ret;
 
-	if (!entry || entry->bound)
+	if (!entry || entry->state == ttm_bound)
 		return -EINVAL;
 	if (0 != (ret = entry->be->bind(entry->be, aper_offset))) {
 		return ret;
 	}
-	entry->bound = TRUE;
+	entry->state = ttm_bound;
 	return 0;
 }
 
-void drm_user_unbind_region(drm_ttm_backend_list_t * entry)
+void drm_user_destroy_region(drm_ttm_backend_list_t * entry)
 {
 	drm_ttm_backend_t *be;
 	struct page **cur_page;
@@ -462,9 +520,7 @@ void drm_user_unbind_region(drm_ttm_backend_list_t * entry)
 		return;
 	}
 
-	if (entry->bound) {
-		be->unbind(be);
-	}
+	be->unbind(be);
 
 	if (entry->anon_pages) {
 		cur_page = entry->anon_pages;
@@ -481,8 +537,7 @@ void drm_user_unbind_region(drm_ttm_backend_list_t * entry)
 	drm_free(entry, sizeof(*entry), DRM_MEM_MAPS);
 }
 
-int drm_user_bind_region(drm_device_t * dev, unsigned long start, int len,
-			 unsigned long aper_offset,
+int drm_user_create_region(drm_device_t * dev, unsigned long start, int len,
 			 drm_ttm_backend_list_t ** entry)
 {
 	drm_ttm_backend_list_t *tmp;
@@ -502,18 +557,18 @@ int drm_user_bind_region(drm_device_t * dev, unsigned long start, int len,
 	tmp->be = be;
 
 	if (!be) {
-		drm_user_unbind_region(tmp);
+		drm_user_destroy_region(tmp);
 		return -ENOMEM;
 	}
 	if (be->needs_cache_adjust(be)) {
-		drm_user_unbind_region(tmp);
+		drm_user_destroy_region(tmp);
 		return -EFAULT;
 	}
 
 	tmp->anon_pages = vmalloc(sizeof(*(tmp->anon_pages)) * len);
 
 	if (!tmp->anon_pages) {
-		drm_user_unbind_region(tmp);
+		drm_user_destroy_region(tmp);
 		return -ENOMEM;
 	}
 
@@ -523,7 +578,7 @@ int drm_user_bind_region(drm_device_t * dev, unsigned long start, int len,
 	up_read(&current->mm->mmap_sem);
 
 	if (ret != len) {
-		drm_user_unbind_region(tmp);
+		drm_user_destroy_region(tmp);
 		DRM_ERROR("Could not lock %d pages. Return code was %d\n",
 			  len, ret);
 		return -EPERM;
@@ -532,15 +587,12 @@ int drm_user_bind_region(drm_device_t * dev, unsigned long start, int len,
 
 	ret = be->populate(be, len, tmp->anon_pages);
 
-	if (!ret)
-		ret = be->bind(be, aper_offset);
-
 	if (ret) {
-		drm_user_unbind_region(tmp);
+		drm_user_destroy_region(tmp);
 		return ret;
 	}
 
-	tmp->bound = TRUE;
+	tmp->state = ttm_unbound;
 	*entry = tmp;
 
 	return 0;
@@ -686,16 +738,20 @@ int drm_ttm_ioctl(DRM_IOCTL_ARGS)
 			return -EINVAL;
 		}
 
-		if ((ret = drm_bind_ttm_region(ttm, ttm_arg.page_offset,
-					       ttm_arg.num_pages,
-					       ttm_arg.aper_offset, &entry))) {
+		if ((ret = drm_create_ttm_region(ttm, ttm_arg.page_offset,
+					       ttm_arg.num_pages, &entry))) {
 			up(&dev->struct_sem);
 			return ret;
 		}
 		if ((ret =
 		     drm_insert_ht_val(&dev->ttmreghash, entry,
 				       &ttm_arg.region))) {
-			drm_unbind_ttm_region(entry);
+			drm_destroy_ttm_region(entry);
+			up(&dev->struct_sem);
+			return ret;
+		}
+		if ((ret = drm_bind_ttm_region(entry, ttm_arg.aper_offset))) {
+			drm_destroy_ttm_region(entry);
 			up(&dev->struct_sem);
 			return ret;
 		}
@@ -714,16 +770,20 @@ int drm_ttm_ioctl(DRM_IOCTL_ARGS)
 
 		down(&dev->struct_sem);
 		ret =
-		    drm_user_bind_region(dev, start, len, ttm_arg.aper_offset,
-					 &entry);
+		    drm_user_create_region(dev, start, len, &entry);
 		if (ret) {
+			up(&dev->struct_sem);
+			return ret;
+		}
+		if ((ret = drm_bind_ttm_region(entry, ttm_arg.aper_offset))) {
+			drm_destroy_ttm_region(entry);
 			up(&dev->struct_sem);
 			return ret;
 		}
 		entry->anon_owner = priv;
 		if ((ret = drm_insert_ht_val(&dev->ttmreghash, entry,
 					     &ttm_arg.region))) {
-			drm_user_unbind_region(entry);
+			drm_user_destroy_region(entry);
 			up(&dev->struct_sem);
 			return ret;
 		}
@@ -753,7 +813,7 @@ int drm_ttm_ioctl(DRM_IOCTL_ARGS)
 		} else {
 			if (entry->anon_owner == priv) {
 				list_del(&entry->head);
-				drm_user_unbind_region(entry);
+				drm_user_destroy_region(entry);
 			} else {
 				up(&dev->struct_sem);
 				return -EPERM;
@@ -836,7 +896,7 @@ static int validate_ttm_region(drm_ttm_backend_list_t * entry,
 	drm_ttm_mm_t *mm = entry->mm;
 	spinlock_t *mm_lock = &mm->mm.mm_lock;
 	uint32_t evict_fence;
-	uint32_t cur_fence;
+	uint32_t cur_fence = 0;
 	int have_fence = FALSE;
 	struct list_head *list;
 	drm_ttm_mm_priv_t *evict_priv;
@@ -912,7 +972,7 @@ static int validate_ttm_region(drm_ttm_backend_list_t * entry,
 		break;
 	case ttm_unbound:
 	default:
-/*	    drm_bind_ttm_region(entry); */
+		drm_bind_ttm_region(entry, mm_node->start); 
 		break;
 	}
 
@@ -920,3 +980,4 @@ static int validate_ttm_region(drm_ttm_backend_list_t * entry,
 	*aper_offset = mm_node->start;
 	return 0;
 }
+

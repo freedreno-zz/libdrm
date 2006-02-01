@@ -473,7 +473,7 @@ int drm_release(struct inode *inode, struct file *filp)
 		if (!drm_find_ht_item(&dev->ttmreghash, entry, &hash)) {
 			drm_remove_ht_val(&dev->ttmreghash, hash);
 		}
-		drm_user_unbind_region(entry);
+		drm_user_destroy_region(entry);
  	}
 
 	up(&dev->struct_sem);

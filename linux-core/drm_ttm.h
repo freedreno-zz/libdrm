@@ -1,5 +1,6 @@
 #ifndef _DRM_TTM_H
 #define _DRM_TTM_H
+#define DRM_HAS_TTM
 
 /*
  * The backend GART interface. (In our case AGP). Any similar type of device (PCIE?)
@@ -30,7 +31,6 @@ typedef struct drm_ttm_backend_list {
 	drm_ttm_backend_t *be;
 	unsigned page_offset;
 	unsigned num_pages;
-	int bound;
 	struct drm_ttm *owner;
 	drm_file_t *anon_owner;
 	struct page **anon_pages;
@@ -74,8 +74,8 @@ typedef struct drm_ttm_mm {
 	struct drm_device *dev;
 	drm_mm_t mm;
 	struct list_head lru_head;
-	 uint32_t(*emit_fence) (struct drm_device * dev);
-	void (*wait_fence) (struct drm_device * dev, uint32_t fence);
+        uint32_t(*emit_fence) (struct drm_device * dev);
+	int (*wait_fence) (struct drm_device * dev, uint32_t fence);
 	int (*test_fence) (struct drm_device * dev, uint32_t fence);
 } drm_ttm_mm_t;
 
@@ -95,16 +95,18 @@ drm_ttm_t *drm_init_ttm(struct drm_device *dev, unsigned long size);
  * This function sets all affected pages as noncacheable and flushes cashes and TLB.
  */
 
-int drm_bind_ttm_region(drm_ttm_t * ttm, unsigned long page_offset,
+int drm_create_ttm_region(drm_ttm_t * ttm, unsigned long page_offset,
 			unsigned long n_pages,
-			unsigned long aper_offset,
 			drm_ttm_backend_list_t ** region);
+
+int drm_bind_ttm_region(drm_ttm_backend_list_t * region, unsigned long aper_offset);
 
 /*
  * Unbind a ttm region. Restores caching policy. Flushes caches and TLB.
  */
 
 void drm_unbind_ttm_region(drm_ttm_backend_list_t * entry);
+void drm_destroy_ttm_region(drm_ttm_backend_list_t * entry);
 
 /*
  * Evict a ttm region. Keeps Aperture caching policy.
@@ -126,7 +128,7 @@ int drm_rebind_ttm_region(drm_ttm_backend_list_t * entry,
  */
 
 int drm_destroy_ttm(drm_ttm_t * ttm);
-void drm_user_unbind_region(drm_ttm_backend_list_t * entry);
+void drm_user_destroy_region(drm_ttm_backend_list_t * entry);
 
 int drm_ttm_ioctl(DRM_IOCTL_ARGS);
 

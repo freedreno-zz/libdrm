@@ -59,6 +59,7 @@ static struct drm_driver driver = {
 	.get_map_ofs = drm_core_get_map_ofs,
 	.get_reg_ofs = drm_core_get_reg_ofs,
 	.create_ttm_backend_entry = drm_agp_init_ttm_cached, 
+	.ttm_mm = i915_ttm_mm,
 	.ioctls = i915_ioctls,
 	.fops = {
 		.owner = THIS_MODULE,
