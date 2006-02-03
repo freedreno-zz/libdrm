@@ -117,13 +117,16 @@ testAGP(TinyDRIContext * ctx)
     drmAddress agpAddress;
     pid_t pid;
     drm_ttm_arg_t arg;
+    drm_ttm_buf_arg_t buf_arg;
     int i, j;
     unsigned t1, t2;
     unsigned a;
+    int bufoffs;
 
     arg.op = ttm_add;
     arg.size = TTMSIZE;
-    arg.max_regions = 8;
+    arg.num_bufs = 0;
+    arg.first = NULL;
     t1 = fastrdtsc();
     if (ioctl(ctx->drmFD, DRM_IOCTL_TTM, &arg)) {
 	perror("We were not allowed to allocate");
@@ -134,27 +137,33 @@ testAGP(TinyDRIContext * ctx)
 
     ttmHandle = arg.handle;
     if (drmMap(ctx->drmFD, ttmHandle, TTMSIZE, &ttmAddress) == 0) {
-
+	arg.num_bufs = 1;
+	arg.first = &buf_arg;
+	buf_arg.ttm_page_offset = 0;
 	for (i = 0; i < 5; ++i) {
-	    arg.op = ttm_bind;
-	    arg.page_offset = 0;
-	    arg.num_pages = BINDPAGES;
+	    arg.op = ttm_bufs;
+	    buf_arg.op = ttm_validate;
+	    buf_arg.ttm_page_offset += BINDPAGES;
+	    buf_arg.num_pages = BINDPAGES;
+	    buf_arg.next = NULL;
+	    buf_arg.ttm_handle = arg.handle;
+	    buf_arg.flags = DRM_TTM_FLAG_NEW | DRM_TTM_FLAG_CACHED;
+	    bufoffs = buf_arg.ttm_page_offset * 1024;
 
 	    /*
 	     * Bind at 128 MB into AGP aperture.
 	     */
 
-	    arg.aper_offset = 128 * 1024 * 1024 / 4096;
-
 	    a = 0;
 	    for (j = 0; j < USESIZE; ++j) {
-		a += ((volatile unsigned *)ttmAddress)[j];
+		a += ((volatile unsigned *)ttmAddress)
+		    [j + bufoffs];
 	    }
 
 	    t1 = fastrdtsc();
 	    a = 0;
 	    for (j = 0; j < USESIZE; ++j) {
-		a += ((volatile unsigned *)ttmAddress)[j];
+		a += ((volatile unsigned *)ttmAddress)[j + bufoffs];
 	    }
 	    t2 = fastrdtsc();
 	    printf("Non page-faulting cached read took %u clocks\n",
@@ -166,7 +175,8 @@ testAGP(TinyDRIContext * ctx)
 	    if (ioctl(ctx->drmFD, DRM_IOCTL_TTM, &arg)) {
 		perror("Could not bind.");
 	    } else {
-		printf("Bound region is %d\n", arg.region);
+		printf("Bound region is %d\n", buf_arg.region_handle);
+		printf("Aperture offset is 0x%x\n", buf_arg.aper_offset);
 	    }
 	    t2 = fastrdtsc();
 
@@ -175,18 +185,17 @@ testAGP(TinyDRIContext * ctx)
 
 	    a = 0;
 	    for (j = 0; j < USESIZE; ++j) {
-		a += ((volatile unsigned *)ttmAddress)[j];
+		a += ((volatile unsigned *)ttmAddress)[j + bufoffs];
 	    }
 	    t1 = fastrdtsc();
 	    a = 0;
 	    for (j = 0; j < USESIZE; ++j) {
-		a += ((volatile unsigned *)ttmAddress)[j];
+		a += ((volatile unsigned *)ttmAddress)[j + bufoffs];
 	    }
 	    t2 = fastrdtsc();
 	    printf("Uncached read took %u clocks\n", time_diff(t1, t2));
 
-#ifdef BUGCHECK
-
+#if 0
 	    /*
 	     * Change to read-only.
 	     */
@@ -202,7 +211,7 @@ testAGP(TinyDRIContext * ctx)
 	    t1 = fastrdtsc();
 	    a = 0;
 	    for (j = 0; j < USESIZE; ++j) {
-		a += ((volatile unsigned *)ttmAddress)[j];
+		a += ((volatile unsigned *)ttmAddress)[j + bufoffs];
 	    }
 	    t2 = fastrdtsc();
 
@@ -212,52 +221,54 @@ testAGP(TinyDRIContext * ctx)
 	    drmGetLock(ctx->drmFD, ctx->hwContext, 0);
 
 	    t1 = fastrdtsc();
-	    arg.op = ttm_evict;
+	    buf_arg.op = ttm_evict;
 	    if (ioctl(ctx->drmFD, DRM_IOCTL_TTM, &arg)) {
 		perror("Could not evict.");
 	    }
 	    t2 = fastrdtsc();
 	    printf("Evict took %u clocks.\n", time_diff(t1, t2));
 	    t1 = fastrdtsc();
-	    arg.op = ttm_rebind;
+	    buf_arg.op = ttm_validate;
 	    if (ioctl(ctx->drmFD, DRM_IOCTL_TTM, &arg)) {
 		perror("Could not Rebind.");
 	    }
 	    t2 = fastrdtsc();
 	    printf("Rebind took %u clocks.\n", time_diff(t1, t2));
+	    printf("Aperture offset is 0x%x\n", buf_arg.aper_offset);
 
 	    t1 = fastrdtsc();
-	    arg.op = ttm_unbind;
+	    buf_arg.op = ttm_unbind;
 	    if (ioctl(ctx->drmFD, DRM_IOCTL_TTM, &arg)) {
 		perror("Could not unbind.");
 	    }
 	    t2 = fastrdtsc();
 	    printf("Unbind took %u clocks.\n", time_diff(t1, t2));
-	    drmUnlock(ctx->drmFD, ctx->hwContext);
 
+	    drmUnlock(ctx->drmFD, ctx->hwContext);
 	    t1 = fastrdtsc();
 	    a = 0;
 	    for (j = 0; j < USESIZE; ++j) {
-		a += ((volatile unsigned *)ttmAddress)[j];
+		a += ((volatile unsigned *)ttmAddress)[j + bufoffs];
 	    }
 	    t2 = fastrdtsc();
 	    printf("Page-faulting cached read took %u clocks\n\n\n",
 		time_diff(t1, t2));
 	}
-
 	drmUnmap(ttmAddress, TTMSIZE);  
+
 	ttmAddress = malloc(TTMSIZE);
 	memset(ttmAddress, 0, USESIZE*4); 
-	arg.op = ttm_bind_user;
-	arg.addr = ttmAddress;
-	arg.size = USESIZE*4;
+	buf_arg.op = ttm_validate_user;
+	buf_arg.user_addr = ttmAddress;
+	buf_arg.user_size = USESIZE*4;
+	buf_arg.flags = DRM_TTM_FLAG_NEW;
 	drmGetLock(ctx->drmFD, ctx->hwContext, 0);
 
 	t1 = fastrdtsc();
 	if (ioctl(ctx->drmFD, DRM_IOCTL_TTM, &arg)) {
 	    perror("Could not user bind");
 	} else {
-	    printf("User bound region is %d\n", arg.region);
+	    printf("User bound region is %d\n", buf_arg.region_handle);
 	}
 	t2 = fastrdtsc();
 
@@ -266,17 +277,18 @@ testAGP(TinyDRIContext * ctx)
    
 	drmGetLock(ctx->drmFD, ctx->hwContext, 0);
 
+	
 	t1 = fastrdtsc();
-	arg.op = ttm_unbind;
+	buf_arg.op = ttm_destroy;
 	if (ioctl(ctx->drmFD, DRM_IOCTL_TTM, &arg)) {
 	    perror("Could not user unbind");
 	}
 	t2 = fastrdtsc();
-	drmUnlock(ctx->drmFD, ctx->hwContext);
-
 	printf("User unbind took %u clocks\n", time_diff(t1, t2));
-
+	
+	drmUnlock(ctx->drmFD, ctx->hwContext);
 	free(ttmAddress);
+
     } else {
 	perror("Could not map");
     }
@@ -284,6 +296,7 @@ testAGP(TinyDRIContext * ctx)
     if (ioctl(ctx->drmFD, DRM_IOCTL_TTM, &arg) != 0) {
 	perror("Could not remove map");
     }
+
 }
 
 int

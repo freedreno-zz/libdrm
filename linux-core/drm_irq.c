@@ -368,4 +368,3 @@ void drm_vbl_send_signals(drm_device_t * dev)
 	spin_unlock_irqrestore(&dev->vbl_lock, flags);
 }
 EXPORT_SYMBOL(drm_vbl_send_signals);
-

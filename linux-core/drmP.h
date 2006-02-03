@@ -149,6 +149,7 @@
 #define DRM_MEM_SGLISTS   20
 #define DRM_MEM_CTXLIST   21
 #define DRM_MEM_MM        22
+#define DRM_MEM_TTM        22
 
 #define DRM_MAX_CTXBITMAP (PAGE_SIZE * 8)
 #define DRM_MAP_HASH_OFFSET 0x10000000
@@ -611,9 +612,7 @@ struct drm_driver {
 	unsigned long (*get_map_ofs) (drm_map_t * map);
 	unsigned long (*get_reg_ofs) (struct drm_device * dev);
 	void (*set_version) (struct drm_device * dev, drm_set_version_t * sv);
-        drm_ttm_backend_t * (*create_ttm_backend_entry) (struct drm_device *dev);
-	drm_ttm_mm_t * (*ttm_mm) (struct drm_device *dev);
-
+        drm_ttm_driver_t *ttm_driver;
 	int major;
 	int minor;
 	int patchlevel;
@@ -1088,17 +1087,19 @@ extern void drm_sysfs_device_remove(struct class_device *class_dev);
 
                                /* ttm support (drm_ttm.c) */
 
-int drm_add_ttm(drm_device_t *dev, unsigned size, drm_map_list_t **maplist);
+extern int drm_add_ttm(drm_device_t *dev, unsigned size, drm_map_list_t **maplist);
+extern void drm_ttm_mm_init(drm_device_t *dev, drm_ttm_mm_t *mm, unsigned long start, unsigned long size);
+
 
 /* 
  * Basic memory manager support (drm_mm.c) 
  */
 
-drm_mm_node_t * drm_mm_get_block_locked(drm_mm_node_t * parent, unsigned long size);
-void drm_mm_put_block_locked(drm_mm_t *mm, drm_mm_node_t *cur);
-drm_mm_node_t *drm_mm_search_free_locked(const drm_mm_t *mm, unsigned long size, 
+extern drm_mm_node_t * drm_mm_get_block_locked(drm_mm_node_t * parent, unsigned long size);
+extern void drm_mm_put_block_locked(drm_mm_t *mm, drm_mm_node_t *cur);
+extern drm_mm_node_t *drm_mm_search_free_locked(const drm_mm_t *mm, unsigned long size, 
 					 int best_match);
-int drm_mm_init(drm_mm_t *mm, unsigned long start, unsigned long size);
+extern int drm_mm_init(drm_mm_t *mm, unsigned long start, unsigned long size);
 
 /* Inline replacements for DRM_IOREMAP macros */
 static __inline__ void drm_core_ioremap(struct drm_map *map,

@@ -634,25 +634,46 @@ typedef struct drm_set_version {
  * DRM_IOCTL_TTM
 */
 
+#define DRM_TTM_FLAG_NEW        0x01
+#define DRM_TTM_FLAG_PINNED     0x02
+#define DRM_TTM_FLAG_CACHED     0x04
+
+#define DRM_TTM_MAX_BUF_BATCH 20
+
+
+typedef struct drm_ttm_buf_arg {
+	enum {
+		ttm_validate,
+		ttm_validate_user,
+		ttm_unbind,
+		ttm_evict,
+		ttm_destroy,
+	} op;
+	drm_handle_t ttm_handle;
+	drm_handle_t region_handle;
+	unsigned aper_offset;
+	unsigned ttm_page_offset;
+	unsigned num_pages;
+        unsigned flags;
+	char __user *user_addr;
+	unsigned long user_size;
+	struct drm_ttm_buf_arg __user *next;
+        int ret;
+} drm_ttm_buf_arg_t;
+ 
+
 typedef struct drm_ttm_arg {
 	enum{
 		ttm_add,
 		ttm_remove,
-		ttm_bind,
-		ttm_bind_user,
-		ttm_unbind,
-		ttm_evict,
-		ttm_rebind
+		ttm_bufs
 	} op;
 	drm_handle_t handle;
-	unsigned region;
-	unsigned aper_offset;
-        unsigned page_offset;
-        unsigned num_pages;
-	unsigned size;
-        unsigned max_regions;
-        char __user *addr;
+        unsigned long size;
+        unsigned num_bufs;
+	struct drm_ttm_buf_arg __user *first;        
 } drm_ttm_arg_t;
+
 
 
 /**

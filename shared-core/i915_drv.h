@@ -98,6 +98,7 @@ typedef struct drm_i915_private {
 	unsigned int sr01, adpa, ppcr, dvob, dvoc, lvds;
 #ifdef DRM_HAS_TTM
 	drm_ttm_mm_t ttm_mm;
+	drm_ttm_driver_t ttm_driver;
 #endif
 } drm_i915_private_t;
 
@@ -112,6 +113,8 @@ extern void i915_driver_preclose(drm_device_t * dev, DRMFILE filp);
 extern int i915_driver_device_is_agp(drm_device_t * dev);
 extern long i915_compat_ioctl(struct file *filp, unsigned int cmd,
 			      unsigned long arg);
+extern void i915_emit_mi_flush(drm_device_t *dev, int flush);
+
 
 /* i915_irq.c */
 extern int i915_irq_emit(DRM_IOCTL_ARGS);
@@ -126,7 +129,7 @@ extern void i915_driver_irq_uninstall(drm_device_t * dev);
 extern uint32_t i915_emit_fence(drm_device_t * dev);
 extern int i915_wait_fence(drm_device_t * dev, uint32_t fence);
 extern int i915_test_fence(drm_device_t * dev, uint32_t fence);
-extern drm_ttm_mm_t *i915_ttm_mm(drm_device_t *dev);
+
 
 /* i915_mem.c */
 extern int i915_mem_alloc(DRM_IOCTL_ARGS);
@@ -136,6 +139,9 @@ extern int i915_mem_destroy_heap(DRM_IOCTL_ARGS);
 extern void i915_mem_takedown(struct mem_block **heap);
 extern void i915_mem_release(drm_device_t * dev,
 			     DRMFILE filp, struct mem_block *heap);
+/* i915_ttm.c */
+extern void i915_init_ttm(drm_device_t *dev, drm_i915_private_t *dev_priv);
+
 
 #define I915_READ(reg)          DRM_READ32(dev_priv->mmio_map, (reg))
 #define I915_WRITE(reg,val)     DRM_WRITE32(dev_priv->mmio_map, (reg), (val))
@@ -185,6 +191,10 @@ extern int i915_wait_ring(drm_device_t * dev, int n, const char *caller);
 #define INST_PARSER_CLIENT   0x00000000
 #define INST_OP_FLUSH        0x02000000
 #define INST_FLUSH_MAP_CACHE 0x00000001
+
+#define CMD_MI_FLUSH         (0x04 << 23)
+#define MI_NO_WRITE_FLUSH    (1 << 2)
+#define MI_READ_FLUSH        (1 << 0)
 
 #define BB1_START_ADDR_MASK   (~0x7)
 #define BB1_PROTECTED         (1<<0)

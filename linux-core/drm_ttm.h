@@ -24,7 +24,8 @@ typedef struct drm_ttm_backend {
 	void (*destroy) (struct drm_ttm_backend * backend);
 } drm_ttm_backend_t;
 
-struct drm_ttm;
+#define DRM_FLUSH_READ  (0x01)
+#define DRM_FLUSH_WRITE (0x02)
 
 typedef struct drm_ttm_backend_list {
 	struct list_head head;
@@ -35,6 +36,7 @@ typedef struct drm_ttm_backend_list {
 	drm_file_t *anon_owner;
 	struct page **anon_pages;
 	int anon_locked;
+	int pinned;
 	struct drm_mm_node *mm_node;
 	struct drm_ttm_mm *mm;
 	enum {
@@ -74,10 +76,18 @@ typedef struct drm_ttm_mm {
 	struct drm_device *dev;
 	drm_mm_t mm;
 	struct list_head lru_head;
-        uint32_t(*emit_fence) (struct drm_device * dev);
+} drm_ttm_mm_t;
+
+typedef struct drm_ttm_driver {
+	int cached_pages;
+	 uint32_t(*emit_fence) (struct drm_device * dev);
 	int (*wait_fence) (struct drm_device * dev, uint32_t fence);
 	int (*test_fence) (struct drm_device * dev, uint32_t fence);
-} drm_ttm_mm_t;
+	void (*flush_caches) (struct drm_device * dev, int access);
+	drm_ttm_backend_t *(*create_ttm_backend_entry) (struct drm_device * dev,
+							int cached);
+	drm_ttm_mm_t *(*ttm_mm) (struct drm_device * dev);
+} drm_ttm_driver_t;
 
 /*
  * Initialize a ttm. Currently the size is fixed. Currently drmAddMap calls this function
@@ -96,10 +106,11 @@ drm_ttm_t *drm_init_ttm(struct drm_device *dev, unsigned long size);
  */
 
 int drm_create_ttm_region(drm_ttm_t * ttm, unsigned long page_offset,
-			unsigned long n_pages,
-			drm_ttm_backend_list_t ** region);
+			  unsigned long n_pages, int cached,
+			  drm_ttm_backend_list_t ** region);
 
-int drm_bind_ttm_region(drm_ttm_backend_list_t * region, unsigned long aper_offset);
+int drm_bind_ttm_region(drm_ttm_backend_list_t * region,
+			unsigned long aper_offset);
 
 /*
  * Unbind a ttm region. Restores caching policy. Flushes caches and TLB.

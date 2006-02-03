@@ -215,20 +215,16 @@ uint32_t i915_emit_fence(drm_device_t * dev)
 	return i915_emit_irq(dev);
 }
 
-int i915_wait_fence(drm_device_t * dev, uint32_t fence) 
-{
-	return i915_wait_irq(dev, fence);
-}
-		
-extern int i915_test_fence(drm_device_t * dev, uint32_t fence)
+int i915_test_fence(drm_device_t * dev, uint32_t fence)
 {
 	drm_i915_private_t *dev_priv = (drm_i915_private_t *) dev->dev_private;
 	return ((((uint32_t)(READ_BREADCRUMB(dev_priv))) - fence) < (1 << 23));
 }
 
-drm_ttm_mm_t *i915_ttm_mm(drm_device_t *dev)
+int i915_wait_fence(drm_device_t * dev, uint32_t fence) 
 {
-	drm_i915_private_t *dev_priv = dev->dev_private;
-	return &dev_priv->ttm_mm;
+	if (i915_test_fence( dev, fence))
+		return 0;
+	i915_emit_irq(dev);
+	return i915_wait_irq(dev, fence);	
 }
-

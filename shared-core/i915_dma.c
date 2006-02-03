@@ -192,12 +192,7 @@ static int i915_initialize(drm_device_t * dev,
 	DRM_DEBUG("Enabled hardware status page\n");
 
 #ifdef DRM_HAS_TTM
-	drm_mm_init(&dev_priv->ttm_mm.mm, 51200, 1536);
-	dev_priv->ttm_mm.emit_fence = i915_emit_fence;
-	dev_priv->ttm_mm.wait_fence = i915_wait_fence;
-	dev_priv->ttm_mm.test_fence = i915_test_fence;
-	INIT_LIST_HEAD(&dev_priv->ttm_mm.lru_head);
-	dev_priv->ttm_mm.dev = dev;
+	i915_init_ttm(dev, dev_priv);
 #endif
 	dev->dev_private = (void *)dev_priv;
 
@@ -431,6 +426,7 @@ static void i915_emit_breadcrumb(drm_device_t *dev)
 	OUT_RING(0);
 	ADVANCE_LP_RING();
 }
+
 
 static int i915_dispatch_cmdbuffer(drm_device_t * dev,
 				   drm_i915_cmdbuffer_t * cmd)
@@ -798,3 +794,29 @@ int i915_driver_device_is_agp(drm_device_t * dev)
 {
 	return 1;
 }
+
+void i915_emit_mi_flush(drm_device_t *dev, int flush)
+{
+	drm_i915_private_t *dev_priv = dev->dev_private;
+	uint32_t flush_cmd = CMD_MI_FLUSH;
+	RING_LOCALS;
+
+	if (flush & DRM_FLUSH_READ)
+		flush_cmd |= MI_READ_FLUSH;
+	if (!(flush & DRM_FLUSH_WRITE))
+		flush_cmd |= MI_NO_WRITE_FLUSH;
+
+	dev_priv->sarea_priv->last_enqueue = dev_priv->counter++;
+
+	BEGIN_LP_RING(4);
+	OUT_RING(flush_cmd);
+	OUT_RING(0);
+	OUT_RING(CMD_STORE_DWORD_IDX);
+	OUT_RING(20);
+	OUT_RING(dev_priv->counter);
+	OUT_RING(0);
+	OUT_RING(0);
+	OUT_RING(GFX_OP_USER_INTERRUPT);
+	ADVANCE_LP_RING();
+}
+
