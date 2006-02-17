@@ -410,6 +410,7 @@ void drm_unbind_ttm_region(drm_ttm_backend_list_t * entry)
 
 /*
  * Destroy and clean up all resources associated with a ttm region.
+ * FIXME: release pages to OS when doing this operation.
  */
 
 void drm_destroy_ttm_region(drm_ttm_backend_list_t * entry)
@@ -779,6 +780,65 @@ static void drm_ttm_fence_regions(drm_ttm_mm_t * mm, uint32_t fence)
 }
 
 /*
+ * Evict the first (oldest) region on the lru list, after its fence
+ * is fulfilled. Will fail if the lru list is empty (nothing to evict),
+ * or the first node doesn't have a fence which means it is a newly
+ * validated region which the user intends not to be evicted yet.
+ * May sleep while waiting for a fence.
+ */
+
+static int drm_ttm_evict_lru_sl(drm_ttm_backend_list_t * entry, 
+				int *have_fence, uint32_t *cur_fence)
+{
+	struct list_head *list;
+	drm_ttm_mm_t *mm = entry->mm;
+	spinlock_t *mm_lock = &mm->mm.mm_lock;
+	drm_ttm_mm_priv_t *evict_priv;
+	uint32_t evict_fence;
+	drm_device_t *dev = mm->dev;
+	drm_mm_node_t *evict_node;
+
+	do {
+		list = entry->mm->lru_head.next;
+		
+		if (list == &entry->mm->lru_head) {
+			spin_unlock(mm_lock);
+			DRM_ERROR("Out of aperture space\n");
+			return -ENOMEM;
+		}
+		evict_priv = list_entry(list, drm_ttm_mm_priv_t, lru);
+		
+		if (!evict_priv->fence_valid) {
+			spin_unlock(mm_lock);
+			DRM_ERROR("Out of aperture space\n");
+			return -ENOMEM;
+		}
+		
+		evict_fence = evict_priv->fence;
+		if (*have_fence && ((*cur_fence - evict_fence) < (1 << 23)))
+			break;
+		spin_unlock(mm_lock);
+		up(&dev->struct_sem);
+		dev->driver->ttm_driver->wait_fence(dev,evict_fence);
+		down(&dev->struct_sem);
+		spin_lock(mm_lock);
+		*cur_fence = evict_fence;
+		*have_fence = TRUE;
+	} while (TRUE);
+	
+	evict_node = evict_priv->region->mm_node;
+	drm_evict_ttm_region(evict_priv->region);
+	list_del(list);
+	evict_node->private = NULL;
+	drm_mm_put_block_locked(&mm->mm, evict_node);
+	drm_free(evict_priv, sizeof(*evict_priv), DRM_MEM_MM);
+	return 0;
+}
+
+
+
+
+/*
  * Make sure a backend entry is present in the TT. If it is not, try to allocate
  * TT space and put it in there. If we're out of space, start evicting old entries
  * from the head of the global lru list, which is sorted in fence order.
@@ -786,21 +846,18 @@ static void drm_ttm_fence_regions(drm_ttm_mm_t * mm, uint32_t fence)
  * the lru list.
  */
 
+
 static int drm_validate_ttm_region(drm_ttm_backend_list_t * entry,
 				   unsigned *aper_offset)
 {
 	drm_mm_node_t *mm_node = entry->mm_node;
 	drm_ttm_mm_t *mm = entry->mm;
 	spinlock_t *mm_lock = &mm->mm.mm_lock;
-	uint32_t evict_fence;
 	uint32_t cur_fence = 0;
 	int have_fence = FALSE;
-	struct list_head *list;
-	drm_ttm_mm_priv_t *evict_priv;
 	drm_ttm_mm_priv_t *mm_priv;
-	drm_mm_node_t *evict_node;
-	drm_device_t *dev = mm->dev;
 	unsigned num_pages;
+	int ret;
 
 	if (!entry->mm_node) {
 		mm_priv = drm_alloc(sizeof(*mm_priv), DRM_MEM_MM);
@@ -817,42 +874,9 @@ static int drm_validate_ttm_region(drm_ttm_backend_list_t * entry,
 		    drm_mm_search_free_locked(&entry->mm->mm, num_pages,
 					      0);
 		if (!mm_node) {
-
-			/*
-			 * We're out of space. Start evicting entries from the head of the
-			 * lru_list. The do loop is needed since we release the 
-			 * spinlock while waiting for fence.
-			 */
-
-			do {
-				list = entry->mm->lru_head.next;
-
-				if (list == &entry->mm->lru_head) {
-					spin_unlock(mm_lock);
-					return -ENOMEM;
-				}
-
-				evict_priv =
-				    list_entry(list, drm_ttm_mm_priv_t, lru);
-				evict_fence = evict_priv->fence;
-				if (have_fence
-				    && ((cur_fence - evict_fence) < (1 << 23)))
-					break;
-				spin_unlock(mm_lock);
-				dev->driver->ttm_driver->wait_fence(mm->dev,
-								    evict_fence);
-				spin_lock(mm_lock);
-				cur_fence = evict_fence;
-				have_fence = TRUE;
-			} while (TRUE);
-
-			evict_node = evict_priv->region->mm_node;
-			drm_evict_ttm_region(evict_priv->region);
-			list_del(list);
-			evict_node->private = NULL;
-			drm_mm_put_block_locked(&mm->mm, evict_node);
-			drm_free(evict_priv, sizeof(*evict_priv), DRM_MEM_MM);
-
+			ret = drm_ttm_evict_lru_sl(entry, &have_fence, &cur_fence);
+			if (ret)
+				return ret;
 		}
 	}
 
@@ -1021,8 +1045,7 @@ static int drm_ttm_create_user_buf(drm_ttm_buf_arg_t * buf_p,
 	return 0;
 }
 
-static void drm_ttm_handle_buf(drm_file_t * priv, drm_ttm_buf_arg_t * buf_p,
-			       int *fenced)
+static void drm_ttm_handle_buf(drm_file_t * priv, drm_ttm_buf_arg_t * buf_p)
 {
 	drm_device_t *dev = priv->head->dev;
 	drm_ttm_t *ttm;
@@ -1037,12 +1060,6 @@ static void drm_ttm_handle_buf(drm_file_t * priv, drm_ttm_buf_arg_t * buf_p,
 		if (buf_p->ret)
 		  break;
 		ttm_mm = entry->mm;
-		if (!*fenced) {
-			drm_ttm_fence_regions(ttm_mm,
-					      dev->driver->ttm_driver->
-					      emit_fence(dev));
-			*fenced = TRUE;
-		}
 		buf_p->ret =
 		    drm_validate_ttm_region(entry, &buf_p->aper_offset);
 		break;
@@ -1065,12 +1082,6 @@ static void drm_ttm_handle_buf(drm_file_t * priv, drm_ttm_buf_arg_t * buf_p,
 				break;
 		}
 		ttm_mm = entry->mm;
-		if (!*fenced) {
-			drm_ttm_fence_regions(ttm_mm,
-					      dev->driver->ttm_driver->
-					      emit_fence(dev));
-			*fenced = TRUE;
-		}
 		buf_p->ret =
 		    drm_validate_ttm_region(entry, &buf_p->aper_offset);
 		break;
@@ -1116,9 +1127,9 @@ static void drm_ttm_handle_buf(drm_file_t * priv, drm_ttm_buf_arg_t * buf_p,
 int drm_ttm_handle_bufs(drm_file_t * priv, drm_ttm_arg_t * ttm_arg)
 {
 	drm_device_t *dev = priv->head->dev;
+	drm_ttm_driver_t *ttm_driver = dev->driver->ttm_driver;
 	drm_ttm_buf_arg_t *bufs, *next, *buf_p;
 	int i;
-	int fenced = FALSE;
 
 	if (!ttm_arg->num_bufs || ttm_arg->num_bufs > DRM_TTM_MAX_BUF_BATCH) {
 		DRM_ERROR("Invalid number of TTM buffers.\n");
@@ -1150,8 +1161,12 @@ int drm_ttm_handle_bufs(drm_file_t * priv, drm_ttm_arg_t * ttm_arg)
 
 	buf_p = bufs;
 	down(&dev->struct_sem);
+	if (ttm_arg->do_fence)
+		drm_ttm_fence_regions(ttm_driver->ttm_mm(dev),
+				      ttm_driver->emit_fence(dev));
+	
 	for (i = 0; i < ttm_arg->num_bufs; ++i) {
-		drm_ttm_handle_buf(priv, buf_p, &fenced);
+		drm_ttm_handle_buf(priv, buf_p);
 		buf_p++;
 	}
 	up(&dev->struct_sem);
@@ -1220,6 +1235,10 @@ static int drm_ttm_handle_remove(drm_file_t * priv, drm_handle_t handle)
 	return 0;
 }
 
+/*
+ * FIXME: Require lock only for validate, but not for evict, unbind or desroy.
+ */
+
 int drm_ttm_ioctl(DRM_IOCTL_ARGS)
 {
 	DRM_DEVICE;
@@ -1227,7 +1246,6 @@ int drm_ttm_ioctl(DRM_IOCTL_ARGS)
 	drm_ttm_arg_t ttm_arg;
 
 	DRM_COPY_FROM_USER_IOCTL(ttm_arg, (void __user *)data, sizeof(ttm_arg));
-
 	switch (ttm_arg.op) {
 	case ttm_add:
 		if (ttm_arg.num_bufs) {

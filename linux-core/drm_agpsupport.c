@@ -608,7 +608,10 @@ static int drm_agp_unbind_ttm(drm_ttm_backend_t *backend) {
 	drm_agp_ttm_priv *agp_priv = (drm_agp_ttm_priv *) backend->private;
 
 	DRM_DEBUG("drm_agp_unbind_ttm\n");
-	return drm_agp_unbind_memory(agp_priv->mem);
+	if (agp_priv->mem->is_bound)
+		return drm_agp_unbind_memory(agp_priv->mem);
+	else
+		return 0;
 }
 
 static void drm_agp_clear_ttm(drm_ttm_backend_t *backend) {

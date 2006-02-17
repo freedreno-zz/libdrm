@@ -671,6 +671,7 @@ typedef struct drm_ttm_arg {
 	drm_handle_t handle;
         unsigned long size;
         unsigned num_bufs;
+        int do_fence;
 	struct drm_ttm_buf_arg __user *first;        
 } drm_ttm_arg_t;
 
