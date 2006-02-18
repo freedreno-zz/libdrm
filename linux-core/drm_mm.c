@@ -30,15 +30,25 @@
  * Generic simple memory manager implementation. Intended to be used as a base
  * class implementation for more advanced memory managers. The mm.mm_lock spinlock
  * needs to be explicitly taken by the client before calling any _locked function.
+ *
+ * Note that the algorithm used is quite simple and there might be substantial
+ * performance gains if a smarter free list is implemented. Currently it is just an
+ * unordered stack of free regions. Feel free to improve. 
+ *
+ * Aligned allocations can also see some improvement.
  */
 
 #include "drmP.h"
 
 drm_mm_node_t *drm_mm_get_block_locked(drm_mm_node_t * parent,
-				       unsigned long size)
+				       unsigned long size,
+				       unsigned alignment)
 {
 
 	drm_mm_node_t * child;
+
+	if (alignment) 
+		size += alignment - 1;
 
 	if (parent->size == size) {
 		list_del_init(&parent->fl_entry);
@@ -112,7 +122,9 @@ void drm_mm_put_block_locked(drm_mm_t * mm, drm_mm_node_t * cur)
 }
 
 drm_mm_node_t *drm_mm_search_free_locked(const drm_mm_t * mm,
-					 unsigned long size, int best_match)
+					 unsigned long size, 
+					 unsigned alignment,
+					 int best_match)
 {
 	struct list_head *list;
 	const struct list_head *free_stack = &mm->root_node.fl_entry;
@@ -122,6 +134,9 @@ drm_mm_node_t *drm_mm_search_free_locked(const drm_mm_t * mm,
 
 	best = NULL;
 	best_size = ~0UL;
+
+	if (alignment) 
+		size += alignment - 1;
 
 	list_for_each(list, free_stack) {
 		entry = list_entry(list, drm_mm_node_t, fl_entry);

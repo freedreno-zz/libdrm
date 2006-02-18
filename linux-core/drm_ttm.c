@@ -885,7 +885,7 @@ static int drm_validate_ttm_region(drm_ttm_backend_list_t * entry,
 	while (!mm_node) {
 		mm_node =
 		    drm_mm_search_free_locked(&entry->mm->mm, num_pages,
-					      0);
+					      0, 0);
 		if (!mm_node) {
 			ret = drm_ttm_evict_lru_sl(entry, &have_fence, &cur_fence);
 			if (ret)
@@ -894,7 +894,7 @@ static int drm_validate_ttm_region(drm_ttm_backend_list_t * entry,
 	}
 
 	if (!entry->mm_node) {
-		mm_node = drm_mm_get_block_locked(mm_node, num_pages);
+		mm_node = drm_mm_get_block_locked(mm_node, num_pages, 0);
 		mm_node->private = mm_priv;
 		mm_priv->region = entry;
 		entry->mm_node = mm_node;
