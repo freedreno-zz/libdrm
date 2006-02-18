@@ -34,8 +34,15 @@
 #include <asm/pgtable.h>
 
 /*
- * Change the page protecting of an existing vma. Stolen from linux memory.c and mprotect.c
- */
+ * DAVE: The below code needs to go to the linux mm subsystem. Most of it is already there.
+ * Basically stolen from mprotect.c and rmap.c 
+ * 8<----------------------------------------------------------------------------------
+ */ 
+
+
+#ifdef CONFIG_X86_PAE
+#error Cannot compile with CONFIG_X86_PAE. __supported_pte_mask undefined.
+#endif
 
 void pgd_clear_bad(pgd_t * pgd)
 {
@@ -142,6 +149,12 @@ static void drm_change_protection(struct vm_area_struct *vma,
 		change_pud_range(mm, pgd, addr, next, newprot, unmap);
 	} while (pgd++, addr = next, addr != end);
 }
+
+/*
+ * 8<----------------------------------------------------------------------------------
+ * End linux mm subsystem code.
+ */ 
+
 
 /*
  * Unmap all vma pages from vmas mapping this ttm.

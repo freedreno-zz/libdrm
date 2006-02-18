@@ -44,9 +44,14 @@ static void drm_vm_ttm_close(struct vm_area_struct *vma);
 static void drm_vm_ttm_open(struct vm_area_struct *vma);
 
 /*
- * FIXME: We don't really want this. We want an exported version of the
- * mm subsystem's protection_map!
- */
+ * DAVE: The below definition is a duplication of the kernels protection_map, which is bad.
+ * Ideally if it would be possible to export a functional interface to that protection map
+ * instead:
+ * 
+ * pgprot_t kernel_prot_map(u8 vm_flags);
+ * 
+ * 8<----------------------------------------------------------------------------------
+ */ 
 
 
 static pgprot_t drm_prot_map[16] = {
@@ -54,6 +59,9 @@ static pgprot_t drm_prot_map[16] = {
 	__S000, __S001, __S010, __S011, __S100, __S101, __S110, __S111
 };
 
+/*
+ * 8<----------------------------------------------------------------------------------
+ */ 
 
 /**
  * \c nopage method for AGP virtual memory.
