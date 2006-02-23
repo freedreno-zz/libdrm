@@ -387,7 +387,6 @@ int drm_rmmap_locked(drm_device_t *dev, drm_local_map_t *map)
 	drm_map_list_t *r_list = NULL;
 	drm_dma_handle_t dmah;
 
-	DRM_ERROR("rmmap locked called %d\n", map->type);
 	/* Find the list entry for the map and remove it */
 	list_for_each_safe(list, next, &dev->maplist->head) {
 		r_list = list_entry(list, drm_map_list_t, head);

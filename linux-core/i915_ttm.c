@@ -1,3 +1,4 @@
+
 #include "drmP.h"
 #include "drm.h"
 #include "i915_drm.h"
@@ -23,8 +24,7 @@ static drm_ttm_mm_t *i915_ttm_mm(drm_device_t * dev)
 void i915_init_ttm(drm_device_t * dev, drm_i915_private_t * dev_priv)
 {
 	drm_ttm_driver_t *ttm_driver = &dev_priv->ttm_driver;
-
-	drm_ttm_mm_init(dev, &dev_priv->ttm_mm, 51200, 1536);
+	drm_ttm_mm_init(dev, &dev_priv->ttm_mm, 32768, 10240);
 	ttm_driver->emit_fence = i915_emit_fence;
 	ttm_driver->wait_fence = i915_wait_fence;
 	ttm_driver->test_fence = i915_test_fence;

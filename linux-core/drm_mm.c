@@ -41,13 +41,12 @@
 #include "drmP.h"
 
 drm_mm_node_t *drm_mm_get_block_locked(drm_mm_node_t * parent,
-				       unsigned long size,
-				       unsigned alignment)
+				       unsigned long size, unsigned alignment)
 {
 
-	drm_mm_node_t * child;
+	drm_mm_node_t *child;
 
-	if (alignment) 
+	if (alignment)
 		size += alignment - 1;
 
 	if (parent->size == size) {
@@ -122,9 +121,8 @@ void drm_mm_put_block_locked(drm_mm_t * mm, drm_mm_node_t * cur)
 }
 
 drm_mm_node_t *drm_mm_search_free_locked(const drm_mm_t * mm,
-					 unsigned long size, 
-					 unsigned alignment,
-					 int best_match)
+					 unsigned long size,
+					 unsigned alignment, int best_match)
 {
 	struct list_head *list;
 	const struct list_head *free_stack = &mm->root_node.fl_entry;
@@ -135,7 +133,7 @@ drm_mm_node_t *drm_mm_search_free_locked(const drm_mm_t * mm,
 	best = NULL;
 	best_size = ~0UL;
 
-	if (alignment) 
+	if (alignment)
 		size += alignment - 1;
 
 	list_for_each(list, free_stack) {
@@ -156,7 +154,6 @@ drm_mm_node_t *drm_mm_search_free_locked(const drm_mm_t * mm,
 int drm_mm_init(drm_mm_t * mm, unsigned long start, unsigned long size)
 {
 	drm_mm_node_t *child;
-
 
 	INIT_LIST_HEAD(&mm->root_node.ml_entry);
 	INIT_LIST_HEAD(&mm->root_node.fl_entry);
@@ -182,4 +179,5 @@ int drm_mm_init(drm_mm_t * mm, unsigned long start, unsigned long size)
 
 	return 0;
 }
+
 EXPORT_SYMBOL(drm_mm_init);

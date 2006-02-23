@@ -234,7 +234,7 @@ static __inline__ struct page *drm_do_vm_ttm_nopage(struct vm_area_struct *vma,
 	 */
 
 	default_prot = drm_prot_map[vma->vm_flags & 0x0f];
-	vma->vm_page_prot = ttm->nocached[page_offset] ? 
+	vma->vm_page_prot = ttm->page_flags[page_offset] ? 
 		pgprot_noncached(default_prot):
 		default_prot;
 

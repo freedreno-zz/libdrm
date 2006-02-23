@@ -36,7 +36,6 @@ int drm_insert_ht_val(drm_closedhash_t * ht, void *item, unsigned int *hash)
 			tmp_hash = 0;
 	}
 	BUG_ON(i == ht->size);
-
 	*hash = tmp_hash;
 	return 0;
 }
@@ -90,7 +89,7 @@ int drm_remove_ht_val(drm_closedhash_t * ht, unsigned int hash)
 		return DRM_ERR(EINVAL);
 	}
 	ht->table[hash] = NULL;
-	ht->fill = 0;
+	ht->fill--;
 	return 0;
 }
 

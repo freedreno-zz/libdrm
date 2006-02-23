@@ -26,6 +26,7 @@ typedef struct drm_ttm_backend {
 
 #define DRM_FLUSH_READ  (0x01)
 #define DRM_FLUSH_WRITE (0x02)
+#define DRM_FLUSH_EXE   (0x04)
 
 typedef struct drm_ttm_backend_list {
 	struct list_head head;
@@ -55,7 +56,7 @@ typedef struct drm_ttm_vma_list {
 
 typedef struct drm_ttm {
 	struct page **pages;
-	int8_t *nocached;
+	uint32_t *page_flags;
 	unsigned long lhandle;
 	unsigned long num_pages;
 	drm_ttm_vma_list_t *vma_list;

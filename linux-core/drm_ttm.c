@@ -1,6 +1,6 @@
 /**************************************************************************
  * 
- * Copyright 2006 Tungsten Graphics, Inc., Cedar Park, Texas.
+ * Copyright 2006 Tungsten Graphics, Inc., Steamboat Springs, CO.
  * All Rights Reserved.
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -37,8 +37,7 @@
  * DAVE: The below code needs to go to the linux mm subsystem. Most of it is already there.
  * Basically stolen from mprotect.c and rmap.c 
  * 8<----------------------------------------------------------------------------------
- */ 
-
+ */
 
 #ifdef CONFIG_X86_PAE
 #error Cannot compile with CONFIG_X86_PAE. __supported_pte_mask undefined.
@@ -153,8 +152,7 @@ static void drm_change_protection(struct vm_area_struct *vma,
 /*
  * 8<----------------------------------------------------------------------------------
  * End linux mm subsystem code.
- */ 
-
+ */
 
 /*
  * Unmap all vma pages from vmas mapping this ttm.
@@ -217,7 +215,7 @@ int drm_destroy_ttm(drm_ttm_t * ttm)
 			drm_ttm_backend_list_t *entry =
 			    list_entry(list, drm_ttm_backend_list_t, head);
 			if (!drm_find_ht_item(&ttm->dev->ttmreghash,
-					      list, &hash))
+					      entry, &hash))
 				drm_remove_ht_val(&ttm->dev->ttmreghash, hash);
 			drm_destroy_ttm_region(entry);
 		}
@@ -228,7 +226,7 @@ int drm_destroy_ttm(drm_ttm_t * ttm)
 	if (ttm->pages) {
 		for (i = 0; i < ttm->num_pages; ++i) {
 			cur_page = ttm->pages + i;
-			if (ttm->nocached && ttm->nocached[i] &&
+			if (ttm->page_flags && ttm->page_flags[i] &&
 			    *cur_page && !PageHighMem(*cur_page)) {
 				change_page_attr(*cur_page, 1, PAGE_KERNEL);
 			}
@@ -240,8 +238,8 @@ int drm_destroy_ttm(drm_ttm_t * ttm)
 		global_flush_tlb();
 		vfree(ttm->pages);
 	}
-	if (ttm->nocached) {
-		vfree(ttm->nocached);
+	if (ttm->page_flags) {
+		vfree(ttm->page_flags);
 	}
 
 	if (ttm->vma_list) {
@@ -261,7 +259,7 @@ int drm_destroy_ttm(drm_ttm_t * ttm)
 
 /*
  * Initialize a ttm.
- * FIXME: Avoid using vmalloc for the page- and nocached tables?
+ * FIXME: Avoid using vmalloc for the page- and page_flags tables?
  */
 
 drm_ttm_t *drm_init_ttm(struct drm_device * dev, unsigned long size)
@@ -280,13 +278,13 @@ drm_ttm_t *drm_init_ttm(struct drm_device * dev, unsigned long size)
 	atomic_set(&ttm->vma_count, 0);
 	ttm->num_pages = (size + PAGE_SIZE - 1) >> PAGE_SHIFT;
 
-	ttm->nocached = vmalloc(ttm->num_pages * sizeof(*ttm->nocached));
-	if (!ttm->nocached) {
+	ttm->page_flags = vmalloc(ttm->num_pages * sizeof(*ttm->page_flags));
+	if (!ttm->page_flags) {
 		drm_destroy_ttm(ttm);
-		DRM_ERROR("Failed allocating nocached table\n");
+		DRM_ERROR("Failed allocating page_flags table\n");
 		return NULL;
 	}
-	memset(ttm->nocached, 0, ttm->num_pages);
+	memset(ttm->page_flags, 0, ttm->num_pages * sizeof(*ttm->page_flags));
 
 	ttm->pages = vmalloc(ttm->num_pages * sizeof(*ttm->pages));
 	if (!ttm->pages) {
@@ -326,18 +324,18 @@ drm_ttm_t *drm_init_ttm(struct drm_device * dev, unsigned long size)
 static int drm_set_caching(drm_ttm_t * ttm, unsigned long page_offset,
 			   unsigned long num_pages, int noncached)
 {
-  int i, cur;
+	int i, cur;
 	struct page **cur_page;
 	pgprot_t attr = (noncached) ? PAGE_KERNEL_NOCACHE : PAGE_KERNEL;
 	int do_spinlock = atomic_read(&ttm->vma_count) > 0;
 
-	down_write(&current->mm->mmap_sem);
 	if (do_spinlock) {
+		down_write(&current->mm->mmap_sem);
 		spin_lock(&current->mm->page_table_lock);
 		unmap_vma_pages(ttm, page_offset, num_pages);
 	}
 	for (i = 0; i < num_pages; ++i) {
-	        cur = page_offset + i;
+		cur = page_offset + i;
 		cur_page = ttm->pages + cur;
 		if (*cur_page) {
 			if (PageHighMem(*cur_page)) {
@@ -346,20 +344,25 @@ static int drm_set_caching(drm_ttm_t * ttm, unsigned long page_offset,
 					DRM_ERROR
 					    ("Illegal mapped HighMem Page\n");
 					up_write(&current->mm->mmap_sem);
-					spin_unlock(&current->mm->
-						    page_table_lock);
+					if (do_spinlock) {
+						spin_unlock(&current->mm->
+							    page_table_lock);
+						up_write(&current->mm->
+							 mmap_sem);
+					}
 					return -EINVAL;
 				}
-			} else if (ttm->nocached[cur] != noncached) {
-				ttm->nocached[cur] = noncached;
+			} else if (ttm->page_flags[cur] != noncached) {
+				ttm->page_flags[cur] = noncached;
 				change_page_attr(*cur_page, 1, attr);
 			}
 		}
 	}
 	global_flush_tlb();
-	if (do_spinlock)
+	if (do_spinlock) {
 		spin_unlock(&current->mm->page_table_lock);
-	up_write(&current->mm->mmap_sem);
+		up_write(&current->mm->mmap_sem);
+	}
 	return 0;
 }
 
@@ -446,7 +449,7 @@ void drm_destroy_ttm_region(drm_ttm_backend_list_t * entry)
 
 /*
  * Check for overlapping ttm regions.
- * FIXME: We should implement this as flags in the "nocached" table instead.
+ * FIXME: We should implement this as flags in the "page_flags" table instead.
  * At least we should keep the list sorted!
  */
 
@@ -559,6 +562,8 @@ int drm_bind_ttm_region(drm_ttm_backend_list_t * region,
 	if (ttm && be->needs_cache_adjust(be)) {
 		drm_set_caching(ttm, region->page_offset, region->num_pages,
 				TRUE);
+	} else {
+		flush_cache_all();
 	}
 
 	if ((ret = be->bind(be, aper_offset))) {
@@ -599,10 +604,20 @@ int drm_rebind_ttm_region(drm_ttm_backend_list_t * entry,
 {
 
 	int ret;
+	drm_ttm_backend_t *be;
+	drm_ttm_t *ttm;
 
 	if (!entry || entry->state != ttm_evicted)
 		return -EINVAL;
-	if (0 != (ret = entry->be->bind(entry->be, aper_offset))) {
+
+	be = entry->be;
+	ttm = entry->owner;
+
+	if (!ttm || !be->needs_cache_adjust(be)) {
+		flush_cache_all();
+	}
+
+	if (0 != (ret = be->bind(be, aper_offset))) {
 		return ret;
 	}
 	entry->state = ttm_bound;
@@ -800,8 +815,8 @@ static void drm_ttm_fence_regions(drm_ttm_mm_t * mm, uint32_t fence)
  * May sleep while waiting for a fence.
  */
 
-static int drm_ttm_evict_lru_sl(drm_ttm_backend_list_t * entry, 
-				int *have_fence, uint32_t *cur_fence)
+static int drm_ttm_evict_lru_sl(drm_ttm_backend_list_t * entry,
+				int *have_fence, uint32_t * cur_fence)
 {
 	struct list_head *list;
 	drm_ttm_mm_t *mm = entry->mm;
@@ -813,43 +828,39 @@ static int drm_ttm_evict_lru_sl(drm_ttm_backend_list_t * entry,
 
 	do {
 		list = entry->mm->lru_head.next;
-		
+
 		if (list == &entry->mm->lru_head) {
-			spin_unlock(mm_lock);
 			DRM_ERROR("Out of aperture space\n");
 			return -ENOMEM;
 		}
 		evict_priv = list_entry(list, drm_ttm_mm_priv_t, lru);
-		
+
 		if (!evict_priv->fence_valid) {
-			spin_unlock(mm_lock);
 			DRM_ERROR("Out of aperture space\n");
 			return -ENOMEM;
 		}
-		
+
 		evict_fence = evict_priv->fence;
 		if (*have_fence && ((*cur_fence - evict_fence) < (1 << 23)))
 			break;
 		spin_unlock(mm_lock);
 		up(&dev->struct_sem);
-		dev->driver->ttm_driver->wait_fence(dev,evict_fence);
+		dev->driver->ttm_driver->wait_fence(dev, evict_fence);
 		down(&dev->struct_sem);
 		spin_lock(mm_lock);
 		*cur_fence = evict_fence;
 		*have_fence = TRUE;
 	} while (TRUE);
-	
+
 	evict_node = evict_priv->region->mm_node;
 	drm_evict_ttm_region(evict_priv->region);
-	list_del(list);
+	list_del_init(list);
 	evict_node->private = NULL;
 	drm_mm_put_block_locked(&mm->mm, evict_node);
+	evict_priv->region->mm_node = NULL;
 	drm_free(evict_priv, sizeof(*evict_priv), DRM_MEM_MM);
 	return 0;
 }
-
-
-
 
 /*
  * Make sure a backend entry is present in the TT. If it is not, try to allocate
@@ -858,7 +869,6 @@ static int drm_ttm_evict_lru_sl(drm_ttm_backend_list_t * entry,
  * Finally move the entry to the tail of the lru list. Pinned regions don't go into
  * the lru list.
  */
-
 
 static int drm_validate_ttm_region(drm_ttm_backend_list_t * entry,
 				   unsigned *aper_offset)
@@ -876,6 +886,7 @@ static int drm_validate_ttm_region(drm_ttm_backend_list_t * entry,
 		mm_priv = drm_alloc(sizeof(*mm_priv), DRM_MEM_MM);
 		if (!mm_priv)
 			return -ENOMEM;
+		INIT_LIST_HEAD(&mm_priv->lru);
 	} else {
 		mm_priv = mm_node->private;
 	}
@@ -884,12 +895,15 @@ static int drm_validate_ttm_region(drm_ttm_backend_list_t * entry,
 	spin_lock(mm_lock);
 	while (!mm_node) {
 		mm_node =
-		    drm_mm_search_free_locked(&entry->mm->mm, num_pages,
-					      0, 0);
+		    drm_mm_search_free_locked(&entry->mm->mm, num_pages, 0, 0);
 		if (!mm_node) {
-			ret = drm_ttm_evict_lru_sl(entry, &have_fence, &cur_fence);
-			if (ret)
+			ret =
+			    drm_ttm_evict_lru_sl(entry, &have_fence,
+						 &cur_fence);
+			if (ret) {
+				spin_unlock(mm_lock);
 				return ret;
+			}
 		}
 	}
 
@@ -1071,7 +1085,7 @@ static void drm_ttm_handle_buf(drm_file_t * priv, drm_ttm_buf_arg_t * buf_p)
 		    drm_ttm_create_user_buf(buf_p, buf_p->user_addr,
 					    buf_p->user_size, priv, &entry);
 		if (buf_p->ret)
-		  break;
+			break;
 		ttm_mm = entry->mm;
 		buf_p->ret =
 		    drm_validate_ttm_region(entry, &buf_p->aper_offset);
@@ -1141,60 +1155,68 @@ int drm_ttm_handle_bufs(drm_file_t * priv, drm_ttm_arg_t * ttm_arg)
 {
 	drm_device_t *dev = priv->head->dev;
 	drm_ttm_driver_t *ttm_driver = dev->driver->ttm_driver;
-	drm_ttm_buf_arg_t *bufs, *next, *buf_p;
+	drm_ttm_buf_arg_t *bufs = NULL, *next, *buf_p;
 	int i;
 
-	if (!ttm_arg->num_bufs || ttm_arg->num_bufs > DRM_TTM_MAX_BUF_BATCH) {
+	if (ttm_arg->num_bufs > DRM_TTM_MAX_BUF_BATCH) {
 		DRM_ERROR("Invalid number of TTM buffers.\n");
 		return -EINVAL;
 	}
 
-	bufs = drm_calloc(ttm_arg->num_bufs, sizeof(*bufs), DRM_MEM_TTM);
+	if (ttm_arg->num_bufs) {
 
-	if (!bufs) {
-		DRM_ERROR("Out of kernel memory for buffers.\n");
-		return -ENOMEM;
+		bufs =
+		    drm_calloc(ttm_arg->num_bufs, sizeof(*bufs), DRM_MEM_TTM);
+
+		if (!bufs) {
+			DRM_ERROR("Out of kernel memory for buffers.\n");
+			return -ENOMEM;
+		}
+
+		next = ttm_arg->first;
+		buf_p = bufs;
+
+		for (i = 0; i < ttm_arg->num_bufs; ++i) {
+			if (DRM_COPY_FROM_USER
+			    (buf_p, (void __user *)next, sizeof(*bufs)))
+				break;
+			next = buf_p->next;
+			buf_p++;
+		}
+		if (i != ttm_arg->num_bufs) {
+			drm_free(bufs, ttm_arg->num_bufs * sizeof(*bufs),
+				 DRM_MEM_TTM);
+			DRM_ERROR("Error copying buffer data\n");
+			return -EFAULT;
+		}
 	}
-
-	next = ttm_arg->first;
 	buf_p = bufs;
 
-	for (i = 0; i < ttm_arg->num_bufs; ++i) {
-		if (DRM_COPY_FROM_USER
-		    (buf_p, (void __user *)next, sizeof(*bufs)))
-			break;
-		next = buf_p->next;
-		buf_p++;
-	}
-	if (i != ttm_arg->num_bufs) {
-		drm_free(bufs, ttm_arg->num_bufs * sizeof(*bufs), DRM_MEM_TTM);
-		DRM_ERROR("Error copying buffer data\n");
-		return -EFAULT;
-	}
-
-	buf_p = bufs;
 	down(&dev->struct_sem);
 	if (ttm_arg->do_fence)
 		drm_ttm_fence_regions(ttm_driver->ttm_mm(dev),
 				      ttm_driver->emit_fence(dev));
-	
+
 	for (i = 0; i < ttm_arg->num_bufs; ++i) {
 		drm_ttm_handle_buf(priv, buf_p);
 		buf_p++;
 	}
 	up(&dev->struct_sem);
 
-	next = ttm_arg->first;
-	buf_p = bufs;
-	for (i = 0; i < ttm_arg->num_bufs; ++i) {
-		if (DRM_COPY_TO_USER((void __user *)next, buf_p, sizeof(*bufs)))
-			break;
-		next = buf_p->next;
-		buf_p++;
+	if (ttm_arg->num_bufs) {
+
+		next = ttm_arg->first;
+		buf_p = bufs;
+		for (i = 0; i < ttm_arg->num_bufs; ++i) {
+			if (DRM_COPY_TO_USER
+			    ((void __user *)next, buf_p, sizeof(*bufs)))
+				break;
+			next = buf_p->next;
+			buf_p++;
+		}
+
+		drm_free(bufs, ttm_arg->num_bufs * sizeof(*bufs), DRM_MEM_TTM);
 	}
-
-	drm_free(bufs, ttm_arg->num_bufs * sizeof(*bufs), DRM_MEM_TTM);
-
 	return 0;
 }
 
@@ -1234,7 +1256,8 @@ static int drm_ttm_handle_remove(drm_file_t * priv, drm_handle_t handle)
 	}
 	ret = drm_destroy_ttm(ttm);
 	list_del(&map_list->head);
-	drm_remove_ht_val(&dev->maphash, handle);
+	drm_remove_ht_val(&dev->maphash,
+			  (handle - DRM_MAP_HASH_OFFSET) >> PAGE_SHIFT);
 	up(&dev->struct_sem);
 	if (!ret) {
 
@@ -1249,7 +1272,7 @@ static int drm_ttm_handle_remove(drm_file_t * priv, drm_handle_t handle)
 }
 
 /*
- * FIXME: Require lock only for validate, but not for evict, unbind or desroy.
+ * FIXME: Require lock only for validate, but not for evict, unbind or destroy.
  */
 
 int drm_ttm_ioctl(DRM_IOCTL_ARGS)
