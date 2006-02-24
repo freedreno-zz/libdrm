@@ -208,6 +208,8 @@ static __inline__ struct page *drm_do_vm_ttm_nopage(struct vm_area_struct *vma,
 	struct page *page;
 	drm_ttm_t *ttm; 
 	pgprot_t default_prot;
+	unsigned long aper_loc = 0;
+	uint32_t page_flags;
 
 	if (address > vma->vm_end)
 		return NOPAGE_SIGBUS;	/* Disallow mremap */
@@ -218,6 +220,16 @@ static __inline__ struct page *drm_do_vm_ttm_nopage(struct vm_area_struct *vma,
 	ttm = (drm_ttm_t *) map->offset;
 	page_offset = (address - vma->vm_start) >> PAGE_SHIFT;
 	page = ttm->pages[page_offset];
+
+	page_flags = ttm->page_flags[page_offset];
+	if (page_flags & DRM_TTM_PAGE_UNCACHED) {
+	        BUG_ON(!page);
+		aper_loc = ttm->aperture_base + 
+			(page_flags & DRM_TTM_MASK_PFN);
+		page = pfn_to_page(aper_loc >> PAGE_SHIFT);
+	}
+
+
 	if (!page) {
 		page = ttm->pages[page_offset] = 
 			alloc_page(GFP_USER);
@@ -233,11 +245,14 @@ static __inline__ struct page *drm_do_vm_ttm_nopage(struct vm_area_struct *vma,
 	 * duplicate code.
 	 */
 
+	
 	default_prot = drm_prot_map[vma->vm_flags & 0x0f];
-	vma->vm_page_prot = ttm->page_flags[page_offset] ? 
-		pgprot_noncached(default_prot):
-		default_prot;
 
+	if (page_flags & DRM_TTM_PAGE_UNCACHED) {
+ 	  pgprot_val(default_prot) |= _PAGE_PCD;
+	  pgprot_val(default_prot) &= ~_PAGE_PWT;
+	}
+	vma->vm_page_prot = default_prot;
 	return page;
 }
 

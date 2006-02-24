@@ -647,14 +647,13 @@ void drm_agp_destroy_ttm(drm_ttm_backend_t *backend) {
 }
 	
 
-
-
 drm_ttm_backend_t *drm_agp_init_ttm_uncached(struct drm_device *dev) {
 
-	drm_ttm_backend_t *agp_be = drm_calloc(1, sizeof(*agp_be), DRM_MEM_MAPPINGS);
+        drm_ttm_backend_t *agp_be;
 	drm_agp_ttm_priv *agp_priv;
 
-	DRM_DEBUG("drm_agp_init_ttm\n");
+	agp_be = drm_calloc(1, sizeof(*agp_be), DRM_MEM_MAPPINGS);
+
 	if (!agp_be)
 		return NULL;
 	
@@ -669,6 +668,7 @@ drm_ttm_backend_t *drm_agp_init_ttm_uncached(struct drm_device *dev) {
 	agp_priv->mem_type = AGP_MEM_USER;
 	agp_priv->bridge = dev->agp->bridge;
 	agp_priv->populated = FALSE;
+	agp_be->aperture_base = dev->agp->agp_info.aper_base;
 	agp_be->private = (void *) agp_priv;
 	agp_be->needs_cache_adjust = drm_agp_needs_cache_adjust_true;
 	agp_be->populate = drm_agp_populate;
@@ -683,10 +683,11 @@ EXPORT_SYMBOL(drm_agp_init_ttm_uncached);
 
 drm_ttm_backend_t *drm_agp_init_ttm_cached(struct drm_device *dev) {
 
-	drm_ttm_backend_t *agp_be = drm_calloc(1, sizeof(*agp_be), DRM_MEM_MAPPINGS);
+        drm_ttm_backend_t *agp_be;
 	drm_agp_ttm_priv *agp_priv;
 
-	DRM_DEBUG("drm_agp_init_ttm\n");
+	agp_be = drm_calloc(1, sizeof(*agp_be), DRM_MEM_MAPPINGS);
+
 	if (!agp_be)
 		return NULL;
 	
@@ -701,6 +702,7 @@ drm_ttm_backend_t *drm_agp_init_ttm_cached(struct drm_device *dev) {
 	agp_priv->mem_type = AGP_MEM_UCACHED;
 	agp_priv->bridge = dev->agp->bridge;
 	agp_priv->populated = FALSE;
+	agp_be->aperture_base = dev->agp->agp_info.aper_base;
 	agp_be->private = (void *) agp_priv;
 	agp_be->needs_cache_adjust = drm_agp_needs_cache_adjust_false;
 	agp_be->populate = drm_agp_populate;

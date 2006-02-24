@@ -33,6 +33,7 @@
 #include <asm/tlbflush.h>
 #include <asm/pgtable.h>
 
+
 /*
  * DAVE: The below code needs to go to the linux mm subsystem. Most of it is already there.
  * Basically stolen from mprotect.c and rmap.c 
@@ -226,7 +227,8 @@ int drm_destroy_ttm(drm_ttm_t * ttm)
 	if (ttm->pages) {
 		for (i = 0; i < ttm->num_pages; ++i) {
 			cur_page = ttm->pages + i;
-			if (ttm->page_flags && ttm->page_flags[i] &&
+			if (ttm->page_flags && 
+			    (ttm->page_flags[i] & DRM_TTM_PAGE_UNCACHED) &&
 			    *cur_page && !PageHighMem(*cur_page)) {
 				change_page_attr(*cur_page, 1, PAGE_KERNEL);
 			}
@@ -322,7 +324,7 @@ drm_ttm_t *drm_init_ttm(struct drm_device * dev, unsigned long size)
  */
 
 static int drm_set_caching(drm_ttm_t * ttm, unsigned long page_offset,
-			   unsigned long num_pages, int noncached)
+			   unsigned long num_pages, uint32_t noncached)
 {
 	int i, cur;
 	struct page **cur_page;
@@ -352,8 +354,11 @@ static int drm_set_caching(drm_ttm_t * ttm, unsigned long page_offset,
 					}
 					return -EINVAL;
 				}
-			} else if (ttm->page_flags[cur] != noncached) {
-				ttm->page_flags[cur] = noncached;
+			} else if ((ttm->page_flags[cur] & 
+				    DRM_TTM_PAGE_UNCACHED) != noncached) {
+				DRM_MASK_VAL(ttm->page_flags[cur], 
+					     DRM_TTM_PAGE_UNCACHED, 
+					     noncached);
 				change_page_attr(*cur_page, 1, attr);
 			}
 		}
@@ -411,10 +416,11 @@ void drm_unbind_ttm_region(drm_ttm_backend_list_t * entry)
 		switch (entry->state) {
 		case ttm_bound:
 			be->unbind(entry->be);
+			/* Fall through */			  
 		case ttm_evicted:
 			if (ttm && be->needs_cache_adjust(be)) {
 				drm_set_caching(ttm, entry->page_offset,
-						entry->num_pages, FALSE);
+						entry->num_pages, 0);
 			}
 			break;
 		default:
@@ -440,7 +446,7 @@ void drm_destroy_ttm_region(drm_ttm_backend_list_t * entry)
 		be->clear(entry->be);
 		if (be->needs_cache_adjust(be)) {
 			drm_set_caching(ttm, entry->page_offset,
-					entry->num_pages, FALSE);
+					entry->num_pages, 0);
 		}
 		be->destroy(be);
 	}
@@ -537,6 +543,7 @@ int drm_create_ttm_region(drm_ttm_t * ttm, unsigned long page_offset,
 	}
 	entry->mm_node = NULL;
 	entry->mm = ttm->dev->driver->ttm_driver->ttm_mm(ttm->dev);
+	ttm->aperture_base = be->aperture_base;
 	*region = entry;
 	return 0;
 }
@@ -549,6 +556,8 @@ int drm_bind_ttm_region(drm_ttm_backend_list_t * region,
 			unsigned long aper_offset)
 {
 
+	int i;
+	uint32_t *cur_page_flag;
 	int ret;
 	drm_ttm_backend_t *be;
 	drm_ttm_t *ttm;
@@ -561,7 +570,7 @@ int drm_bind_ttm_region(drm_ttm_backend_list_t * region,
 
 	if (ttm && be->needs_cache_adjust(be)) {
 		drm_set_caching(ttm, region->page_offset, region->num_pages,
-				TRUE);
+				DRM_TTM_PAGE_UNCACHED);
 	} else {
 		flush_cache_all();
 	}
@@ -571,6 +580,14 @@ int drm_bind_ttm_region(drm_ttm_backend_list_t * region,
 		DRM_ERROR("Couldn't bind backend.\n");
 		return ret;
 	}
+
+	cur_page_flag = ttm->page_flags;
+	for (i = 0; i < region->num_pages; ++i) {
+		DRM_MASK_VAL(*cur_page_flag, DRM_TTM_MASK_PFN, 
+			     (i + aper_offset) << PAGE_SHIFT);
+		cur_page_flag++;
+	}
+
 	region->state = ttm_bound;
 	return 0;
 }
@@ -583,9 +600,25 @@ int drm_evict_ttm_region(drm_ttm_backend_list_t * entry)
 {
 
 	int ret;
+	drm_ttm_backend_t *be;
+	drm_ttm_t *ttm;
 
 	if (!entry || entry->state != ttm_bound)
 		return -EINVAL;
+
+	ttm = entry->owner;
+	be = entry->be;
+
+	/*
+	 * Unmap backdoor aperture map.
+	 */
+
+	if (ttm && be->needs_cache_adjust(be)) {
+		unmap_vma_pages(ttm, entry->page_offset, entry->num_pages);
+		/*
+		 * FIXME: Add partial tlb flush here.
+		 */
+	}
 
 	if (0 != (ret = entry->be->unbind(entry->be))) {
 		return ret;
@@ -606,6 +639,8 @@ int drm_rebind_ttm_region(drm_ttm_backend_list_t * entry,
 	int ret;
 	drm_ttm_backend_t *be;
 	drm_ttm_t *ttm;
+	int i;
+	uint32_t *cur_page_flag;
 
 	if (!entry || entry->state != ttm_evicted)
 		return -EINVAL;
@@ -620,6 +655,14 @@ int drm_rebind_ttm_region(drm_ttm_backend_list_t * entry,
 	if (0 != (ret = be->bind(be, aper_offset))) {
 		return ret;
 	}
+
+	cur_page_flag = ttm->page_flags;
+	for (i = 0; i < entry->num_pages; ++i) {
+		DRM_MASK_VAL(*cur_page_flag, DRM_TTM_MASK_PFN, 
+			     (i + aper_offset) << PAGE_SHIFT);
+		cur_page_flag++;
+	}
+
 	entry->state = ttm_bound;
 	return 0;
 }
@@ -851,7 +894,7 @@ static int drm_ttm_evict_lru_sl(drm_ttm_backend_list_t * entry,
 		*cur_fence = evict_fence;
 		*have_fence = TRUE;
 	} while (TRUE);
-
+	DRM_ERROR("Evicting\n");
 	evict_node = evict_priv->region->mm_node;
 	drm_evict_ttm_region(evict_priv->region);
 	list_del_init(list);

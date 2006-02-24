@@ -14,6 +14,7 @@
  */
 
 typedef struct drm_ttm_backend {
+	unsigned long aperture_base;
 	void *private;
 	int (*needs_cache_adjust) (struct drm_ttm_backend * backend);
 	int (*populate) (struct drm_ttm_backend * backend,
@@ -55,6 +56,7 @@ typedef struct drm_ttm_vma_list {
 } drm_ttm_vma_list_t;
 
 typedef struct drm_ttm {
+	unsigned long aperture_base;
 	struct page **pages;
 	uint32_t *page_flags;
 	unsigned long lhandle;
@@ -81,7 +83,7 @@ typedef struct drm_ttm_mm {
 
 typedef struct drm_ttm_driver {
 	int cached_pages;
-	 uint32_t(*emit_fence) (struct drm_device * dev);
+	uint32_t(*emit_fence) (struct drm_device * dev);
 	int (*wait_fence) (struct drm_device * dev, uint32_t fence);
 	int (*test_fence) (struct drm_device * dev, uint32_t fence);
 	void (*flush_caches) (struct drm_device * dev, int access);
@@ -143,5 +145,13 @@ int drm_destroy_ttm(drm_ttm_t * ttm);
 void drm_user_destroy_region(drm_ttm_backend_list_t * entry);
 
 int drm_ttm_ioctl(DRM_IOCTL_ARGS);
+
+#define DRM_MASK_VAL(dest, mask, val)			\
+  (dest) = ((dest) & ~(mask)) | ((val) & (mask));
+ 
+#define DRM_TTM_MASK_FLAGS ((1 << PAGE_SHIFT) - 1)
+#define DRM_TTM_MASK_PFN (0xFFFFFFFFU - DRM_TTM_MASK_FLAGS)
+
+#define DRM_TTM_PAGE_UNCACHED 0x1
 
 #endif

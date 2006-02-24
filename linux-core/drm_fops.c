@@ -362,6 +362,10 @@ int drm_release(struct inode *inode, struct file *filp)
 		if (dev->driver->reclaim_buffers_locked)
 			dev->driver->reclaim_buffers_locked(dev, filp);
 
+		if (dev->driver->ttm_driver) {
+			uint32_t fence =  dev->driver->ttm_driver->emit_fence(dev);
+			dev->driver->ttm_driver->wait_fence(dev, fence);
+		}
 		drm_lock_free(dev, &dev->lock.hw_lock->lock,
 			      _DRM_LOCKING_CONTEXT(dev->lock.hw_lock->lock));
 
@@ -369,7 +373,8 @@ int drm_release(struct inode *inode, struct file *filp)
 		   hardware at this point, possibly
 		   processed via a callback to the X
 		   server. */
-	} else if (dev->driver->reclaim_buffers_locked && priv->lock_count
+	} else if ((dev->driver->reclaim_buffers_locked || 
+		    dev->driver->ttm_driver) && priv->lock_count
 		   && dev->lock.hw_lock) {
 		/* The lock is required to reclaim buffers */
 		DECLARE_WAITQUEUE(entry, current);
@@ -399,7 +404,13 @@ int drm_release(struct inode *inode, struct file *filp)
 		__set_current_state(TASK_RUNNING);
 		remove_wait_queue(&dev->lock.lock_queue, &entry);
 		if (!retcode) {
-			dev->driver->reclaim_buffers_locked(dev, filp);
+			if (dev->driver->reclaim_buffers_locked)
+				dev->driver->reclaim_buffers_locked(dev, filp);
+			if (dev->driver->ttm_driver) {
+				uint32_t fence =  dev->driver->ttm_driver->emit_fence(dev);
+				dev->driver->ttm_driver->wait_fence(dev, fence);
+			}
+
 			drm_lock_free(dev, &dev->lock.hw_lock->lock,
 				      DRM_KERNEL_CONTEXT);
 		}
@@ -451,6 +462,7 @@ int drm_release(struct inode *inode, struct file *filp)
 	} else {
 		dev->file_last = priv->prev;
 	}
+
 	list_for_each_safe(list, next, &priv->ttms) {
 		drm_map_list_t *entry = list_entry(list, drm_map_list_t, head);
 		list_del(list);
@@ -462,6 +474,7 @@ int drm_release(struct inode *inode, struct file *filp)
 				 DRM_MEM_MAPS);
 		drm_free(entry, sizeof(*entry), DRM_MEM_MAPS);
 	}
+
 	list=NULL;
 	next=NULL;
 	list_for_each_safe(list, next, &priv->anon_ttm_regs) {
@@ -472,7 +485,8 @@ int drm_release(struct inode *inode, struct file *filp)
 			drm_remove_ht_val(&dev->ttmreghash, hash);
 		}
 		drm_user_destroy_region(entry);
- 	}
+ 	
+	}
 
 	up(&dev->struct_sem);
 
