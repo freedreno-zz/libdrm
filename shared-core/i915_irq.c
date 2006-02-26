@@ -244,7 +244,7 @@ int i915_wait_fence(drm_device_t * dev, uint32_t fence)
 	int i;
 	drm_i915_private_t *dev_priv = (drm_i915_private_t *) dev->dev_private;
 
-	if (dev_priv)
+	if (!dev_priv)
 		return 0;
 
 	for (i=0; i<10000000; ++i) {	
