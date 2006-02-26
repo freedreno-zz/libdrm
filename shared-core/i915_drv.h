@@ -115,7 +115,6 @@ extern long i915_compat_ioctl(struct file *filp, unsigned int cmd,
 			      unsigned long arg);
 extern void i915_emit_mi_flush(drm_device_t *dev, int flush);
 
-
 /* i915_irq.c */
 extern int i915_irq_emit(DRM_IOCTL_ARGS);
 extern int i915_irq_wait(DRM_IOCTL_ARGS);
@@ -195,6 +194,7 @@ extern int i915_wait_ring(drm_device_t * dev, int n, const char *caller);
 #define CMD_MI_FLUSH         (0x04 << 23)
 #define MI_NO_WRITE_FLUSH    (1 << 2)
 #define MI_READ_FLUSH        (1 << 0)
+#define MI_EXE_FLUSH         (1 << 1)
 
 #define BB1_START_ADDR_MASK   (~0x7)
 #define BB1_PROTECTED         (1<<0)
@@ -284,6 +284,6 @@ extern int i915_wait_ring(drm_device_t * dev, int n, const char *caller);
 
 #define CMD_OP_DESTBUFFER_INFO	 ((0x3<<29)|(0x1d<<24)|(0x8e<<16)|1)
 
-#define READ_BREADCRUMB(dev_priv)  (((u32*)(dev_priv->hw_status_page))[5])
+#define READ_BREADCRUMB(dev_priv)  (((volatile u32*)(dev_priv->hw_status_page))[5])
 
 #endif

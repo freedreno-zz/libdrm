@@ -212,19 +212,47 @@ void i915_driver_irq_uninstall(drm_device_t * dev)
 
 uint32_t i915_emit_fence(drm_device_t * dev) 
 {
-	return i915_emit_irq(dev);
+	drm_i915_private_t *dev_priv = (drm_i915_private_t *) dev->dev_private;
+
+	if (!dev_priv)
+		return 0;
+
+	i915_emit_mi_flush(dev, DRM_FLUSH_READ | DRM_FLUSH_EXE);
+	return dev_priv->counter;
+
 }
 
 int i915_test_fence(drm_device_t * dev, uint32_t fence)
 {
+
 	drm_i915_private_t *dev_priv = (drm_i915_private_t *) dev->dev_private;
-	return ((((uint32_t)(READ_BREADCRUMB(dev_priv))) - fence) < (1 << 23));
+	uint32_t test;
+
+	if (!dev_priv)
+		return TRUE;
+
+	test = (((uint32_t)(READ_BREADCRUMB(dev_priv))) - fence);
+	return (test < (1 << 23));
 }
+
+/*
+ * Temporarily use polling here:
+ */
 
 int i915_wait_fence(drm_device_t * dev, uint32_t fence) 
 {
-	if (i915_test_fence( dev, fence))
+	int i;
+	drm_i915_private_t *dev_priv = (drm_i915_private_t *) dev->dev_private;
+
+	if (dev_priv)
 		return 0;
-	i915_emit_irq(dev);
-	return i915_wait_irq(dev, fence);	
+
+	for (i=0; i<10000000; ++i) {	
+		if ( i915_test_fence( dev, fence))
+			return 0;
+	}
+
+	DRM_ERROR("Fence timeout %d %d\n", READ_BREADCRUMB(dev_priv), fence);
+
+	return 1;	
 }

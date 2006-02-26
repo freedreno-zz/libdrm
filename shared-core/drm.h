@@ -638,7 +638,7 @@ typedef struct drm_set_version {
 #define DRM_TTM_FLAG_PINNED     0x02
 #define DRM_TTM_FLAG_CACHED     0x04
 
-#define DRM_TTM_MAX_BUF_BATCH 20
+#define DRM_TTM_MAX_BUF_BATCH 32
 
 
 typedef struct drm_ttm_buf_arg {

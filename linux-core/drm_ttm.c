@@ -148,6 +148,7 @@ static void drm_change_protection(struct vm_area_struct *vma,
 			continue;
 		change_pud_range(mm, pgd, addr, next, newprot, unmap);
 	} while (pgd++, addr = next, addr != end);
+	global_flush_tlb();
 }
 
 /*
@@ -415,8 +416,10 @@ void drm_unbind_ttm_region(drm_ttm_backend_list_t * entry)
 	if (be) {
 		switch (entry->state) {
 		case ttm_bound:
-			be->unbind(entry->be);
-			/* Fall through */			  
+		  if (ttm && be->needs_cache_adjust(be))
+		    unmap_vma_pages(ttm, entry->page_offset, entry->num_pages);
+		    be->unbind(entry->be);
+		  /* Fall through */			  
 		case ttm_evicted:
 			if (ttm && be->needs_cache_adjust(be)) {
 				drm_set_caching(ttm, entry->page_offset,
@@ -442,6 +445,7 @@ void drm_destroy_ttm_region(drm_ttm_backend_list_t * entry)
 
 	list_del(&entry->head);
 	remove_ttm_region(entry);
+	drm_unbind_ttm_region(entry);
 	if (be) {
 		be->clear(entry->be);
 		if (be->needs_cache_adjust(be)) {
@@ -571,9 +575,7 @@ int drm_bind_ttm_region(drm_ttm_backend_list_t * region,
 	if (ttm && be->needs_cache_adjust(be)) {
 		drm_set_caching(ttm, region->page_offset, region->num_pages,
 				DRM_TTM_PAGE_UNCACHED);
-	} else {
-		flush_cache_all();
-	}
+	} 
 
 	if ((ret = be->bind(be, aper_offset))) {
 		drm_unbind_ttm_region(region);
@@ -615,9 +617,6 @@ int drm_evict_ttm_region(drm_ttm_backend_list_t * entry)
 
 	if (ttm && be->needs_cache_adjust(be)) {
 		unmap_vma_pages(ttm, entry->page_offset, entry->num_pages);
-		/*
-		 * FIXME: Add partial tlb flush here.
-		 */
 	}
 
 	if (0 != (ret = entry->be->unbind(entry->be))) {

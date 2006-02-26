@@ -805,18 +805,20 @@ void i915_emit_mi_flush(drm_device_t *dev, int flush)
 		flush_cmd |= MI_READ_FLUSH;
 	if (!(flush & DRM_FLUSH_WRITE))
 		flush_cmd |= MI_NO_WRITE_FLUSH;
+	if (flush & DRM_FLUSH_EXE)
+		flush_cmd |= MI_EXE_FLUSH;
 
 	dev_priv->sarea_priv->last_enqueue = dev_priv->counter++;
 
-	BEGIN_LP_RING(4);
+	i915_kernel_lost_context(dev);
+
+	BEGIN_LP_RING(8);
 	OUT_RING(flush_cmd);
+	OUT_RING(0);
 	OUT_RING(0);
 	OUT_RING(CMD_STORE_DWORD_IDX);
 	OUT_RING(20);
 	OUT_RING(dev_priv->counter);
 	OUT_RING(0);
-	OUT_RING(0);
-	OUT_RING(GFX_OP_USER_INTERRUPT);
 	ADVANCE_LP_RING();
 }
-
