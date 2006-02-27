@@ -94,6 +94,7 @@ static int i915_wait_irq(drm_device_t * dev, int irq_nr)
 	DRM_DEBUG("%s irq_nr=%d breadcrumb=%d\n", __FUNCTION__, irq_nr,
 		  READ_BREADCRUMB(dev_priv));
 
+	dev_priv->sarea_priv->last_dispatch = READ_BREADCRUMB(dev_priv);
 	if (((uint32_t)(READ_BREADCRUMB(dev_priv) - irq_nr)) <= (1 << 23))
 		return 0;
 
@@ -108,7 +109,6 @@ static int i915_wait_irq(drm_device_t * dev, int irq_nr)
 			  READ_BREADCRUMB(dev_priv), (int)dev_priv->counter);
 	}
 
-	dev_priv->sarea_priv->last_dispatch = READ_BREADCRUMB(dev_priv);
 	return ret;
 }
 

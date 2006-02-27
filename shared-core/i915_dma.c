@@ -430,6 +430,7 @@ static void i915_emit_breadcrumb(drm_device_t *dev)
 	OUT_RING(dev_priv->counter);
 	OUT_RING(0);
 	ADVANCE_LP_RING();
+	dev_priv->sarea_priv->last_dispatch = READ_BREADCRUMB(dev_priv);
 }
 
 
