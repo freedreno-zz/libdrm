@@ -152,6 +152,13 @@ int drm_ttm_ioctl(DRM_IOCTL_ARGS);
 #define DRM_TTM_MASK_FLAGS ((1 << PAGE_SHIFT) - 1)
 #define DRM_TTM_MASK_PFN (0xFFFFFFFFU - DRM_TTM_MASK_FLAGS)
 
-#define DRM_TTM_PAGE_UNCACHED 0x1
+/*
+ * Page flags.
+ */
+
+#define DRM_TTM_PAGE_UNCACHED 0x01
+#define DRM_TTM_PAGE_USED     0x02
+#define DRM_TTM_PAGE_BOUND    0x04
+#define DRM_TTM_PAGE_PRESENT  0x08
 
 #endif

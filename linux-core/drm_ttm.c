@@ -33,7 +33,6 @@
 #include <asm/tlbflush.h>
 #include <asm/pgtable.h>
 
-
 /*
  * DAVE: The below code needs to go to the linux mm subsystem. Most of it is already there.
  * Basically stolen from mprotect.c and rmap.c 
@@ -228,7 +227,7 @@ int drm_destroy_ttm(drm_ttm_t * ttm)
 	if (ttm->pages) {
 		for (i = 0; i < ttm->num_pages; ++i) {
 			cur_page = ttm->pages + i;
-			if (ttm->page_flags && 
+			if (ttm->page_flags &&
 			    (ttm->page_flags[i] & DRM_TTM_PAGE_UNCACHED) &&
 			    *cur_page && !PageHighMem(*cur_page)) {
 				change_page_attr(*cur_page, 1, PAGE_KERNEL);
@@ -325,7 +324,7 @@ drm_ttm_t *drm_init_ttm(struct drm_device * dev, unsigned long size)
  */
 
 static int drm_set_caching(drm_ttm_t * ttm, unsigned long page_offset,
-			   unsigned long num_pages, uint32_t noncached)
+			   unsigned long num_pages, int noncached)
 {
 	int i, cur;
 	struct page **cur_page;
@@ -355,11 +354,10 @@ static int drm_set_caching(drm_ttm_t * ttm, unsigned long page_offset,
 					}
 					return -EINVAL;
 				}
-			} else if ((ttm->page_flags[cur] & 
+			} else if ((ttm->page_flags[cur] &
 				    DRM_TTM_PAGE_UNCACHED) != noncached) {
-				DRM_MASK_VAL(ttm->page_flags[cur], 
-					     DRM_TTM_PAGE_UNCACHED, 
-					     noncached);
+				DRM_MASK_VAL(ttm->page_flags[cur],
+					     DRM_TTM_PAGE_UNCACHED, noncached);
 				change_page_attr(*cur_page, 1, attr);
 			}
 		}
@@ -407,20 +405,19 @@ static void remove_ttm_region(drm_ttm_backend_list_t * entry)
  * aperture manager.
  */
 
-void drm_unbind_ttm_region(drm_ttm_backend_list_t * entry)
+int drm_evict_ttm_region(drm_ttm_backend_list_t * entry)
 {
 	drm_ttm_backend_t *be = entry->be;
 	drm_ttm_t *ttm = entry->owner;
 
-	remove_ttm_region(entry);
 	if (be) {
 		switch (entry->state) {
 		case ttm_bound:
-		  if (ttm && be->needs_cache_adjust(be))
-		    unmap_vma_pages(ttm, entry->page_offset, entry->num_pages);
-		    be->unbind(entry->be);
-		  /* Fall through */			  
-		case ttm_evicted:
+			if (ttm && be->needs_cache_adjust(be)) {
+				unmap_vma_pages(ttm, entry->page_offset,
+						entry->num_pages);
+			}
+			be->unbind(entry->be);
 			if (ttm && be->needs_cache_adjust(be)) {
 				drm_set_caching(ttm, entry->page_offset,
 						entry->num_pages, 0);
@@ -430,6 +427,14 @@ void drm_unbind_ttm_region(drm_ttm_backend_list_t * entry)
 			break;
 		}
 	}
+	entry->state = ttm_evicted;
+	return 0;
+}
+
+void drm_unbind_ttm_region(drm_ttm_backend_list_t * entry)
+{
+	remove_ttm_region(entry);
+	drm_evict_ttm_region(entry);
 	entry->state = ttm_unbound;
 }
 
@@ -442,6 +447,8 @@ void drm_destroy_ttm_region(drm_ttm_backend_list_t * entry)
 {
 	drm_ttm_backend_t *be = entry->be;
 	drm_ttm_t *ttm = entry->owner;
+	uint32_t *cur_page_flags;
+	int i;
 
 	list_del(&entry->head);
 	remove_ttm_region(entry);
@@ -454,35 +461,14 @@ void drm_destroy_ttm_region(drm_ttm_backend_list_t * entry)
 		}
 		be->destroy(be);
 	}
-	drm_free(entry, sizeof(*entry), DRM_MEM_MAPS);
-}
 
-/*
- * Check for overlapping ttm regions.
- * FIXME: We should implement this as flags in the "page_flags" table instead.
- * At least we should keep the list sorted!
- */
-
-int drm_search_ttm_region(unsigned long pg_offset, unsigned long n_pages,
-			  struct list_head *be)
-{
-
-	struct list_head *list;
-	unsigned long end_offset = pg_offset + n_pages - 1;
-
-	list_for_each(list, be) {
-		drm_ttm_backend_list_t *entry =
-		    list_entry(list, drm_ttm_backend_list_t, head);
-		if ((pg_offset <= entry->page_offset &&
-		     end_offset >= entry->page_offset) ||
-		    (entry->page_offset <= pg_offset &&
-		     (entry->page_offset + entry->num_pages - 1) >=
-		     pg_offset)) {
-			DRM_ERROR("Overlapping regions\n");
-			return -EINVAL;
-		}
+	cur_page_flags = ttm->page_flags;
+	for (i = 0; i < entry->num_pages; ++i) {
+		DRM_MASK_VAL(*cur_page_flags, DRM_TTM_PAGE_USED, 0);
+		cur_page_flags++;
 	}
-	return 0;
+
+	drm_free(entry, sizeof(*entry), DRM_MEM_MAPS);
 }
 
 /*
@@ -494,6 +480,7 @@ int drm_create_ttm_region(drm_ttm_t * ttm, unsigned long page_offset,
 			  drm_ttm_backend_list_t ** region)
 {
 	struct page **cur_page;
+	uint32_t *cur_page_flags;
 	drm_ttm_backend_list_t *entry;
 	drm_ttm_backend_t *be;
 	int ret, i;
@@ -503,9 +490,20 @@ int drm_create_ttm_region(drm_ttm_t * ttm, unsigned long page_offset,
 		return -EINVAL;
 	}
 
-	if ((ret = drm_search_ttm_region(page_offset, n_pages,
-					 &ttm->be_list->head)))
-		return ret;
+	cur_page_flags = ttm->page_flags;
+	for (i = 0; i < n_pages; ++i) {
+		if (*cur_page_flags++ & DRM_TTM_PAGE_USED) {
+			DRM_ERROR("TTM region overlap\n");
+			return -EINVAL;
+		}
+	}
+
+	cur_page_flags = ttm->page_flags;
+	for (i = 0; i < n_pages; ++i) {
+		DRM_MASK_VAL(*cur_page_flags, DRM_TTM_PAGE_USED,
+			     DRM_TTM_PAGE_USED);
+		cur_page_flags++;
+	}
 
 	entry = drm_calloc(1, sizeof(*entry), DRM_MEM_MAPS);
 	if (!entry)
@@ -566,7 +564,7 @@ int drm_bind_ttm_region(drm_ttm_backend_list_t * region,
 	drm_ttm_backend_t *be;
 	drm_ttm_t *ttm;
 
-	if (!region || region->state != ttm_unbound)
+	if (!region || region->state == ttm_bound)
 		return -EINVAL;
 
 	be = region->be;
@@ -575,7 +573,7 @@ int drm_bind_ttm_region(drm_ttm_backend_list_t * region,
 	if (ttm && be->needs_cache_adjust(be)) {
 		drm_set_caching(ttm, region->page_offset, region->num_pages,
 				DRM_TTM_PAGE_UNCACHED);
-	} 
+	}
 
 	if ((ret = be->bind(be, aper_offset))) {
 		drm_unbind_ttm_region(region);
@@ -585,7 +583,7 @@ int drm_bind_ttm_region(drm_ttm_backend_list_t * region,
 
 	cur_page_flag = ttm->page_flags;
 	for (i = 0; i < region->num_pages; ++i) {
-		DRM_MASK_VAL(*cur_page_flag, DRM_TTM_MASK_PFN, 
+		DRM_MASK_VAL(*cur_page_flag, DRM_TTM_MASK_PFN,
 			     (i + aper_offset) << PAGE_SHIFT);
 		cur_page_flag++;
 	}
@@ -594,76 +592,10 @@ int drm_bind_ttm_region(drm_ttm_backend_list_t * region,
 	return 0;
 }
 
-/*
- * Evict a ttm region. Keeping it's current caching policy.
- */
-
-int drm_evict_ttm_region(drm_ttm_backend_list_t * entry)
-{
-
-	int ret;
-	drm_ttm_backend_t *be;
-	drm_ttm_t *ttm;
-
-	if (!entry || entry->state != ttm_bound)
-		return -EINVAL;
-
-	ttm = entry->owner;
-	be = entry->be;
-
-	/*
-	 * Unmap backdoor aperture map.
-	 */
-
-	if (ttm && be->needs_cache_adjust(be)) {
-		unmap_vma_pages(ttm, entry->page_offset, entry->num_pages);
-	}
-
-	if (0 != (ret = entry->be->unbind(entry->be))) {
-		return ret;
-	}
-
-	entry->state = ttm_evicted;
-	return 0;
-}
-
-/*
- * Rebind a previosly evicted ttm region.
- */
-
 int drm_rebind_ttm_region(drm_ttm_backend_list_t * entry,
 			  unsigned long aper_offset)
 {
-
-	int ret;
-	drm_ttm_backend_t *be;
-	drm_ttm_t *ttm;
-	int i;
-	uint32_t *cur_page_flag;
-
-	if (!entry || entry->state != ttm_evicted)
-		return -EINVAL;
-
-	be = entry->be;
-	ttm = entry->owner;
-
-	if (!ttm || !be->needs_cache_adjust(be)) {
-		flush_cache_all();
-	}
-
-	if (0 != (ret = be->bind(be, aper_offset))) {
-		return ret;
-	}
-
-	cur_page_flag = ttm->page_flags;
-	for (i = 0; i < entry->num_pages; ++i) {
-		DRM_MASK_VAL(*cur_page_flag, DRM_TTM_MASK_PFN, 
-			     (i + aper_offset) << PAGE_SHIFT);
-		cur_page_flag++;
-	}
-
-	entry->state = ttm_bound;
-	return 0;
+	return drm_bind_ttm_region(entry, aper_offset);
 }
 
 /*
@@ -893,7 +825,7 @@ static int drm_ttm_evict_lru_sl(drm_ttm_backend_list_t * entry,
 		*cur_fence = evict_fence;
 		*have_fence = TRUE;
 	} while (TRUE);
-	DRM_ERROR("Evicting\n");
+	DRM_ERROR("Evicting 0x%lx\n", (unsigned long)evict_priv->region);
 	evict_node = evict_priv->region->mm_node;
 	drm_evict_ttm_region(evict_priv->region);
 	list_del_init(list);
@@ -1168,13 +1100,14 @@ static void drm_ttm_handle_buf(drm_file_t * priv, drm_ttm_buf_arg_t * buf_p)
 					       &entry);
 		if (buf_p->ret)
 			break;
-		buf_p->ret = drm_evict_ttm_region(entry);
 		remove_ttm_region(entry);
+		buf_p->ret = drm_evict_ttm_region(entry);
 		break;
 	case ttm_destroy:
 		buf_p->ret =
 		    drm_ttm_region_from_handle(buf_p->region_handle, priv,
 					       &entry);
+
 		if (buf_p->ret)
 			break;
 		if (entry->owner) {
@@ -1199,6 +1132,7 @@ int drm_ttm_handle_bufs(drm_file_t * priv, drm_ttm_arg_t * ttm_arg)
 	drm_ttm_driver_t *ttm_driver = dev->driver->ttm_driver;
 	drm_ttm_buf_arg_t *bufs = NULL, *next, *buf_p;
 	int i;
+	static void *old_priv;
 
 	if (ttm_arg->num_bufs > DRM_TTM_MAX_BUF_BATCH) {
 		DRM_ERROR("Invalid number of TTM buffers.\n");
@@ -1235,9 +1169,12 @@ int drm_ttm_handle_bufs(drm_file_t * priv, drm_ttm_arg_t * ttm_arg)
 	buf_p = bufs;
 
 	down(&dev->struct_sem);
-	if (ttm_arg->do_fence)
+	if (ttm_arg->do_fence) {
+		if (old_priv != priv)
+			DRM_ERROR("Fence was from wrong client\n");
 		drm_ttm_fence_regions(ttm_driver->ttm_mm(dev),
 				      ttm_driver->emit_fence(dev));
+	}
 
 	for (i = 0; i < ttm_arg->num_bufs; ++i) {
 		drm_ttm_handle_buf(priv, buf_p);
@@ -1246,7 +1183,7 @@ int drm_ttm_handle_bufs(drm_file_t * priv, drm_ttm_arg_t * ttm_arg)
 	up(&dev->struct_sem);
 
 	if (ttm_arg->num_bufs) {
-
+		old_priv = priv;
 		next = ttm_arg->first;
 		buf_p = bufs;
 		for (i = 0; i < ttm_arg->num_bufs; ++i) {

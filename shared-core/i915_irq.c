@@ -94,13 +94,13 @@ static int i915_wait_irq(drm_device_t * dev, int irq_nr)
 	DRM_DEBUG("%s irq_nr=%d breadcrumb=%d\n", __FUNCTION__, irq_nr,
 		  READ_BREADCRUMB(dev_priv));
 
-	if (READ_BREADCRUMB(dev_priv) >= irq_nr)
+	if (((uint32_t)(READ_BREADCRUMB(dev_priv) - irq_nr)) <= (1 << 23))
 		return 0;
 
 	dev_priv->sarea_priv->perf_boxes |= I915_BOX_WAIT;
 
 	DRM_WAIT_ON(ret, dev_priv->irq_queue, 3 * DRM_HZ,
-		    READ_BREADCRUMB(dev_priv) >= irq_nr);
+		    (((uint32_t)(READ_BREADCRUMB(dev_priv) - irq_nr)) <= (1 << 23)));
 
 	if (ret == DRM_ERR(EBUSY)) {
 		DRM_ERROR("%s: EBUSY -- rec: %d emitted: %d\n",
@@ -186,7 +186,7 @@ void i915_driver_irq_preinstall(drm_device_t * dev)
 {
 	drm_i915_private_t *dev_priv = (drm_i915_private_t *) dev->dev_private;
 
-	I915_WRITE16(I915REG_HWSTAM, 0xfffe);
+	I915_WRITE16(I915REG_HWSTAM, 0xeffe);
 	I915_WRITE16(I915REG_INT_MASK_R, 0x0);
 	I915_WRITE16(I915REG_INT_ENABLE_R, 0x0);
 }
@@ -216,10 +216,14 @@ uint32_t i915_emit_fence(drm_device_t * dev)
 
 	if (!dev_priv)
 		return 0;
+/*
+ * FIXME: Disable for now since we're using 
+ */
 
-	i915_emit_mi_flush(dev, DRM_FLUSH_READ | DRM_FLUSH_EXE);
+#if 0
+	i915_emit_mi_flush(dev, MI_READ_FLUSH | MI_EXE_FLUSH); 
+#endif
 	return dev_priv->counter;
-
 }
 
 int i915_test_fence(drm_device_t * dev, uint32_t fence)
@@ -235,6 +239,23 @@ int i915_test_fence(drm_device_t * dev, uint32_t fence)
 	return (test < (1 << 23));
 }
 
+int i915_sync_flush(drm_device_t *dev)
+{
+	drm_i915_private_t *dev_priv = (drm_i915_private_t *) dev->dev_private;
+	uint32_t saved_status, i_status;
+	int i;
+	
+	saved_status = READ_HWSP(dev_priv, 0);
+	I915_WRITE(I915REG_INSTPM, (1 << 5) | (1 << 21));
+	for (i=0; i<10000000; ++i) {
+		i_status = READ_HWSP(dev_priv, 0);
+		if ((i_status & ( 1 << 12)) != (saved_status & (1 << 12)))
+			return 0;
+	}	
+	DRM_ERROR("Sync Flush timeout: HWSP: 0x%x, 0x%x %d\n", saved_status, i_status, i);
+	return 1;
+}
+
 /*
  * Temporarily use polling here:
  */
@@ -248,11 +269,12 @@ int i915_wait_fence(drm_device_t * dev, uint32_t fence)
 		return 0;
 
 	for (i=0; i<10000000; ++i) {	
-		if ( i915_test_fence( dev, fence))
+		if ( i915_test_fence( dev, fence)) {
+			i915_sync_flush(dev);
 			return 0;
+		}
 	}
 
 	DRM_ERROR("Fence timeout %d %d\n", READ_BREADCRUMB(dev_priv), fence);
-
 	return 1;	
 }

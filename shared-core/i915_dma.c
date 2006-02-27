@@ -415,9 +415,14 @@ static int i915_emit_box(drm_device_t * dev,
 static void i915_emit_breadcrumb(drm_device_t *dev)
 {
 	drm_i915_private_t *dev_priv = dev->dev_private;
+	uint32_t counter = dev_priv->counter++;
+
 	RING_LOCALS;
 
-	dev_priv->sarea_priv->last_enqueue = dev_priv->counter++;
+	if (dev_priv->counter > 0x7FFFFFFFUL)
+		dev_priv->counter = 0;
+		
+	dev_priv->sarea_priv->last_enqueue = counter;
 
 	BEGIN_LP_RING(4);
 	OUT_RING(CMD_STORE_DWORD_IDX);
@@ -808,17 +813,14 @@ void i915_emit_mi_flush(drm_device_t *dev, int flush)
 	if (flush & DRM_FLUSH_EXE)
 		flush_cmd |= MI_EXE_FLUSH;
 
-	dev_priv->sarea_priv->last_enqueue = dev_priv->counter++;
-
 	i915_kernel_lost_context(dev);
 
-	BEGIN_LP_RING(8);
+	BEGIN_LP_RING(4);
 	OUT_RING(flush_cmd);
 	OUT_RING(0);
 	OUT_RING(0);
-	OUT_RING(CMD_STORE_DWORD_IDX);
-	OUT_RING(20);
-	OUT_RING(dev_priv->counter);
 	OUT_RING(0);
 	ADVANCE_LP_RING();
+
+	i915_emit_breadcrumb(dev);
 }

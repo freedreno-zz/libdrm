@@ -205,6 +205,7 @@ extern int i915_wait_ring(drm_device_t * dev, int n, const char *caller);
 #define I915REG_INT_IDENTITY_R	0x020a4
 #define I915REG_INT_MASK_R 	0x020a8
 #define I915REG_INT_ENABLE_R	0x020a0
+#define I915REG_INSTPM	        0x020c0
 
 #define SRX_INDEX		0x3c4
 #define SRX_DATA		0x3c5
@@ -285,5 +286,6 @@ extern int i915_wait_ring(drm_device_t * dev, int n, const char *caller);
 #define CMD_OP_DESTBUFFER_INFO	 ((0x3<<29)|(0x1d<<24)|(0x8e<<16)|1)
 
 #define READ_BREADCRUMB(dev_priv)  (((volatile u32*)(dev_priv->hw_status_page))[5])
+#define READ_HWSP(dev_priv, reg)  (((volatile u32*)(dev_priv->hw_status_page))[reg])
 
 #endif
