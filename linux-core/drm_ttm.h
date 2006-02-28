@@ -68,7 +68,6 @@ typedef struct drm_ttm {
 	drm_file_t *owner;
 } drm_ttm_t;
 
-
 /*
  * Initialize a ttm. Currently the size is fixed. Currently drmAddMap calls this function
  * and creates a DRM map of type _DRM_TTM, and returns a reference to that map to the 
@@ -124,10 +123,9 @@ extern void drm_user_destroy_region(drm_ttm_backend_list_t * entry);
 extern int drm_ttm_ioctl(DRM_IOCTL_ARGS);
 extern int drm_mm_init_ioctl(DRM_IOCTL_ARGS);
 
-
 #define DRM_MASK_VAL(dest, mask, val)			\
   (dest) = ((dest) & ~(mask)) | ((val) & (mask));
- 
+
 #define DRM_TTM_MASK_FLAGS ((1 << PAGE_SHIFT) - 1)
 #define DRM_TTM_MASK_PFN (0xFFFFFFFFU - DRM_TTM_MASK_FLAGS)
 

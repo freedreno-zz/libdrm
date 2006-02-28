@@ -179,9 +179,10 @@ int drm_mm_init(drm_mm_t * mm, unsigned long start, unsigned long size)
 
 	return 0;
 }
+
 EXPORT_SYMBOL(drm_mm_init);
 
-void drm_mm_takedown(drm_mm_t *mm)
+void drm_mm_takedown(drm_mm_t * mm)
 {
 	struct list_head *bnode = mm->root_node.fl_entry.next;
 	drm_mm_node_t *entry;
@@ -193,4 +194,5 @@ void drm_mm_takedown(drm_mm_t *mm)
 
 	drm_free(entry, sizeof(*entry), DRM_MEM_MM);
 }
+
 EXPORT_SYMBOL(drm_mm_takedown);

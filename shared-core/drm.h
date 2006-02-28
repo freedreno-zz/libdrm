@@ -675,7 +675,31 @@ typedef struct drm_ttm_arg {
 	struct drm_ttm_buf_arg __user *first;        
 } drm_ttm_arg_t;
 
+typedef struct drm_mm_init_arg {
+    enum {
+	mm_init,
+	mm_takedown
+    } op;
+    uint32_t vr_offset_lo;
+    uint32_t vr_offset_hi;
+    uint32_t vr_size_lo;
+    uint32_t vr_size_hi;
+    uint32_t tt_p_offset_lo;
+    uint32_t tt_p_offset_hi;
+    uint32_t tt_p_size_lo;
+    uint32_t tt_p_size_hi;
+    drm_handle_t mm_sarea;
+} drm_mm_init_arg_t;
 
+#define DRM_MM_SAREA_SIZE 4096
+
+typedef struct drm_mm_sarea{
+    unsigned emitted[32];     /* Last emitted fence */
+    unsigned retired[32];     /* Last retired fence */
+    unsigned validation_seq;  /* Seq. no of last validation call */
+    unsigned evict_vram_seq;  /* Seq. no of last call vram was evicted */
+    unsigned evict_tt_seq;   /* Seq. no of last call agp pages were evicted */
+} drm_mm_sarea_t;
 
 /**
  * \name Ioctls Definitions

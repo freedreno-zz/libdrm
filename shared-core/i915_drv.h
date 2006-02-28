@@ -96,10 +96,6 @@ typedef struct drm_i915_private {
 	int allow_batchbuffer;
 	struct mem_block *agp_heap;
 	unsigned int sr01, adpa, ppcr, dvob, dvoc, lvds;
-#ifdef DRM_HAS_TTM
-	drm_ttm_mm_t ttm_mm;
-	drm_ttm_driver_t ttm_driver;
-#endif
 } drm_i915_private_t;
 
 extern drm_ioctl_desc_t i915_ioctls[];
@@ -139,9 +135,7 @@ extern void i915_mem_takedown(struct mem_block **heap);
 extern void i915_mem_release(drm_device_t * dev,
 			     DRMFILE filp, struct mem_block *heap);
 /* i915_ttm.c */
-extern void i915_init_ttm(drm_device_t *dev, drm_i915_private_t *dev_priv);
-
-
+extern drm_mm_driver_t *i915_mm_init(drm_device_t *dev);
 #define I915_READ(reg)          DRM_READ32(dev_priv->mmio_map, (reg))
 #define I915_WRITE(reg,val)     DRM_WRITE32(dev_priv->mmio_map, (reg), (val))
 #define I915_READ16(reg) 	DRM_READ16(dev_priv->mmio_map, (reg))

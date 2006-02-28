@@ -826,6 +826,7 @@ static int drm_ttm_evict_lru_sl(drm_ttm_backend_list_t * entry,
 		*have_fence = TRUE;
 	} while (TRUE);
 	DRM_ERROR("Evicting 0x%lx\n", (unsigned long)evict_priv->region);
+	dev->mm_driver->evicted_tt = TRUE;
 	evict_node = evict_priv->region->mm_node;
 	drm_evict_ttm_region(evict_priv->region);
 	list_del_init(list);
@@ -911,8 +912,8 @@ static int drm_validate_ttm_region(drm_ttm_backend_list_t * entry,
 	return 0;
 }
 
-static void drm_ttm_mm_init(drm_device_t * dev, drm_ttm_mm_t * mm, unsigned long start,
-		     unsigned long size)
+static void drm_ttm_mm_init(drm_device_t * dev, drm_ttm_mm_t * mm,
+			    unsigned long start, unsigned long size)
 {
 	drm_mm_init(&mm->mm, start, size);
 	INIT_LIST_HEAD(&mm->lru_head);
@@ -923,7 +924,6 @@ static void drm_ttm_mm_takedown(drm_ttm_mm_t * mm)
 {
 	drm_mm_takedown(&mm->mm);
 }
-
 
 static int drm_ttm_from_handle(drm_handle_t handle, drm_file_t * priv,
 			       drm_ttm_t ** used_ttm,
@@ -1136,12 +1136,18 @@ int drm_ttm_handle_bufs(drm_file_t * priv, drm_ttm_arg_t * ttm_arg)
 	drm_mm_driver_t *mm_driver = dev->mm_driver;
 	drm_ttm_buf_arg_t *bufs = NULL, *next, *buf_p;
 	int i;
+	volatile drm_mm_sarea_t *sa;
+
 	static void *old_priv;
 
 	if (ttm_arg->num_bufs > DRM_TTM_MAX_BUF_BATCH) {
 		DRM_ERROR("Invalid number of TTM buffers.\n");
 		return -EINVAL;
 	}
+
+	mm_driver->evicted_vram = FALSE;
+	mm_driver->evicted_tt = FALSE;
+	mm_driver->validated = FALSE;
 
 	if (ttm_arg->num_bufs) {
 
@@ -1200,6 +1206,15 @@ int drm_ttm_handle_bufs(drm_file_t * priv, drm_ttm_arg_t * ttm_arg)
 
 		drm_free(bufs, ttm_arg->num_bufs * sizeof(*bufs), DRM_MEM_TTM);
 	}
+
+	sa = mm_driver->mm_sarea;
+	if (mm_driver->validated)
+		sa->validation_seq++;
+	if (mm_driver->evicted_vram)
+		sa->evict_vram_seq++;
+	if (mm_driver->evicted_tt)
+		sa->evict_vram_seq++;
+
 	return 0;
 }
 
@@ -1296,22 +1311,20 @@ int drm_ttm_ioctl(DRM_IOCTL_ARGS)
 	return 0;
 }
 
-
 /*
  * FIXME: Temporarily non-static to allow for intel initialization hack.
  */
 
-int drm_mm_do_takedown(drm_device_t *dev)
+int drm_mm_do_takedown(drm_device_t * dev)
 {
 	if (!dev->mm_driver) {
 		DRM_ERROR("Memory manager not initialized.\n");
 		return -EINVAL;
 	}
 
-	
 	drm_mm_takedown(&dev->mm_driver->vr_mm);
 	drm_ttm_mm_takedown(&dev->mm_driver->ttm_mm);
-	drm_rmmap_locked(dev, dev->mm_driver->mm_sarea->map);
+	drm_rmmap_locked(dev, dev->mm_driver->mm_sarea_map->map);
 	dev->mm_driver->takedown(dev->mm_driver);
 	dev->mm_driver = NULL;
 	return 0;
@@ -1322,8 +1335,8 @@ EXPORT_SYMBOL(drm_mm_do_takedown);
 /*
  * FIXME: Temporarily non-static to allow for intel initialization hack.
  */
-	
-int drm_mm_do_init(drm_device_t *dev, drm_mm_init_arg_t *arg)
+
+int drm_mm_do_init(drm_device_t * dev, drm_mm_init_arg_t * arg)
 {
 	int ret;
 	unsigned long vr_size;
@@ -1349,11 +1362,10 @@ int drm_mm_do_init(drm_device_t *dev, drm_mm_init_arg_t *arg)
 		tt_p_size |= (arg->tt_p_size_hi << shift);
 		tt_p_offset |= (arg->tt_p_offset_hi << shift);
 	}
-	
-	
+
 	dev->mm_driver = dev->driver->init_mm(dev);
 
-	drm_ttm_mm_init(dev, &dev->mm_driver->ttm_mm, tt_p_offset, tt_p_size);	
+	drm_ttm_mm_init(dev, &dev->mm_driver->ttm_mm, tt_p_offset, tt_p_size);
 	drm_mm_init(&dev->mm_driver->vr_mm, vr_offset >> MM_VR_GRANULARITY,
 		    vr_size >> MM_VR_GRANULARITY);
 
@@ -1362,24 +1374,26 @@ int drm_mm_do_init(drm_device_t *dev, drm_mm_init_arg_t *arg)
 		return -EINVAL;
 	}
 
-	ret = drm_addmap_core(dev, 0, 4096, _DRM_SHM, 0, &mm_sarea);
+	ret = drm_addmap_core(dev, 0, DRM_MM_SAREA_SIZE,
+			      _DRM_SHM, 0, &mm_sarea);
 	if (ret) {
 		dev->mm_driver->takedown(dev->mm_driver);
 		DRM_ERROR("Failed to add a Memory manager SAREA.\n");
 		return -ENOMEM;
 	}
-	
-	dev->mm_driver->mm_sarea = mm_sarea;
+
+	dev->mm_driver->mm_sarea_map = mm_sarea;
+	dev->mm_driver->mm_sarea = (drm_mm_sarea_t *) mm_sarea->map->handle;
+	memset((void *)dev->mm_driver->mm_sarea, 0, DRM_MM_SAREA_SIZE);
+
 	arg->mm_sarea = mm_sarea->user_token;
-	
+
 	return 0;
 }
 
 EXPORT_SYMBOL(drm_mm_do_init);
 
-
 int drm_mm_init_ioctl(DRM_IOCTL_ARGS)
-
 {
 	DRM_DEVICE;
 
@@ -1387,14 +1401,15 @@ int drm_mm_init_ioctl(DRM_IOCTL_ARGS)
 	drm_mm_init_arg_t arg;
 
 	if (!dev->driver->init_mm) {
-		DRM_ERROR("Memory management not supported with this driver.\n");
+		DRM_ERROR
+		    ("Memory management not supported with this driver.\n");
 		return -EINVAL;
 	}
 
 	DRM_COPY_FROM_USER_IOCTL(arg, (void __user *)data, sizeof(arg));
 
 	down(&dev->struct_sem);
-	switch(arg.op) {
+	switch (arg.op) {
 	case mm_init:
 		ret = drm_mm_do_init(dev, &arg);
 		break;
@@ -1409,7 +1424,7 @@ int drm_mm_init_ioctl(DRM_IOCTL_ARGS)
 
 	if (ret)
 		return ret;
-				
+
 	DRM_COPY_TO_USER_IOCTL((void __user *)data, arg, sizeof(arg));
 
 	return 0;

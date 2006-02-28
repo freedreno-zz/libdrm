@@ -191,10 +191,27 @@ static int i915_initialize(drm_device_t * dev,
 	I915_WRITE(0x02080, dev_priv->dma_status_page);
 	DRM_DEBUG("Enabled hardware status page\n");
 
-#ifdef DRM_HAS_TTM
-	i915_init_ttm(dev, dev_priv);
-#endif
 	dev->dev_private = (void *)dev_priv;
+
+	/*
+	 * FIXME: Temporary initialization hack.
+	 */
+
+	{
+		drm_mm_init_arg_t arg;
+
+		arg.vr_size_lo = 1024*1024*24;
+		arg.vr_size_hi = 0;
+		arg.vr_offset_lo = 1024*1024*8;
+		arg.vr_offset_hi = 0;
+
+		arg.tt_p_size_lo = 1024*1024*48;
+		arg.tt_p_size_hi = 0;
+		arg.tt_p_offset_lo = 1024*1024*128/4096;
+		arg.tt_p_offset_hi = 0;
+		arg.op = mm_init;
+		drm_mm_do_init(dev, &arg);
+	}
 
 	return 0;
 }
@@ -749,6 +766,13 @@ int i915_driver_load(drm_device_t *dev, unsigned long flags)
 
 void i915_driver_lastclose(drm_device_t * dev)
 {
+	/*
+	 * FIXME: Temporary initialization hack.
+	 */
+
+
+	drm_mm_do_takedown (dev);
+
 	if (dev->dev_private) {
 		drm_i915_private_t *dev_priv = dev->dev_private;
 		i915_mem_takedown(&(dev_priv->agp_heap));

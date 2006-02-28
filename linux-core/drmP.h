@@ -585,10 +585,14 @@ typedef struct drm_ttm_mm {
 } drm_ttm_mm_t;
 
 typedef struct drm_mm_driver {
+        int evicted_vram;
+	int evicted_tt;
+	int validated;
 	int cached_pages;
 	drm_ttm_mm_t ttm_mm;
 	drm_mm_t     vr_mm;
-        drm_map_list_t *mm_sarea;
+        drm_map_list_t *mm_sarea_map;
+	volatile drm_mm_sarea_t *mm_sarea;
 	uint32_t(*emit_fence) (struct drm_device * dev);
 	int (*wait_fence) (struct drm_device * dev, uint32_t fence);
 	int (*test_fence) (struct drm_device * dev, uint32_t fence);
