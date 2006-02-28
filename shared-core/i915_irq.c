@@ -210,23 +210,18 @@ void i915_driver_irq_uninstall(drm_device_t * dev)
 	I915_WRITE16(I915REG_INT_ENABLE_R, 0x0);
 }
 
-uint32_t i915_emit_fence(drm_device_t * dev) 
+uint32_t i915_emit_fence(drm_device_t * dev, uint32_t type) 
 {
 	drm_i915_private_t *dev_priv = (drm_i915_private_t *) dev->dev_private;
 
 	if (!dev_priv)
 		return 0;
-/*
- * FIXME: Disable for now since we're using 
- */
 
-#if 0
-	i915_emit_mi_flush(dev, MI_READ_FLUSH | MI_EXE_FLUSH); 
-#endif
+	dev->mm_driver->mm_sarea->emitted[0] = dev_priv->counter;
 	return dev_priv->counter;
 }
 
-int i915_test_fence(drm_device_t * dev, uint32_t fence)
+static int i915_do_test_fence(drm_device_t * dev, uint32_t fence)
 {
 
 	drm_i915_private_t *dev_priv = (drm_i915_private_t *) dev->dev_private;
@@ -239,7 +234,7 @@ int i915_test_fence(drm_device_t * dev, uint32_t fence)
 	return (test < (1 << 23));
 }
 
-int i915_sync_flush(drm_device_t *dev)
+static int i915_sync_flush(drm_device_t *dev)
 {
 	drm_i915_private_t *dev_priv = (drm_i915_private_t *) dev->dev_private;
 	uint32_t saved_status, i_status;
@@ -252,29 +247,56 @@ int i915_sync_flush(drm_device_t *dev)
 		if ((i_status & ( 1 << 12)) != (saved_status & (1 << 12)))
 			return 0;
 	}	
-	DRM_ERROR("Sync Flush timeout: HWSP: 0x%x, 0x%x %d\n", saved_status, i_status, i);
+	DRM_ERROR("Sync Flush timeout: HWSP: 0x%x, 0x%x %d\n", 
+			saved_status, i_status, i);
 	return 1;
+}
+
+
+int i915_test_fence(drm_device_t *dev, uint32_t type, uint32_t fence)
+{
+	drm_i915_private_t *dev_priv = (drm_i915_private_t *) dev->dev_private;
+	int tmp = i915_do_test_fence(dev, fence);
+	
+	fence = READ_BREADCRUMB(dev_priv);
+	
+	i915_sync_flush(dev);
+
+	dev->mm_driver->mm_sarea->retired[0] = fence;
+
+	return tmp;
 }
 
 /*
  * Temporarily use polling here:
  */
 
-int i915_wait_fence(drm_device_t * dev, uint32_t fence) 
+int i915_wait_fence(drm_device_t * dev, uint32_t type, uint32_t fence) 
 {
-	int i;
+
 	drm_i915_private_t *dev_priv = (drm_i915_private_t *) dev->dev_private;
+	int i;
+	int ret;
 
 	if (!dev_priv)
 		return 0;
 
+	ret = 1;
 	for (i=0; i<10000000; ++i) {	
-		if ( i915_test_fence( dev, fence)) {
+		if ( i915_do_test_fence( dev, fence)) {
+			fence = READ_BREADCRUMB(dev_priv);
 			i915_sync_flush(dev);
-			return 0;
+			ret = 0;
+			break;
 		}
 	}
 
-	DRM_ERROR("Fence timeout %d %d\n", READ_BREADCRUMB(dev_priv), fence);
-	return 1;	
+	if (ret) {
+		DRM_ERROR("Fence timeout %d %d\n", 
+			READ_BREADCRUMB(dev_priv), fence);
+	} else {
+		dev->mm_driver->mm_sarea->retired[0] = fence;
+	}
+
+	return ret;	
 }

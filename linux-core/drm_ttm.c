@@ -391,7 +391,8 @@ static void remove_ttm_region(drm_ttm_backend_list_t * entry)
 		return;
 
 	if (mm_priv->fence_valid)
-		dev->mm_driver->wait_fence(mm->dev, mm_priv->fence);
+		dev->mm_driver->wait_fence(mm->dev, entry->fence_type,
+					   mm_priv->fence);
 	mm_node->private = NULL;
 	spin_lock(&mm->mm.mm_lock);
 	list_del(&mm_priv->lru);
@@ -763,10 +764,15 @@ int drm_add_ttm(drm_device_t * dev, unsigned size, drm_map_list_t ** maplist)
  * Fence all unfenced regions in the global lru list. 
  */
 
-static void drm_ttm_fence_regions(drm_ttm_mm_t * mm, uint32_t fence)
+static void drm_ttm_fence_regions(drm_device_t * dev, drm_ttm_mm_t * mm)
 {
+	int emitted[DRM_FENCE_TYPES];
+	uint32_t fence_seqs[DRM_FENCE_TYPES];
 	struct list_head *list;
+	uint32_t fence_type;
+	uint32_t fence;
 
+	memset(emitted, 0, sizeof(int) * DRM_FENCE_TYPES);
 	spin_lock(&mm->mm.mm_lock);
 
 	list_for_each_prev(list, &mm->lru_head) {
@@ -774,6 +780,17 @@ static void drm_ttm_fence_regions(drm_ttm_mm_t * mm, uint32_t fence)
 		    list_entry(list, drm_ttm_mm_priv_t, lru);
 		if (entry->fence_valid)
 			break;
+
+		fence_type = entry->region->fence_type;
+
+		if (!emitted[fence_type]) {
+			fence = dev->mm_driver->emit_fence(dev, fence_type);
+			fence_seqs[fence_type] = fence;
+			emitted[fence_type] = TRUE;
+		} else {
+			fence = fence_seqs[fence_type];
+		}
+
 		entry->fence = fence;
 		entry->fence_valid = TRUE;
 	}
@@ -789,8 +806,7 @@ static void drm_ttm_fence_regions(drm_ttm_mm_t * mm, uint32_t fence)
  * May sleep while waiting for a fence.
  */
 
-static int drm_ttm_evict_lru_sl(drm_ttm_backend_list_t * entry,
-				int *have_fence, uint32_t * cur_fence)
+static int drm_ttm_evict_lru_sl(drm_ttm_backend_list_t * entry)
 {
 	struct list_head *list;
 	drm_ttm_mm_t *mm = entry->mm;
@@ -815,16 +831,16 @@ static int drm_ttm_evict_lru_sl(drm_ttm_backend_list_t * entry,
 		}
 
 		evict_fence = evict_priv->fence;
-		if (*have_fence && ((*cur_fence - evict_fence) < (1 << 23)))
-			break;
+
 		spin_unlock(mm_lock);
 		up(&dev->struct_sem);
-		dev->mm_driver->wait_fence(dev, evict_fence);
+		dev->mm_driver->wait_fence(dev, evict_priv->region->fence_type,
+					   evict_fence);
 		down(&dev->struct_sem);
 		spin_lock(mm_lock);
-		*cur_fence = evict_fence;
-		*have_fence = TRUE;
+
 	} while (TRUE);
+
 	DRM_ERROR("Evicting 0x%lx\n", (unsigned long)evict_priv->region);
 	dev->mm_driver->evicted_tt = TRUE;
 	evict_node = evict_priv->region->mm_node;
@@ -834,6 +850,7 @@ static int drm_ttm_evict_lru_sl(drm_ttm_backend_list_t * entry,
 	drm_mm_put_block_locked(&mm->mm, evict_node);
 	evict_priv->region->mm_node = NULL;
 	drm_free(evict_priv, sizeof(*evict_priv), DRM_MEM_MM);
+
 	return 0;
 }
 
@@ -846,13 +863,11 @@ static int drm_ttm_evict_lru_sl(drm_ttm_backend_list_t * entry,
  */
 
 static int drm_validate_ttm_region(drm_ttm_backend_list_t * entry,
-				   unsigned *aper_offset)
+				   uint32_t fence_type, unsigned *aper_offset)
 {
 	drm_mm_node_t *mm_node = entry->mm_node;
 	drm_ttm_mm_t *mm = entry->mm;
 	spinlock_t *mm_lock = &mm->mm.mm_lock;
-	uint32_t cur_fence = 0;
-	int have_fence = FALSE;
 	drm_ttm_mm_priv_t *mm_priv;
 	unsigned num_pages;
 	int ret;
@@ -872,9 +887,7 @@ static int drm_validate_ttm_region(drm_ttm_backend_list_t * entry,
 		mm_node =
 		    drm_mm_search_free_locked(&entry->mm->mm, num_pages, 0, 0);
 		if (!mm_node) {
-			ret =
-			    drm_ttm_evict_lru_sl(entry, &have_fence,
-						 &cur_fence);
+			ret = drm_ttm_evict_lru_sl(entry);
 			if (ret) {
 				spin_unlock(mm_lock);
 				return ret;
@@ -892,6 +905,8 @@ static int drm_validate_ttm_region(drm_ttm_backend_list_t * entry,
 	}
 
 	mm_priv->fence_valid = FALSE;
+	entry->fence_type = fence_type;
+
 	if (!entry->pinned)
 		list_add_tail(&mm_priv->lru, &mm->lru_head);
 
@@ -1065,8 +1080,13 @@ static void drm_ttm_handle_buf(drm_file_t * priv, drm_ttm_buf_arg_t * buf_p)
 		if (buf_p->ret)
 			break;
 		ttm_mm = entry->mm;
+		if (buf_p->fence_type >= dev->mm_driver->fence_types) {
+			buf_p->ret = -EINVAL;
+			break;
+		}
 		buf_p->ret =
-		    drm_validate_ttm_region(entry, &buf_p->aper_offset);
+		    drm_validate_ttm_region(entry, buf_p->fence_type,
+					    &buf_p->aper_offset);
 		break;
 	case ttm_validate:
 		buf_p->ret =
@@ -1087,8 +1107,13 @@ static void drm_ttm_handle_buf(drm_file_t * priv, drm_ttm_buf_arg_t * buf_p)
 				break;
 		}
 		ttm_mm = entry->mm;
+		if (buf_p->fence_type >= dev->mm_driver->fence_types) {
+			buf_p->ret = -EINVAL;
+			break;
+		}
 		buf_p->ret =
-		    drm_validate_ttm_region(entry, &buf_p->aper_offset);
+		    drm_validate_ttm_region(entry, buf_p->fence_type,
+					    &buf_p->aper_offset);
 		break;
 	case ttm_unbind:
 		buf_p->ret =
@@ -1182,8 +1207,7 @@ int drm_ttm_handle_bufs(drm_file_t * priv, drm_ttm_arg_t * ttm_arg)
 	if (ttm_arg->do_fence) {
 		if (old_priv != priv)
 			DRM_ERROR("Fence was from wrong client\n");
-		drm_ttm_fence_regions(&mm_driver->ttm_mm,
-				      mm_driver->emit_fence(dev));
+		drm_ttm_fence_regions(dev, &mm_driver->ttm_mm);
 	}
 
 	for (i = 0; i < ttm_arg->num_bufs; ++i) {
@@ -1378,7 +1402,7 @@ int drm_mm_do_init(drm_device_t * dev, drm_mm_init_arg_t * arg)
 			      _DRM_SHM, 0, &mm_sarea);
 	if (ret) {
 		dev->mm_driver->takedown(dev->mm_driver);
-		DRM_ERROR("Failed to add a Memory manager SAREA.\n");
+		DRM_ERROR("Failed to add a memory manager SAREA.\n");
 		return -ENOMEM;
 	}
 
@@ -1431,3 +1455,45 @@ int drm_mm_init_ioctl(DRM_IOCTL_ARGS)
 }
 
 EXPORT_SYMBOL(drm_mm_init_ioctl);
+
+int drm_mm_fence_ioctl(DRM_IOCTL_ARGS)
+{
+	DRM_DEVICE;
+
+	int ret;
+	drm_fence_arg_t arg;
+	drm_mm_driver_t *mm_driver = dev->mm_driver;
+
+	LOCK_TEST_WITH_RETURN(dev, filp);
+	if (!mm_driver) {
+		DRM_ERROR("Memory manager is not initialized.\n");
+		return -EINVAL;
+	}
+
+	DRM_COPY_FROM_USER_IOCTL(arg, (void __user *)data, sizeof(arg));
+
+	ret = 0;
+	switch (arg.op) {
+	case emit_fence:
+		arg.fence_seq = mm_driver->emit_fence(dev, arg.fence_type);
+		break;
+	case wait_fence:
+		arg.ret = mm_driver->wait_fence(dev, arg.fence_type,
+						arg.fence_seq);
+		break;
+	case test_fence:
+		arg.ret = mm_driver->test_fence(dev, arg.fence_type,
+						arg.fence_seq);
+		break;
+	default:
+		DRM_ERROR("Unsupported memory manager operation.\n");
+		ret = -EINVAL;
+	}
+
+	if (ret)
+		return ret;
+
+	DRM_COPY_TO_USER_IOCTL((void __user *)data, arg, sizeof(arg));
+
+	return 0;
+}

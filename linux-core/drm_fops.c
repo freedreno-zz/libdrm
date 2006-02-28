@@ -362,9 +362,13 @@ int drm_release(struct inode *inode, struct file *filp)
 		if (dev->driver->reclaim_buffers_locked)
 			dev->driver->reclaim_buffers_locked(dev, filp);
 
+		/*
+		 * FIXME: These need to go away.
+		 */
+
 		if (dev->mm_driver) {
-			uint32_t fence =  dev->mm_driver->emit_fence(dev);
-			dev->mm_driver->wait_fence(dev, fence);
+		    uint32_t fence =  dev->mm_driver->emit_fence(dev, 0);
+		    dev->mm_driver->wait_fence(dev, 0, fence);
 		}
 		drm_lock_free(dev, &dev->lock.hw_lock->lock,
 			      _DRM_LOCKING_CONTEXT(dev->lock.hw_lock->lock));
@@ -406,9 +410,15 @@ int drm_release(struct inode *inode, struct file *filp)
 		if (!retcode) {
 			if (dev->driver->reclaim_buffers_locked)
 				dev->driver->reclaim_buffers_locked(dev, filp);
+			
+			/*
+			 * FIXME: These need to go away.
+			 */
+
+
 			if (dev->mm_driver) {
-				uint32_t fence =  dev->mm_driver->emit_fence(dev);
-				dev->mm_driver->wait_fence(dev, fence);
+			    uint32_t fence =  dev->mm_driver->emit_fence(dev, 0);
+			    dev->mm_driver->wait_fence(dev, 0, fence);
 			}
 
 			drm_lock_free(dev, &dev->lock.hw_lock->lock,

@@ -658,6 +658,7 @@ typedef struct drm_ttm_buf_arg {
 	char __user *user_addr;
 	unsigned long user_size;
 	struct drm_ttm_buf_arg __user *next;
+        unsigned fence_type;
         int ret;
 } drm_ttm_buf_arg_t;
  
@@ -680,22 +681,40 @@ typedef struct drm_mm_init_arg {
 	mm_init,
 	mm_takedown
     } op;
-    uint32_t vr_offset_lo;
-    uint32_t vr_offset_hi;
-    uint32_t vr_size_lo;
-    uint32_t vr_size_hi;
-    uint32_t tt_p_offset_lo;
-    uint32_t tt_p_offset_hi;
-    uint32_t tt_p_size_lo;
-    uint32_t tt_p_size_hi;
+    unsigned vr_offset_lo;
+    unsigned vr_offset_hi;
+    unsigned vr_size_lo;
+    unsigned vr_size_hi;
+    unsigned tt_p_offset_lo;
+    unsigned tt_p_offset_hi;
+    unsigned tt_p_size_lo;
+    unsigned tt_p_size_hi;
     drm_handle_t mm_sarea;
 } drm_mm_init_arg_t;
 
+typedef struct drm_fence_arg {
+    enum {
+	emit_fence,
+	wait_fence,
+	test_fence
+    } op;
+    unsigned fence_seq;
+    unsigned fence_type;
+    int ret;
+} drm_fence_arg_t ;
+
 #define DRM_MM_SAREA_SIZE 4096
 
+/*
+ * Different fence types for different part of chip and function. For example
+ * 3D / 2D, SG blitter, mc, video scaler * rwx etc. Up to driver to define.
+ */
+
+#define DRM_FENCE_TYPES 128
+
 typedef struct drm_mm_sarea{
-    unsigned emitted[32];     /* Last emitted fence */
-    unsigned retired[32];     /* Last retired fence */
+    unsigned emitted[DRM_FENCE_TYPES];     /* Last emitted fence */
+    unsigned retired[DRM_FENCE_TYPES];     /* Last retired fence */
     unsigned validation_seq;  /* Seq. no of last validation call */
     unsigned evict_vram_seq;  /* Seq. no of last call vram was evicted */
     unsigned evict_tt_seq;   /* Seq. no of last call agp pages were evicted */

@@ -39,6 +39,7 @@ typedef struct drm_ttm_backend_list {
 	struct page **anon_pages;
 	int anon_locked;
 	int pinned;
+	uint32_t fence_type;
 	struct drm_mm_node *mm_node;
 	struct drm_ttm_mm *mm;
 	enum {
