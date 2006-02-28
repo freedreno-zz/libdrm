@@ -362,9 +362,9 @@ int drm_release(struct inode *inode, struct file *filp)
 		if (dev->driver->reclaim_buffers_locked)
 			dev->driver->reclaim_buffers_locked(dev, filp);
 
-		if (dev->driver->ttm_driver) {
-			uint32_t fence =  dev->driver->ttm_driver->emit_fence(dev);
-			dev->driver->ttm_driver->wait_fence(dev, fence);
+		if (dev->mm_driver) {
+			uint32_t fence =  dev->mm_driver->emit_fence(dev);
+			dev->mm_driver->wait_fence(dev, fence);
 		}
 		drm_lock_free(dev, &dev->lock.hw_lock->lock,
 			      _DRM_LOCKING_CONTEXT(dev->lock.hw_lock->lock));
@@ -374,7 +374,7 @@ int drm_release(struct inode *inode, struct file *filp)
 		   processed via a callback to the X
 		   server. */
 	} else if ((dev->driver->reclaim_buffers_locked || 
-		    dev->driver->ttm_driver) && priv->lock_count
+		    dev->mm_driver) && priv->lock_count
 		   && dev->lock.hw_lock) {
 		/* The lock is required to reclaim buffers */
 		DECLARE_WAITQUEUE(entry, current);
@@ -406,9 +406,9 @@ int drm_release(struct inode *inode, struct file *filp)
 		if (!retcode) {
 			if (dev->driver->reclaim_buffers_locked)
 				dev->driver->reclaim_buffers_locked(dev, filp);
-			if (dev->driver->ttm_driver) {
-				uint32_t fence =  dev->driver->ttm_driver->emit_fence(dev);
-				dev->driver->ttm_driver->wait_fence(dev, fence);
+			if (dev->mm_driver) {
+				uint32_t fence =  dev->mm_driver->emit_fence(dev);
+				dev->mm_driver->wait_fence(dev, fence);
 			}
 
 			drm_lock_free(dev, &dev->lock.hw_lock->lock,

@@ -569,6 +569,37 @@ typedef struct drm_mm {
 
 #include "drm_ttm.h"
 
+#define MM_VR_GRANULARITY 5
+
+typedef struct drm_ttm_mm_priv {
+	struct list_head lru;
+	uint32_t fence;
+	int fence_valid;
+	drm_ttm_backend_list_t *region;
+} drm_ttm_mm_priv_t;
+
+typedef struct drm_ttm_mm {
+	struct drm_device *dev;
+	drm_mm_t mm;
+	struct list_head lru_head;
+} drm_ttm_mm_t;
+
+typedef struct drm_mm_driver {
+	int cached_pages;
+	drm_ttm_mm_t ttm_mm;
+	drm_mm_t     vr_mm;
+        drm_map_list_t *mm_sarea;
+	uint32_t(*emit_fence) (struct drm_device * dev);
+	int (*wait_fence) (struct drm_device * dev, uint32_t fence);
+	int (*test_fence) (struct drm_device * dev, uint32_t fence);
+	void (*flush_caches) (struct drm_device * dev, int access);
+	drm_ttm_backend_t *(*create_ttm_backend_entry) (struct drm_device * dev,
+							int cached);
+	void (*takedown) (struct drm_mm_driver * mm_driver);
+} drm_mm_driver_t;
+
+
+
 struct drm_driver {
 	int (*load) (struct drm_device *, unsigned long flags);
 	int (*firstopen) (struct drm_device *);
@@ -612,7 +643,7 @@ struct drm_driver {
 	unsigned long (*get_map_ofs) (drm_map_t * map);
 	unsigned long (*get_reg_ofs) (struct drm_device * dev);
 	void (*set_version) (struct drm_device * dev, drm_set_version_t * sv);
-        drm_ttm_driver_t *ttm_driver;
+    drm_mm_driver_t *(*init_mm) (struct drm_device *dev);
 	int major;
 	int minor;
 	int patchlevel;
@@ -779,6 +810,7 @@ typedef struct drm_device {
 	drm_local_map_t *agp_buffer_map;
 	unsigned int agp_buffer_token;
 	drm_head_t primary;		/**< primary screen head */
+	drm_mm_driver_t *mm_driver;
 } drm_device_t;
 
 
@@ -970,6 +1002,10 @@ extern unsigned long drm_get_resource_start(drm_device_t *dev,
 					    unsigned int resource);
 extern unsigned long drm_get_resource_len(drm_device_t *dev,
 					  unsigned int resource);
+extern int drm_addmap_core(drm_device_t * dev, unsigned int offset,
+			   unsigned int size, drm_map_type_t type,
+			   drm_map_flags_t flags, drm_map_list_t ** maplist);
+
 
 /* 
  * Closed hash table support drm_hashtab.c
@@ -1088,8 +1124,6 @@ extern void drm_sysfs_device_remove(struct class_device *class_dev);
                                /* ttm support (drm_ttm.c) */
 
 extern int drm_add_ttm(drm_device_t *dev, unsigned size, drm_map_list_t **maplist);
-extern void drm_ttm_mm_init(drm_device_t *dev, drm_ttm_mm_t *mm, unsigned long start, unsigned long size);
-
 
 /* 
  * Basic memory manager support (drm_mm.c) 
@@ -1101,6 +1135,17 @@ extern void drm_mm_put_block_locked(drm_mm_t *mm, drm_mm_node_t *cur);
 extern drm_mm_node_t *drm_mm_search_free_locked(const drm_mm_t *mm, unsigned long size, 
 						unsigned alignment, int best_match);
 extern int drm_mm_init(drm_mm_t *mm, unsigned long start, unsigned long size);
+extern void drm_mm_takedown(drm_mm_t *mm);
+
+/*
+ * FIXME: Temporarily non-static to allow for intel initialization hack.
+ */
+
+extern int drm_mm_do_takedown(drm_device_t *dev);
+extern int drm_mm_do_init(drm_device_t *dev, drm_mm_init_arg_t *arg);
+
+
+
 
 /* Inline replacements for DRM_IOREMAP macros */
 static __inline__ void drm_core_ioremap(struct drm_map *map,

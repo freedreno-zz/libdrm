@@ -78,6 +78,7 @@ static int fill_in_dev(drm_device_t * dev, struct pci_dev *pdev,
 	dev->pci_func = PCI_FUNC(pdev->devfn);
 	dev->irq = pdev->irq;
 
+	dev->mm_driver = NULL;
 	dev->maplist = drm_calloc(1, sizeof(*dev->maplist), DRM_MEM_MAPS);
 	if (dev->maplist == NULL)
 		return -ENOMEM;

@@ -68,29 +68,6 @@ typedef struct drm_ttm {
 	drm_file_t *owner;
 } drm_ttm_t;
 
-typedef struct drm_ttm_mm_priv {
-	struct list_head lru;
-	uint32_t fence;
-	int fence_valid;
-	drm_ttm_backend_list_t *region;
-} drm_ttm_mm_priv_t;
-
-typedef struct drm_ttm_mm {
-	struct drm_device *dev;
-	drm_mm_t mm;
-	struct list_head lru_head;
-} drm_ttm_mm_t;
-
-typedef struct drm_ttm_driver {
-	int cached_pages;
-	uint32_t(*emit_fence) (struct drm_device * dev);
-	int (*wait_fence) (struct drm_device * dev, uint32_t fence);
-	int (*test_fence) (struct drm_device * dev, uint32_t fence);
-	void (*flush_caches) (struct drm_device * dev, int access);
-	drm_ttm_backend_t *(*create_ttm_backend_entry) (struct drm_device * dev,
-							int cached);
-	drm_ttm_mm_t *(*ttm_mm) (struct drm_device * dev);
-} drm_ttm_driver_t;
 
 /*
  * Initialize a ttm. Currently the size is fixed. Currently drmAddMap calls this function
@@ -141,10 +118,12 @@ int drm_rebind_ttm_region(drm_ttm_backend_list_t * entry,
  * when the last vma exits.
  */
 
-int drm_destroy_ttm(drm_ttm_t * ttm);
-void drm_user_destroy_region(drm_ttm_backend_list_t * entry);
+extern int drm_destroy_ttm(drm_ttm_t * ttm);
+extern void drm_user_destroy_region(drm_ttm_backend_list_t * entry);
 
-int drm_ttm_ioctl(DRM_IOCTL_ARGS);
+extern int drm_ttm_ioctl(DRM_IOCTL_ARGS);
+extern int drm_mm_init_ioctl(DRM_IOCTL_ARGS);
+
 
 #define DRM_MASK_VAL(dest, mask, val)			\
   (dest) = ((dest) & ~(mask)) | ((val) & (mask));
