@@ -368,7 +368,9 @@ int drm_release(struct inode *inode, struct file *filp)
 
 		if (dev->mm_driver) {
 		    uint32_t fence =  dev->mm_driver->emit_fence(dev, 0);
-		    dev->mm_driver->wait_fence(dev, 0, fence);
+		    int count = 100000;
+
+		    while(count-- && -EINTR == dev->mm_driver->wait_fence(dev, 0, fence));
 		}
 		drm_lock_free(dev, &dev->lock.hw_lock->lock,
 			      _DRM_LOCKING_CONTEXT(dev->lock.hw_lock->lock));
@@ -417,8 +419,10 @@ int drm_release(struct inode *inode, struct file *filp)
 
 
 			if (dev->mm_driver) {
-			    uint32_t fence =  dev->mm_driver->emit_fence(dev, 0);
-			    dev->mm_driver->wait_fence(dev, 0, fence);
+			  uint32_t fence =  dev->mm_driver->emit_fence(dev, 0);
+			  int count = 100000;
+
+			  while(count-- && -EINTR == dev->mm_driver->wait_fence(dev, 0, fence));
 			}
 
 			drm_lock_free(dev, &dev->lock.hw_lock->lock,

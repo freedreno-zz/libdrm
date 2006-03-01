@@ -673,7 +673,7 @@ typedef struct drm_ttm_arg {
         unsigned long size;
         unsigned num_bufs;
         int do_fence;
-	struct drm_ttm_buf_arg __user *first;        
+	struct drm_ttm_buf_arg __user *first;
 } drm_ttm_arg_t;
 
 typedef struct drm_mm_init_arg {
@@ -696,10 +696,12 @@ typedef struct drm_fence_arg {
     enum {
 	emit_fence,
 	wait_fence,
-	test_fence
+	test_fence,
+	get_sarea
     } op;
     unsigned fence_seq;
     unsigned fence_type;
+    drm_handle_t mm_sarea;
     int ret;
 } drm_fence_arg_t ;
 
@@ -710,7 +712,8 @@ typedef struct drm_fence_arg {
  * 3D / 2D, SG blitter, mc, video scaler * rwx etc. Up to driver to define.
  */
 
-#define DRM_FENCE_TYPES 128
+#define DRM_FENCE_TYPES 0x80
+#define DRM_FENCE_MASK 0x7F
 
 typedef struct drm_mm_sarea{
     unsigned emitted[DRM_FENCE_TYPES];     /* Last emitted fence */
@@ -785,6 +788,8 @@ typedef struct drm_mm_sarea{
 
 #define DRM_IOCTL_WAIT_VBLANK		DRM_IOWR(0x3a, drm_wait_vblank_t)
 #define DRM_IOCTL_TTM                   DRM_IOWR(0x3b, drm_ttm_arg_t)
+#define DRM_IOCTL_MM_INIT               DRM_IOWR(0x3c, drm_mm_init_arg_t)
+#define DRM_IOCTL_FENCE                 DRM_IOWR(0x3c, drm_fence_arg_t)
 
 /*@}*/
 

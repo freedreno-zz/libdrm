@@ -189,6 +189,13 @@ void drm_mm_takedown(drm_mm_t * mm)
 
 	entry = list_entry(bnode, drm_mm_node_t, fl_entry);
 
+	if (entry->ml_entry.next != &mm->root_node.ml_entry ||
+	    entry->fl_entry.next != &mm->root_node.fl_entry) {
+		DRM_ERROR("Memory manager not clean. Delaying takedown\n");
+		return;
+	}
+		
+
 	list_del(&entry->fl_entry);
 	list_del(&entry->ml_entry);
 

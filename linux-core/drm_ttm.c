@@ -1203,14 +1203,24 @@ int drm_ttm_handle_bufs(drm_file_t * priv, drm_ttm_arg_t * ttm_arg)
 	}
 	buf_p = bufs;
 
+	
+	 
 	down(&dev->struct_sem);
+	
+#if 0
 	if (ttm_arg->do_fence) {
 		if (old_priv != priv)
 			DRM_ERROR("Fence was from wrong client\n");
 		drm_ttm_fence_regions(dev, &mm_driver->ttm_mm);
 	}
-
+#endif
 	for (i = 0; i < ttm_arg->num_bufs; ++i) {
+		if (! mm_driver->validated && (buf_p->op == ttm_validate || 
+					       buf_p->op == ttm_validate_user)) {
+			drm_ttm_fence_regions(dev, &mm_driver->ttm_mm);
+			mm_driver->validated = TRUE;
+		}
+		
 		drm_ttm_handle_buf(priv, buf_p);
 		buf_p++;
 	}
@@ -1464,7 +1474,6 @@ int drm_mm_fence_ioctl(DRM_IOCTL_ARGS)
 	drm_fence_arg_t arg;
 	drm_mm_driver_t *mm_driver = dev->mm_driver;
 
-	LOCK_TEST_WITH_RETURN(dev, filp);
 	if (!mm_driver) {
 		DRM_ERROR("Memory manager is not initialized.\n");
 		return -EINVAL;
@@ -1475,6 +1484,7 @@ int drm_mm_fence_ioctl(DRM_IOCTL_ARGS)
 	ret = 0;
 	switch (arg.op) {
 	case emit_fence:
+	        LOCK_TEST_WITH_RETURN(dev, filp);
 		arg.fence_seq = mm_driver->emit_fence(dev, arg.fence_type);
 		break;
 	case wait_fence:
@@ -1485,10 +1495,14 @@ int drm_mm_fence_ioctl(DRM_IOCTL_ARGS)
 		arg.ret = mm_driver->test_fence(dev, arg.fence_type,
 						arg.fence_seq);
 		break;
+	case get_sarea:
+		break;
 	default:
 		DRM_ERROR("Unsupported memory manager operation.\n");
 		ret = -EINVAL;
 	}
+
+	arg.mm_sarea = 	dev->mm_driver->mm_sarea_map->user_token;
 
 	if (ret)
 		return ret;

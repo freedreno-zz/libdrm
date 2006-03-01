@@ -123,6 +123,7 @@ extern void drm_user_destroy_region(drm_ttm_backend_list_t * entry);
 
 extern int drm_ttm_ioctl(DRM_IOCTL_ARGS);
 extern int drm_mm_init_ioctl(DRM_IOCTL_ARGS);
+extern int drm_mm_fence_ioctl(DRM_IOCTL_ARGS);
 
 #define DRM_MASK_VAL(dest, mask, val)			\
   (dest) = ((dest) & ~(mask)) | ((val) & (mask));

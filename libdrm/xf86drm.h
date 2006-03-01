@@ -487,6 +487,7 @@ do {	register unsigned int __old __asm("o0");		\
 	} while(0)
 
 /* General user-level programmer's API: unprivileged */
+extern void          drmMsg(const char *format, ...);
 extern int           drmAvailable(void);
 extern int           drmOpen(const char *name, const char *busid);
 extern int           drmClose(int fd);
@@ -637,4 +638,5 @@ extern int  drmSLLookupNeighbors(void *l, unsigned long key,
 				 unsigned long *prev_key, void **prev_value,
 				 unsigned long *next_key, void **next_value);
 
+#include "xf86mm.h"
 #endif

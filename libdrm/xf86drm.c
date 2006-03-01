@@ -120,8 +120,7 @@ extern unsigned long _bus_base(void);
  * \internal
  * This function is a wrapper around vfprintf().
  */
-static void
-drmMsg(const char *format, ...)
+void drmMsg(const char *format, ...)
 {
     va_list	ap;
 

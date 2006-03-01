@@ -217,8 +217,7 @@ uint32_t i915_emit_fence(drm_device_t * dev, uint32_t type)
 	if (!dev_priv)
 		return 0;
 
-	dev->mm_driver->mm_sarea->emitted[0] = dev_priv->counter;
-	return dev_priv->counter;
+	return 	dev_priv->counter;
 }
 
 static int i915_do_test_fence(drm_device_t * dev, uint32_t fence)
@@ -259,44 +258,37 @@ int i915_test_fence(drm_device_t *dev, uint32_t type, uint32_t fence)
 	int tmp = i915_do_test_fence(dev, fence);
 	
 	fence = READ_BREADCRUMB(dev_priv);
-	
-	i915_sync_flush(dev);
-
 	dev->mm_driver->mm_sarea->retired[0] = fence;
 
 	return tmp;
 }
 
-/*
- * Temporarily use polling here:
- */
-
 int i915_wait_fence(drm_device_t * dev, uint32_t type, uint32_t fence) 
 {
 
 	drm_i915_private_t *dev_priv = (drm_i915_private_t *) dev->dev_private;
-	int i;
 	int ret;
 
 	if (!dev_priv)
 		return 0;
 
-	ret = 1;
-	for (i=0; i<10000000; ++i) {	
-		if ( i915_do_test_fence( dev, fence)) {
-			fence = READ_BREADCRUMB(dev_priv);
-			i915_sync_flush(dev);
-			ret = 0;
-			break;
-		}
+	ret = 0;
+	if ( !i915_do_test_fence(dev, fence)) {
+		ret = 1;
+		i915_emit_irq(dev);
+		do {
+			ret = i915_wait_irq(dev, fence);
+			if (i915_do_test_fence(dev, fence)) {
+				ret = 0;
+				break;
+			}
+		} while (ret == 0);
 	}
-
-	if (ret) {
+	
+	if (ret && ret != -EINTR) {
 		DRM_ERROR("Fence timeout %d %d\n", 
 			READ_BREADCRUMB(dev_priv), fence);
-	} else {
-		dev->mm_driver->mm_sarea->retired[0] = fence;
-	}
-
+	} 
+	dev->mm_driver->mm_sarea->retired[0] = READ_BREADCRUMB(dev_priv);
 	return ret;	
 }

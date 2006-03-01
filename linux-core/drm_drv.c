@@ -119,7 +119,10 @@ drm_ioctl_desc_t drm_ioctls[] = {
 	[DRM_IOCTL_NR(DRM_IOCTL_SG_FREE)] = {drm_sg_free, DRM_AUTH|DRM_MASTER|DRM_ROOT_ONLY},
 
 	[DRM_IOCTL_NR(DRM_IOCTL_WAIT_VBLANK)] = {drm_wait_vblank, 0},
-	[DRM_IOCTL_NR(DRM_IOCTL_TTM)] = {drm_ttm_ioctl, DRM_AUTH}
+	[DRM_IOCTL_NR(DRM_IOCTL_TTM)] = {drm_ttm_ioctl, DRM_AUTH},
+	[DRM_IOCTL_NR(DRM_IOCTL_MM_INIT)] = {drm_mm_init_ioctl, DRM_AUTH | DRM_MASTER | DRM_ROOT_ONLY},	
+	[DRM_IOCTL_NR(DRM_IOCTL_FENCE)] = {drm_mm_fence_ioctl, DRM_AUTH}
+	
 };
 
 #define DRIVER_IOCTL_COUNT	DRM_ARRAY_SIZE( drm_ioctls )

@@ -432,14 +432,13 @@ static int i915_emit_box(drm_device_t * dev,
 static void i915_emit_breadcrumb(drm_device_t *dev)
 {
 	drm_i915_private_t *dev_priv = dev->dev_private;
-	uint32_t counter = dev_priv->counter++;
+	dev_priv->counter++;
 
 	RING_LOCALS;
 
 	if (dev_priv->counter > 0x7FFFFFFFUL)
 		dev_priv->counter = 0;
 		
-	dev_priv->sarea_priv->last_enqueue = counter;
 
 	BEGIN_LP_RING(4);
 	OUT_RING(CMD_STORE_DWORD_IDX);
@@ -448,6 +447,8 @@ static void i915_emit_breadcrumb(drm_device_t *dev)
 	OUT_RING(0);
 	ADVANCE_LP_RING();
 	dev_priv->sarea_priv->last_dispatch = READ_BREADCRUMB(dev_priv);
+	dev_priv->sarea_priv->last_enqueue = dev_priv->counter;
+	dev->mm_driver->mm_sarea->emitted[0] = dev_priv->counter;
 }
 
 
@@ -563,15 +564,7 @@ static int i915_dispatch_flip(drm_device_t * dev)
 	OUT_RING(0);
 	ADVANCE_LP_RING();
 
-	dev_priv->sarea_priv->last_enqueue = dev_priv->counter++;
-
-	BEGIN_LP_RING(4);
-	OUT_RING(CMD_STORE_DWORD_IDX);
-	OUT_RING(20);
-	OUT_RING(dev_priv->counter);
-	OUT_RING(0);
-	ADVANCE_LP_RING();
-
+	i915_emit_breadcrumb( dev );
 	dev_priv->sarea_priv->pf_current_page = dev_priv->current_page;
 	return 0;
 }
