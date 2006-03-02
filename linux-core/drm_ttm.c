@@ -816,6 +816,12 @@ static int drm_ttm_evict_lru_sl(drm_ttm_backend_list_t * entry)
 	drm_device_t *dev = mm->dev;
 	drm_mm_node_t *evict_node;
 
+/*
+ * We must use a loop here, since the list might be updated while we release
+ * the locks to wait for fence.
+ */
+
+
 	do {
 		list = entry->mm->lru_head.next;
 
@@ -831,6 +837,9 @@ static int drm_ttm_evict_lru_sl(drm_ttm_backend_list_t * entry)
 		}
 
 		evict_fence = evict_priv->fence;
+		if (dev->mm_driver->test_fence(dev, evict_priv->region->fence_type,
+					       evict_fence))
+			break;
 
 		spin_unlock(mm_lock);
 		up(&dev->struct_sem);
@@ -841,7 +850,6 @@ static int drm_ttm_evict_lru_sl(drm_ttm_backend_list_t * entry)
 
 	} while (TRUE);
 
-	DRM_ERROR("Evicting 0x%lx\n", (unsigned long)evict_priv->region);
 	dev->mm_driver->evicted_tt = TRUE;
 	evict_node = evict_priv->region->mm_node;
 	drm_evict_ttm_region(evict_priv->region);

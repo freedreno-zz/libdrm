@@ -205,7 +205,7 @@ static int i915_initialize(drm_device_t * dev,
 		arg.vr_offset_lo = 1024*1024*8;
 		arg.vr_offset_hi = 0;
 
-		arg.tt_p_size_lo = 1024*1024*48;
+		arg.tt_p_size_lo = 1024*1024*48/4096;
 		arg.tt_p_size_hi = 0;
 		arg.tt_p_offset_lo = 1024*1024*128/4096;
 		arg.tt_p_offset_hi = 0;
@@ -432,10 +432,10 @@ static int i915_emit_box(drm_device_t * dev,
 static void i915_emit_breadcrumb(drm_device_t *dev)
 {
 	drm_i915_private_t *dev_priv = dev->dev_private;
-	dev_priv->counter++;
 
 	RING_LOCALS;
 
+	dev_priv->counter++;
 	if (dev_priv->counter > 0x7FFFFFFFUL)
 		dev_priv->counter = 0;
 		
