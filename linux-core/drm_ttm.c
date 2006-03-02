@@ -596,6 +596,7 @@ int drm_rebind_ttm_region(drm_ttm_backend_list_t * entry,
 			  unsigned long aper_offset)
 {
 	return drm_bind_ttm_region(entry, aper_offset);
+
 }
 
 /*
@@ -821,7 +822,6 @@ static int drm_ttm_evict_lru_sl(drm_ttm_backend_list_t * entry)
  * the locks to wait for fence.
  */
 
-
 	do {
 		list = entry->mm->lru_head.next;
 
@@ -837,8 +837,9 @@ static int drm_ttm_evict_lru_sl(drm_ttm_backend_list_t * entry)
 		}
 
 		evict_fence = evict_priv->fence;
-		if (dev->mm_driver->test_fence(dev, evict_priv->region->fence_type,
-					       evict_fence))
+		if (dev->mm_driver->
+		    test_fence(dev, evict_priv->region->fence_type,
+			       evict_fence))
 			break;
 
 		spin_unlock(mm_lock);
@@ -850,7 +851,6 @@ static int drm_ttm_evict_lru_sl(drm_ttm_backend_list_t * entry)
 
 	} while (TRUE);
 
-	dev->mm_driver->evicted_tt = TRUE;
 	evict_node = evict_priv->region->mm_node;
 	drm_evict_ttm_region(evict_priv->region);
 	list_del_init(list);
@@ -870,8 +870,16 @@ static int drm_ttm_evict_lru_sl(drm_ttm_backend_list_t * entry)
  * the lru list.
  */
 
+typedef struct drm_val_action {
+	int needs_rx_flush;
+	int evicted_tt;
+	int evicted_vram;
+	int validated;
+} drm_val_action_t;
+
 static int drm_validate_ttm_region(drm_ttm_backend_list_t * entry,
-				   uint32_t fence_type, unsigned *aper_offset)
+				   uint32_t fence_type, unsigned *aper_offset,
+				   drm_val_action_t * action)
 {
 	drm_mm_node_t *mm_node = entry->mm_node;
 	drm_ttm_mm_t *mm = entry->mm;
@@ -900,6 +908,7 @@ static int drm_validate_ttm_region(drm_ttm_backend_list_t * entry,
 				spin_unlock(mm_lock);
 				return ret;
 			}
+			action->evicted_tt = TRUE;
 		}
 	}
 
@@ -923,10 +932,12 @@ static int drm_validate_ttm_region(drm_ttm_backend_list_t * entry,
 		break;
 	case ttm_evicted:
 		drm_rebind_ttm_region(entry, mm_node->start);
+		action->needs_rx_flush = TRUE;
 		break;
 	case ttm_unbound:
 	default:
 		drm_bind_ttm_region(entry, mm_node->start);
+		action->needs_rx_flush = TRUE;
 		break;
 	}
 
@@ -1073,7 +1084,8 @@ static int drm_ttm_create_user_buf(drm_ttm_buf_arg_t * buf_p,
 	return 0;
 }
 
-static void drm_ttm_handle_buf(drm_file_t * priv, drm_ttm_buf_arg_t * buf_p)
+static void drm_ttm_handle_buf(drm_file_t * priv, drm_ttm_buf_arg_t * buf_p,
+			       drm_val_action_t * action)
 {
 	drm_device_t *dev = priv->head->dev;
 	drm_ttm_t *ttm;
@@ -1094,7 +1106,7 @@ static void drm_ttm_handle_buf(drm_file_t * priv, drm_ttm_buf_arg_t * buf_p)
 		}
 		buf_p->ret =
 		    drm_validate_ttm_region(entry, buf_p->fence_type,
-					    &buf_p->aper_offset);
+					    &buf_p->aper_offset, action);
 		break;
 	case ttm_validate:
 		buf_p->ret =
@@ -1121,7 +1133,7 @@ static void drm_ttm_handle_buf(drm_file_t * priv, drm_ttm_buf_arg_t * buf_p)
 		}
 		buf_p->ret =
 		    drm_validate_ttm_region(entry, buf_p->fence_type,
-					    &buf_p->aper_offset);
+					    &buf_p->aper_offset, action);
 		break;
 	case ttm_unbind:
 		buf_p->ret =
@@ -1170,17 +1182,16 @@ int drm_ttm_handle_bufs(drm_file_t * priv, drm_ttm_arg_t * ttm_arg)
 	drm_ttm_buf_arg_t *bufs = NULL, *next, *buf_p;
 	int i;
 	volatile drm_mm_sarea_t *sa;
+	drm_val_action_t action;
 
 	static void *old_priv;
+
+	memset(&action, 0, sizeof(action));
 
 	if (ttm_arg->num_bufs > DRM_TTM_MAX_BUF_BATCH) {
 		DRM_ERROR("Invalid number of TTM buffers.\n");
 		return -EINVAL;
 	}
-
-	mm_driver->evicted_vram = FALSE;
-	mm_driver->evicted_tt = FALSE;
-	mm_driver->validated = FALSE;
 
 	if (ttm_arg->num_bufs) {
 
@@ -1211,10 +1222,8 @@ int drm_ttm_handle_bufs(drm_file_t * priv, drm_ttm_arg_t * ttm_arg)
 	}
 	buf_p = bufs;
 
-	
-	 
 	down(&dev->struct_sem);
-	
+
 #if 0
 	if (ttm_arg->do_fence) {
 		if (old_priv != priv)
@@ -1223,13 +1232,13 @@ int drm_ttm_handle_bufs(drm_file_t * priv, drm_ttm_arg_t * ttm_arg)
 	}
 #endif
 	for (i = 0; i < ttm_arg->num_bufs; ++i) {
-		if (! mm_driver->validated && (buf_p->op == ttm_validate || 
-					       buf_p->op == ttm_validate_user)) {
+		if (!action.validated && (buf_p->op == ttm_validate ||
+					  buf_p->op == ttm_validate_user)) {
 			drm_ttm_fence_regions(dev, &mm_driver->ttm_mm);
-			mm_driver->validated = TRUE;
+			action.validated = TRUE;
 		}
-		
-		drm_ttm_handle_buf(priv, buf_p);
+
+		drm_ttm_handle_buf(priv, buf_p, &action);
 		buf_p++;
 	}
 	up(&dev->struct_sem);
@@ -1250,12 +1259,22 @@ int drm_ttm_handle_bufs(drm_file_t * priv, drm_ttm_arg_t * ttm_arg)
 	}
 
 	sa = mm_driver->mm_sarea;
-	if (mm_driver->validated)
+
+	if (action.needs_rx_flush) {
+/*
+ * We have inserted new pages and need to make sure that the GPU flushes
+ * read- and exe caches before they are used.
+ */
+		dev->mm_driver->flush_caches(dev,
+					     DRM_FLUSH_READ | DRM_FLUSH_EXE);
+	}
+
+	if (action.validated)
 		sa->validation_seq++;
-	if (mm_driver->evicted_vram)
+	if (action.evicted_vram)
 		sa->evict_vram_seq++;
-	if (mm_driver->evicted_tt)
-		sa->evict_vram_seq++;
+	if (action.evicted_tt)
+		sa->evict_tt_seq++;
 
 	return 0;
 }
@@ -1492,7 +1511,7 @@ int drm_mm_fence_ioctl(DRM_IOCTL_ARGS)
 	ret = 0;
 	switch (arg.op) {
 	case emit_fence:
-	        LOCK_TEST_WITH_RETURN(dev, filp);
+		LOCK_TEST_WITH_RETURN(dev, filp);
 		arg.fence_seq = mm_driver->emit_fence(dev, arg.fence_type);
 		break;
 	case wait_fence:
@@ -1510,7 +1529,7 @@ int drm_mm_fence_ioctl(DRM_IOCTL_ARGS)
 		ret = -EINVAL;
 	}
 
-	arg.mm_sarea = 	dev->mm_driver->mm_sarea_map->user_token;
+	arg.mm_sarea = dev->mm_driver->mm_sarea_map->user_token;
 
 	if (ret)
 		return ret;

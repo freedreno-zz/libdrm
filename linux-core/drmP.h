@@ -586,9 +586,6 @@ typedef struct drm_ttm_mm {
 
 typedef struct drm_mm_driver {
 	int fence_types;
-        int evicted_vram;
-	int evicted_tt;
-	int validated;
 	int cached_pages;
 	drm_ttm_mm_t ttm_mm;
 	drm_mm_t     vr_mm;
