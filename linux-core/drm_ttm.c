@@ -1004,7 +1004,7 @@ static int drm_ttm_create_buffer(drm_device_t * dev, drm_ttm_t * ttm,
 	int ret;
 	int cached;
 
-	cached = buf->flags & DRM_TTM_FLAG_CACHED;
+	cached = buf->flags & DRM_MM_CACHED;
 
 	if ((ret = drm_create_ttm_region(ttm, buf->ttm_page_offset,
 					 buf->num_pages, cached, &entry)))
@@ -1016,7 +1016,7 @@ static int drm_ttm_create_buffer(drm_device_t * dev, drm_ttm_t * ttm,
 	}
 	buf->region_handle = (drm_handle_t) region;
 
-	entry->pinned = buf->flags & DRM_TTM_FLAG_PINNED;
+	entry->pinned = buf->flags & (DRM_MM_NO_EVICT | DRM_MM_NO_MOVE);
 	*created = entry;
 	return 0;
 }
@@ -1056,7 +1056,7 @@ static int drm_ttm_create_user_buf(drm_ttm_buf_arg_t * buf_p,
 	drm_ttm_backend_list_t *entry;
 	drm_device_t *dev = priv->head->dev;
 
-	if (!(buf_p->flags & DRM_TTM_FLAG_NEW))
+	if (!(buf_p->flags & DRM_MM_NEW))
 		return -EINVAL;
 
 	end = (unsigned long)addr + size;
@@ -1079,7 +1079,7 @@ static int drm_ttm_create_user_buf(drm_ttm_buf_arg_t * buf_p,
 	}
 	list_add(&entry->head, &priv->anon_ttm_regs);
 	buf_p->region_handle = (drm_handle_t) region;
-	entry->pinned = buf_p->flags & DRM_TTM_FLAG_PINNED;
+	entry->pinned = buf_p->flags & (DRM_MM_NO_MOVE | DRM_MM_NO_EVICT);
 	*created = entry;
 	return 0;
 }
@@ -1113,12 +1113,12 @@ static void drm_ttm_handle_buf(drm_file_t * priv, drm_ttm_buf_arg_t * buf_p,
 		    drm_ttm_from_handle(buf_p->ttm_handle, priv, &ttm, NULL);
 		if (buf_p->ret)
 			break;
-		if (buf_p->flags & DRM_TTM_FLAG_NEW) {
+		if (buf_p->flags & DRM_MM_NEW) {
 			buf_p->ret =
 			    drm_ttm_create_buffer(dev, ttm, buf_p, &entry);
 			if (buf_p->ret)
 				break;
-			buf_p->flags &= ~DRM_TTM_FLAG_NEW;
+			buf_p->flags &= ~DRM_MM_NEW;
 		} else {
 			buf_p->ret =
 			    drm_ttm_region_from_handle(buf_p->region_handle,

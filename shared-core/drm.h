@@ -634,12 +634,20 @@ typedef struct drm_set_version {
  * DRM_IOCTL_TTM
 */
 
-#define DRM_TTM_FLAG_NEW        0x01
-#define DRM_TTM_FLAG_PINNED     0x02
-#define DRM_TTM_FLAG_CACHED     0x04
+#define DRM_MM_MEMTYPE_MASK 0xFF
+#define DRM_MM_VRAM       0x00000001
+#define DRM_MM_TT         0x00000002
+#define DRM_MM_SYSTEM     0x00000004
+#define DRM_MM_NEW        0x00000100
+#define DRM_MM_CACHED     0x00000200
+#define DRM_MM_READ       0x00000400
+#define DRM_MM_WRITE      0x00000800
+#define DRM_MM_EXE        0x00001000
+#define DRM_MM_NO_UPLOAD  0x00002000
+#define DRM_MM_NO_EVICT  0x00004000
+#define DRM_MM_NO_MOVE    0x00008000
 
 #define DRM_TTM_MAX_BUF_BATCH 32
-
 
 typedef struct drm_ttm_buf_arg {
 	enum {
@@ -651,6 +659,7 @@ typedef struct drm_ttm_buf_arg {
 	} op;
 	drm_handle_t ttm_handle;
 	drm_handle_t region_handle;
+        unsigned val_seq;
 	unsigned aper_offset;
 	unsigned ttm_page_offset;
 	unsigned num_pages;
@@ -673,6 +682,7 @@ typedef struct drm_ttm_arg {
         unsigned long size;
         unsigned num_bufs;
         int do_fence;
+        unsigned val_seq;
 	struct drm_ttm_buf_arg __user *first;
 } drm_ttm_arg_t;
 
@@ -714,6 +724,8 @@ typedef struct drm_fence_arg {
 
 #define DRM_FENCE_TYPES 0x80
 #define DRM_FENCE_MASK 0x7F
+#define DRM_MM_CLEAN (1 << 22)
+#define DRM_MM_WRAP (1 << 23)
 
 typedef struct drm_mm_sarea{
     unsigned emitted[DRM_FENCE_TYPES];     /* Last emitted fence */

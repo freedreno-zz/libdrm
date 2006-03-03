@@ -29,19 +29,70 @@
 #ifndef _XF86MM_H_
 #define _XF86MM_H_
 
-typedef struct drm_fence
-{
-    unsigned fence_type;
-    unsigned fence_seq;
-} drm_fence_t;
+#define DRM_INVALID_FENCE_TYPE 0xFFFFFFFFU
 
-typedef struct drm_mm_buffer
-{
-} drm_mm_buf_t;
+#define FLAGS_COMPATIBLE(exist, req) \
+((((exist) & (req) & DRM_MM_MEMTYPE_MASK)) && \
+ ( ((exist) & (req) & ~DRM_MM_MEMTYPE_MASK) == \
+((req) & ~DRM_MM_MEMTYPE_MASK)))
 
-typedef struct drm_mm_pool
+typedef enum
 {
-} drm_mm_pool_t;
+    mmPoolRing,
+    mmPoolManaged
+} MMPoolTypes;
+
+typedef struct _drmMMPool
+{
+    MMPoolTypes type;
+    unsigned char *virtual;
+    unsigned flags;
+    drm_handle_t kernelPool;
+    drm_handle_t kernelBuf;
+    int pinned;
+    drmSize bufSize;
+    unsigned long size;
+    unsigned long head;
+    unsigned long tail;
+    unsigned long free;
+    unsigned long numBufs;
+    struct _drmMMBuf *buffers;
+} drmMMPool;
+
+typedef struct _drmFence
+{
+    unsigned fenceType;
+    unsigned fenceSeq;
+} drmFence;
+
+typedef struct _drmMMBuf
+{
+    drmFence fence;
+    int fenced;
+    unsigned lastValSeq;
+    unsigned flags;
+    unsigned err;
+    unsigned long size;
+    unsigned long offset;
+    unsigned char *virtual;
+    int mapped;
+
+/* private data */
+
+    drmMMPool *pool;
+    unsigned long poolOffs;
+    drm_handle_t kernelPool;
+    drm_handle_t kernelBuf;
+    int inUse;
+} drmMMBuf;
+
+typedef struct _drmMMBufList
+{
+    struct _drmMMBufList *next, *prev, *free;
+    drmMMBuf *buf;
+    unsigned flags;
+    unsigned fenceType;
+} drmMMBufList;
 
 extern int drmMMInit(int drmFD, unsigned long vRamOffs,
     unsigned long vRamSize, unsigned long ttPageOffs,
@@ -52,13 +103,13 @@ extern int drmMMTakedown(int drmFD);
 /*
  * Fence handling. Not sure if the driver needs to see these.
  * The fence typing is optional and for different parts of the 
- * GPU that can run independently. Blit engine, Video blitter, mpeg etc.
+ * GPU that can run independently. Blit engine, video blitter, mpeg etc.
  */
 
-extern int drmEmitFence(int drmFD, unsigned fence_type, drm_fence_t * fence);
-extern int drmWaitFence(int drmFD, drm_fence_t fence);
-extern int drmTestFence(int drmFD, drm_fence_t fence, int really,
-    int *retired);
+extern int drmEmitFence(int drmFD, unsigned fence_type, drmFence * fence);
+
+extern int drmWaitFence(int drmFD, drmFence fence);
+extern int drmTestFence(int drmFD, drmFence fence, int really, int *retired);
 
 /*
  * A pool is a ring of buffers or a user space memory managed area of
@@ -67,18 +118,18 @@ extern int drmTestFence(int drmFD, drm_fence_t fence, int really,
  * for small pixmaps copied to AGP.
  */
 
-extern int drmMMAllocBufferPool(int drmFD, unsigned flags, drmSize size,
-    drmSize bufferSize, drm_mm_pool_t * pool);
-extern int drmMMDestroyBufferPool(int drmFD, drm_mm_pool_t * pool);
+extern int drmMMAllocBufferPool(int drmFD, MMPoolTypes type,
+    unsigned flags, unsigned long size, drmSize bufferSize, drmMMPool * pool);
+extern int drmMMDestroyBufferPool(int drmFD, drmMMPool * pool);
 
 /*
  * These should translate more or less directly. Pool can be NULL, 
  * and numBufs can be 1.
  */
 
-extern int drmMMAllocBuffers(int drmFD, unsigned flags, drm_mm_pool_t * pool,
-    int numBufs, drm_mm_buf_t * bufs);
-extern int drmMMFreeBuffers(int drmFD, int numBufs, drm_mm_buf_t * bufs);
+extern int drmMMAllocBuffers(int drmFD, unsigned flags, drmMMPool * pool,
+    int numBufs, drmMMBufList * bufs);
+extern int drmMMFreeBuffers(int drmFD, int numBufs, drmMMBuf * bufs);
 
 /*
  * ValidateBuffers only need to call the kernel if there are new buffers or
@@ -86,32 +137,31 @@ extern int drmMMFreeBuffers(int drmFD, int numBufs, drm_mm_buf_t * bufs);
  * been evicted.
  */
 
-extern int drmMMValidateBuffers(int drmFD, unsigned flags, int numBufs,
-    drm_mm_buf_t * bufs);
+extern int drmMMValidateBuffers(int drmFD, drmMMBufList * list);
 
 /*
- * Fencebuffers always need to call the kernel, unless we skip fencebuffers and
- * use a scheme where a validateBuffers call fence all previosly unfenced 
- * buffers.
+ * Fencebuffers emits a fence and fences the listed user-space buffers.
+ * _All_ unfenced kernel buffers will be fenced by this call.
+ * If the kernel is never called on fence emission, (intel for example), the
+ * unfenced kernel buffers will be fenced with the last emitted fence on the
+ * next validate call. That fence will be >= the current fence.
  */
 
-extern int drmMMFenceBuffers(int drmFD, drm_fence_t fence, int numBufs,
-    drm_mm_buf_t * bufs);
+extern int drmMMFenceBuffers(int drmFD, drmMMBufList * list);
 
 /*
  * Do not need to call kernel if buffers are from a pool.
  */
 
-extern int drmMMMapBuffer(int drmFD, drm_mm_buf_t * buf, unsigned flags,
-    drmAddress * addr);
-extern int drmMMUnmapBuffer(int drmFD, drmAddress * addr);
+extern int drmMMMapBuffer(int drmFD, drmMMBuf * buf);
+extern int drmMMUnmapBuffer(int drmFD, drmMMBuf * buf);
 
 /*
  * Optional for VRAM/EXA.
  */
 
-extern int drmMMBufPixmap(int drmFD, drm_mm_buf_t * buf, unsigned offs,
+extern int drmMMBufPixmap(int drmFD, drmMMBuf * buf, unsigned offs,
     drmSize line_len, drmSize pitch, drmSize height);
-extern int drmMMBufDirty(int drmFD, drm_mm_buf_t * buf);
+extern int drmMMBufDirty(int drmFD, drmMMBuf * buf);
 
 #endif
