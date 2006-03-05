@@ -575,6 +575,7 @@ typedef struct drm_ttm_mm_priv {
 	struct list_head lru;
 	uint32_t fence;
 	int fence_valid;
+	uint32_t val_seq;
 	drm_ttm_backend_list_t *region;
 } drm_ttm_mm_priv_t;
 
@@ -585,8 +586,9 @@ typedef struct drm_ttm_mm {
 } drm_ttm_mm_t;
 
 typedef struct drm_mm_driver {
-	int fence_types;
+	unsigned fence_types;
 	int cached_pages;
+	int kernel_emit;
 	drm_ttm_mm_t ttm_mm;
 	drm_mm_t     vr_mm;
         drm_map_list_t *mm_sarea_map;

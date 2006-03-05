@@ -147,7 +147,6 @@ static void drm_change_protection(struct vm_area_struct *vma,
 			continue;
 		change_pud_range(mm, pgd, addr, next, newprot, unmap);
 	} while (pgd++, addr = next, addr != end);
-	global_flush_tlb();
 }
 
 /*
@@ -216,8 +215,9 @@ int drm_destroy_ttm(drm_ttm_t * ttm)
 			drm_ttm_backend_list_t *entry =
 			    list_entry(list, drm_ttm_backend_list_t, head);
 			if (!drm_find_ht_item(&ttm->dev->ttmreghash,
-					      entry, &hash))
+					      entry, &hash)) {
 				drm_remove_ht_val(&ttm->dev->ttmreghash, hash);
+			}
 			drm_destroy_ttm_region(entry);
 		}
 
@@ -463,7 +463,7 @@ void drm_destroy_ttm_region(drm_ttm_backend_list_t * entry)
 		be->destroy(be);
 	}
 
-	cur_page_flags = ttm->page_flags;
+	cur_page_flags = ttm->page_flags + entry->page_offset;
 	for (i = 0; i < entry->num_pages; ++i) {
 		DRM_MASK_VAL(*cur_page_flags, DRM_TTM_PAGE_USED, 0);
 		cur_page_flags++;
@@ -491,7 +491,7 @@ int drm_create_ttm_region(drm_ttm_t * ttm, unsigned long page_offset,
 		return -EINVAL;
 	}
 
-	cur_page_flags = ttm->page_flags;
+	cur_page_flags = ttm->page_flags + page_offset;
 	for (i = 0; i < n_pages; ++i) {
 		if (*cur_page_flags++ & DRM_TTM_PAGE_USED) {
 			DRM_ERROR("TTM region overlap\n");
@@ -499,7 +499,7 @@ int drm_create_ttm_region(drm_ttm_t * ttm, unsigned long page_offset,
 		}
 	}
 
-	cur_page_flags = ttm->page_flags;
+	cur_page_flags = ttm->page_flags + page_offset;
 	for (i = 0; i < n_pages; ++i) {
 		DRM_MASK_VAL(*cur_page_flags, DRM_TTM_PAGE_USED,
 			     DRM_TTM_PAGE_USED);
@@ -581,7 +581,7 @@ int drm_bind_ttm_region(drm_ttm_backend_list_t * region,
 		return ret;
 	}
 
-	cur_page_flag = ttm->page_flags;
+	cur_page_flag = ttm->page_flags + region->page_offset;
 	for (i = 0; i < region->num_pages; ++i) {
 		DRM_MASK_VAL(*cur_page_flag, DRM_TTM_MASK_PFN,
 			     (i + aper_offset) << PAGE_SHIFT);
@@ -1241,6 +1241,17 @@ int drm_ttm_handle_bufs(drm_file_t * priv, drm_ttm_arg_t * ttm_arg)
 		drm_ttm_handle_buf(priv, buf_p, &action);
 		buf_p++;
 	}
+
+	sa = mm_driver->mm_sarea;
+
+	if (action.validated)
+		sa->validation_seq++;
+	if (action.evicted_vram)
+		sa->evict_vram_seq = sa->validation_seq;
+	if (action.evicted_tt)
+		sa->evict_tt_seq = sa->validation_seq;
+
+	ttm_arg->val_seq = sa->validation_seq;
 	up(&dev->struct_sem);
 
 	if (ttm_arg->num_bufs) {
@@ -1258,8 +1269,6 @@ int drm_ttm_handle_bufs(drm_file_t * priv, drm_ttm_arg_t * ttm_arg)
 		drm_free(bufs, ttm_arg->num_bufs * sizeof(*bufs), DRM_MEM_TTM);
 	}
 
-	sa = mm_driver->mm_sarea;
-
 	if (action.needs_rx_flush) {
 /*
  * We have inserted new pages and need to make sure that the GPU flushes
@@ -1268,13 +1277,6 @@ int drm_ttm_handle_bufs(drm_file_t * priv, drm_ttm_arg_t * ttm_arg)
 		dev->mm_driver->flush_caches(dev,
 					     DRM_FLUSH_READ | DRM_FLUSH_EXE);
 	}
-
-	if (action.validated)
-		sa->validation_seq++;
-	if (action.evicted_vram)
-		sa->evict_vram_seq++;
-	if (action.evicted_tt)
-		sa->evict_tt_seq++;
 
 	return 0;
 }
@@ -1411,17 +1413,17 @@ int drm_mm_do_init(drm_device_t * dev, drm_mm_init_arg_t * arg)
 		return -EINVAL;
 	}
 
-	vr_size = arg->vr_size_lo;
-	vr_offset = arg->vr_offset_lo;
-	tt_p_size = arg->tt_p_size_lo;
-	tt_p_offset = arg->tt_p_offset_lo;
+	vr_size = arg->req.vr_size_lo;
+	vr_offset = arg->req.vr_offset_lo;
+	tt_p_size = arg->req.tt_p_size_lo;
+	tt_p_offset = arg->req.tt_p_offset_lo;
 
 	if (sizeof(vr_size) == 8) {
 		int shift = 32;
-		vr_size |= (arg->vr_size_lo << shift);
-		vr_offset |= (arg->vr_offset_hi << shift);
-		tt_p_size |= (arg->tt_p_size_hi << shift);
-		tt_p_offset |= (arg->tt_p_offset_hi << shift);
+		vr_size |= (arg->req.vr_size_hi << shift);
+		vr_offset |= (arg->req.vr_offset_hi << shift);
+		tt_p_size |= (arg->req.tt_p_size_hi << shift);
+		tt_p_offset |= (arg->req.tt_p_offset_hi << shift);
 	}
 
 	dev->mm_driver = dev->driver->init_mm(dev);
@@ -1436,7 +1438,7 @@ int drm_mm_do_init(drm_device_t * dev, drm_mm_init_arg_t * arg)
 	}
 
 	ret = drm_addmap_core(dev, 0, DRM_MM_SAREA_SIZE,
-			      _DRM_SHM, 0, &mm_sarea);
+			      _DRM_SHM, _DRM_READ_ONLY, &mm_sarea);
 	if (ret) {
 		dev->mm_driver->takedown(dev->mm_driver);
 		DRM_ERROR("Failed to add a memory manager SAREA.\n");
@@ -1447,12 +1449,28 @@ int drm_mm_do_init(drm_device_t * dev, drm_mm_init_arg_t * arg)
 	dev->mm_driver->mm_sarea = (drm_mm_sarea_t *) mm_sarea->map->handle;
 	memset((void *)dev->mm_driver->mm_sarea, 0, DRM_MM_SAREA_SIZE);
 
-	arg->mm_sarea = mm_sarea->user_token;
+	arg->rep.mm_sarea = mm_sarea->user_token;
+	arg->rep.kernel_emit = dev->mm_driver->kernel_emit;
+	arg->rep.fence_types = dev->mm_driver->fence_types;
 
 	return 0;
 }
 
 EXPORT_SYMBOL(drm_mm_do_init);
+
+static int drm_mm_do_query(drm_device_t * dev, drm_mm_init_arg_t * arg)
+{
+	if (!dev->mm_driver) {
+		DRM_ERROR("Memory manager query without initialization\n");
+		return -EINVAL;
+	}
+
+	arg->rep.mm_sarea = dev->mm_driver->mm_sarea_map->user_token;
+	arg->rep.kernel_emit = dev->mm_driver->kernel_emit;
+	arg->rep.fence_types = dev->mm_driver->fence_types;
+
+	return 0;
+}
 
 int drm_mm_init_ioctl(DRM_IOCTL_ARGS)
 {
@@ -1470,12 +1488,23 @@ int drm_mm_init_ioctl(DRM_IOCTL_ARGS)
 	DRM_COPY_FROM_USER_IOCTL(arg, (void __user *)data, sizeof(arg));
 
 	down(&dev->struct_sem);
-	switch (arg.op) {
+	switch (arg.req.op) {
 	case mm_init:
+		if (!DRM_SUSER(DRM_CURPROC) && !priv->master) {
+			ret = -EPERM;
+			break;
+		}
 		ret = drm_mm_do_init(dev, &arg);
 		break;
 	case mm_takedown:
+		if (!DRM_SUSER(DRM_CURPROC) && !priv->master) {
+			ret = -EPERM;
+			break;
+		}
 		ret = drm_mm_do_takedown(dev);
+		break;
+	case mm_query:
+		ret = drm_mm_do_query(dev, &arg);
 		break;
 	default:
 		DRM_ERROR("Unsupported memory manager operation.\n");
@@ -1509,28 +1538,27 @@ int drm_mm_fence_ioctl(DRM_IOCTL_ARGS)
 	DRM_COPY_FROM_USER_IOCTL(arg, (void __user *)data, sizeof(arg));
 
 	ret = 0;
-	switch (arg.op) {
+	down(&dev->struct_sem);
+	switch (arg.req.op) {
 	case emit_fence:
 		LOCK_TEST_WITH_RETURN(dev, filp);
-		arg.fence_seq = mm_driver->emit_fence(dev, arg.fence_type);
+		arg.rep.fence_seq =
+		    mm_driver->emit_fence(dev, arg.req.fence_type);
 		break;
 	case wait_fence:
-		arg.ret = mm_driver->wait_fence(dev, arg.fence_type,
-						arg.fence_seq);
+		ret = mm_driver->wait_fence(dev, arg.req.fence_type,
+					    arg.req.fence_seq);
 		break;
 	case test_fence:
-		arg.ret = mm_driver->test_fence(dev, arg.fence_type,
-						arg.fence_seq);
-		break;
-	case get_sarea:
+		arg.rep.ret = mm_driver->test_fence(dev, arg.req.fence_type,
+						    arg.req.fence_seq);
 		break;
 	default:
 		DRM_ERROR("Unsupported memory manager operation.\n");
 		ret = -EINVAL;
 	}
 
-	arg.mm_sarea = dev->mm_driver->mm_sarea_map->user_token;
-
+	up(&dev->struct_sem);
 	if (ret)
 		return ret;
 

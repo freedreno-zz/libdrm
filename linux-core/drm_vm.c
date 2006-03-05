@@ -198,6 +198,7 @@ static __inline__ struct page *drm_do_vm_shm_nopage(struct vm_area_struct *vma,
 	return page;
 }
 
+#define TTM_BACKDOOR
 static __inline__ struct page *drm_do_vm_ttm_nopage(struct vm_area_struct *vma,
 						    unsigned long address)
 {
@@ -222,13 +223,15 @@ static __inline__ struct page *drm_do_vm_ttm_nopage(struct vm_area_struct *vma,
 	page = ttm->pages[page_offset];
 
 	page_flags = ttm->page_flags[page_offset];
+
+#ifdef TTM_BACKDOOR
 	if (page_flags & DRM_TTM_PAGE_UNCACHED) {
 	        BUG_ON(!page);
 		aper_loc = ttm->aperture_base + 
 			(page_flags & DRM_TTM_MASK_PFN);
 		page = pfn_to_page(aper_loc >> PAGE_SHIFT);
 	}
-
+#endif
 
 	if (!page) {
 		page = ttm->pages[page_offset] = 
@@ -249,8 +252,12 @@ static __inline__ struct page *drm_do_vm_ttm_nopage(struct vm_area_struct *vma,
 	default_prot = drm_prot_map[vma->vm_flags & 0x0f];
 
 	if (page_flags & DRM_TTM_PAGE_UNCACHED) {
+#ifdef TTM_BACKDOOR
  	  pgprot_val(default_prot) |= _PAGE_PCD;
 	  pgprot_val(default_prot) &= ~_PAGE_PWT;
+#else
+	  default_prot = pgprot_noncached(default_prot);
+#endif
 	}
 	vma->vm_page_prot = default_prot;
 	return page;

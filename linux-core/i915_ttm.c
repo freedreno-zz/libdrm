@@ -24,6 +24,7 @@ drm_mm_driver_t *i915_mm_init(drm_device_t * dev)
 	drm_mm_driver_t *mm_driver = 
 		drm_calloc(1, sizeof(*mm_driver), DRM_MEM_MM);
 	mm_driver->fence_types = 1;
+	mm_driver->kernel_emit = FALSE;
 	mm_driver->emit_fence = i915_emit_fence;
 	mm_driver->wait_fence = i915_wait_fence;
 	mm_driver->test_fence = i915_test_fence;

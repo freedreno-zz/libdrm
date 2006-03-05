@@ -63,9 +63,7 @@ int drm_find_ht_item(drm_closedhash_t * ht, void *item, unsigned int *hash)
 	cur_item = ht->table + (tmp_hash = hash_ptr(item, ht->order));
 
 	for (i = 0; i < ht->size; ++i) {
-		if (!*cur_item) {
-			return DRM_ERR(EINVAL);
-		} else if (*cur_item == item) {
+		if (*cur_item == item) {
 			break;
 		}
 		++cur_item;

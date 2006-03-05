@@ -644,8 +644,9 @@ typedef struct drm_set_version {
 #define DRM_MM_WRITE      0x00000800
 #define DRM_MM_EXE        0x00001000
 #define DRM_MM_NO_UPLOAD  0x00002000
-#define DRM_MM_NO_EVICT  0x00004000
+#define DRM_MM_NO_EVICT   0x00004000
 #define DRM_MM_NO_MOVE    0x00008000
+#define DRM_MM_SHARED     0x00010000
 
 #define DRM_TTM_MAX_BUF_BATCH 32
 
@@ -686,38 +687,52 @@ typedef struct drm_ttm_arg {
 	struct drm_ttm_buf_arg __user *first;
 } drm_ttm_arg_t;
 
-typedef struct drm_mm_init_arg {
-    enum {
-	mm_init,
-	mm_takedown
-    } op;
-    unsigned vr_offset_lo;
-    unsigned vr_offset_hi;
-    unsigned vr_size_lo;
-    unsigned vr_size_hi;
-    unsigned tt_p_offset_lo;
-    unsigned tt_p_offset_hi;
-    unsigned tt_p_size_lo;
-    unsigned tt_p_size_hi;
-    drm_handle_t mm_sarea;
+typedef union drm_mm_init_arg {
+	struct {
+		enum {
+			mm_init,
+			mm_takedown,
+			mm_query
+		} op;
+		unsigned vr_offset_lo;
+		unsigned vr_offset_hi;
+		unsigned vr_size_lo;
+		unsigned vr_size_hi;
+		unsigned tt_p_offset_lo;
+		unsigned tt_p_offset_hi;
+		unsigned tt_p_size_lo;
+		unsigned tt_p_size_hi;
+	} req;
+	struct {
+		drm_handle_t mm_sarea;
+		int kernel_emit;
+		unsigned fence_types;
+	} rep;
 } drm_mm_init_arg_t;
 
-typedef struct drm_fence_arg {
-    enum {
-	emit_fence,
-	wait_fence,
-	test_fence,
-	get_sarea
-    } op;
-    unsigned fence_seq;
-    unsigned fence_type;
-    drm_handle_t mm_sarea;
-    int ret;
+typedef union drm_fence_arg {
+	struct {
+		enum {
+			emit_fence,
+			wait_fence,
+			test_fence
+		} op;
+		unsigned fence_seq;
+		unsigned fence_type;
+	} req;
+	struct {
+		unsigned fence_seq;
+		int ret;
+	} rep;
 } drm_fence_arg_t ;
 
 #define DRM_MM_SAREA_SIZE 4096
 
 /*
+ * Sarea access is protected in kernel space by the device semaphore. User space
+ * has read-only access. This ensures data integrity as long as reads and writes 
+ * ar atomic operations.
+ *
  * Different fence types for different part of chip and function. For example
  * 3D / 2D, SG blitter, mc, video scaler * rwx etc. Up to driver to define.
  */
@@ -801,7 +816,7 @@ typedef struct drm_mm_sarea{
 #define DRM_IOCTL_WAIT_VBLANK		DRM_IOWR(0x3a, drm_wait_vblank_t)
 #define DRM_IOCTL_TTM                   DRM_IOWR(0x3b, drm_ttm_arg_t)
 #define DRM_IOCTL_MM_INIT               DRM_IOWR(0x3c, drm_mm_init_arg_t)
-#define DRM_IOCTL_FENCE                 DRM_IOWR(0x3c, drm_fence_arg_t)
+#define DRM_IOCTL_FENCE                 DRM_IOWR(0x3d, drm_fence_arg_t)
 
 /*@}*/
 

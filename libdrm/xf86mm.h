@@ -42,6 +42,8 @@ typedef enum
     mmPoolManaged
 } MMPoolTypes;
 
+struct _drmMMBufInfo;
+
 typedef struct _drmMMPool
 {
     MMPoolTypes type;
@@ -56,7 +58,8 @@ typedef struct _drmMMPool
     unsigned long tail;
     unsigned long free;
     unsigned long numBufs;
-    struct _drmMMBuf *buffers;
+    unsigned long offset;
+    struct _drmMMBlock *blocks;
 } drmMMPool;
 
 typedef struct _drmFence
@@ -67,32 +70,24 @@ typedef struct _drmFence
 
 typedef struct _drmMMBuf
 {
-    drmFence fence;
-    int fenced;
-    unsigned lastValSeq;
+    unsigned long client_priv;
+    unsigned alignment;
     unsigned flags;
     unsigned err;
     unsigned long size;
     unsigned long offset;
+    unsigned long *offset_notify;
     unsigned char *virtual;
     int mapped;
 
 /* private data */
-
     drmMMPool *pool;
-    unsigned long poolOffs;
-    drm_handle_t kernelPool;
-    drm_handle_t kernelBuf;
-    int inUse;
+    unsigned poolHandle;
+
+    struct _drmMMBlock *block;
 } drmMMBuf;
 
-typedef struct _drmMMBufList
-{
-    struct _drmMMBufList *next, *prev, *free;
-    drmMMBuf *buf;
-    unsigned flags;
-    unsigned fenceType;
-} drmMMBufList;
+struct _drmMMBufList;
 
 extern int drmMMInit(int drmFD, unsigned long vRamOffs,
     unsigned long vRamSize, unsigned long ttPageOffs,
@@ -107,9 +102,10 @@ extern int drmMMTakedown(int drmFD);
  */
 
 extern int drmEmitFence(int drmFD, unsigned fence_type, drmFence * fence);
-
 extern int drmWaitFence(int drmFD, drmFence fence);
 extern int drmTestFence(int drmFD, drmFence fence, int really, int *retired);
+extern int drmBufIsBusy(int drmFD, drmMMBuf * buf);
+extern int drmBufWaitBusy(int drmFD, drmMMBuf * buf);
 
 /*
  * A pool is a ring of buffers or a user space memory managed area of
@@ -119,17 +115,20 @@ extern int drmTestFence(int drmFD, drmFence fence, int really, int *retired);
  */
 
 extern int drmMMAllocBufferPool(int drmFD, MMPoolTypes type,
+    unsigned fence_type,
     unsigned flags, unsigned long size, drmSize bufferSize, drmMMPool * pool);
 extern int drmMMDestroyBufferPool(int drmFD, drmMMPool * pool);
 
 /*
- * These should translate more or less directly. Pool can be NULL, 
- * and numBufs can be 1.
+ * InitBuffer is used to initialize a buffer or when flags or alignment changes.
  */
 
-extern int drmMMAllocBuffers(int drmFD, unsigned flags, drmMMPool * pool,
-    int numBufs, drmMMBufList * bufs);
-extern int drmMMFreeBuffers(int drmFD, int numBufs, drmMMBuf * bufs);
+extern int drmMMInitBuffer(int drmFD, unsigned flags, unsigned alignment,
+    drmMMBuf * buf);
+
+extern int drmMMAllocBuffer(int drmFD, unsigned size, drmMMPool * pool,
+    int lookAhead, drmMMBuf * buf);
+extern int drmMMFreeBuffer(int drmFD, drmMMBuf * buf);
 
 /*
  * ValidateBuffers only need to call the kernel if there are new buffers or
@@ -137,7 +136,7 @@ extern int drmMMFreeBuffers(int drmFD, int numBufs, drmMMBuf * bufs);
  * been evicted.
  */
 
-extern int drmMMValidateBuffers(int drmFD, drmMMBufList * list);
+extern int drmMMValidateBuffers(int drmFD, struct _drmMMBufList *list);
 
 /*
  * Fencebuffers emits a fence and fences the listed user-space buffers.
@@ -147,14 +146,25 @@ extern int drmMMValidateBuffers(int drmFD, drmMMBufList * list);
  * next validate call. That fence will be >= the current fence.
  */
 
-extern int drmMMFenceBuffers(int drmFD, drmMMBufList * list);
+extern int drmMMFenceBuffers(int drmFD, struct _drmMMBufList *list);
 
 /*
  * Do not need to call kernel if buffers are from a pool.
  */
 
-extern int drmMMMapBuffer(int drmFD, drmMMBuf * buf);
+extern void *drmMMMapBuffer(int drmFD, drmMMBuf * buf);
 extern int drmMMUnmapBuffer(int drmFD, drmMMBuf * buf);
+
+extern int drmMMBufListAdd(struct _drmMMBufList *head, drmMMBuf * buf,
+    unsigned fenceType, unsigned flags,
+    unsigned *memtypeReturn, unsigned long *offsetReturn);
+
+extern void drmMMFreeBufList(struct _drmMMBufList *head);
+
+extern struct _drmMMBufList *drmMMInitListHead(void);
+
+extern void drmMMClearBufList(struct _drmMMBufList *head);
+extern int drmMMScanBufList(struct _drmMMBufList *head, drmMMBuf * buf);
 
 /*
  * Optional for VRAM/EXA.

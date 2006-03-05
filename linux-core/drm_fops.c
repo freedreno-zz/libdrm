@@ -488,7 +488,6 @@ int drm_release(struct inode *inode, struct file *filp)
 				 DRM_MEM_MAPS);
 		drm_free(entry, sizeof(*entry), DRM_MEM_MAPS);
 	}
-
 	list=NULL;
 	next=NULL;
 	list_for_each_safe(list, next, &priv->anon_ttm_regs) {
@@ -501,7 +500,6 @@ int drm_release(struct inode *inode, struct file *filp)
 		drm_user_destroy_region(entry);
  	
 	}
-
 	up(&dev->struct_sem);
 
 	if (dev->driver->postclose)

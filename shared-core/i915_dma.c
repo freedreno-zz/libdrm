@@ -200,16 +200,16 @@ static int i915_initialize(drm_device_t * dev,
 	{
 		drm_mm_init_arg_t arg;
 
-		arg.vr_size_lo = 1024*1024*24;
-		arg.vr_size_hi = 0;
-		arg.vr_offset_lo = 1024*1024*8;
-		arg.vr_offset_hi = 0;
+		arg.req.vr_size_lo = 1024*1024*24;
+		arg.req.vr_size_hi = 0;
+		arg.req.vr_offset_lo = 1024*1024*8;
+		arg.req.vr_offset_hi = 0;
 
-		arg.tt_p_size_lo = 1024*1024*48/4096;
-		arg.tt_p_size_hi = 0;
-		arg.tt_p_offset_lo = 1024*1024*128/4096;
-		arg.tt_p_offset_hi = 0;
-		arg.op = mm_init;
+		arg.req.tt_p_size_lo = 1024*1024*48/4096;
+		arg.req.tt_p_size_hi = 0;
+		arg.req.tt_p_offset_lo = 1024*1024*128/4096;
+		arg.req.tt_p_offset_hi = 0;
+		arg.req.op = mm_init;
 		drm_mm_do_init(dev, &arg);
 	}
 
