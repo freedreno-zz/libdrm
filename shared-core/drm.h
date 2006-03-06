@@ -635,6 +635,8 @@ typedef struct drm_set_version {
 */
 
 #define DRM_MM_MEMTYPE_MASK 0xFF
+#define DRM_MM_KERNEL_MASK 0x00FFFFFF
+
 #define DRM_MM_VRAM       0x00000001
 #define DRM_MM_TT         0x00000002
 #define DRM_MM_SYSTEM     0x00000004
@@ -646,7 +648,7 @@ typedef struct drm_set_version {
 #define DRM_MM_NO_UPLOAD  0x00002000
 #define DRM_MM_NO_EVICT   0x00004000
 #define DRM_MM_NO_MOVE    0x00008000
-#define DRM_MM_SHARED     0x00010000
+
 
 #define DRM_TTM_MAX_BUF_BATCH 32
 

@@ -31,6 +31,79 @@
 
 #define DRM_INVALID_FENCE_TYPE 0xFFFFFFFFU
 
+/*
+ * Flags. The flags the kernel know about are masked with
+ * DRM_MM_KERNEL_MASK, and are currently:
+ *
+ * The below flags are masked with DRM_MM_MEMTYPE_MASK.
+ * They are used in the buffer flags field to indicate
+ * what memory space the buffer is currently in. They
+ * may be or-d together if not known. After a validate call,
+ * exactly one of them is set. 
+ *
+ * DRM_MM_VRAM       0x00000001
+ * DRM_MM_TT         0x00000002
+ * DRM_MM_SYSTEM     0x00000004
+ *
+ * Indicating that the buffer is not allocated yet, and a map
+ * will result in failure. The kernel looks at this flag to
+ * determine if it should allocate resources for the buffer
+ * during a validate call.
+ *
+ * DRM_MM_NEW        0x00000100
+ *
+ * Used by the kernel during validate to make the buffer cached 
+ * if possible, even if it resides in  non-system memory. The
+ * application can query this flag after a map operation to know
+ * if this is really the case.
+ *
+ * DRM_MM_CACHED     0x00000200
+ *
+ * The user should indicate these during validate and map operations.
+ * Directions are as the buffers are referenced by the CPU. For example,
+ * a WRITE buffer can be written to by the CPU and read by the GPU, but not
+ * written to by the GPU and Read by the CPU. Buffers marked EXE contains
+ * DMA commands and the flag is used for flushing and in the future to protect
+ * EXE-buffers from user-space writing after they have been security checked.
+ * 
+ * DRM_MM_READ       0x00000400
+ * DRM_MM_WRITE      0x00000800
+ * DRM_MM_EXE        0x00001000
+ *
+ * Prevent the kernel from moving buffers around. UPLOAD is FROM memory to
+ * either TT or VRAM. EVICT is FROM VRAM / TT. NO_MOVE means keep offset constant.
+ *
+ * DRM_MM_NO_UPLOAD  0x00002000
+ * DRM_MM_NO_EVICT   0x00004000
+ * DRM_MM_NO_MOVE    0x00008000
+ *
+ *
+ */
+
+
+/*
+ * Flags used by libdrm but not by kernel:
+ *
+ */
+
+#define DRM_MM_LIBDRM_MASK 0x0F000000U
+
+/*
+ * When allocating: This buffer is already allocated by another client, but
+ * here are the references, and I want to access it. For now, libdrm never
+ * calls the kernel for these buffers, so the other client needs to have them
+ * pinned. 
+ */
+
+#define DRM_MM_SHARED 0x01000000
+
+/*
+ * The following bit-range is available to the user.
+ */
+
+#define DRM_MM_USER_MASK 0xF0000000U
+
+
 #define FLAGS_COMPATIBLE(exist, req) \
 ((((exist) & (req) & DRM_MM_MEMTYPE_MASK)) && \
  ( ((exist) & (req) & ~DRM_MM_MEMTYPE_MASK) == \

@@ -411,6 +411,7 @@ int drm_evict_ttm_region(drm_ttm_backend_list_t * entry)
 	drm_ttm_backend_t *be = entry->be;
 	drm_ttm_t *ttm = entry->owner;
 
+	DRM_ERROR("Unbind\n");
 	if (be) {
 		switch (entry->state) {
 		case ttm_bound:
@@ -564,6 +565,7 @@ int drm_bind_ttm_region(drm_ttm_backend_list_t * region,
 	drm_ttm_backend_t *be;
 	drm_ttm_t *ttm;
 
+	DRM_ERROR("Bind\n");
 	if (!region || region->state == ttm_bound)
 		return -EINVAL;
 
@@ -879,7 +881,7 @@ typedef struct drm_val_action {
 
 static int drm_validate_ttm_region(drm_ttm_backend_list_t * entry,
 				   uint32_t fence_type, unsigned *aper_offset,
-				   drm_val_action_t * action)
+				   drm_val_action_t * action, uint32_t validation_seq)
 {
 	drm_mm_node_t *mm_node = entry->mm_node;
 	drm_ttm_mm_t *mm = entry->mm;
@@ -922,6 +924,7 @@ static int drm_validate_ttm_region(drm_ttm_backend_list_t * entry,
 	}
 
 	mm_priv->fence_valid = FALSE;
+	mm_priv->val_seq = validation_seq;
 	entry->fence_type = fence_type;
 
 	if (!entry->pinned)
@@ -1085,7 +1088,7 @@ static int drm_ttm_create_user_buf(drm_ttm_buf_arg_t * buf_p,
 }
 
 static void drm_ttm_handle_buf(drm_file_t * priv, drm_ttm_buf_arg_t * buf_p,
-			       drm_val_action_t * action)
+			       drm_val_action_t * action, uint32_t validation_seq)
 {
 	drm_device_t *dev = priv->head->dev;
 	drm_ttm_t *ttm;
@@ -1106,7 +1109,7 @@ static void drm_ttm_handle_buf(drm_file_t * priv, drm_ttm_buf_arg_t * buf_p,
 		}
 		buf_p->ret =
 		    drm_validate_ttm_region(entry, buf_p->fence_type,
-					    &buf_p->aper_offset, action);
+					    &buf_p->aper_offset, action, validation_seq);
 		break;
 	case ttm_validate:
 		buf_p->ret =
@@ -1133,7 +1136,7 @@ static void drm_ttm_handle_buf(drm_file_t * priv, drm_ttm_buf_arg_t * buf_p,
 		}
 		buf_p->ret =
 		    drm_validate_ttm_region(entry, buf_p->fence_type,
-					    &buf_p->aper_offset, action);
+					    &buf_p->aper_offset, action, validation_seq);
 		break;
 	case ttm_unbind:
 		buf_p->ret =
@@ -1223,29 +1226,20 @@ int drm_ttm_handle_bufs(drm_file_t * priv, drm_ttm_arg_t * ttm_arg)
 	buf_p = bufs;
 
 	down(&dev->struct_sem);
+	sa = mm_driver->mm_sarea;
 
-#if 0
-	if (ttm_arg->do_fence) {
-		if (old_priv != priv)
-			DRM_ERROR("Fence was from wrong client\n");
-		drm_ttm_fence_regions(dev, &mm_driver->ttm_mm);
-	}
-#endif
 	for (i = 0; i < ttm_arg->num_bufs; ++i) {
 		if (!action.validated && (buf_p->op == ttm_validate ||
 					  buf_p->op == ttm_validate_user)) {
+			sa->validation_seq++;
 			drm_ttm_fence_regions(dev, &mm_driver->ttm_mm);
 			action.validated = TRUE;
 		}
 
-		drm_ttm_handle_buf(priv, buf_p, &action);
+		drm_ttm_handle_buf(priv, buf_p, &action, sa->validation_seq);
 		buf_p++;
 	}
 
-	sa = mm_driver->mm_sarea;
-
-	if (action.validated)
-		sa->validation_seq++;
 	if (action.evicted_vram)
 		sa->evict_vram_seq = sa->validation_seq;
 	if (action.evicted_tt)

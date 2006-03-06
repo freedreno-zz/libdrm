@@ -257,16 +257,21 @@ drmWaitFence(int drmFD, drmFence fence)
 	    fence.fenceSeq) < DRM_MM_WRAP)
 	return 0;
 
-    arg.req.op = wait_fence;
-    arg.req.fence_type = fence.fenceType;
-    arg.req.fence_seq = fence.fenceSeq;
-
     /*
      * Ugly, but necessary for multiple DRI clients with the userspace
      * arbitration scheme. We need a scheduler!!.
      */
 
     sched_yield();
+
+    if ((drmMMKI.sarea->retired[fence.fenceType & DRM_FENCE_MASK] -
+	    fence.fenceSeq) < DRM_MM_WRAP)
+	return 0;
+
+    arg.req.op = wait_fence;
+    arg.req.fence_type = fence.fenceType;
+    arg.req.fence_seq = fence.fenceSeq;
+
 
     if (ioctl(drmFD, DRM_IOCTL_FENCE, &arg)) {
 	drmMsg("drmWaitFence: failed: %s\n", strerror(errno));
