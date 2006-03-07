@@ -455,6 +455,16 @@ drmMMMapBuffer(int drmFD, drmMMBuf * buf)
     int ret;
     drmAddress *addr;
 
+    if (buf->block && buf->block->fenced) {
+	ret = -EINTR;
+	while(ret == -EINTR) {
+	    ret = drmWaitFence(drmFD, buf->block->fence);
+	}
+	if (ret) {
+	    return NULL;
+	}
+    }
+
     if (buf->flags & DRM_MM_SHARED)
 	return buf->virtual;
 

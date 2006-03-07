@@ -411,7 +411,6 @@ int drm_evict_ttm_region(drm_ttm_backend_list_t * entry)
 	drm_ttm_backend_t *be = entry->be;
 	drm_ttm_t *ttm = entry->owner;
 
-	DRM_ERROR("Unbind\n");
 	if (be) {
 		switch (entry->state) {
 		case ttm_bound:
@@ -565,7 +564,6 @@ int drm_bind_ttm_region(drm_ttm_backend_list_t * region,
 	drm_ttm_backend_t *be;
 	drm_ttm_t *ttm;
 
-	DRM_ERROR("Bind\n");
 	if (!region || region->state == ttm_bound)
 		return -EINVAL;
 
