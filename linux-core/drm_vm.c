@@ -230,6 +230,11 @@ static __inline__ struct page *drm_do_vm_ttm_nopage(struct vm_area_struct *vma,
 		aper_loc = ttm->aperture_base + 
 			(page_flags & DRM_TTM_MASK_PFN);
 		page = pfn_to_page(aper_loc >> PAGE_SHIFT);
+		if (PageAnon(page)) {
+			DRM_ERROR("Anonymous page trying to map aperture "
+				  "at 0x%08lx\n", (unsigned long) aper_loc);
+			return NOPAGE_SIGBUS;
+		}
 	}
 #endif
 
@@ -239,6 +244,13 @@ static __inline__ struct page *drm_do_vm_ttm_nopage(struct vm_area_struct *vma,
 	}
 	if (!page) 
 		return NOPAGE_OOM;
+
+	if (PageAnon(page)) {
+		DRM_ERROR("Anonymous page trying to map memory page "
+			  "at pfn 0x%08lx\n", page_to_pfn(page) );
+		return NOPAGE_SIGBUS;
+	}
+
 	SetPageLocked(page);
 	get_page(page);
 
