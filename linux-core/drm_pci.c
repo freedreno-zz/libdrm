@@ -39,6 +39,8 @@
 #include <linux/pci.h>
 #include "drmP.h"
 
+#define DRM_DEBUG_MEMORY 0
+
 /**********************************************************************/
 /** \name PCI memory */
 /*@{*/

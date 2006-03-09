@@ -100,7 +100,7 @@ static __inline__ struct page *drm_do_vm_nopage(struct vm_area_struct *vma,
 	}
 	map = ((drm_map_list_t *) hash_val)->map;
 
-#if DRM_LIST
+#ifdef DRM_LIST
 	list_for_each(list, &dev->maplist->head) {
 		r_list = list_entry(list, drm_map_list_t, head);
 		map = r_list->map;
@@ -226,10 +226,21 @@ static __inline__ struct page *drm_do_vm_ttm_nopage(struct vm_area_struct *vma,
 
 #ifdef TTM_BACKDOOR
 	if (page_flags & DRM_TTM_PAGE_UNCACHED) {
+	        unsigned long pfn;
+
 	        BUG_ON(!page);
 		aper_loc = ttm->aperture_base + 
 			(page_flags & DRM_TTM_MASK_PFN);
-		page = pfn_to_page(aper_loc >> PAGE_SHIFT);
+                pfn = aper_loc >> PAGE_SHIFT;
+
+		if (!pfn_valid(pfn)) {
+			DRM_ERROR("Invalid page encountered while trying to "
+				  "map backdoor ttm page.\n");
+			return NOPAGE_SIGBUS;
+		}
+
+		page = pfn_to_page(pfn);
+
 		if (PageAnon(page)) {
 			DRM_ERROR("Anonymous page trying to map aperture "
 				  "at 0x%08lx\n", (unsigned long) aper_loc);
@@ -237,19 +248,12 @@ static __inline__ struct page *drm_do_vm_ttm_nopage(struct vm_area_struct *vma,
 		}
 	}
 #endif
-
 	if (!page) {
 		page = ttm->pages[page_offset] = 
 			alloc_page(GFP_USER);
 	}
 	if (!page) 
 		return NOPAGE_OOM;
-
-	if (PageAnon(page)) {
-		DRM_ERROR("Anonymous page trying to map memory page "
-			  "at pfn 0x%08lx\n", page_to_pfn(page) );
-		return NOPAGE_SIGBUS;
-	}
 
 	SetPageLocked(page);
 	get_page(page);
@@ -272,6 +276,9 @@ static __inline__ struct page *drm_do_vm_ttm_nopage(struct vm_area_struct *vma,
 #endif
 	}
 	vma->vm_page_prot = default_prot;
+
+
+
 	return page;
 }
 
@@ -788,7 +795,7 @@ int drm_mmap(struct file *filp, struct vm_area_struct *vma)
 	}
 	map = ((drm_map_list_t *) hash_val)->map;
 
-#if DRM_LIST
+#ifdef DRM_LIST
 
 	/* A sequential search of a linked list is
 	   fine here because: 1) there will only be
