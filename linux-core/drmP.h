@@ -899,6 +899,7 @@ unsigned int drm_poll(struct file *filp, struct poll_table_struct *wait);
 extern int drm_mmap(struct file *filp, struct vm_area_struct *vma);
 extern unsigned long drm_core_get_map_ofs(drm_map_t * map);
 extern unsigned long drm_core_get_reg_ofs(struct drm_device *dev);
+extern pgprot_t drm_io_prot(uint32_t map_type, struct vm_area_struct *vma);
 
 				/* Memory management support (drm_memory.h) */
 #include "drm_memory.h"

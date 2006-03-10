@@ -76,6 +76,7 @@ static void change_pte_range(struct mm_struct *mm, pmd_t * pmd,
 	pte = pte_offset_map(pmd, addr);
 	do {
 		if (unmap && pte_present(*pte)) {
+#if 0
 			count = get_mm_counter(mm, rss);
 			if (count) {
 				page = pte_page(*pte);
@@ -85,6 +86,10 @@ static void change_pte_range(struct mm_struct *mm, pmd_t * pmd,
 				put_page(page);
 				lazy_mmu_prot_update(*pte);
 			}
+#else
+			ptep_get_and_clear(mm, addr,pte);
+			lazy_mmu_prot_update(*pte);
+#endif
 		}
 		if (pte_present(*pte)) {
 			pte_t ptent;
@@ -153,6 +158,30 @@ static void drm_change_protection(struct vm_area_struct *vma,
  * 8<----------------------------------------------------------------------------------
  * End linux mm subsystem code.
  */
+
+
+static int ioremap_vmas(drm_ttm_t * ttm, unsigned long page_offset,
+			unsigned long num_pages, unsigned long aper_offset)
+{
+	struct list_head *list;
+	int ret = 0;
+
+	list_for_each(list, &ttm->vma_list->head) {
+		drm_ttm_vma_list_t *entry =
+			list_entry(list, drm_ttm_vma_list_t, head);
+		
+		ret = io_remap_pfn_range(entry->vma, 
+					 entry->vma->vm_start +
+					 (page_offset << PAGE_SHIFT),
+					 (ttm->aperture_base >> PAGE_SHIFT) + aper_offset, 
+					 num_pages << PAGE_SHIFT,
+					 drm_io_prot(_DRM_AGP, entry->vma));
+		if (ret) 
+			break;
+	}
+	return ret;
+}
+
 
 /*
  * Unmap all vma pages from vmas mapping this ttm.
@@ -233,7 +262,7 @@ int drm_destroy_ttm(drm_ttm_t * ttm)
 				change_page_attr(*cur_page, 1, PAGE_KERNEL);
 			}
 			if (*cur_page) {
-				unlock_page(*cur_page);
+				ClearPageReserved(*cur_page);
 				__free_page(*cur_page);
 			}
 		}
@@ -534,7 +563,7 @@ int drm_create_ttm_region(drm_ttm_t * ttm, unsigned long page_offset,
 				drm_destroy_ttm_region(entry);
 				return -ENOMEM;
 			}
-			SetPageLocked(*cur_page);
+			SetPageReserved(*cur_page);
 		}
 	}
 
@@ -552,6 +581,11 @@ int drm_create_ttm_region(drm_ttm_t * ttm, unsigned long page_offset,
 
 /*
  * Bind a ttm region. Set correct caching policy.
+ * FIXME: Need to maintain locking order
+ *
+ * mmap_sem
+ * dev->struct_sem
+ * page_table spinlock.
  */
 
 int drm_bind_ttm_region(drm_ttm_backend_list_t * region,
@@ -560,7 +594,7 @@ int drm_bind_ttm_region(drm_ttm_backend_list_t * region,
 
 	int i;
 	uint32_t *cur_page_flag;
-	int ret;
+	int ret = 0; 
 	drm_ttm_backend_t *be;
 	drm_ttm_t *ttm;
 
@@ -579,6 +613,15 @@ int drm_bind_ttm_region(drm_ttm_backend_list_t * region,
 		drm_unbind_ttm_region(region);
 		DRM_ERROR("Couldn't bind backend.\n");
 		return ret;
+	}
+
+	if (ttm && be->needs_cache_adjust(be)) {
+		if ((ret = ioremap_vmas(ttm, region->page_offset, region->num_pages,
+					aper_offset))) {
+			drm_unbind_ttm_region(region);
+			DRM_ERROR("Couldn't remap AGP aperture.\n");
+			return ret;
+		}
 	}
 
 	cur_page_flag = ttm->page_flags + region->page_offset;

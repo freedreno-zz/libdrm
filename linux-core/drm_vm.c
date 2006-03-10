@@ -63,6 +63,30 @@ static pgprot_t drm_prot_map[16] = {
  * 8<----------------------------------------------------------------------------------
  */ 
 
+
+pgprot_t drm_io_prot(uint32_t map_type, struct vm_area_struct *vma)
+{
+	pgprot_t tmp = drm_prot_map[vma->vm_flags & 0x0F];
+
+#if defined(__i386__) || defined(__x86_64__)
+	if (boot_cpu_data.x86 > 3 && map_type != _DRM_AGP) {
+		pgprot_val(tmp) |= _PAGE_PCD;
+		pgprot_val(tmp) &= ~_PAGE_PWT;
+	}
+#elif defined(__powerpc__)
+	pgprot_val(tmp) |= _PAGE_NO_CACHE;
+	if (map->type == _DRM_REGISTERS)
+		pgprot_val(tmp) |= _PAGE_GUARDED;
+#endif
+#if defined(__ia64__)
+	if (efi_range_is_wc(vma->vm_start, vma->vm_end -
+				    vma->vm_start))
+		tmp = pgprot_writecombine(tmp);
+	else
+		tmp = pgprot_noncached(tmp);
+#endif
+}
+    
 /**
  * \c nopage method for AGP virtual memory.
  *
@@ -255,9 +279,10 @@ static __inline__ struct page *drm_do_vm_ttm_nopage(struct vm_area_struct *vma,
 	if (!page) 
 		return NOPAGE_OOM;
 
-	SetPageLocked(page);
+	SetPageReserved(page);
+#if 0
 	get_page(page);
-
+#endif
 	/*
 	 * FIXME: Potential security hazard: Have someone export the
 	 * mm subsystem's protection_map instead. Otherwise we will
@@ -854,27 +879,9 @@ int drm_mmap(struct file *filp, struct vm_area_struct *vma)
 		/* fall through to _DRM_FRAME_BUFFER... */
 	case _DRM_FRAME_BUFFER:
 	case _DRM_REGISTERS:
-#if defined(__i386__) || defined(__x86_64__)
-		if (boot_cpu_data.x86 > 3 && map->type != _DRM_AGP) {
-			pgprot_val(vma->vm_page_prot) |= _PAGE_PCD;
-			pgprot_val(vma->vm_page_prot) &= ~_PAGE_PWT;
-		}
-#elif defined(__powerpc__)
-		pgprot_val(vma->vm_page_prot) |= _PAGE_NO_CACHE;
-		if (map->type == _DRM_REGISTERS)
-			pgprot_val(vma->vm_page_prot) |= _PAGE_GUARDED;
-#endif
-		vma->vm_flags |= VM_IO;	/* not in core dump */
-#if defined(__ia64__)
-		if (efi_range_is_wc(vma->vm_start, vma->vm_end -
-				    vma->vm_start))
-			vma->vm_page_prot =
-				pgprot_writecombine(vma->vm_page_prot);
-		else
-			vma->vm_page_prot =
-				pgprot_noncached(vma->vm_page_prot);
-#endif
 		offset = dev->driver->get_reg_ofs(dev);
+		vma->vm_flags |= VM_IO;	/* not in core dump */
+		vma->vm_page_prot = drm_io_prot(map->type, vma);
 #ifdef __sparc__
 		if (io_remap_pfn_range(vma, vma->vm_start,
 					(map->offset + offset) >>PAGE_SHIFT,
