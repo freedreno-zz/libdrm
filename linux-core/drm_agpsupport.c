@@ -597,10 +597,15 @@ static int drm_agp_bind_ttm(drm_ttm_backend_t *backend, unsigned long offset) {
 
 	drm_agp_ttm_priv *agp_priv = (drm_agp_ttm_priv *) backend->private;
 	DRM_AGP_MEM *mem = agp_priv->mem;
+	int ret;
 
 	DRM_DEBUG("drm_agp_bind_ttm\n");
-	mem->is_flushed = TRUE;
-	return drm_agp_bind_memory(mem, offset);
+	mem->is_flushed = FALSE;
+	ret = drm_agp_bind_memory(mem, offset);
+	if (ret) {
+		DRM_ERROR("AGP Bind memory failed\n");
+	}
+	return ret;
 }
 
 static int drm_agp_unbind_ttm(drm_ttm_backend_t *backend) {
