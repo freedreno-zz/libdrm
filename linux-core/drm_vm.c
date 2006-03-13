@@ -85,6 +85,7 @@ pgprot_t drm_io_prot(uint32_t map_type, struct vm_area_struct *vma)
 	else
 		tmp = pgprot_noncached(tmp);
 #endif
+	return tmp;
 }
     
 /**
@@ -222,7 +223,89 @@ static __inline__ struct page *drm_do_vm_shm_nopage(struct vm_area_struct *vma,
 	return page;
 }
 
-#define TTM_BACKDOOR
+
+static int drm_ttm_remap_bound_pfn(struct vm_area_struct *vma,
+				   unsigned long address,
+				   unsigned long size)
+{
+	unsigned long
+		page_offset = (address - vma->vm_start) >> PAGE_SHIFT;
+	unsigned long
+		num_pages = (size + PAGE_SIZE - 1) >> PAGE_SHIFT;
+	drm_ttm_vma_list_t *entry = (drm_ttm_vma_list_t *)
+		vma->vm_private_data; 
+	drm_map_t *map = entry->map;
+	drm_ttm_t *ttm = (drm_ttm_t *) map->offset;
+	unsigned long i, cur_pfn;
+	unsigned long start = 0;
+	unsigned long end = 0;
+	unsigned long last_pfn = 0; 
+	unsigned long start_pfn = 0;
+	int bound_sequence = FALSE;
+	int ret = 0;
+	uint32_t cur_flags;
+	
+	for (i=page_offset; i<page_offset + num_pages; ++i) {
+		cur_flags = ttm->page_flags[i];
+
+		if (!bound_sequence && (cur_flags & DRM_TTM_PAGE_UNCACHED)) {
+
+			start = i;
+			end = i;
+			last_pfn = (cur_flags & DRM_TTM_MASK_PFN) >> PAGE_SHIFT;
+			start_pfn = last_pfn;
+			bound_sequence = TRUE;
+
+		} else if (bound_sequence) {
+
+			cur_pfn = (cur_flags & DRM_TTM_MASK_PFN) >> PAGE_SHIFT;
+
+			if ( !(cur_flags & DRM_TTM_PAGE_UNCACHED) || 
+			     (cur_pfn != last_pfn + 1)) {
+
+				ret = io_remap_pfn_range(vma, 
+							 vma->vm_start + (start << PAGE_SHIFT),
+							 (ttm->aperture_base >> PAGE_SHIFT) 
+							 + start_pfn,
+							 (end - start + 1) << PAGE_SHIFT,
+							 drm_io_prot(_DRM_AGP, vma));
+				
+				if (ret) 
+					break;
+
+				bound_sequence = (cur_flags & DRM_TTM_PAGE_UNCACHED);
+				if (!bound_sequence) 
+					continue;
+
+				start = i;
+				end = i;
+				last_pfn = cur_pfn;
+				start_pfn = last_pfn;
+
+			} else {
+				
+				end++;
+				last_pfn = cur_pfn;
+
+			}
+		}
+	}
+
+	if (!ret && bound_sequence) {
+		ret = io_remap_pfn_range(vma, 
+					 vma->vm_start + (start << PAGE_SHIFT),
+					 (ttm->aperture_base >> PAGE_SHIFT) 
+					 + start_pfn,
+					 (end - start + 1) << PAGE_SHIFT,
+					 drm_io_prot(_DRM_AGP, vma));
+	}
+
+	if (ret) {
+	  DRM_ERROR("Map returned %c\n", ret);
+	}
+	return ret;
+}
+	
 static __inline__ struct page *drm_do_vm_ttm_nopage(struct vm_area_struct *vma,
 						    unsigned long address)
 {
@@ -233,7 +316,6 @@ static __inline__ struct page *drm_do_vm_ttm_nopage(struct vm_area_struct *vma,
 	struct page *page;
 	drm_ttm_t *ttm; 
 	pgprot_t default_prot;
-	unsigned long aper_loc = 0;
 	uint32_t page_flags;
 
 	if (address > vma->vm_end)
@@ -248,41 +330,17 @@ static __inline__ struct page *drm_do_vm_ttm_nopage(struct vm_area_struct *vma,
 
 	page_flags = ttm->page_flags[page_offset];
 
-#ifdef TTM_BACKDOOR
-	if (page_flags & DRM_TTM_PAGE_UNCACHED) {
-	        unsigned long pfn;
-
-	        BUG_ON(!page);
-		aper_loc = ttm->aperture_base + 
-			(page_flags & DRM_TTM_MASK_PFN);
-                pfn = aper_loc >> PAGE_SHIFT;
-
-		if (!pfn_valid(pfn)) {
-			DRM_ERROR("Invalid page encountered while trying to "
-				  "map backdoor ttm page.\n");
-			return NOPAGE_SIGBUS;
-		}
-
-		page = pfn_to_page(pfn);
-
-		if (PageAnon(page)) {
-			DRM_ERROR("Anonymous page trying to map aperture "
-				  "at 0x%08lx\n", (unsigned long) aper_loc);
-			return NOPAGE_SIGBUS;
-		}
-	}
-#endif
 	if (!page) {
 		page = ttm->pages[page_offset] = 
 			alloc_page(GFP_USER);
+		SetPageReserved(page);
 	}
 	if (!page) 
 		return NOPAGE_OOM;
 
-	SetPageReserved(page);
-#if 0
 	get_page(page);
-#endif
+
+
 	/*
 	 * FIXME: Potential security hazard: Have someone export the
 	 * mm subsystem's protection_map instead. Otherwise we will
@@ -293,16 +351,10 @@ static __inline__ struct page *drm_do_vm_ttm_nopage(struct vm_area_struct *vma,
 	default_prot = drm_prot_map[vma->vm_flags & 0x0f];
 
 	if (page_flags & DRM_TTM_PAGE_UNCACHED) {
-#ifdef TTM_BACKDOOR
- 	  pgprot_val(default_prot) |= _PAGE_PCD;
-	  pgprot_val(default_prot) &= ~_PAGE_PWT;
-#else
-	  default_prot = pgprot_noncached(default_prot);
-#endif
+		DRM_ERROR("Uncached nopage\n");
+		default_prot = pgprot_noncached(default_prot);
 	}
 	vma->vm_page_prot = default_prot;
-
-
 
 	return page;
 }
@@ -682,8 +734,8 @@ static void drm_vm_ttm_close(struct vm_area_struct *vma)
 	drm_ttm_t *ttm; 
 	int found_maps;
 	struct list_head *list;
-	drm_map_list_t *r_list;
-	drm_device_t *dev;
+	drm_map_list_t *r_list;	
+        drm_device_t *dev;
 
 	drm_vm_close(vma); 
 	if (ttm_vma) {
@@ -935,7 +987,11 @@ int drm_mmap(struct file *filp, struct vm_area_struct *vma)
 		vma->vm_ops = &drm_vm_ttm_ops;
 		vma->vm_private_data = (void *) &tmp_vma;
 		vma->vm_file = filp;
-		vma->vm_flags |= VM_RESERVED;
+		vma->vm_flags |= VM_RESERVED | VM_IO;
+		if (drm_ttm_remap_bound_pfn(vma,
+					    vma->vm_start,
+					    vma->vm_end - vma->vm_start))
+			return -EAGAIN;
 		drm_vm_ttm_open(vma);
 		return 0;
 	}

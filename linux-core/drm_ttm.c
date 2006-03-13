@@ -65,37 +65,29 @@ void pmd_clear_bad(pmd_t * pmd)
  * Invalidate or update all PTEs associated with a vma.
  */
 
+#define DRM_TTM_UNMAP 0x01
+#define DRM_TTM_REWRITE 0x02
+
 static void change_pte_range(struct mm_struct *mm, pmd_t * pmd,
 			     unsigned long addr, unsigned long end,
-			     pgprot_t newprot, int unmap)
+			     pgprot_t newprot, unsigned long pfn,
+			     int flags)
 {
 	pte_t *pte;
-	int count;
-	struct page *page;
 
 	pte = pte_offset_map(pmd, addr);
 	do {
-		if (unmap && pte_present(*pte)) {
-#if 0
-			count = get_mm_counter(mm, rss);
-			if (count) {
-				page = pte_page(*pte);
-				ptep_get_and_clear(mm, addr, pte);
-				dec_mm_counter(mm, rss);
-				atomic_add_negative(-1, &page->_mapcount);
-				put_page(page);
-				lazy_mmu_prot_update(*pte);
-			}
-#else
-			ptep_get_and_clear(mm, addr,pte);
-			lazy_mmu_prot_update(*pte);
-#endif
-		}
-		if (pte_present(*pte)) {
+		if ((flags & DRM_TTM_UNMAP) && pte_present(*pte)) {
 			pte_t ptent;
-			ptent =
-			    pte_modify(ptep_get_and_clear(mm, addr, pte),
-				       newprot);
+			ptent = *pte;
+			ptep_get_and_clear(mm, addr,pte);
+			lazy_mmu_prot_update(ptent);
+		}
+		if (flags & DRM_TTM_REWRITE) {
+			unsigned long new_pfn = (pfn + addr) >> PAGE_SHIFT;
+			pte_t ptent;
+			ptep_get_and_clear(mm, addr, pte);
+			ptent = pfn_pte(new_pfn, newprot);
 			set_pte_at(mm, addr, pte, ptent);
 			lazy_mmu_prot_update(ptent);
 		}
@@ -105,7 +97,8 @@ static void change_pte_range(struct mm_struct *mm, pmd_t * pmd,
 
 static inline void change_pmd_range(struct mm_struct *mm, pud_t * pud,
 				    unsigned long addr, unsigned long end,
-				    pgprot_t newprot, int unmap)
+				    pgprot_t newprot, unsigned long pfn, 
+				    int flags)
 {
 	pmd_t *pmd;
 	unsigned long next;
@@ -115,13 +108,14 @@ static inline void change_pmd_range(struct mm_struct *mm, pud_t * pud,
 		next = pmd_addr_end(addr, end);
 		if (pmd_none_or_clear_bad(pmd))
 			continue;
-		change_pte_range(mm, pmd, addr, next, newprot, unmap);
+		change_pte_range(mm, pmd, addr, next, newprot, pfn, flags);
 	} while (pmd++, addr = next, addr != end);
 }
 
 static inline void change_pud_range(struct mm_struct *mm, pgd_t * pgd,
 				    unsigned long addr, unsigned long end,
-				    pgprot_t newprot, int unmap)
+				    pgprot_t newprot, unsigned long pfn, 
+				    int flags)
 {
 	pud_t *pud;
 	unsigned long next;
@@ -129,19 +123,21 @@ static inline void change_pud_range(struct mm_struct *mm, pgd_t * pgd,
 	pud = pud_offset(pgd, addr);
 	do {
 		next = pud_addr_end(addr, end);
-		if (pud_none_or_clear_bad(pud))
+		if (pud_none_or_clear_bad(pud)) 
 			continue;
-		change_pmd_range(mm, pud, addr, next, newprot, unmap);
+		change_pmd_range(mm, pud, addr, next, newprot, pfn, flags);
 	} while (pud++, addr = next, addr != end);
 }
 
 static void drm_change_protection(struct vm_area_struct *vma,
 				  unsigned long addr, unsigned long end,
-				  pgprot_t newprot, int unmap)
+				  pgprot_t newprot, unsigned long pfn,
+				  int flags)
 {
 	struct mm_struct *mm = vma->vm_mm;
 	pgd_t *pgd;
 	unsigned long next;
+	pfn = (pfn << PAGE_SHIFT) - addr;
 
 	BUG_ON(addr >= end);
 	pgd = pgd_offset(mm, addr);
@@ -150,7 +146,7 @@ static void drm_change_protection(struct vm_area_struct *vma,
 		next = pgd_addr_end(addr, end);
 		if (pgd_none_or_clear_bad(pgd))
 			continue;
-		change_pud_range(mm, pgd, addr, next, newprot, unmap);
+		change_pud_range(mm, pgd, addr, next, newprot, pfn, flags);
 	} while (pgd++, addr = next, addr != end);
 }
 
@@ -179,6 +175,7 @@ static int ioremap_vmas(drm_ttm_t * ttm, unsigned long page_offset,
 		if (ret) 
 			break;
 	}
+	global_flush_tlb();
 	return ret;
 }
 
@@ -203,8 +200,8 @@ static int unmap_vma_pages(drm_ttm_t * ttm, unsigned long page_offset,
 				      (page_offset << PAGE_SHIFT),
 				      entry->vma->vm_start +
 				      ((page_offset + num_pages) << PAGE_SHIFT),
-				      entry->vma->vm_page_prot, TRUE);
-
+				      entry->vma->vm_page_prot, 0, 
+				      DRM_TTM_UNMAP);
 	}
 
 	for (cur_page = first_page; cur_page != last_page; ++cur_page) {
@@ -353,7 +350,8 @@ drm_ttm_t *drm_init_ttm(struct drm_device * dev, unsigned long size)
  */
 
 static int drm_set_caching(drm_ttm_t * ttm, unsigned long page_offset,
-			   unsigned long num_pages, int noncached)
+			   unsigned long num_pages, int noncached,
+			   int do_tlbflush)
 {
 	int i, cur;
 	struct page **cur_page;
@@ -391,7 +389,8 @@ static int drm_set_caching(drm_ttm_t * ttm, unsigned long page_offset,
 			}
 		}
 	}
-	global_flush_tlb();
+	if (do_tlbflush)
+		global_flush_tlb();
 	if (do_spinlock) {
 		spin_unlock(&current->mm->page_table_lock);
 		up_write(&current->mm->mmap_sem);
@@ -450,7 +449,7 @@ int drm_evict_ttm_region(drm_ttm_backend_list_t * entry)
 			be->unbind(entry->be);
 			if (ttm && be->needs_cache_adjust(be)) {
 				drm_set_caching(ttm, entry->page_offset,
-						entry->num_pages, 0);
+						entry->num_pages, 0, 1);
 			}
 			break;
 		default:
@@ -487,7 +486,7 @@ void drm_destroy_ttm_region(drm_ttm_backend_list_t * entry)
 		be->clear(entry->be);
 		if (be->needs_cache_adjust(be)) {
 			drm_set_caching(ttm, entry->page_offset,
-					entry->num_pages, 0);
+					entry->num_pages, 0, 1);
 		}
 		be->destroy(be);
 	}
@@ -575,6 +574,7 @@ int drm_create_ttm_region(drm_ttm_t * ttm, unsigned long page_offset,
 	entry->mm_node = NULL;
 	entry->mm = &ttm->dev->mm_driver->ttm_mm;
 	ttm->aperture_base = be->aperture_base;
+	
 	*region = entry;
 	return 0;
 }
@@ -605,23 +605,16 @@ int drm_bind_ttm_region(drm_ttm_backend_list_t * region,
 	ttm = region->owner;
 
 	if (ttm && be->needs_cache_adjust(be)) {
-		drm_set_caching(ttm, region->page_offset, region->num_pages,
-				DRM_TTM_PAGE_UNCACHED);
+	     drm_set_caching(ttm, region->page_offset, region->num_pages,
+		 	    DRM_TTM_PAGE_UNCACHED, 0);
+	     ioremap_vmas(ttm, region->page_offset, region->num_pages,
+			 aper_offset);
 	}
 
 	if ((ret = be->bind(be, aper_offset))) {
 		drm_unbind_ttm_region(region);
 		DRM_ERROR("Couldn't bind backend.\n");
 		return ret;
-	}
-
-	if (ttm && be->needs_cache_adjust(be)) {
-		if ((ret = ioremap_vmas(ttm, region->page_offset, region->num_pages,
-					aper_offset))) {
-			drm_unbind_ttm_region(region);
-			DRM_ERROR("Couldn't remap AGP aperture.\n");
-			return ret;
-		}
 	}
 
 	cur_page_flag = ttm->page_flags + region->page_offset;
