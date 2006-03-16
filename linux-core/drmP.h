@@ -583,6 +583,7 @@ typedef struct drm_ttm_mm {
 	struct drm_device *dev;
 	drm_mm_t mm;
 	struct list_head lru_head;
+        struct list_head delayed;
 } drm_ttm_mm_t;
 
 typedef struct drm_mm_driver {
@@ -1131,6 +1132,7 @@ extern void drm_sysfs_device_remove(struct class_device *class_dev);
                                /* ttm support (drm_ttm.c) */
 
 extern int drm_add_ttm(drm_device_t *dev, unsigned size, drm_map_list_t **maplist);
+extern int drm_ttm_destroy_delayed(drm_ttm_mm_t *mm, int ret_if_busy);
 
 /* 
  * Basic memory manager support (drm_mm.c) 

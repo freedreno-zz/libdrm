@@ -205,7 +205,7 @@ static int i915_initialize(drm_device_t * dev,
 		arg.req.vr_offset_lo = 1024*1024*8;
 		arg.req.vr_offset_hi = 0;
 
-		arg.req.tt_p_size_lo = 1024*1024*48/4096;
+		arg.req.tt_p_size_lo = 1024*1024*32/4096;
 		arg.req.tt_p_size_hi = 0;
 		arg.req.tt_p_offset_lo = 1024*1024*128/4096;
 		arg.req.tt_p_offset_hi = 0;

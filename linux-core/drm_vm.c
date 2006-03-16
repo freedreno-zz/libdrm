@@ -244,7 +244,7 @@ static int drm_ttm_remap_bound_pfn(struct vm_area_struct *vma,
 	int bound_sequence = FALSE;
 	int ret = 0;
 	uint32_t cur_flags;
-	
+
 	for (i=page_offset; i<page_offset + num_pages; ++i) {
 		cur_flags = ttm->page_flags[i];
 
@@ -332,14 +332,13 @@ static __inline__ struct page *drm_do_vm_ttm_nopage(struct vm_area_struct *vma,
 
 	if (!page) {
 		page = ttm->pages[page_offset] = 
-			alloc_page(GFP_USER);
+			alloc_page(GFP_KERNEL);
 		SetPageReserved(page);
 	}
 	if (!page) 
 		return NOPAGE_OOM;
 
 	get_page(page);
-
 
 	/*
 	 * FIXME: Potential security hazard: Have someone export the
@@ -754,7 +753,7 @@ static void drm_vm_ttm_close(struct vm_area_struct *vma)
 				found_maps++;
 		}
 		if (!found_maps) {
-			if (!drm_destroy_ttm(ttm)) {
+			if (drm_destroy_ttm(ttm) != -EBUSY) {
 				drm_free(map, sizeof(*map), DRM_MEM_MAPS);
 			}
 		}

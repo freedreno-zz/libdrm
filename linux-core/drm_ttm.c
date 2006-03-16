@@ -70,8 +70,7 @@ void pmd_clear_bad(pmd_t * pmd)
 
 static void change_pte_range(struct mm_struct *mm, pmd_t * pmd,
 			     unsigned long addr, unsigned long end,
-			     pgprot_t newprot, unsigned long pfn,
-			     int flags)
+			     pgprot_t newprot, unsigned long pfn, int flags)
 {
 	pte_t *pte;
 
@@ -80,7 +79,7 @@ static void change_pte_range(struct mm_struct *mm, pmd_t * pmd,
 		if ((flags & DRM_TTM_UNMAP) && pte_present(*pte)) {
 			pte_t ptent;
 			ptent = *pte;
-			ptep_get_and_clear(mm, addr,pte);
+			ptep_get_and_clear(mm, addr, pte);
 			lazy_mmu_prot_update(ptent);
 		}
 		if (flags & DRM_TTM_REWRITE) {
@@ -97,7 +96,7 @@ static void change_pte_range(struct mm_struct *mm, pmd_t * pmd,
 
 static inline void change_pmd_range(struct mm_struct *mm, pud_t * pud,
 				    unsigned long addr, unsigned long end,
-				    pgprot_t newprot, unsigned long pfn, 
+				    pgprot_t newprot, unsigned long pfn,
 				    int flags)
 {
 	pmd_t *pmd;
@@ -114,7 +113,7 @@ static inline void change_pmd_range(struct mm_struct *mm, pud_t * pud,
 
 static inline void change_pud_range(struct mm_struct *mm, pgd_t * pgd,
 				    unsigned long addr, unsigned long end,
-				    pgprot_t newprot, unsigned long pfn, 
+				    pgprot_t newprot, unsigned long pfn,
 				    int flags)
 {
 	pud_t *pud;
@@ -123,7 +122,7 @@ static inline void change_pud_range(struct mm_struct *mm, pgd_t * pgd,
 	pud = pud_offset(pgd, addr);
 	do {
 		next = pud_addr_end(addr, end);
-		if (pud_none_or_clear_bad(pud)) 
+		if (pud_none_or_clear_bad(pud))
 			continue;
 		change_pmd_range(mm, pud, addr, next, newprot, pfn, flags);
 	} while (pud++, addr = next, addr != end);
@@ -155,7 +154,6 @@ static void drm_change_protection(struct vm_area_struct *vma,
  * End linux mm subsystem code.
  */
 
-
 static int ioremap_vmas(drm_ttm_t * ttm, unsigned long page_offset,
 			unsigned long num_pages, unsigned long aper_offset)
 {
@@ -164,21 +162,20 @@ static int ioremap_vmas(drm_ttm_t * ttm, unsigned long page_offset,
 
 	list_for_each(list, &ttm->vma_list->head) {
 		drm_ttm_vma_list_t *entry =
-			list_entry(list, drm_ttm_vma_list_t, head);
-		
-		ret = io_remap_pfn_range(entry->vma, 
+		    list_entry(list, drm_ttm_vma_list_t, head);
+
+		ret = io_remap_pfn_range(entry->vma,
 					 entry->vma->vm_start +
 					 (page_offset << PAGE_SHIFT),
-					 (ttm->aperture_base >> PAGE_SHIFT) + aper_offset, 
-					 num_pages << PAGE_SHIFT,
+					 (ttm->aperture_base >> PAGE_SHIFT) +
+					 aper_offset, num_pages << PAGE_SHIFT,
 					 drm_io_prot(_DRM_AGP, entry->vma));
-		if (ret) 
+		if (ret)
 			break;
 	}
 	global_flush_tlb();
 	return ret;
 }
-
 
 /*
  * Unmap all vma pages from vmas mapping this ttm.
@@ -200,7 +197,7 @@ static int unmap_vma_pages(drm_ttm_t * ttm, unsigned long page_offset,
 				      (page_offset << PAGE_SHIFT),
 				      entry->vma->vm_start +
 				      ((page_offset + num_pages) << PAGE_SHIFT),
-				      entry->vma->vm_page_prot, 0, 
+				      entry->vma->vm_page_prot, 0,
 				      DRM_TTM_UNMAP);
 	}
 
@@ -231,9 +228,9 @@ int drm_destroy_ttm(drm_ttm_t * ttm)
 
 	if (atomic_read(&ttm->vma_count) > 0) {
 		DRM_DEBUG("VMAs are still alive. Skipping destruction.\n");
-		return -1;
+		return -EBUSY;
 	} else {
-		DRM_DEBUG("About to really destroy ttm.\n");
+		DRM_DEBUG("Checking for busy regions.\n");
 	}
 
 	if (ttm->be_list) {
@@ -248,6 +245,14 @@ int drm_destroy_ttm(drm_ttm_t * ttm)
 		}
 
 		drm_free(ttm->be_list, sizeof(*ttm->be_list), DRM_MEM_MAPS);
+	}
+
+	if (atomic_read(&ttm->unfinished_regions) > 0) {
+		DRM_DEBUG("Regions are still busy. Skipping destruction.\n");
+		ttm->destroy = TRUE;
+		return -EAGAIN;
+	} else {
+		DRM_DEBUG("About to really destroy ttm.\n");
 	}
 
 	if (ttm->pages) {
@@ -304,6 +309,8 @@ drm_ttm_t *drm_init_ttm(struct drm_device * dev, unsigned long size)
 
 	ttm->lhandle = 0;
 	atomic_set(&ttm->vma_count, 0);
+	atomic_set(&ttm->unfinished_regions, 0);
+	ttm->destroy = FALSE;
 	ttm->num_pages = (size + PAGE_SIZE - 1) >> PAGE_SHIFT;
 
 	ttm->page_flags = vmalloc(ttm->num_pages * sizeof(*ttm->page_flags));
@@ -402,31 +409,41 @@ static int drm_set_caching(drm_ttm_t * ttm, unsigned long page_offset,
  * Take a ttm region out of the aperture manager.
  */
 
-static void remove_ttm_region(drm_ttm_backend_list_t * entry)
+static int remove_ttm_region(drm_ttm_backend_list_t * entry, int ret_if_busy)
 {
 
 	drm_mm_node_t *mm_node = entry->mm_node;
 	drm_ttm_mm_priv_t *mm_priv;
 	drm_ttm_mm_t *mm = entry->mm;
 	drm_device_t *dev = mm->dev;
+	int ret;
 
 	if (!mm_node)
-		return;
+		return 0;
 
 	entry->mm_node = NULL;
 	mm_priv = (drm_ttm_mm_priv_t *) mm_node->private;
 	if (!mm_priv)
-		return;
+		return 0;
 
-	if (mm_priv->fence_valid)
-		dev->mm_driver->wait_fence(mm->dev, entry->fence_type,
-					   mm_priv->fence);
+	if (mm_priv->fence_valid) {
+		if (ret_if_busy
+		    && !dev->mm_driver->test_fence(mm->dev, entry->fence_type,
+						   mm_priv->fence))
+			return -EBUSY;
+		ret = dev->mm_driver->wait_fence(mm->dev, entry->fence_type,
+						 mm_priv->fence);
+		if (ret)
+			return ret;
+	}
+
 	mm_node->private = NULL;
 	spin_lock(&mm->mm.mm_lock);
 	list_del(&mm_priv->lru);
 	drm_mm_put_block_locked(&mm->mm, mm_node);
 	spin_unlock(&mm->mm.mm_lock);
 	drm_free(mm_priv, sizeof(*mm_priv), DRM_MEM_MM);
+	return 0;
 }
 
 /*
@@ -462,9 +479,43 @@ int drm_evict_ttm_region(drm_ttm_backend_list_t * entry)
 
 void drm_unbind_ttm_region(drm_ttm_backend_list_t * entry)
 {
-	remove_ttm_region(entry);
+	remove_ttm_region(entry, FALSE);
 	drm_evict_ttm_region(entry);
 	entry->state = ttm_unbound;
+}
+
+/*
+ * This should be called every once in a while to destroy regions and ttms that are
+ * put on hold for destruction because their fence had not retired.
+ */
+
+int drm_ttm_destroy_delayed(drm_ttm_mm_t * mm, int ret_if_busy)
+{
+	struct list_head *list, *next;
+	drm_ttm_t *ttm;
+
+	list_for_each_safe(list, next, &mm->delayed) {
+		drm_ttm_backend_list_t *entry =
+		    list_entry(list, drm_ttm_backend_list_t, head);
+		if (!remove_ttm_region(entry, ret_if_busy))
+			continue;
+
+		ttm = entry->owner;
+		if (ttm) {
+			DRM_DEBUG("Destroying put-on-hold region\n");
+			drm_destroy_ttm_region(entry);
+			atomic_dec(&ttm->unfinished_regions);
+			if (ttm->destroy
+			    && atomic_read(&ttm->unfinished_regions) == 0) {
+				DRM_DEBUG("Destroying put-on-hold ttm\n");
+				drm_destroy_ttm(ttm);
+
+			}
+		} else {
+			drm_user_destroy_region(entry);
+		}
+	}
+	return (mm->delayed.next == &mm->delayed);
 }
 
 /*
@@ -479,8 +530,15 @@ void drm_destroy_ttm_region(drm_ttm_backend_list_t * entry)
 	uint32_t *cur_page_flags;
 	int i;
 
-	list_del(&entry->head);
-	remove_ttm_region(entry);
+	list_del_init(&entry->head);
+
+	if (remove_ttm_region(entry, TRUE)) {
+		DRM_DEBUG("Putting destruction on hold\n");
+		atomic_inc(&ttm->unfinished_regions);
+		list_add_tail(&entry->head, &entry->mm->delayed);
+		return;
+	}
+
 	drm_unbind_ttm_region(entry);
 	if (be) {
 		be->clear(entry->be);
@@ -556,7 +614,7 @@ int drm_create_ttm_region(drm_ttm_t * ttm, unsigned long page_offset,
 	for (i = 0; i < entry->num_pages; ++i) {
 		cur_page = ttm->pages + (page_offset + i);
 		if (!*cur_page) {
-			*cur_page = alloc_page(GFP_USER);
+			*cur_page = alloc_page(GFP_KERNEL);
 			if (!*cur_page) {
 				DRM_ERROR("Page allocation failed\n");
 				drm_destroy_ttm_region(entry);
@@ -574,7 +632,7 @@ int drm_create_ttm_region(drm_ttm_t * ttm, unsigned long page_offset,
 	entry->mm_node = NULL;
 	entry->mm = &ttm->dev->mm_driver->ttm_mm;
 	ttm->aperture_base = be->aperture_base;
-	
+
 	*region = entry;
 	return 0;
 }
@@ -594,7 +652,7 @@ int drm_bind_ttm_region(drm_ttm_backend_list_t * region,
 
 	int i;
 	uint32_t *cur_page_flag;
-	int ret = 0; 
+	int ret = 0;
 	drm_ttm_backend_t *be;
 	drm_ttm_t *ttm;
 
@@ -605,10 +663,10 @@ int drm_bind_ttm_region(drm_ttm_backend_list_t * region,
 	ttm = region->owner;
 
 	if (ttm && be->needs_cache_adjust(be)) {
-	     drm_set_caching(ttm, region->page_offset, region->num_pages,
-		 	    DRM_TTM_PAGE_UNCACHED, 0);
-	     ioremap_vmas(ttm, region->page_offset, region->num_pages,
-			 aper_offset);
+		drm_set_caching(ttm, region->page_offset, region->num_pages,
+				DRM_TTM_PAGE_UNCACHED, FALSE);
+		ioremap_vmas(ttm, region->page_offset, region->num_pages,
+			     aper_offset);
 	}
 
 	if ((ret = be->bind(be, aper_offset))) {
@@ -648,7 +706,10 @@ void drm_user_destroy_region(drm_ttm_backend_list_t * entry)
 	if (!entry || entry->owner)
 		return;
 
-	remove_ttm_region(entry);
+	if (remove_ttm_region(entry, TRUE)) {
+		list_add_tail(&entry->head, &entry->mm->delayed);
+		return;
+	}
 
 	be = entry->be;
 	if (!be) {
@@ -671,6 +732,7 @@ void drm_user_destroy_region(drm_ttm_backend_list_t * entry)
 
 	be->destroy(be);
 	drm_free(entry, sizeof(*entry), DRM_MEM_MAPS);
+	return;
 }
 
 /*
@@ -915,7 +977,8 @@ typedef struct drm_val_action {
 
 static int drm_validate_ttm_region(drm_ttm_backend_list_t * entry,
 				   uint32_t fence_type, unsigned *aper_offset,
-				   drm_val_action_t * action, uint32_t validation_seq)
+				   drm_val_action_t * action,
+				   uint32_t validation_seq)
 {
 	drm_mm_node_t *mm_node = entry->mm_node;
 	drm_ttm_mm_t *mm = entry->mm;
@@ -936,6 +999,7 @@ static int drm_validate_ttm_region(drm_ttm_backend_list_t * entry,
 	num_pages = (entry->owner) ? entry->num_pages : entry->anon_locked;
 	spin_lock(mm_lock);
 	while (!mm_node) {
+		drm_ttm_destroy_delayed(entry->mm, TRUE);
 		mm_node =
 		    drm_mm_search_free_locked(&entry->mm->mm, num_pages, 0, 0);
 		if (!mm_node) {
@@ -988,11 +1052,21 @@ static void drm_ttm_mm_init(drm_device_t * dev, drm_ttm_mm_t * mm,
 {
 	drm_mm_init(&mm->mm, start, size);
 	INIT_LIST_HEAD(&mm->lru_head);
+	INIT_LIST_HEAD(&mm->delayed);
 	mm->dev = dev;
 }
 
 static void drm_ttm_mm_takedown(drm_ttm_mm_t * mm)
 {
+	if (drm_ttm_destroy_delayed(mm, FALSE)) {
+		DRM_ERROR("DRM_MM: Inconsistency: "
+			  "There are still used buffers\n");
+
+		/*
+		 * FIXME: Clean this up in a nice way.
+		 */
+
+	}
 	drm_mm_takedown(&mm->mm);
 }
 
@@ -1122,7 +1196,8 @@ static int drm_ttm_create_user_buf(drm_ttm_buf_arg_t * buf_p,
 }
 
 static void drm_ttm_handle_buf(drm_file_t * priv, drm_ttm_buf_arg_t * buf_p,
-			       drm_val_action_t * action, uint32_t validation_seq)
+			       drm_val_action_t * action,
+			       uint32_t validation_seq)
 {
 	drm_device_t *dev = priv->head->dev;
 	drm_ttm_t *ttm;
@@ -1143,7 +1218,8 @@ static void drm_ttm_handle_buf(drm_file_t * priv, drm_ttm_buf_arg_t * buf_p,
 		}
 		buf_p->ret =
 		    drm_validate_ttm_region(entry, buf_p->fence_type,
-					    &buf_p->aper_offset, action, validation_seq);
+					    &buf_p->aper_offset, action,
+					    validation_seq);
 		break;
 	case ttm_validate:
 		buf_p->ret =
@@ -1170,7 +1246,8 @@ static void drm_ttm_handle_buf(drm_file_t * priv, drm_ttm_buf_arg_t * buf_p,
 		}
 		buf_p->ret =
 		    drm_validate_ttm_region(entry, buf_p->fence_type,
-					    &buf_p->aper_offset, action, validation_seq);
+					    &buf_p->aper_offset, action,
+					    validation_seq);
 		break;
 	case ttm_unbind:
 		buf_p->ret =
@@ -1180,20 +1257,13 @@ static void drm_ttm_handle_buf(drm_file_t * priv, drm_ttm_buf_arg_t * buf_p,
 			break;
 		drm_unbind_ttm_region(entry);
 		break;
-	case ttm_evict:
-		buf_p->ret =
-		    drm_ttm_region_from_handle(buf_p->region_handle, priv,
-					       &entry);
-		if (buf_p->ret)
-			break;
-		remove_ttm_region(entry);
-		buf_p->ret = drm_evict_ttm_region(entry);
-		break;
 	case ttm_destroy:
 		buf_p->ret =
 		    drm_ttm_region_from_handle(buf_p->region_handle, priv,
 					       &entry);
 
+		drm_remove_ht_val(&dev->ttmreghash, buf_p->region_handle);
+		ttm_mm = entry->mm;
 		if (buf_p->ret)
 			break;
 		if (entry->owner) {
@@ -1202,7 +1272,7 @@ static void drm_ttm_handle_buf(drm_file_t * priv, drm_ttm_buf_arg_t * buf_p,
 			list_del(&entry->head);
 			drm_user_destroy_region(entry);
 		}
-		drm_remove_ht_val(&dev->ttmreghash, buf_p->region_handle);
+		drm_ttm_destroy_delayed(ttm_mm, TRUE);
 		break;
 	default:
 		DRM_ERROR("Invalid TTM buffer operation\n");
@@ -1343,12 +1413,13 @@ static int drm_ttm_handle_remove(drm_file_t * priv, drm_handle_t handle)
 		up(&dev->struct_sem);
 		return ret;
 	}
-	ret = drm_destroy_ttm(ttm);
 	list_del(&map_list->head);
 	drm_remove_ht_val(&dev->maphash,
 			  (handle - DRM_MAP_HASH_OFFSET) >> PAGE_SHIFT);
+	ret = drm_destroy_ttm(ttm);
+	drm_ttm_destroy_delayed(&dev->mm_driver->ttm_mm, TRUE);
 	up(&dev->struct_sem);
-	if (!ret) {
+	if (ret != -EBUSY) {
 
 		/*
 		 * No active VMAs. So OK to free map here.

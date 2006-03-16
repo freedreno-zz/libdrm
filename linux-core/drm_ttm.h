@@ -30,6 +30,7 @@ typedef struct drm_ttm_backend {
 #define DRM_FLUSH_EXE   (0x04)
 
 typedef struct drm_ttm_backend_list {
+	atomic_t refcount;
 	struct list_head head;
 	drm_ttm_backend_t *be;
 	unsigned page_offset;
@@ -66,7 +67,9 @@ typedef struct drm_ttm {
 	struct drm_device *dev;
 	drm_ttm_backend_list_t *be_list;
 	atomic_t vma_count;
+	atomic_t unfinished_regions;
 	drm_file_t *owner;
+	int destroy;
 } drm_ttm_t;
 
 /*

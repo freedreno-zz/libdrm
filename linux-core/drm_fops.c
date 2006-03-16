@@ -477,6 +477,9 @@ int drm_release(struct inode *inode, struct file *filp)
 		dev->file_last = priv->prev;
 	}
 
+	if (dev->mm_driver)
+		drm_ttm_destroy_delayed(&dev->mm_driver->ttm_mm, TRUE);
+
 	list_for_each_safe(list, next, &priv->ttms) {
 		drm_map_list_t *entry = list_entry(list, drm_map_list_t, head);
 		list_del(list);
