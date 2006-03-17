@@ -406,6 +406,35 @@ static int drm_set_caching(drm_ttm_t * ttm, unsigned long page_offset,
 }
 
 /*
+ * Wait for a maximum of one second for a buffer to become free.
+ * Note that we block completely in a buzy wait loop here 
+ * if a signal is pending. Could be made to behave more nicely.
+ */
+
+static int drm_wait_buf_busy(drm_ttm_backend_list_t * entry)
+{
+	drm_mm_node_t *mm_node = entry->mm_node;
+	drm_device_t *dev = entry->mm->dev;
+	drm_ttm_mm_priv_t *mm_priv;
+	unsigned long end = jiffies + DRM_HZ;
+	int ret = 0;
+
+	if (!mm_node)
+		return 0;
+
+	mm_priv = (drm_ttm_mm_priv_t *) mm_node->private;
+	if (mm_priv->fence_valid) {
+		do {
+			ret = dev->mm_driver->wait_fence(dev, entry->fence_type,
+							 mm_priv->fence);
+			if (time_after_eq(jiffies, end))
+				ret = -EBUSY;
+		} while (ret == -EAGAIN);
+	}
+	return ret;
+}
+
+/*
  * Take a ttm region out of the aperture manager.
  */
 
@@ -421,8 +450,8 @@ static int remove_ttm_region(drm_ttm_backend_list_t * entry, int ret_if_busy)
 	if (!mm_node)
 		return 0;
 
-	entry->mm_node = NULL;
 	mm_priv = (drm_ttm_mm_priv_t *) mm_node->private;
+
 	if (!mm_priv)
 		return 0;
 
@@ -431,12 +460,12 @@ static int remove_ttm_region(drm_ttm_backend_list_t * entry, int ret_if_busy)
 		    && !dev->mm_driver->test_fence(mm->dev, entry->fence_type,
 						   mm_priv->fence))
 			return -EBUSY;
-		ret = dev->mm_driver->wait_fence(mm->dev, entry->fence_type,
-						 mm_priv->fence);
+		ret = drm_wait_buf_busy(entry);
 		if (ret)
 			return ret;
 	}
 
+	entry->mm_node = NULL;
 	mm_node->private = NULL;
 	spin_lock(&mm->mm.mm_lock);
 	list_del(&mm_priv->lru);
@@ -914,6 +943,7 @@ static int drm_ttm_evict_lru_sl(drm_ttm_backend_list_t * entry)
 	uint32_t evict_fence;
 	drm_device_t *dev = mm->dev;
 	drm_mm_node_t *evict_node;
+	int ret;
 
 /*
  * We must use a loop here, since the list might be updated while we release
@@ -942,10 +972,16 @@ static int drm_ttm_evict_lru_sl(drm_ttm_backend_list_t * entry)
 
 		spin_unlock(mm_lock);
 		up(&dev->struct_sem);
-		dev->mm_driver->wait_fence(dev, evict_priv->region->fence_type,
-					   evict_fence);
+
+		ret = drm_wait_buf_busy(evict_priv->region);
+
 		down(&dev->struct_sem);
 		spin_lock(mm_lock);
+
+		if (ret) {
+			DRM_ERROR("Evict wait timed out\n");
+			return ret;
+		}
 
 	} while (TRUE);
 
@@ -974,26 +1010,6 @@ typedef struct drm_val_action {
 	int evicted_vram;
 	int validated;
 } drm_val_action_t;
-
-static int drm_wait_buf_busy(drm_ttm_backend_list_t * entry)
-{
-	drm_mm_node_t *mm_node = entry->mm_node;
-	drm_device_t *dev = entry->mm->dev;
-	drm_ttm_mm_priv_t *mm_priv;
-	int ret = 0;
-
-	if (!mm_node)
-		return 0;
-
-	mm_priv = (drm_ttm_mm_priv_t *) mm_node->private;
-	if (mm_priv->fence_valid) {
-		do {
-			ret = dev->mm_driver->wait_fence(dev, entry->fence_type,
-							 mm_priv->fence);
-		} while (ret == -EINTR);
-	}
-	return ret;
-}
 
 static int drm_validate_ttm_region(drm_ttm_backend_list_t * entry,
 				   unsigned *aper_offset,

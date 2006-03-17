@@ -285,10 +285,15 @@ int i915_wait_fence(drm_device_t * dev, uint32_t type, uint32_t fence)
 		} while (ret == 0);
 	}
 	
-	if (ret && ret != -EINTR) {
+	if (ret && ret != DRM_ERR(EINTR)) {
 		DRM_ERROR("Fence timeout %d %d\n", 
 			READ_BREADCRUMB(dev_priv), fence);
 	} 
+
 	dev->mm_driver->mm_sarea->retired[0] = READ_BREADCRUMB(dev_priv);
-	return ret;	
+
+	if (ret == DRM_ERR(EINTR))
+		return DRM_ERR(EAGAIN);
+	else
+		return ret;	
 }

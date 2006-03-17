@@ -249,6 +249,7 @@ drmWaitFence(int drmFD, drmFence fence)
 {
     drm_fence_arg_t arg;
     int retired;
+    int ret;
 
     drmMMCheckInit(drmFD);
 
@@ -268,13 +269,16 @@ drmWaitFence(int drmFD, drmFence fence)
 	    fence.fenceSeq) < DRM_MM_WRAP)
 	return 0;
 #endif
-    arg.req.op = wait_fence;
-    arg.req.fence_type = fence.fenceType;
-    arg.req.fence_seq = fence.fenceSeq;
 
-    if (ioctl(drmFD, DRM_IOCTL_FENCE, &arg)) {
+    do {
+	arg.req.op = wait_fence;
+	arg.req.fence_type = fence.fenceType;
+	arg.req.fence_seq = fence.fenceSeq;
+	ret = ioctl(drmFD, DRM_IOCTL_FENCE, &arg);
+    } while (ret == -EAGAIN);
+
+    if (ret) {
 	drmMsg("drmWaitFence: failed: %s\n", strerror(errno));
-
 	return -errno;
     }
 
@@ -888,7 +892,6 @@ drmMMValidateBuffers(int drmFD, drmMMBufList * head)
 	    buf->err = curBArg->ret;
 	    if (buf->err) {
 		ret = buf->err;
-		abort();
 	    }
 	    block->kernelBuf = curBArg->region_handle;
 	    block->hasKernelBuf = 1;
