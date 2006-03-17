@@ -975,8 +975,28 @@ typedef struct drm_val_action {
 	int validated;
 } drm_val_action_t;
 
+static int drm_wait_buf_busy(drm_ttm_backend_list_t * entry)
+{
+	drm_mm_node_t *mm_node = entry->mm_node;
+	drm_device_t *dev = entry->mm->dev;
+	drm_ttm_mm_priv_t *mm_priv;
+	int ret = 0;
+
+	if (!mm_node)
+		return 0;
+
+	mm_priv = (drm_ttm_mm_priv_t *) mm_node->private;
+	if (mm_priv->fence_valid) {
+		do {
+			ret = dev->mm_driver->wait_fence(dev, entry->fence_type,
+							 mm_priv->fence);
+		} while (ret == -EINTR);
+	}
+	return ret;
+}
+
 static int drm_validate_ttm_region(drm_ttm_backend_list_t * entry,
-				   uint32_t fence_type, unsigned *aper_offset,
+				   unsigned *aper_offset,
 				   drm_val_action_t * action,
 				   uint32_t validation_seq)
 {
@@ -1023,7 +1043,6 @@ static int drm_validate_ttm_region(drm_ttm_backend_list_t * entry,
 
 	mm_priv->fence_valid = FALSE;
 	mm_priv->val_seq = validation_seq;
-	entry->fence_type = fence_type;
 
 	if (!entry->pinned)
 		list_add_tail(&mm_priv->lru, &mm->lru_head);
@@ -1127,7 +1146,7 @@ static int drm_ttm_create_buffer(drm_device_t * dev, drm_ttm_t * ttm,
 	}
 	buf->region_handle = (drm_handle_t) region;
 
-	entry->pinned = buf->flags & (DRM_MM_NO_EVICT | DRM_MM_NO_MOVE);
+	entry->pinned = 0;
 	*created = entry;
 	return 0;
 }
@@ -1190,72 +1209,139 @@ static int drm_ttm_create_user_buf(drm_ttm_buf_arg_t * buf_p,
 	}
 	list_add(&entry->head, &priv->anon_ttm_regs);
 	buf_p->region_handle = (drm_handle_t) region;
-	entry->pinned = buf_p->flags & (DRM_MM_NO_MOVE | DRM_MM_NO_EVICT);
+	entry->pinned = 0;
 	*created = entry;
 	return 0;
 }
+
+static int drm_ttm_validate_buf(drm_file_t * priv, drm_ttm_buf_arg_t * buf_p,
+				drm_val_action_t * action,
+				uint32_t validation_seq)
+{
+	int ret;
+	int pin_buffer;
+	uint32_t flags = 0;
+	drm_ttm_t *ttm;
+	drm_device_t *dev = priv->head->dev;
+	drm_ttm_backend_list_t *entry;
+
+	if (buf_p->flags & DRM_MM_NEW) {
+		flags |= DRM_MM_NEW;
+		ret = drm_ttm_from_handle(buf_p->ttm_handle, priv, &ttm, NULL);
+		if (ret)
+			goto out;
+		ret = drm_ttm_create_buffer(dev, ttm, buf_p, &entry);
+		if (ret)
+			goto out;
+		flags &= ~DRM_MM_NEW;
+	} else {
+		ret = drm_ttm_region_from_handle(buf_p->region_handle,
+						 priv, &entry);
+		if (ret)
+			goto out;
+		flags = entry->flags;
+	}
+
+	if (buf_p->fence_type > dev->mm_driver->fence_types) {
+		DRM_ERROR("Illegal fence type\n");
+		ret = -EINVAL;
+		goto out;
+	}
+
+	if (entry->owner == NULL && !(flags & DRM_MM_CACHED)) {
+
+		DRM_ERROR("Only cached user regions allowed\n");
+		ret = -EINVAL;
+		goto out;
+
+	} else if (((flags & DRM_MM_CACHED) != (buf_p->flags & DRM_MM_CACHED))
+		   && ((buf_p->flags & DRM_MM_TT) != 0)
+		   && dev->mm_driver->cached_pages) {
+
+		drm_unbind_ttm_region(entry);
+		flags = (flags & ~DRM_MM_MEMTYPE_MASK) | DRM_MM_SYSTEM;
+
+	}
+
+	if ((flags & buf_p->flags & DRM_MM_MEMTYPE_MASK) == 0) {
+
+		if (buf_p->flags & DRM_MM_SYSTEM) {
+			drm_unbind_ttm_region(entry);
+			flags = (flags & ~DRM_MM_MEMTYPE_MASK) | DRM_MM_SYSTEM;
+
+		} else if (buf_p->flags & DRM_MM_TT) {
+
+			flags = (flags & ~DRM_MM_MEMTYPE_MASK) | DRM_MM_TT;
+		} else {
+			DRM_ERROR("VRAM is not implemented yet.\n");
+			ret = -EINVAL;
+			goto out;
+		}
+	}
+
+	if (flags & (DRM_MM_TT | DRM_MM_VRAM)) {
+		ret = drm_wait_buf_busy(entry);
+		if (ret)
+			goto out;
+
+		pin_buffer = (buf_p->flags & DRM_MM_NO_EVICT) != 0;
+		entry->pinned = pin_buffer;
+		entry->fence_type = buf_p->fence_type;
+
+		ret = drm_validate_ttm_region(entry, &buf_p->aper_offset,
+					      action, validation_seq);
+		if (ret)
+			goto out;
+	}
+
+	if (!entry->be->needs_cache_adjust(entry->be))
+		flags |= DRM_MM_CACHED;
+
+	flags &= ~(DRM_MM_NO_EVICT | DRM_MM_READ | DRM_MM_EXE | DRM_MM_WRITE);
+	flags |= (buf_p->flags & (DRM_MM_NO_EVICT | DRM_MM_READ | DRM_MM_EXE |
+				  DRM_MM_WRITE));
+	entry->flags = flags;
+	buf_p->flags = flags;
+
+	return 0;
+      out:
+	buf_p->flags = flags;
+	return ret;
+}
+
+/*
+ * Handle the buffer operations for a single buffer.
+ */
 
 static void drm_ttm_handle_buf(drm_file_t * priv, drm_ttm_buf_arg_t * buf_p,
 			       drm_val_action_t * action,
 			       uint32_t validation_seq)
 {
 	drm_device_t *dev = priv->head->dev;
-	drm_ttm_t *ttm;
 	drm_ttm_backend_list_t *entry;
 	drm_ttm_mm_t *ttm_mm;
 
 	switch (buf_p->op) {
 	case ttm_validate_user:
-		buf_p->ret =
-		    drm_ttm_create_user_buf(buf_p, buf_p->user_addr,
-					    buf_p->user_size, priv, &entry);
-		if (buf_p->ret)
-			break;
-		ttm_mm = entry->mm;
-		if (buf_p->fence_type >= dev->mm_driver->fence_types) {
-			buf_p->ret = -EINVAL;
-			break;
+		if (buf_p->flags & DRM_MM_NEW) {
+
+			buf_p->ret =
+			    drm_ttm_create_user_buf(buf_p, buf_p->user_addr,
+						    buf_p->user_size, priv,
+						    &entry);
+			if (buf_p->ret) {
+				buf_p->flags = 0;
+				break;
+			}
+
+			buf_p->flags &= ~DRM_MM_NEW;
 		}
-		buf_p->ret =
-		    drm_validate_ttm_region(entry, buf_p->fence_type,
-					    &buf_p->aper_offset, action,
-					    validation_seq);
+		buf_p->ret = drm_ttm_validate_buf(priv, buf_p, action,
+						  validation_seq);
 		break;
 	case ttm_validate:
-		buf_p->ret =
-		    drm_ttm_from_handle(buf_p->ttm_handle, priv, &ttm, NULL);
-		if (buf_p->ret)
-			break;
-		if (buf_p->flags & DRM_MM_NEW) {
-			buf_p->ret =
-			    drm_ttm_create_buffer(dev, ttm, buf_p, &entry);
-			if (buf_p->ret)
-				break;
-			buf_p->flags &= ~DRM_MM_NEW;
-		} else {
-			buf_p->ret =
-			    drm_ttm_region_from_handle(buf_p->region_handle,
-						       priv, &entry);
-			if (buf_p->ret)
-				break;
-		}
-		ttm_mm = entry->mm;
-		if (buf_p->fence_type >= dev->mm_driver->fence_types) {
-			buf_p->ret = -EINVAL;
-			break;
-		}
-		buf_p->ret =
-		    drm_validate_ttm_region(entry, buf_p->fence_type,
-					    &buf_p->aper_offset, action,
-					    validation_seq);
-		break;
-	case ttm_unbind:
-		buf_p->ret =
-		    drm_ttm_region_from_handle(buf_p->region_handle, priv,
-					       &entry);
-		if (buf_p->ret)
-			break;
-		drm_unbind_ttm_region(entry);
+		buf_p->ret = drm_ttm_validate_buf(priv, buf_p, action,
+						  validation_seq);
 		break;
 	case ttm_destroy:
 		buf_p->ret =
@@ -1281,6 +1367,11 @@ static void drm_ttm_handle_buf(drm_file_t * priv, drm_ttm_buf_arg_t * buf_p,
 	}
 
 }
+
+/*
+ * Download a buffer list from user space and dispatch each buffer to
+ * drm_ttm_handle_buf
+ */
 
 int drm_ttm_handle_bufs(drm_file_t * priv, drm_ttm_arg_t * ttm_arg)
 {

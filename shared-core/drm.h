@@ -645,9 +645,9 @@ typedef struct drm_set_version {
 #define DRM_MM_READ       0x00000400
 #define DRM_MM_WRITE      0x00000800
 #define DRM_MM_EXE        0x00001000
-#define DRM_MM_NO_UPLOAD  0x00002000
 #define DRM_MM_NO_EVICT   0x00004000
-#define DRM_MM_NO_MOVE    0x00008000
+#define DRM_MM_UNUSED1     0x00002000
+#define DRM_MM_UNUSED2     0x00008000
 
 
 #define DRM_TTM_MAX_BUF_BATCH 32

@@ -80,7 +80,6 @@
  *
  */
 
-
 /*
  * Flags used by libdrm but not by kernel:
  *
@@ -103,11 +102,10 @@
 
 #define DRM_MM_USER_MASK 0xF0000000U
 
-
 #define FLAGS_COMPATIBLE(exist, req) \
 ((((exist) & (req) & DRM_MM_MEMTYPE_MASK)) && \
- ( ((exist) & (req) & ~DRM_MM_MEMTYPE_MASK) == \
-((req) & ~DRM_MM_MEMTYPE_MASK)))
+ ( ((exist) & (req) & DRM_MM_KERNEL_MASK) == \
+((req) & DRM_MM_KERNEL_MASK)))
 
 typedef enum
 {

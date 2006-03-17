@@ -29,7 +29,6 @@
 /*
  * TODO Urgent:
  * 
- * Flags are currently all messed up.
  * Clean up user pool handling in this file. The code is messy.
  * Fix the kernel hashing mechanism.
  * Fence pinned regions.
@@ -81,10 +80,10 @@ typedef struct _drmMMBufList
 {
     struct _drmMMBufList *next, *prev, *free;
     drmMMBuf *buf;
-    unsigned flags;
     unsigned fenceType;
     unsigned long *offsetReturn;
     unsigned *memtypeReturn;
+    unsigned flags;
 } drmMMBufList;
 
 /*
@@ -262,16 +261,16 @@ drmWaitFence(int drmFD, drmFence fence)
      * arbitration scheme. We need a scheduler!!.
      */
 
+#if 1
     sched_yield();
 
     if ((drmMMKI.sarea->retired[fence.fenceType & DRM_FENCE_MASK] -
 	    fence.fenceSeq) < DRM_MM_WRAP)
 	return 0;
-
+#endif
     arg.req.op = wait_fence;
     arg.req.fence_type = fence.fenceType;
     arg.req.fence_seq = fence.fenceSeq;
-
 
     if (ioctl(drmFD, DRM_IOCTL_FENCE, &arg)) {
 	drmMsg("drmWaitFence: failed: %s\n", strerror(errno));
@@ -343,6 +342,7 @@ drmMMAllocBufferPool(int drmFD, MMPoolTypes type, unsigned fence_type,
     arg.op = ttm_add;
     arg.size = size;
     arg.num_bufs = 0;
+    pool->bufSize = 0;
 
     if (ioctl(drmFD, DRM_IOCTL_TTM, &arg)) {
 	drmMsg("drmMMAllocBufferPool: %s\n", strerror(errno));
@@ -358,12 +358,13 @@ drmMMAllocBufferPool(int drmFD, MMPoolTypes type, unsigned fence_type,
 	return -errno;
     }
     pool->pinned = 0;
-    if (flags & (DRM_MM_NO_EVICT | DRM_MM_NO_MOVE)) {
+    if (flags & DRM_MM_NO_EVICT) {
 	drm_ttm_buf_arg_t ba;
+	int ret;
 
 	ba.op = ttm_validate;
 	ba.ttm_handle = arg.handle;
-	ba.flags = DRM_MM_NO_EVICT | DRM_MM_NEW;
+	ba.flags = flags | DRM_MM_NEW;
 	ba.ttm_page_offset = 0;
 	ba.num_pages = size / drmMMKI.pageSize;
 	ba.next = NULL;
@@ -372,16 +373,18 @@ drmMMAllocBufferPool(int drmFD, MMPoolTypes type, unsigned fence_type,
 	arg.num_bufs = 1;
 	arg.op = ttm_bufs;
 
-	if (ioctl(drmFD, DRM_IOCTL_TTM, &arg) || ba.ret) {
+	if (((ret = ioctl(drmFD, DRM_IOCTL_TTM, &arg))) || ba.ret) {
 	    drmMsg("drmMMAllocBufferPool: Could not validate pool.\n");
 	    arg.op = ttm_remove;
 	    ioctl(drmFD, DRM_IOCTL_TTM, &arg);
-	    return -errno;
+	    return ((ret) ? ret : ba.ret);
 	}
 
 	pool->offset = ba.aper_offset * drmMMKI.pageSize;
 	pool->kernelBuf = ba.region_handle;
 	pool->pinned = 1;
+	flags = (flags & ~DRM_MM_KERNEL_MASK) |
+	    (ba.flags & DRM_MM_KERNEL_MASK);
     }
     pool->size = size;
     pool->type = mmPoolRing;
@@ -399,7 +402,6 @@ drmMMAllocBufferPool(int drmFD, MMPoolTypes type, unsigned fence_type,
     pool->head = 0;
     pool->tail = 0;
     pool->free = pool->numBufs;
-    printf("handle 0x%x\n", pool->kernelPool);
     return 0;
 }
 
@@ -457,13 +459,18 @@ drmMMMapBuffer(int drmFD, drmMMBuf * buf)
 
     if (buf->block && buf->block->fenced) {
 	ret = -EINTR;
-	while(ret == -EINTR) {
+	while (ret == -EINTR) {
 	    ret = drmWaitFence(drmFD, buf->block->fence);
 	}
 	if (ret) {
 	    return NULL;
 	}
     }
+
+    /*
+     * FIXME: Ok for now, since the only shared buffers
+     * we use now (front, back, depth) are really mapped elsewhere.
+     */
 
     if (buf->flags & DRM_MM_SHARED)
 	return buf->virtual;
@@ -687,6 +694,7 @@ drmMMAllocBuffer(int drmFD, unsigned size,
     }
     buf->block->fenced = 0;
     buf->block->inUse = 1;
+    buf->mapped = 0;
 
     return 0;
 }
@@ -704,11 +712,6 @@ drmMMFreeBuffer(int drmFD, drmMMBuf * buf)
 	    arg.op = ttm_remove;
 	    arg.num_bufs = 0;
 	    arg.handle = buf->block->kernelPool;
-
-	    /*
-	     * FIXME: This will hang until the buffer's fence is retired.
-	     * Needs a kernel side fix.
-	     */
 
 	    if (ioctl(drmFD, DRM_IOCTL_TTM, &arg)) {
 		drmMsg("drmFreeBuffer: Could not destroy buffer: %s\n",
@@ -748,6 +751,8 @@ drmCheckValidation(unsigned flags, drmMMBuf * buf)
 	return -1;
     if (buf->flags & DRM_MM_NEW)
 	return 1;
+    if (!FLAGS_COMPATIBLE(buf->flags, flags))
+	return 1;
     if ((drmMMKI.sarea->validation_seq - buf->block->lastValSeq) >=
 	(DRM_MM_CLEAN - 1))
 	return 1;
@@ -774,6 +779,15 @@ drmMMReturnOffsets(drmMMBufList * head)
     }
 }
 
+/**
+ * 
+ * The user may request a buffer state change by the flags in the
+ * validation list. The validate function checks if it needs to
+ * call the kernel as a result of this. Pooled buffers list flag arguments are
+ * ignored. They are set to the pool flags. 
+ *
+ */
+
 int
 drmMMValidateBuffers(int drmFD, drmMMBufList * head)
 {
@@ -787,11 +801,15 @@ drmMMValidateBuffers(int drmFD, drmMMBufList * head)
     drm_ttm_arg_t arg;
     drmMMBuf *buf;
     drmMMBlock *block;
+    unsigned flags;
 
     drmMMCheckInit(drmFD);
     while (cur != head) {
 	buf = cur->buf;
-	tmp = drmCheckValidation(cur->flags, cur->buf);
+	flags = cur->flags;
+	if (buf->pool)
+	    flags = buf->pool->flags;
+	tmp = drmCheckValidation(flags, cur->buf);
 	if (tmp >= 0)
 	    needsValid++;
 	if (tmp == 1)
@@ -820,9 +838,12 @@ drmMMValidateBuffers(int drmFD, drmMMBufList * head)
     while (cur != head) {
 	buf = cur->buf;
 	block = buf->block;
-	if (drmCheckValidation(cur->flags, cur->buf) != -1) {
-	    curBArg->op =
-		(cur->flags & DRM_MM_TT) ? ttm_validate : ttm_unbind;
+	flags = cur->flags;
+	if (buf->pool)
+	    flags = buf->pool->flags;
+	if (drmCheckValidation(flags, buf) != -1) {
+	    flags = (flags & ~DRM_MM_NEW) | (buf->flags & DRM_MM_NEW);
+	    curBArg->op = ttm_validate;
 	    curBArg->ttm_handle = block->kernelPool;
 	    curBArg->region_handle = block->kernelBuf;
 	    curBArg->ttm_page_offset =
@@ -830,8 +851,7 @@ drmMMValidateBuffers(int drmFD, drmMMBufList * head)
 		drmMMKI.pageSize : 0;
 	    curBArg->num_pages = buf->size / drmMMKI.pageSize;
 
-	    curBArg->flags = (buf->flags & ~DRM_MM_MEMTYPE_MASK)
-		| (cur->flags & DRM_MM_MEMTYPE_MASK);
+	    curBArg->flags = flags & DRM_MM_KERNEL_MASK;
 	    curBArg->next = curBArg + 1;
 	    curBArg->fence_type = cur->fenceType;
 	    curBArg++;
@@ -856,13 +876,19 @@ drmMMValidateBuffers(int drmFD, drmMMBufList * head)
     while (cur != head) {
 	buf = cur->buf;
 	block = buf->block;
-	if (drmCheckValidation(cur->flags, cur->buf) != -1) {
+
+	flags = cur->flags;
+	if (buf->pool)
+	    flags = buf->pool->flags;
+
+	if (drmCheckValidation(flags, cur->buf) != -1) {
 	    block->lastValSeq = arg.val_seq;
-	    buf->flags = (buf->flags & ~(DRM_MM_MEMTYPE_MASK | DRM_MM_NEW)) |
-		(curBArg->flags & (DRM_MM_MEMTYPE_MASK | DRM_MM_NEW));
+	    buf->flags = (buf->flags & ~DRM_MM_KERNEL_MASK) |
+		(curBArg->flags & DRM_MM_KERNEL_MASK);
 	    buf->err = curBArg->ret;
 	    if (buf->err) {
 		ret = buf->err;
+		abort();
 	    }
 	    block->kernelBuf = curBArg->region_handle;
 	    block->hasKernelBuf = 1;

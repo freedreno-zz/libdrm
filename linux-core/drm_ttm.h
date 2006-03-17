@@ -30,6 +30,7 @@ typedef struct drm_ttm_backend {
 #define DRM_FLUSH_EXE   (0x04)
 
 typedef struct drm_ttm_backend_list {
+        uint32_t flags;
 	atomic_t refcount;
 	struct list_head head;
 	drm_ttm_backend_t *be;
