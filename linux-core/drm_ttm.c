@@ -540,7 +540,6 @@ static int drm_set_caching(drm_ttm_t * ttm, unsigned long page_offset,
 				    && page_address(*cur_page) != NULL) {
 					DRM_ERROR
 					    ("Illegal mapped HighMem Page\n");
-					up_write(&current->mm->mmap_sem);
 					drm_ttm_unlock_mm(ttm, FALSE, TRUE);
 					return -EINVAL;
 				}
@@ -835,11 +834,6 @@ int drm_create_ttm_region(drm_ttm_t * ttm, unsigned long page_offset,
 
 /*
  * Bind a ttm region. Set correct caching policy.
- * FIXME: Need to maintain locking order
- *
- * mmap_sem
- * dev->struct_sem
- * page_table spinlock.
  */
 
 int drm_bind_ttm_region(drm_ttm_backend_list_t * region,
@@ -1051,7 +1045,6 @@ int drm_add_ttm(drm_device_t * dev, unsigned size, drm_map_list_t ** maplist)
 		drm_destroy_ttm(ttm);
 		drm_free(map, sizeof(*map), DRM_MEM_MAPS);
 		drm_free(list, sizeof(*list), DRM_MEM_MAPS);
-		up(&dev->struct_sem);
 		return -ENOMEM;
 	}
 
@@ -1597,6 +1590,7 @@ int drm_ttm_handle_bufs(drm_file_t * priv, drm_ttm_arg_t * ttm_arg)
 	}
 	buf_p = bufs;
 
+	down(&mm_driver->ttm_sem);
 	down(&dev->struct_sem);
 	sa = mm_driver->mm_sarea;
 
@@ -1619,6 +1613,7 @@ int drm_ttm_handle_bufs(drm_file_t * priv, drm_ttm_arg_t * ttm_arg)
 
 	ttm_arg->val_seq = sa->validation_seq;
 	up(&dev->struct_sem);
+	up(&mm_driver->ttm_sem);
 
 	if (ttm_arg->num_bufs) {
 		old_priv = priv;
@@ -1654,6 +1649,7 @@ static int drm_ttm_handle_add(drm_file_t * priv, drm_ttm_arg_t * ttm_arg)
 	drm_ttm_t *ttm;
 	int ret;
 
+	down(&dev->mm_driver->ttm_sem);
 	down(&dev->struct_sem);
 	ret = drm_add_ttm(dev, ttm_arg->size, &map_list);
 	if (ret) {
@@ -1664,6 +1660,7 @@ static int drm_ttm_handle_add(drm_file_t * priv, drm_ttm_arg_t * ttm_arg)
 	ttm = (drm_ttm_t *) map_list->map->offset;
 	ttm->owner = priv;
 	up(&dev->struct_sem);
+	up(&dev->mm_driver->ttm_sem);
 	ttm_arg->handle = (uint32_t) map_list->user_token;
 	return 0;
 }
@@ -1675,10 +1672,12 @@ static int drm_ttm_handle_remove(drm_file_t * priv, drm_handle_t handle)
 	drm_ttm_t *ttm;
 	int ret;
 
+	down(&dev->mm_driver->ttm_sem);
 	down(&dev->struct_sem);
 	ret = drm_ttm_from_handle(handle, priv, &ttm, &map_list);
 	if (ret) {
 		up(&dev->struct_sem);
+		up(&dev->mm_driver->ttm_sem);
 		return ret;
 	}
 	list_del(&map_list->head);
@@ -1687,6 +1686,8 @@ static int drm_ttm_handle_remove(drm_file_t * priv, drm_handle_t handle)
 	ret = drm_destroy_ttm(ttm);
 	drm_ttm_destroy_delayed(&dev->mm_driver->ttm_mm, TRUE);
 	up(&dev->struct_sem);
+	up(&dev->mm_driver->ttm_sem);
+
 	if (ret != -EBUSY) {
 
 		/*
@@ -1854,6 +1855,7 @@ int drm_mm_init_ioctl(DRM_IOCTL_ARGS)
 
 	DRM_COPY_FROM_USER_IOCTL(arg, (void __user *)data, sizeof(arg));
 
+	down(&dev->mm_driver->ttm_sem);
 	down(&dev->struct_sem);
 	switch (arg.req.op) {
 	case mm_init:
@@ -1878,6 +1880,7 @@ int drm_mm_init_ioctl(DRM_IOCTL_ARGS)
 		ret = -EINVAL;
 	}
 	up(&dev->struct_sem);
+	up(&dev->mm_driver->ttm_sem);
 
 	if (ret)
 		return ret;
@@ -1905,6 +1908,7 @@ int drm_mm_fence_ioctl(DRM_IOCTL_ARGS)
 	DRM_COPY_FROM_USER_IOCTL(arg, (void __user *)data, sizeof(arg));
 
 	ret = 0;
+	down(&mm_driver->ttm_sem);
 	down(&dev->struct_sem);
 	switch (arg.req.op) {
 	case emit_fence:
@@ -1926,6 +1930,7 @@ int drm_mm_fence_ioctl(DRM_IOCTL_ARGS)
 	}
 
 	up(&dev->struct_sem);
+	up(&mm_driver->ttm_sem);
 	if (ret)
 		return ret;
 

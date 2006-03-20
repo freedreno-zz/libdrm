@@ -687,6 +687,7 @@ drmMMAllocBuffer(int drmFD, unsigned size,
     } else {
 
 	block = (drmMMBlock *) calloc(1, sizeof(*block));
+
 	if (!block) {
 	    drmMsg("drmMMAllocBuffer: Could not alloc info block.\n");
 	    return -1;
@@ -825,6 +826,7 @@ drmMMValidateBuffers(int drmFD, drmMMBufList * head)
 
     if (needsValid) {
 	vl = (drm_ttm_buf_arg_t *) calloc(needsValid, sizeof(*vl));
+
 	if (!vl) {
 	    drmMsg("drmMMValidateBuffers: Could not allocate memory\n");
 	    return -1;
@@ -833,6 +835,8 @@ drmMMValidateBuffers(int drmFD, drmMMBufList * head)
 
     if (!doValid) {
 	drmMMReturnOffsets(head);
+	if (vl) 
+	    free(vl);
 	return 0;
     }
 
@@ -999,6 +1003,7 @@ drmMMInitListHead(void)
     head->prev = head;
     head->next = head;
     head->free = NULL;
+    return head;
 }
 
 void
@@ -1047,6 +1052,7 @@ drmMMBufListAdd(drmMMBufList * head, drmMMBuf * buf, unsigned fenceType,
 	cur->prev = NULL;
     } else {
 	cur = (drmMMBufList *) malloc(sizeof(*cur));
+
 	if (!cur) {
 	    drmMsg("drmMMBufListAdd: Alloc buffer list entry failed: %s\n");
 	    return -1;

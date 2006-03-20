@@ -32,6 +32,7 @@ drm_mm_driver_t *i915_mm_init(drm_device_t * dev)
 	mm_driver->flush_caches = i915_emit_mi_flush;
 	mm_driver->cached_pages = TRUE;
 	mm_driver->takedown = i915_mm_takedown;
+	init_MUTEX(&mm_driver->ttm_sem);
 	return mm_driver;
 }
 

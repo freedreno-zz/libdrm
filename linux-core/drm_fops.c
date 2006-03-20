@@ -477,8 +477,13 @@ int drm_release(struct inode *inode, struct file *filp)
 		dev->file_last = priv->prev;
 	}
 
-	if (dev->mm_driver)
+	up(&dev->struct_sem);
+
+	if (dev->mm_driver) {
+		down(&dev->mm_driver->ttm_sem);
+		down(&dev->struct_sem);
 		drm_ttm_destroy_delayed(&dev->mm_driver->ttm_mm, TRUE);
+	}
 
 	list_for_each_safe(list, next, &priv->ttms) {
 		drm_map_list_t *entry = list_entry(list, drm_map_list_t, head);
@@ -503,7 +508,10 @@ int drm_release(struct inode *inode, struct file *filp)
 		drm_user_destroy_region(entry);
  	
 	}
-	up(&dev->struct_sem);
+	if (dev->mm_driver) {
+		up(&dev->struct_sem);
+		up(&dev->mm_driver->ttm_sem);
+	}
 
 	if (dev->driver->postclose)
 		dev->driver->postclose(dev, priv);

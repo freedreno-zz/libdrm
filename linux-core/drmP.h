@@ -594,6 +594,7 @@ typedef struct drm_mm_driver {
 	drm_mm_t     vr_mm;
         drm_map_list_t *mm_sarea_map;
 	volatile drm_mm_sarea_t *mm_sarea;
+	struct semaphore ttm_sem;
 	uint32_t(*emit_fence) (struct drm_device * dev, uint32_t type);
 	int (*wait_fence) (struct drm_device * dev, uint32_t type, 
 			   uint32_t fence);
