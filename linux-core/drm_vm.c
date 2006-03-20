@@ -41,7 +41,7 @@
 static void drm_vm_close(struct vm_area_struct *vma);
 static void drm_vm_open(struct vm_area_struct *vma);
 static void drm_vm_ttm_close(struct vm_area_struct *vma);
-static void drm_vm_ttm_open(struct vm_area_struct *vma);
+static int drm_vm_ttm_open(struct vm_area_struct *vma);
 
 /*
  * DAVE: The below definition is a duplication of the kernels protection_map, which is bad.
@@ -661,17 +661,15 @@ static void drm_vm_open(struct vm_area_struct *vma)
 	}
 }
 
-static void drm_vm_ttm_open(struct vm_area_struct *vma)
-{
+static int drm_vm_ttm_open(struct vm_area_struct *vma) {
   
-
 	drm_ttm_vma_list_t *entry, *tmp_vma = 
 		(drm_ttm_vma_list_t *) vma->vm_private_data;
 	drm_map_t *map;
 	drm_ttm_t *ttm;
 	drm_file_t *priv = vma->vm_file->private_data;
 	drm_device_t *dev = priv->head->dev;
-
+	int ret = 0;
 
 	drm_vm_open(vma);
 	down(&dev->struct_sem);
@@ -680,17 +678,24 @@ static void drm_vm_ttm_open(struct vm_area_struct *vma)
 	        *entry = *tmp_vma;
 		map = (drm_map_t *) entry->map;
 		ttm = (drm_ttm_t *) map->offset;
-		atomic_inc(&ttm->vma_count);
-		INIT_LIST_HEAD(&entry->head);
-		entry->vma = vma;
-		entry->orig_protection = vma->vm_page_prot;
-		list_add_tail(&entry->head, &ttm->vma_list->head);
-		vma->vm_private_data = (void *) entry;
-		DRM_DEBUG("Added VMA to ttm at 0x%016lx\n", 
-			  (unsigned long) ttm);
+		ret = drm_ttm_add_mm_to_list(ttm, vma->vm_mm);
+		if (!ret) {
+			atomic_inc(&ttm->vma_count);
+			INIT_LIST_HEAD(&entry->head);
+			entry->vma = vma;
+			entry->orig_protection = vma->vm_page_prot;
+			list_add_tail(&entry->head, &ttm->vma_list->head);
+			vma->vm_private_data = (void *) entry;
+			DRM_DEBUG("Added VMA to ttm at 0x%016lx\n", 
+				  (unsigned long) ttm);
+		}
+	} else {
+		ret = -ENOMEM;
 	}
 	up(&dev->struct_sem);
+	return ret;
 }
+
 
 /**
  * \c close method for all virtual memory types.
@@ -743,6 +748,7 @@ static void drm_vm_ttm_close(struct vm_area_struct *vma)
 		dev = ttm->dev;
 		down(&dev->struct_sem);
 		list_del(&ttm_vma->head);
+		drm_ttm_delete_mm(ttm, vma->vm_mm);
 		drm_free(ttm_vma, sizeof(*ttm_vma), DRM_MEM_VMAS);
 		atomic_dec(&ttm->vma_count);
 		found_maps = 0;
@@ -991,7 +997,8 @@ int drm_mmap(struct file *filp, struct vm_area_struct *vma)
 					    vma->vm_start,
 					    vma->vm_end - vma->vm_start))
 			return -EAGAIN;
-		drm_vm_ttm_open(vma);
+		if (drm_vm_ttm_open(vma))
+		        return -EAGAIN;
 		return 0;
 	}
 	default:

@@ -154,11 +154,107 @@ static void drm_change_protection(struct vm_area_struct *vma,
  * End linux mm subsystem code.
  */
 
+typedef struct p_mm_entry {
+        struct list_head head;
+	struct mm_struct *mm;
+	atomic_t refcount;
+} p_mm_entry_t;
+
+typedef struct drm_val_action {
+	int needs_rx_flush;
+	int evicted_tt;
+	int evicted_vram;
+	int validated;
+} drm_val_action_t;
+
+
+/*
+ * We may be manipulating other processes page tables, so for each TTM, keep track of 
+ * which mm_structs are currently mapping the ttm so that we can take the appropriate
+ * locks when we modify their page tables. A typical application is when we evict another
+ * process' buffers.
+ */
+
+
+int drm_ttm_add_mm_to_list(drm_ttm_t *ttm, struct mm_struct *mm) 
+{
+	p_mm_entry_t *entry, *n_entry;
+
+	list_for_each_entry(entry, &ttm->p_mm_list, head) {
+		if (mm == entry->mm) {
+			atomic_inc(&entry->refcount);
+			return 0;
+		} else if ((unsigned long) mm < (unsigned long) entry->mm);		
+	}
+
+	n_entry = drm_alloc(sizeof(*n_entry), DRM_MEM_MM);
+	if (!entry) {
+		DRM_ERROR("Allocation of process mm pointer entry failed\n");
+		return -ENOMEM;
+	}
+	INIT_LIST_HEAD(&n_entry->head);
+	n_entry->mm = mm;
+	atomic_set(&n_entry->refcount, 0);
+	atomic_inc(&ttm->shared_count);
+	ttm->mm_list_seq++;
+			
+	list_add_tail(&n_entry->head, &entry->head);
+	return 0;
+}
+
+void drm_ttm_delete_mm(drm_ttm_t *ttm, struct mm_struct *mm) 
+{
+	p_mm_entry_t *entry, *n;
+	list_for_each_entry_safe(entry, n, &ttm->p_mm_list, head) {
+		if (mm == entry->mm) {
+			if (atomic_add_negative(-1, &entry->refcount)) {
+				list_del(&entry->head);
+				drm_free(entry, sizeof(*entry), DRM_MEM_MM);
+				atomic_dec(&ttm->shared_count);
+				ttm->mm_list_seq++;
+			}
+			return;
+		} 
+	}
+	BUG_ON(TRUE);
+}
+
+
+static void drm_ttm_lock_mm(drm_ttm_t *ttm, int mm_sem, int page_table)
+{
+	p_mm_entry_t *entry;
+	
+	list_for_each_entry(entry, &ttm->p_mm_list, head) {
+		if (mm_sem) {
+			down_write(&entry->mm->mmap_sem);
+		}
+		if (page_table) {
+			spin_lock(&entry->mm->page_table_lock);
+		}
+	}
+}
+
+static void drm_ttm_unlock_mm(drm_ttm_t *ttm, int mm_sem, int page_table)
+{
+    p_mm_entry_t *entry;
+	
+    list_for_each_entry(entry, &ttm->p_mm_list, head) {
+		if (page_table) {
+			spin_unlock(&entry->mm->page_table_lock);
+		}
+		if (mm_sem) {
+			up_write(&entry->mm->mmap_sem);
+		}
+	}
+}
+		
+
 static int ioremap_vmas(drm_ttm_t * ttm, unsigned long page_offset,
 			unsigned long num_pages, unsigned long aper_offset)
 {
 	struct list_head *list;
 	int ret = 0;
+
 
 	list_for_each(list, &ttm->vma_list->head) {
 		drm_ttm_vma_list_t *entry =
@@ -337,6 +433,9 @@ drm_ttm_t *drm_init_ttm(struct drm_device * dev, unsigned long size)
 	}
 
 	INIT_LIST_HEAD(&ttm->be_list->head);
+	INIT_LIST_HEAD(&ttm->p_mm_list);
+	atomic_set(&ttm->shared_count, 0);
+	ttm->mm_list_seq = 0;
 
 	ttm->vma_list = drm_calloc(1, sizeof(*ttm->vma_list), DRM_MEM_MAPS);
 	if (!ttm->vma_list) {
@@ -353,6 +452,71 @@ drm_ttm_t *drm_init_ttm(struct drm_device * dev, unsigned long size)
 }
 
 /*
+ * Lock the mmap_sems for processes that are mapping this ttm. 
+ * This looks a bit clumsy, since we need to maintain the correct
+ * locking order
+ * mm->mmap_sem
+ * dev->struct_sem;
+ * and while we release dev->struct_sem to lock the mmap_sems, 
+ * the mmap_sem list may have been updated. We need to revalidate
+ * it after relocking dev->struc_sem.
+ */
+
+
+static int drm_ttm_lock_mmap_sem(drm_ttm_t *ttm)
+{
+	struct mm_struct **mm_list = NULL, **mm_list_p;
+	uint32_t list_seq;
+	uint32_t cur_count,shared_count;
+	p_mm_entry_t *entry;
+	unsigned i;
+	
+	cur_count = 0;
+	list_seq = ttm->mm_list_seq;
+
+	do {
+		shared_count = atomic_read(&ttm->shared_count);
+		if (shared_count > cur_count) {
+			if (mm_list) 
+				drm_free(mm_list, sizeof(*mm_list)*cur_count, DRM_MEM_MM);
+			cur_count = shared_count + 10;
+			mm_list = drm_alloc(sizeof(*mm_list) * cur_count, DRM_MEM_MM);
+			if (!mm_list) 
+				return -ENOMEM;
+		}
+		
+		mm_list_p = mm_list;
+		list_for_each_entry(entry, &ttm->p_mm_list, head) {
+			*mm_list_p++ = entry->mm;
+		} 
+
+		up(&ttm->dev->struct_sem);
+		mm_list_p = mm_list;
+		for (i=0; i<shared_count; ++i, ++mm_list_p) {
+			down_write(&((*mm_list_p)->mmap_sem));
+		}
+  
+		down(&ttm->dev->struct_sem);
+
+		if (list_seq != ttm->mm_list_seq) {
+			mm_list_p = mm_list;
+			for (i=0; i<shared_count; ++i, ++mm_list_p) {
+				up_write(&((*mm_list_p)->mmap_sem));
+			}
+
+		}	    
+
+	} while(list_seq != ttm->mm_list_seq);
+	
+	if (mm_list) 
+		drm_free(mm_list, sizeof(*mm_list)*cur_count, DRM_MEM_MM);
+
+	ttm->mmap_sem_locked = TRUE;
+	return 0;
+}
+
+
+/*
  * Change caching policy for range of pages in a ttm.
  */
 
@@ -363,13 +527,10 @@ static int drm_set_caching(drm_ttm_t * ttm, unsigned long page_offset,
 	int i, cur;
 	struct page **cur_page;
 	pgprot_t attr = (noncached) ? PAGE_KERNEL_NOCACHE : PAGE_KERNEL;
-	int do_spinlock = atomic_read(&ttm->vma_count) > 0;
 
-	if (do_spinlock) {
-		down_write(&current->mm->mmap_sem);
-		spin_lock(&current->mm->page_table_lock);
-		unmap_vma_pages(ttm, page_offset, num_pages);
-	}
+	drm_ttm_lock_mm(ttm, FALSE, TRUE);
+	unmap_vma_pages(ttm, page_offset, num_pages);
+
 	for (i = 0; i < num_pages; ++i) {
 		cur = page_offset + i;
 		cur_page = ttm->pages + cur;
@@ -380,12 +541,7 @@ static int drm_set_caching(drm_ttm_t * ttm, unsigned long page_offset,
 					DRM_ERROR
 					    ("Illegal mapped HighMem Page\n");
 					up_write(&current->mm->mmap_sem);
-					if (do_spinlock) {
-						spin_unlock(&current->mm->
-							    page_table_lock);
-						up_write(&current->mm->
-							 mmap_sem);
-					}
+					drm_ttm_unlock_mm(ttm, FALSE, TRUE);
 					return -EINVAL;
 				}
 			} else if ((ttm->page_flags[cur] &
@@ -398,10 +554,8 @@ static int drm_set_caching(drm_ttm_t * ttm, unsigned long page_offset,
 	}
 	if (do_tlbflush)
 		global_flush_tlb();
-	if (do_spinlock) {
-		spin_unlock(&current->mm->page_table_lock);
-		up_write(&current->mm->mmap_sem);
-	}
+
+	drm_ttm_unlock_mm(ttm, FALSE, TRUE);
 	return 0;
 }
 
@@ -475,6 +629,8 @@ static int remove_ttm_region(drm_ttm_backend_list_t * entry, int ret_if_busy)
 	return 0;
 }
 
+
+
 /*
  * Unbind a ttm region from the aperture and take it out of the
  * aperture manager.
@@ -484,18 +640,26 @@ int drm_evict_ttm_region(drm_ttm_backend_list_t * entry)
 {
 	drm_ttm_backend_t *be = entry->be;
 	drm_ttm_t *ttm = entry->owner;
+	int ret;
 
 	if (be) {
 		switch (entry->state) {
 		case ttm_bound:
 			if (ttm && be->needs_cache_adjust(be)) {
+				ret = drm_ttm_lock_mmap_sem(ttm);
+				if (ret)
+					return ret;
+				drm_ttm_lock_mm(ttm, FALSE, TRUE);
 				unmap_vma_pages(ttm, entry->page_offset,
 						entry->num_pages);
+				global_flush_tlb();
+				drm_ttm_unlock_mm(ttm, FALSE, TRUE);
 			}
 			be->unbind(entry->be);
 			if (ttm && be->needs_cache_adjust(be)) {
 				drm_set_caching(ttm, entry->page_offset,
 						entry->num_pages, 0, 1);
+				drm_ttm_unlock_mm(ttm, TRUE, FALSE);
 			}
 			break;
 		default:
@@ -572,8 +736,11 @@ void drm_destroy_ttm_region(drm_ttm_backend_list_t * entry)
 	if (be) {
 		be->clear(entry->be);
 		if (be->needs_cache_adjust(be)) {
+			int ret = drm_ttm_lock_mmap_sem(ttm);
 			drm_set_caching(ttm, entry->page_offset,
 					entry->num_pages, 0, 1);
+			if (!ret)
+				drm_ttm_unlock_mm(ttm, TRUE, FALSE);
 		}
 		be->destroy(be);
 	}
@@ -692,13 +859,16 @@ int drm_bind_ttm_region(drm_ttm_backend_list_t * region,
 	ttm = region->owner;
 
 	if (ttm && be->needs_cache_adjust(be)) {
+		ret = drm_ttm_lock_mmap_sem(ttm);
+		if (ret)
+			return ret;
 		drm_set_caching(ttm, region->page_offset, region->num_pages,
-				DRM_TTM_PAGE_UNCACHED, FALSE);
-		ioremap_vmas(ttm, region->page_offset, region->num_pages,
-			     aper_offset);
+				DRM_TTM_PAGE_UNCACHED, TRUE);
 	}
 
 	if ((ret = be->bind(be, aper_offset))) {
+		if (ttm && be->needs_cache_adjust(be))
+			drm_ttm_unlock_mm(ttm, TRUE, FALSE);
 		drm_unbind_ttm_region(region);
 		DRM_ERROR("Couldn't bind backend.\n");
 		return ret;
@@ -709,6 +879,12 @@ int drm_bind_ttm_region(drm_ttm_backend_list_t * region,
 		DRM_MASK_VAL(*cur_page_flag, DRM_TTM_MASK_PFN,
 			     (i + aper_offset) << PAGE_SHIFT);
 		cur_page_flag++;
+	}
+
+	if (ttm && be->needs_cache_adjust(be)) {
+		ioremap_vmas(ttm, region->page_offset, region->num_pages,
+			     aper_offset);
+		drm_ttm_unlock_mm(ttm, TRUE, FALSE);
 	}
 
 	region->state = ttm_bound;
@@ -995,21 +1171,6 @@ static int drm_ttm_evict_lru_sl(drm_ttm_backend_list_t * entry)
 
 	return 0;
 }
-
-/*
- * Make sure a backend entry is present in the TT. If it is not, try to allocate
- * TT space and put it in there. If we're out of space, start evicting old entries
- * from the head of the global lru list, which is sorted in fence order.
- * Finally move the entry to the tail of the lru list. Pinned regions don't go into
- * the lru list.
- */
-
-typedef struct drm_val_action {
-	int needs_rx_flush;
-	int evicted_tt;
-	int evicted_vram;
-	int validated;
-} drm_val_action_t;
 
 static int drm_validate_ttm_region(drm_ttm_backend_list_t * entry,
 				   unsigned *aper_offset,
