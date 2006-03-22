@@ -31,6 +31,7 @@
 #include "i915_drm.h"
 #include "i915_drv.h"
 
+#undef TTM_INIT_HACK
 
 /* Really want an OS-independent resettable timer.  Would like to have
  * this loop run for (eg) 3 sec, but have the timer reset every time
@@ -193,6 +194,7 @@ static int i915_initialize(drm_device_t * dev,
 
 	dev->dev_private = (void *)dev_priv;
 
+#ifdef TTM_INIT_HACK
 	/*
 	 * FIXME: Temporary initialization hack.
 	 */
@@ -213,6 +215,7 @@ static int i915_initialize(drm_device_t * dev,
 		drm_mm_do_init(dev, &arg);
 	}
 
+#endif
 	return 0;
 }
 
@@ -759,13 +762,14 @@ int i915_driver_load(drm_device_t *dev, unsigned long flags)
 
 void i915_driver_lastclose(drm_device_t * dev)
 {
+#ifdef TTM_INIT_HACK
 	/*
 	 * FIXME: Temporary initialization hack.
 	 */
 
 
 	drm_mm_do_takedown (dev);
-
+#endif
 	if (dev->dev_private) {
 		drm_i915_private_t *dev_priv = dev->dev_private;
 		i915_mem_takedown(&(dev_priv->agp_heap));

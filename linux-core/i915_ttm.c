@@ -23,8 +23,10 @@ drm_mm_driver_t *i915_mm_init(drm_device_t * dev)
 {
 	drm_mm_driver_t *mm_driver = 
 		drm_calloc(1, sizeof(*mm_driver), DRM_MEM_MM);
+	if (!dev->dev_private)
+	  return NULL;
 	mm_driver->fence_types = 1;
-	mm_driver->kernel_emit = FALSE;
+	mm_driver->kernel_emit = TRUE;
 	mm_driver->emit_fence = i915_emit_fence;
 	mm_driver->wait_fence = i915_wait_fence;
 	mm_driver->test_fence = i915_test_fence;
@@ -32,7 +34,6 @@ drm_mm_driver_t *i915_mm_init(drm_device_t * dev)
 	mm_driver->flush_caches = i915_emit_mi_flush;
 	mm_driver->cached_pages = TRUE;
 	mm_driver->takedown = i915_mm_takedown;
-	init_MUTEX(&mm_driver->ttm_sem);
 	return mm_driver;
 }
 

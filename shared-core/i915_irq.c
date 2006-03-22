@@ -217,6 +217,7 @@ uint32_t i915_emit_fence(drm_device_t * dev, uint32_t type)
 	if (!dev_priv)
 		return 0;
 
+	i915_emit_irq(dev);
 	return 	dev_priv->counter;
 }
 
@@ -275,7 +276,6 @@ int i915_wait_fence(drm_device_t * dev, uint32_t type, uint32_t fence)
 	ret = 0;
 	if ( !i915_do_test_fence(dev, fence)) {
 		ret = 1;
-		i915_emit_irq(dev);
 		do {
 			ret = i915_wait_irq(dev, fence);
 			if (i915_do_test_fence(dev, fence)) {

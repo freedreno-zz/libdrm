@@ -64,6 +64,7 @@ static int fill_in_dev(drm_device_t * dev, struct pci_dev *pdev,
 	init_timer(&dev->timer);
 	sema_init(&dev->struct_sem, 1);
 	sema_init(&dev->ctxlist_sem, 1);
+	init_MUTEX(&dev->ttm_sem);
 
 	dev->pdev = pdev;
 

@@ -211,6 +211,10 @@ int drm_lastclose(drm_device_t * dev)
 		dev->vmalist = NULL;
 	}
 
+	if (dev->mm_driver) {
+		drm_mm_do_takedown(dev);
+	}
+
 	if (dev->maplist) {
 		while (!list_empty(&dev->maplist->head)) {
 			struct list_head *list = dev->maplist->head.next;
@@ -244,6 +248,8 @@ int drm_lastclose(drm_device_t * dev)
 		dev->lock.filp = NULL;
 		wake_up_interruptible(&dev->lock.lock_queue);
 	}
+	
+
 	up(&dev->struct_sem);
 
 	DRM_DEBUG("lastclose completed\n");

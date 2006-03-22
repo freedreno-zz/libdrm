@@ -14,7 +14,7 @@
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL
- * THE COPYRIGHT HOLDERS, AUTHORS AND/OR ITS SUPPLIERS BE LIABLE FOR ANY CLAIM, 
+ * THE COPYRIGHT HOLDERS, AUTHORS AND/OR ITS SUPPLIERS BE LIABLE FOR ANY CLAIM,
  * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR 
  * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE 
  * USE OR OTHER DEALINGS IN THE SOFTWARE.
@@ -255,11 +255,11 @@ static int ioremap_vmas(drm_ttm_t * ttm, unsigned long page_offset,
 	struct list_head *list;
 	int ret = 0;
 
-
+	
 	list_for_each(list, &ttm->vma_list->head) {
 		drm_ttm_vma_list_t *entry =
 		    list_entry(list, drm_ttm_vma_list_t, head);
-
+		
 		ret = io_remap_pfn_range(entry->vma,
 					 entry->vma->vm_start +
 					 (page_offset << PAGE_SHIFT),
@@ -645,6 +645,7 @@ int drm_evict_ttm_region(drm_ttm_backend_list_t * entry)
 		switch (entry->state) {
 		case ttm_bound:
 			if (ttm && be->needs_cache_adjust(be)) {
+			  BUG_ON(entry->flags & DRM_MM_CACHED);
 				ret = drm_ttm_lock_mmap_sem(ttm);
 				if (ret)
 					return ret;
@@ -853,11 +854,14 @@ int drm_bind_ttm_region(drm_ttm_backend_list_t * region,
 	ttm = region->owner;
 
 	if (ttm && be->needs_cache_adjust(be)) {
+	  BUG_ON(region->flags & DRM_MM_CACHED);
 		ret = drm_ttm_lock_mmap_sem(ttm);
 		if (ret)
 			return ret;
 		drm_set_caching(ttm, region->page_offset, region->num_pages,
 				DRM_TTM_PAGE_UNCACHED, TRUE);
+	} else {
+	  DRM_ERROR("Binding cached\n");
 	}
 
 	if ((ret = be->bind(be, aper_offset))) {
@@ -1081,6 +1085,7 @@ static void drm_ttm_fence_regions(drm_device_t * dev, drm_ttm_mm_t * mm)
 		fence_type = entry->region->fence_type;
 
 		if (!emitted[fence_type]) {
+			BUG_ON(!_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ));
 			fence = dev->mm_driver->emit_fence(dev, fence_type);
 			fence_seqs[fence_type] = fence;
 			emitted[fence_type] = TRUE;
@@ -1247,7 +1252,7 @@ static void drm_ttm_mm_init(drm_device_t * dev, drm_ttm_mm_t * mm,
 
 static void drm_ttm_mm_takedown(drm_ttm_mm_t * mm)
 {
-	if (drm_ttm_destroy_delayed(mm, FALSE)) {
+	if (!drm_ttm_destroy_delayed(mm, FALSE)) {
 		DRM_ERROR("DRM_MM: Inconsistency: "
 			  "There are still used buffers\n");
 
@@ -1590,7 +1595,6 @@ int drm_ttm_handle_bufs(drm_file_t * priv, drm_ttm_arg_t * ttm_arg)
 	}
 	buf_p = bufs;
 
-	down(&mm_driver->ttm_sem);
 	down(&dev->struct_sem);
 	sa = mm_driver->mm_sarea;
 
@@ -1613,7 +1617,6 @@ int drm_ttm_handle_bufs(drm_file_t * priv, drm_ttm_arg_t * ttm_arg)
 
 	ttm_arg->val_seq = sa->validation_seq;
 	up(&dev->struct_sem);
-	up(&mm_driver->ttm_sem);
 
 	if (ttm_arg->num_bufs) {
 		old_priv = priv;
@@ -1649,7 +1652,6 @@ static int drm_ttm_handle_add(drm_file_t * priv, drm_ttm_arg_t * ttm_arg)
 	drm_ttm_t *ttm;
 	int ret;
 
-	down(&dev->mm_driver->ttm_sem);
 	down(&dev->struct_sem);
 	ret = drm_add_ttm(dev, ttm_arg->size, &map_list);
 	if (ret) {
@@ -1660,7 +1662,6 @@ static int drm_ttm_handle_add(drm_file_t * priv, drm_ttm_arg_t * ttm_arg)
 	ttm = (drm_ttm_t *) map_list->map->offset;
 	ttm->owner = priv;
 	up(&dev->struct_sem);
-	up(&dev->mm_driver->ttm_sem);
 	ttm_arg->handle = (uint32_t) map_list->user_token;
 	return 0;
 }
@@ -1672,12 +1673,10 @@ static int drm_ttm_handle_remove(drm_file_t * priv, drm_handle_t handle)
 	drm_ttm_t *ttm;
 	int ret;
 
-	down(&dev->mm_driver->ttm_sem);
 	down(&dev->struct_sem);
 	ret = drm_ttm_from_handle(handle, priv, &ttm, &map_list);
 	if (ret) {
 		up(&dev->struct_sem);
-		up(&dev->mm_driver->ttm_sem);
 		return ret;
 	}
 	list_del(&map_list->head);
@@ -1686,7 +1685,6 @@ static int drm_ttm_handle_remove(drm_file_t * priv, drm_handle_t handle)
 	ret = drm_destroy_ttm(ttm);
 	drm_ttm_destroy_delayed(&dev->mm_driver->ttm_mm, TRUE);
 	up(&dev->struct_sem);
-	up(&dev->mm_driver->ttm_sem);
 
 	if (ret != -EBUSY) {
 
@@ -1707,8 +1705,15 @@ static int drm_ttm_handle_remove(drm_file_t * priv, drm_handle_t handle)
 int drm_ttm_ioctl(DRM_IOCTL_ARGS)
 {
 	DRM_DEVICE;
-	int ret;
+	int ret = 0;
 	drm_ttm_arg_t ttm_arg;
+
+	down(&dev->ttm_sem);
+	if (!dev->mm_driver) {
+		DRM_ERROR("Called without initialization\n");
+		up(&dev->ttm_sem);
+		return -EINVAL;
+	}
 
 	DRM_COPY_FROM_USER_IOCTL(ttm_arg, (void __user *)data, sizeof(ttm_arg));
 	switch (ttm_arg.op) {
@@ -1718,25 +1723,29 @@ int drm_ttm_ioctl(DRM_IOCTL_ARGS)
 		}
 		ret = drm_ttm_handle_add(priv, &ttm_arg);
 		if (ret)
-			return ret;
+			break;
 		if (!ttm_arg.num_bufs)
 			break;
 		ret = drm_ttm_handle_bufs(priv, &ttm_arg);
 		if (ret)
-			return ret;
+			break;
 		break;
 	case ttm_bufs:
 		LOCK_TEST_WITH_RETURN(dev, filp);
 		ret = drm_ttm_handle_bufs(priv, &ttm_arg);
 		if (ret)
-			return ret;
+			break;
 		break;
 	case ttm_remove:
 		ret = drm_ttm_handle_remove(priv, ttm_arg.handle);
 		if (ret)
-			return ret;
+			break;
 		return 0;
 	}
+
+	up(&dev->ttm_sem);
+	if (ret)
+		return ret;
 
 	DRM_COPY_TO_USER_IOCTL((void __user *)data, ttm_arg, sizeof(ttm_arg));
 	return 0;
@@ -1748,16 +1757,21 @@ int drm_ttm_ioctl(DRM_IOCTL_ARGS)
 
 int drm_mm_do_takedown(drm_device_t * dev)
 {
+	drm_mm_driver_t *mm_driver;
+
+
 	if (!dev->mm_driver) {
 		DRM_ERROR("Memory manager not initialized.\n");
 		return -EINVAL;
 	}
 
-	drm_mm_takedown(&dev->mm_driver->vr_mm);
-	drm_ttm_mm_takedown(&dev->mm_driver->ttm_mm);
-	drm_rmmap_locked(dev, dev->mm_driver->mm_sarea_map->map);
-	dev->mm_driver->takedown(dev->mm_driver);
+	mm_driver = dev->mm_driver;
+	drm_mm_takedown(&mm_driver->vr_mm);
+	drm_ttm_mm_takedown(&mm_driver->ttm_mm);
+	drm_rmmap_locked(dev, mm_driver->mm_sarea_map->map);
 	dev->mm_driver = NULL;
+	mm_driver->takedown(dev->mm_driver);
+
 	return 0;
 }
 
@@ -1775,6 +1789,7 @@ int drm_mm_do_init(drm_device_t * dev, drm_mm_init_arg_t * arg)
 	unsigned long tt_p_size;
 	unsigned long tt_p_offset;
 	drm_map_list_t *mm_sarea;
+	drm_mm_driver_t *mm_driver;
 
 	if (dev->mm_driver) {
 		DRM_ERROR("Trying to reinitialize memory manager.\n");
@@ -1794,22 +1809,30 @@ int drm_mm_do_init(drm_device_t * dev, drm_mm_init_arg_t * arg)
 		tt_p_offset |= (arg->req.tt_p_offset_hi << shift);
 	}
 
-	dev->mm_driver = dev->driver->init_mm(dev);
+	DRM_ERROR("Offset 0x%lx, Pages %ld\n", 
+		  tt_p_offset << PAGE_SHIFT, tt_p_size);
+
+	mm_driver = dev->driver->init_mm(dev); 
+	
+	if (!mm_driver) {
+		DRM_ERROR("Memory manager initialization failed.\n");
+		return -EINVAL;
+	}
+	
+	down(&dev->struct_sem);
+	dev->mm_driver = mm_driver;
+	up(&dev->struct_sem);
 
 	drm_ttm_mm_init(dev, &dev->mm_driver->ttm_mm, tt_p_offset, tt_p_size);
 	drm_mm_init(&dev->mm_driver->vr_mm, vr_offset >> MM_VR_GRANULARITY,
 		    vr_size >> MM_VR_GRANULARITY);
-
-	if (!dev->mm_driver) {
-		DRM_ERROR("Memory manager initialization failed.\n");
-		return -EINVAL;
-	}
-
+	
 	ret = drm_addmap_core(dev, 0, DRM_MM_SAREA_SIZE,
 			      _DRM_SHM, _DRM_READ_ONLY, &mm_sarea);
+
 	if (ret) {
-		dev->mm_driver->takedown(dev->mm_driver);
 		DRM_ERROR("Failed to add a memory manager SAREA.\n");
+		dev->mm_driver->takedown(dev->mm_driver);
 		return -ENOMEM;
 	}
 
@@ -1820,7 +1843,6 @@ int drm_mm_do_init(drm_device_t * dev, drm_mm_init_arg_t * arg)
 	arg->rep.mm_sarea = mm_sarea->user_token;
 	arg->rep.kernel_emit = dev->mm_driver->kernel_emit;
 	arg->rep.fence_types = dev->mm_driver->fence_types;
-
 	return 0;
 }
 
@@ -1855,8 +1877,7 @@ int drm_mm_init_ioctl(DRM_IOCTL_ARGS)
 
 	DRM_COPY_FROM_USER_IOCTL(arg, (void __user *)data, sizeof(arg));
 
-	down(&dev->mm_driver->ttm_sem);
-	down(&dev->struct_sem);
+	down(&dev->ttm_sem);
 	switch (arg.req.op) {
 	case mm_init:
 		if (!DRM_SUSER(DRM_CURPROC) && !priv->master) {
@@ -1879,8 +1900,7 @@ int drm_mm_init_ioctl(DRM_IOCTL_ARGS)
 		DRM_ERROR("Unsupported memory manager operation.\n");
 		ret = -EINVAL;
 	}
-	up(&dev->struct_sem);
-	up(&dev->mm_driver->ttm_sem);
+	up(&dev->ttm_sem);
 
 	if (ret)
 		return ret;
@@ -1898,17 +1918,21 @@ int drm_mm_fence_ioctl(DRM_IOCTL_ARGS)
 
 	int ret;
 	drm_fence_arg_t arg;
-	drm_mm_driver_t *mm_driver = dev->mm_driver;
+	drm_mm_driver_t *mm_driver;
+
+	down(&dev->ttm_sem);
+
+	mm_driver = dev->mm_driver;
 
 	if (!mm_driver) {
 		DRM_ERROR("Memory manager is not initialized.\n");
+		up(&dev->ttm_sem);
 		return -EINVAL;
 	}
 
 	DRM_COPY_FROM_USER_IOCTL(arg, (void __user *)data, sizeof(arg));
 
 	ret = 0;
-	down(&mm_driver->ttm_sem);
 	down(&dev->struct_sem);
 	switch (arg.req.op) {
 	case emit_fence:
@@ -1930,7 +1954,7 @@ int drm_mm_fence_ioctl(DRM_IOCTL_ARGS)
 	}
 
 	up(&dev->struct_sem);
-	up(&mm_driver->ttm_sem);
+	up(&dev->ttm_sem);
 	if (ret)
 		return ret;
 

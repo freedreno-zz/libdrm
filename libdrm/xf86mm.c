@@ -54,6 +54,8 @@
 # include "xf86_ansic.h"
 # define _DRM_MALLOC xalloc
 # define _DRM_FREE   xfree
+# define inline
+# define sched_yield()
 # ifndef XFree86LOADER
 #  include <sys/mman.h>
 # endif
@@ -165,8 +167,8 @@ drmMMInit(int drmFD, unsigned long vRamOffs, unsigned long vRamSize,
 	ma.req.vr_size_hi = vRamSize >> shift;
 	ma.req.tt_p_offset_hi = ttPageOffs >> shift;
 	ma.req.tt_p_size_hi = ttNumPages >> shift;
-	ma.req.op = mm_init;
     }
+    ma.req.op = mm_init;
 
     ret = ioctl(drmFD, DRM_IOCTL_MM_INIT, &ma);
 
@@ -248,7 +250,6 @@ int
 drmWaitFence(int drmFD, drmFence fence)
 {
     drm_fence_arg_t arg;
-    int retired;
     int ret;
 
     drmMMCheckInit(drmFD);
@@ -459,7 +460,7 @@ drmMMMapBuffer(int drmFD, drmMMBuf * buf)
 {
 
     int ret;
-    drmAddress *addr;
+    drmAddress addr;
 
     if (buf->block && buf->block->fenced) {
 	ret = -EINTR;
@@ -492,9 +493,9 @@ drmMMMapBuffer(int drmFD, drmMMBuf * buf)
 	return NULL;
     }
 
-    ret = drmMap(drmFD, buf->block->kernelPool, buf->size, addr);
+    ret = drmMap(drmFD, buf->block->kernelPool, buf->size, &addr);
     if (!ret)
-	buf->virtual = *addr;
+	buf->virtual = addr;
     else
 	buf->virtual = NULL;
 
@@ -531,7 +532,7 @@ drmMMUnmapBuffer(int drmFD, drmMMBuf * buf)
     int ret;
 
     if (buf->flags & DRM_MM_SHARED)
-	return;
+        return 0;
 
     if (buf->pool) {
 	buf->virtual = NULL;
@@ -554,7 +555,6 @@ drmFreeRetired(int drmFD, drmMMPool * pool, int lookAhead)
     int retired = 1;
     int ret;
     drmMMBlock *curBlock;
-    int count = 0;
 
     curBlock = pool->blocks + pool->tail;
 
@@ -711,7 +711,7 @@ drmMMFreeBuffer(int drmFD, drmMMBuf * buf)
 	return 0;
 
     if (buf && !buf->pool) {
-	if (buf->flags != DRM_MM_NEW) {
+	if (!(buf->flags & (DRM_MM_NEW | DRM_MM_SHARED))) {
 	    drm_ttm_arg_t arg;
 
 	    arg.op = ttm_remove;
@@ -782,6 +782,7 @@ drmMMReturnOffsets(drmMMBufList * head)
 	}
 	cur = cur->next;
     }
+    return 0;
 }
 
 /**
@@ -979,7 +980,6 @@ drmMMFenceBuffers(int drmFD, drmMMBufList * head)
 void
 drmMMClearBufList(drmMMBufList * head)
 {
-    drmMMBufList *cur = head->next;
     drmMMBufList *freeList;
 
     freeList = head->next;

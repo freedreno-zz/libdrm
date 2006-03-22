@@ -594,7 +594,6 @@ typedef struct drm_mm_driver {
 	drm_mm_t     vr_mm;
         drm_map_list_t *mm_sarea_map;
 	volatile drm_mm_sarea_t *mm_sarea;
-	struct semaphore ttm_sem;
 	uint32_t(*emit_fence) (struct drm_device * dev, uint32_t type);
 	int (*wait_fence) (struct drm_device * dev, uint32_t type, 
 			   uint32_t fence);
@@ -651,7 +650,7 @@ struct drm_driver {
 	unsigned long (*get_map_ofs) (drm_map_t * map);
 	unsigned long (*get_reg_ofs) (struct drm_device * dev);
 	void (*set_version) (struct drm_device * dev, drm_set_version_t * sv);
-    drm_mm_driver_t *(*init_mm) (struct drm_device *dev);
+        drm_mm_driver_t *(*init_mm) (struct drm_device *dev);
 	int major;
 	int minor;
 	int patchlevel;
@@ -704,6 +703,7 @@ typedef struct drm_device {
 	/*@{ */
 	spinlock_t count_lock;		/**< For inuse, drm_device::open_count, drm_device::buf_use */
 	struct semaphore struct_sem;	/**< For others */
+	struct semaphore ttm_sem;        /**< For ttm driver */
 	/*@} */
 
 	/** \name Usage Counters */
