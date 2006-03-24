@@ -148,7 +148,7 @@ typedef struct _drm_i915_batchbuffer {
 	int used;		/* nr bytes in use */
 	int DR1;		/* hw flags for GFX_OP_DRAWRECT_INFO */
 	int DR4;		/* window origin for GFX_OP_DRAWRECT_INFO */
-	int num_cliprects;	/* mulitpass with multiple cliprects? */
+	int num_cliprects;	/* multipass with multiple cliprects? */
 	drm_clip_rect_t __user *cliprects;	/* pointer to userspace cliprects */
 } drm_i915_batchbuffer_t;
 
@@ -160,7 +160,7 @@ typedef struct _drm_i915_cmdbuffer {
 	int sz;			/* nr bytes in buf */
 	int DR1;		/* hw flags for GFX_OP_DRAWRECT_INFO */
 	int DR4;		/* window origin for GFX_OP_DRAWRECT_INFO */
-	int num_cliprects;	/* mulitpass with multiple cliprects? */
+	int num_cliprects;	/* multipass with multiple cliprects? */
 	drm_clip_rect_t __user *cliprects;	/* pointer to userspace cliprects */
 } drm_i915_cmdbuffer_t;
 
