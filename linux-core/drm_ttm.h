@@ -130,7 +130,8 @@ extern int drm_destroy_ttm(drm_ttm_t * ttm);
 extern void drm_user_destroy_region(drm_ttm_backend_list_t * entry);
 extern int drm_ttm_add_mm_to_list(drm_ttm_t *ttm, struct mm_struct *mm);
 extern void drm_ttm_delete_mm(drm_ttm_t *ttm, struct mm_struct *mm);
-
+extern void drm_ttm_fence_before_destroy(drm_ttm_t *ttm);
+extern void drm_fence_unfenced_region(drm_ttm_backend_list_t *entry);
 
 extern int drm_ttm_ioctl(DRM_IOCTL_ARGS);
 extern int drm_mm_init_ioctl(DRM_IOCTL_ARGS);

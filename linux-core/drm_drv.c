@@ -143,10 +143,22 @@ int drm_lastclose(drm_device_t * dev)
 	int i;
 
 	DRM_DEBUG("\n");
+	/*
+	 * Take down MM before driver destroys data needed for hooks.
+	 */
+	
+	if (dev->mm_driver) {
+		down(&dev->ttm_sem);
+		down(&dev->struct_sem);
+		drm_mm_do_takedown(dev);
+		up(&dev->struct_sem);
+		up(&dev->ttm_sem);
+	}
 
 	if (dev->driver->lastclose)
 		dev->driver->lastclose(dev);
 	DRM_DEBUG("driver lastclose completed\n");
+
 
 	if (dev->unique) {
 		drm_free(dev->unique, strlen(dev->unique) + 1, DRM_MEM_DRIVER);
@@ -211,9 +223,6 @@ int drm_lastclose(drm_device_t * dev)
 		dev->vmalist = NULL;
 	}
 
-	if (dev->mm_driver) {
-		drm_mm_do_takedown(dev);
-	}
 
 	if (dev->maplist) {
 		while (!list_empty(&dev->maplist->head)) {

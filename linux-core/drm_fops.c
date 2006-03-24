@@ -317,6 +317,24 @@ int drm_fasync(int fd, struct file *filp, int on)
 }
 EXPORT_SYMBOL(drm_fasync);
 
+
+static void drm_prefence_ttm_locked(drm_file_t *priv, drm_device_t *dev)
+{
+	drm_map_list_t *entry;
+	drm_ttm_backend_list_t *bentry;
+
+	if (dev->mm_driver) {
+		list_for_each_entry(entry, &priv->ttms, head) {
+			drm_ttm_fence_before_destroy((drm_ttm_t *) 
+						     entry->map->offset);
+		}
+		list_for_each_entry(bentry, &priv->anon_ttm_regs, head) {
+			drm_fence_unfenced_region(bentry);
+		}
+	}
+}
+
+
 /**
  * Release file.
  *
@@ -362,18 +380,8 @@ int drm_release(struct inode *inode, struct file *filp)
 		if (dev->driver->reclaim_buffers_locked)
 			dev->driver->reclaim_buffers_locked(dev, filp);
 
-		/*
-		 * FIXME: These need to go away.
-		 */
+		drm_prefence_ttm_locked(priv, dev);
 
-		if (dev->mm_driver) {
-			uint32_t fence =  dev->mm_driver->emit_fence(dev, 0);
-			unsigned long end = jiffies + DRM_HZ;
-			BUG_ON(!_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ));
-
-			while(!time_after_eq(jiffies, end) && 
-			      -EINTR == dev->mm_driver->wait_fence(dev, 0, fence));
-		}
 		drm_lock_free(dev, &dev->lock.hw_lock->lock,
 			      _DRM_LOCKING_CONTEXT(dev->lock.hw_lock->lock));
 
@@ -415,19 +423,8 @@ int drm_release(struct inode *inode, struct file *filp)
 			if (dev->driver->reclaim_buffers_locked)
 				dev->driver->reclaim_buffers_locked(dev, filp);
 			
-			/*
-			 * FIXME: These need to go away.
-			 */
+			drm_prefence_ttm_locked(priv, dev);
 
-
-			if (dev->mm_driver) {
-				uint32_t fence =  dev->mm_driver->emit_fence(dev, 0);
-				unsigned long end = jiffies + DRM_HZ;
-				BUG_ON(!_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ));
-				while(!time_after_eq(jiffies, end) && 
-				      -EINTR == dev->mm_driver->wait_fence(dev, 0, fence));
-			}
-			
 			drm_lock_free(dev, &dev->lock.hw_lock->lock,
 				      DRM_KERNEL_CONTEXT);
 		}
@@ -494,7 +491,7 @@ int drm_release(struct inode *inode, struct file *filp)
 		if (!drm_find_ht_item(&dev->maphash, entry, &hash)) {
 			drm_remove_ht_val(&dev->maphash, hash);
 		}
-		if (!drm_destroy_ttm((drm_ttm_t *) entry->map->offset))
+		if (-EBUSY != drm_destroy_ttm((drm_ttm_t *) entry->map->offset))
 			drm_free(entry->map, sizeof(*entry->map), 
 				 DRM_MEM_MAPS);
 		drm_free(entry, sizeof(*entry), DRM_MEM_MAPS);

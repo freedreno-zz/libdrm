@@ -155,7 +155,7 @@ static void drm_change_protection(struct vm_area_struct *vma,
  */
 
 typedef struct p_mm_entry {
-        struct list_head head;
+	struct list_head head;
 	struct mm_struct *mm;
 	atomic_t refcount;
 } p_mm_entry_t;
@@ -167,7 +167,6 @@ typedef struct drm_val_action {
 	int validated;
 } drm_val_action_t;
 
-
 /*
  * We may be manipulating other processes page tables, so for each TTM, keep track of 
  * which mm_structs are currently mapping the ttm so that we can take the appropriate
@@ -175,8 +174,7 @@ typedef struct drm_val_action {
  * process' buffers.
  */
 
-
-int drm_ttm_add_mm_to_list(drm_ttm_t *ttm, struct mm_struct *mm) 
+int drm_ttm_add_mm_to_list(drm_ttm_t * ttm, struct mm_struct *mm)
 {
 	p_mm_entry_t *entry, *n_entry;
 
@@ -184,7 +182,7 @@ int drm_ttm_add_mm_to_list(drm_ttm_t *ttm, struct mm_struct *mm)
 		if (mm == entry->mm) {
 			atomic_inc(&entry->refcount);
 			return 0;
-		} else if ((unsigned long) mm < (unsigned long) entry->mm);		
+		} else if ((unsigned long)mm < (unsigned long)entry->mm) ;
 	}
 
 	n_entry = drm_alloc(sizeof(*n_entry), DRM_MEM_MM);
@@ -197,12 +195,13 @@ int drm_ttm_add_mm_to_list(drm_ttm_t *ttm, struct mm_struct *mm)
 	atomic_set(&n_entry->refcount, 0);
 	atomic_inc(&ttm->shared_count);
 	ttm->mm_list_seq++;
-			
+
 	list_add_tail(&n_entry->head, &entry->head);
+
 	return 0;
 }
 
-void drm_ttm_delete_mm(drm_ttm_t *ttm, struct mm_struct *mm) 
+void drm_ttm_delete_mm(drm_ttm_t * ttm, struct mm_struct *mm)
 {
 	p_mm_entry_t *entry, *n;
 	list_for_each_entry_safe(entry, n, &ttm->p_mm_list, head) {
@@ -214,16 +213,15 @@ void drm_ttm_delete_mm(drm_ttm_t *ttm, struct mm_struct *mm)
 				ttm->mm_list_seq++;
 			}
 			return;
-		} 
+		}
 	}
 	BUG_ON(TRUE);
 }
 
-
-static void drm_ttm_lock_mm(drm_ttm_t *ttm, int mm_sem, int page_table)
+static void drm_ttm_lock_mm(drm_ttm_t * ttm, int mm_sem, int page_table)
 {
 	p_mm_entry_t *entry;
-	
+
 	list_for_each_entry(entry, &ttm->p_mm_list, head) {
 		if (mm_sem) {
 			down_write(&entry->mm->mmap_sem);
@@ -234,11 +232,11 @@ static void drm_ttm_lock_mm(drm_ttm_t *ttm, int mm_sem, int page_table)
 	}
 }
 
-static void drm_ttm_unlock_mm(drm_ttm_t *ttm, int mm_sem, int page_table)
+static void drm_ttm_unlock_mm(drm_ttm_t * ttm, int mm_sem, int page_table)
 {
-    p_mm_entry_t *entry;
-	
-    list_for_each_entry(entry, &ttm->p_mm_list, head) {
+	p_mm_entry_t *entry;
+
+	list_for_each_entry(entry, &ttm->p_mm_list, head) {
 		if (page_table) {
 			spin_unlock(&entry->mm->page_table_lock);
 		}
@@ -247,7 +245,6 @@ static void drm_ttm_unlock_mm(drm_ttm_t *ttm, int mm_sem, int page_table)
 		}
 	}
 }
-		
 
 static int ioremap_vmas(drm_ttm_t * ttm, unsigned long page_offset,
 			unsigned long num_pages, unsigned long aper_offset)
@@ -255,11 +252,10 @@ static int ioremap_vmas(drm_ttm_t * ttm, unsigned long page_offset,
 	struct list_head *list;
 	int ret = 0;
 
-	
 	list_for_each(list, &ttm->vma_list->head) {
 		drm_ttm_vma_list_t *entry =
 		    list_entry(list, drm_ttm_vma_list_t, head);
-		
+
 		ret = io_remap_pfn_range(entry->vma,
 					 entry->vma->vm_start +
 					 (page_offset << PAGE_SHIFT),
@@ -341,6 +337,7 @@ int drm_destroy_ttm(drm_ttm_t * ttm)
 		}
 
 		drm_free(ttm->be_list, sizeof(*ttm->be_list), DRM_MEM_MAPS);
+		ttm->be_list = NULL;
 	}
 
 	if (atomic_read(&ttm->unfinished_regions) > 0) {
@@ -366,9 +363,11 @@ int drm_destroy_ttm(drm_ttm_t * ttm)
 		}
 		global_flush_tlb();
 		vfree(ttm->pages);
+		ttm->pages = NULL;
 	}
 	if (ttm->page_flags) {
 		vfree(ttm->page_flags);
+		ttm->page_flags = NULL;
 	}
 
 	if (ttm->vma_list) {
@@ -380,6 +379,7 @@ int drm_destroy_ttm(drm_ttm_t * ttm)
 			drm_free(entry, sizeof(*entry), DRM_MEM_MAPS);
 		}
 		drm_free(ttm->vma_list, sizeof(*ttm->vma_list), DRM_MEM_MAPS);
+		ttm->vma_list = NULL;
 	}
 	drm_free(ttm, sizeof(*ttm), DRM_MEM_MAPS);
 
@@ -462,59 +462,60 @@ drm_ttm_t *drm_init_ttm(struct drm_device * dev, unsigned long size)
  * it after relocking dev->struc_sem.
  */
 
-
-static int drm_ttm_lock_mmap_sem(drm_ttm_t *ttm)
+static int drm_ttm_lock_mmap_sem(drm_ttm_t * ttm)
 {
 	struct mm_struct **mm_list = NULL, **mm_list_p;
 	uint32_t list_seq;
-	uint32_t cur_count,shared_count;
+	uint32_t cur_count, shared_count;
 	p_mm_entry_t *entry;
 	unsigned i;
-	
+
 	cur_count = 0;
 	list_seq = ttm->mm_list_seq;
+	shared_count = atomic_read(&ttm->shared_count);
 
 	do {
-		shared_count = atomic_read(&ttm->shared_count);
 		if (shared_count > cur_count) {
-			if (mm_list) 
-				drm_free(mm_list, sizeof(*mm_list)*cur_count, DRM_MEM_MM);
+			if (mm_list)
+				drm_free(mm_list, sizeof(*mm_list) * cur_count,
+					 DRM_MEM_MM);
 			cur_count = shared_count + 10;
-			mm_list = drm_alloc(sizeof(*mm_list) * cur_count, DRM_MEM_MM);
-			if (!mm_list) 
+			mm_list =
+			    drm_alloc(sizeof(*mm_list) * cur_count, DRM_MEM_MM);
+			if (!mm_list)
 				return -ENOMEM;
 		}
-		
+
 		mm_list_p = mm_list;
 		list_for_each_entry(entry, &ttm->p_mm_list, head) {
 			*mm_list_p++ = entry->mm;
-		} 
+		}
 
 		up(&ttm->dev->struct_sem);
 		mm_list_p = mm_list;
-		for (i=0; i<shared_count; ++i, ++mm_list_p) {
+		for (i = 0; i < shared_count; ++i, ++mm_list_p) {
 			down_write(&((*mm_list_p)->mmap_sem));
 		}
-  
+
 		down(&ttm->dev->struct_sem);
 
 		if (list_seq != ttm->mm_list_seq) {
 			mm_list_p = mm_list;
-			for (i=0; i<shared_count; ++i, ++mm_list_p) {
+			for (i = 0; i < shared_count; ++i, ++mm_list_p) {
 				up_write(&((*mm_list_p)->mmap_sem));
 			}
 
-		}	    
+		}
+		shared_count = atomic_read(&ttm->shared_count);
 
-	} while(list_seq != ttm->mm_list_seq);
-	
-	if (mm_list) 
-		drm_free(mm_list, sizeof(*mm_list)*cur_count, DRM_MEM_MM);
+	} while (list_seq != ttm->mm_list_seq);
+
+	if (mm_list)
+		drm_free(mm_list, sizeof(*mm_list) * cur_count, DRM_MEM_MM);
 
 	ttm->mmap_sem_locked = TRUE;
 	return 0;
 }
-
 
 /*
  * Change caching policy for range of pages in a ttm.
@@ -611,11 +612,15 @@ static int remove_ttm_region(drm_ttm_backend_list_t * entry, int ret_if_busy)
 	if (mm_priv->fence_valid) {
 		if (ret_if_busy
 		    && !dev->mm_driver->test_fence(mm->dev, entry->fence_type,
-						   mm_priv->fence))
+						   mm_priv->fence)) {
+			DRM_DEBUG("Fence not fulfilled\n");
 			return -EBUSY;
+		}
 		ret = drm_wait_buf_busy(entry);
-		if (ret)
+		if (ret) {
+			DRM_DEBUG("Nope, buf busy.\n");
 			return ret;
+		}
 	}
 
 	entry->mm_node = NULL;
@@ -627,8 +632,6 @@ static int remove_ttm_region(drm_ttm_backend_list_t * entry, int ret_if_busy)
 	drm_free(mm_priv, sizeof(*mm_priv), DRM_MEM_MM);
 	return 0;
 }
-
-
 
 /*
  * Unbind a ttm region from the aperture and take it out of the
@@ -645,7 +648,7 @@ int drm_evict_ttm_region(drm_ttm_backend_list_t * entry)
 		switch (entry->state) {
 		case ttm_bound:
 			if (ttm && be->needs_cache_adjust(be)) {
-			  BUG_ON(entry->flags & DRM_MM_CACHED);
+				BUG_ON(entry->flags & DRM_MM_CACHED);
 				ret = drm_ttm_lock_mmap_sem(ttm);
 				if (ret)
 					return ret;
@@ -690,9 +693,11 @@ int drm_ttm_destroy_delayed(drm_ttm_mm_t * mm, int ret_if_busy)
 	list_for_each_safe(list, next, &mm->delayed) {
 		drm_ttm_backend_list_t *entry =
 		    list_entry(list, drm_ttm_backend_list_t, head);
-		if (!remove_ttm_region(entry, ret_if_busy))
+		DRM_DEBUG("Trying to remove put-on-hold from aperture\n");
+		if (remove_ttm_region(entry, ret_if_busy))
 			continue;
 
+		list_del_init(list);
 		ttm = entry->owner;
 		if (ttm) {
 			DRM_DEBUG("Destroying put-on-hold region\n");
@@ -731,7 +736,6 @@ void drm_destroy_ttm_region(drm_ttm_backend_list_t * entry)
 		list_add_tail(&entry->head, &entry->mm->delayed);
 		return;
 	}
-
 	drm_unbind_ttm_region(entry);
 	if (be) {
 		be->clear(entry->be);
@@ -744,7 +748,6 @@ void drm_destroy_ttm_region(drm_ttm_backend_list_t * entry)
 		}
 		be->destroy(be);
 	}
-
 	cur_page_flags = ttm->page_flags + entry->page_offset;
 	for (i = 0; i < entry->num_pages; ++i) {
 		DRM_MASK_VAL(*cur_page_flags, DRM_TTM_PAGE_USED, 0);
@@ -854,14 +857,14 @@ int drm_bind_ttm_region(drm_ttm_backend_list_t * region,
 	ttm = region->owner;
 
 	if (ttm && be->needs_cache_adjust(be)) {
-	  BUG_ON(region->flags & DRM_MM_CACHED);
+		BUG_ON(region->flags & DRM_MM_CACHED);
 		ret = drm_ttm_lock_mmap_sem(ttm);
 		if (ret)
 			return ret;
 		drm_set_caching(ttm, region->page_offset, region->num_pages,
 				DRM_TTM_PAGE_UNCACHED, TRUE);
 	} else {
-	  DRM_ERROR("Binding cached\n");
+		DRM_ERROR("Binding cached\n");
 	}
 
 	if ((ret = be->bind(be, aper_offset))) {
@@ -894,6 +897,41 @@ int drm_rebind_ttm_region(drm_ttm_backend_list_t * entry,
 {
 	return drm_bind_ttm_region(entry, aper_offset);
 
+}
+
+void drm_fence_unfenced_region(drm_ttm_backend_list_t * entry)
+{
+	drm_mm_node_t *mm_node;
+	drm_ttm_mm_priv_t *mm_priv;
+	uint32_t fence;
+	drm_device_t *dev;
+
+	if (!entry)
+		return;
+
+	dev = entry->mm->dev;
+	mm_node = entry->mm_node;
+	if (!mm_node)
+		return;
+
+	mm_priv = (drm_ttm_mm_priv_t *) mm_node->private;
+	if (mm_priv->fence_valid)
+		return;
+
+	BUG_ON(!_DRM_LOCK_IS_HELD(dev->lock.hw_lock->lock));
+	DRM_DEBUG("Fencing unfenced region\n");
+	fence = dev->mm_driver->emit_fence(dev, entry->fence_type);
+	mm_priv->fence = fence;
+	mm_priv->fence_valid = TRUE;
+}
+
+void drm_ttm_fence_before_destroy(drm_ttm_t * ttm)
+{
+	drm_ttm_backend_list_t *entry;
+
+	list_for_each_entry(entry, &ttm->be_list->head, head) {
+		drm_fence_unfenced_region(entry);
+	}
 }
 
 /*
@@ -1085,7 +1123,7 @@ static void drm_ttm_fence_regions(drm_device_t * dev, drm_ttm_mm_t * mm)
 		fence_type = entry->region->fence_type;
 
 		if (!emitted[fence_type]) {
-			BUG_ON(!_DRM_LOCK_IS_HELD( dev->lock.hw_lock->lock ));
+			BUG_ON(!_DRM_LOCK_IS_HELD(dev->lock.hw_lock->lock));
 			fence = dev->mm_driver->emit_fence(dev, fence_type);
 			fence_seqs[fence_type] = fence;
 			emitted[fence_type] = TRUE;
@@ -1145,6 +1183,7 @@ static int drm_ttm_evict_lru_sl(drm_ttm_backend_list_t * entry)
 			break;
 
 		spin_unlock(mm_lock);
+		drm_ttm_destroy_delayed(entry->mm, TRUE);
 		up(&dev->struct_sem);
 
 		ret = drm_wait_buf_busy(evict_priv->region);
@@ -1192,9 +1231,9 @@ static int drm_validate_ttm_region(drm_ttm_backend_list_t * entry,
 	}
 
 	num_pages = (entry->owner) ? entry->num_pages : entry->anon_locked;
+	drm_ttm_destroy_delayed(entry->mm, TRUE);
 	spin_lock(mm_lock);
 	while (!mm_node) {
-		drm_ttm_destroy_delayed(entry->mm, TRUE);
 		mm_node =
 		    drm_mm_search_free_locked(&entry->mm->mm, num_pages, 0, 0);
 		if (!mm_node) {
@@ -1759,14 +1798,12 @@ int drm_mm_do_takedown(drm_device_t * dev)
 {
 	drm_mm_driver_t *mm_driver;
 
-
 	if (!dev->mm_driver) {
 		DRM_ERROR("Memory manager not initialized.\n");
 		return -EINVAL;
 	}
 
 	mm_driver = dev->mm_driver;
-	drm_mm_takedown(&mm_driver->vr_mm);
 	drm_ttm_mm_takedown(&mm_driver->ttm_mm);
 	drm_rmmap_locked(dev, mm_driver->mm_sarea_map->map);
 	dev->mm_driver = NULL;
@@ -1809,16 +1846,16 @@ int drm_mm_do_init(drm_device_t * dev, drm_mm_init_arg_t * arg)
 		tt_p_offset |= (arg->req.tt_p_offset_hi << shift);
 	}
 
-	DRM_ERROR("Offset 0x%lx, Pages %ld\n", 
+	DRM_DEBUG("Offset 0x%lx, Pages %ld\n",
 		  tt_p_offset << PAGE_SHIFT, tt_p_size);
 
-	mm_driver = dev->driver->init_mm(dev); 
-	
+	mm_driver = dev->driver->init_mm(dev);
+
 	if (!mm_driver) {
 		DRM_ERROR("Memory manager initialization failed.\n");
 		return -EINVAL;
 	}
-	
+
 	down(&dev->struct_sem);
 	dev->mm_driver = mm_driver;
 	up(&dev->struct_sem);
@@ -1826,7 +1863,7 @@ int drm_mm_do_init(drm_device_t * dev, drm_mm_init_arg_t * arg)
 	drm_ttm_mm_init(dev, &dev->mm_driver->ttm_mm, tt_p_offset, tt_p_size);
 	drm_mm_init(&dev->mm_driver->vr_mm, vr_offset >> MM_VR_GRANULARITY,
 		    vr_size >> MM_VR_GRANULARITY);
-	
+
 	ret = drm_addmap_core(dev, 0, DRM_MM_SAREA_SIZE,
 			      _DRM_SHM, _DRM_READ_ONLY, &mm_sarea);
 

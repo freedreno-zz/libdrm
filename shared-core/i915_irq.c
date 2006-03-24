@@ -257,6 +257,10 @@ int i915_test_fence(drm_device_t *dev, uint32_t type, uint32_t fence)
 {
 	drm_i915_private_t *dev_priv = (drm_i915_private_t *) dev->dev_private;
 	int tmp = i915_do_test_fence(dev, fence);
+	if (!dev_priv) {
+		DRM_ERROR("called without initialization\n");
+		return TRUE;
+	}
 	
 	fence = READ_BREADCRUMB(dev_priv);
 	dev->mm_driver->mm_sarea->retired[0] = fence;

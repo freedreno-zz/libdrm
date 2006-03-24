@@ -762,14 +762,6 @@ int i915_driver_load(drm_device_t *dev, unsigned long flags)
 
 void i915_driver_lastclose(drm_device_t * dev)
 {
-#ifdef TTM_INIT_HACK
-	/*
-	 * FIXME: Temporary initialization hack.
-	 */
-
-
-	drm_mm_do_takedown (dev);
-#endif
 	if (dev->dev_private) {
 		drm_i915_private_t *dev_priv = dev->dev_private;
 		i915_mem_takedown(&(dev_priv->agp_heap));
