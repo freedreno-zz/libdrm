@@ -657,7 +657,7 @@ typedef struct drm_ttm_buf_arg {
 		ttm_validate,
 		ttm_validate_user,
 		ttm_unbind,
-		ttm_destroy,
+		ttm_destroy
 	} op;
 	drm_handle_t ttm_handle;
 	drm_handle_t region_handle;
