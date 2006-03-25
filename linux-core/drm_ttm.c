@@ -864,7 +864,7 @@ int drm_bind_ttm_region(drm_ttm_backend_list_t * region,
 		drm_set_caching(ttm, region->page_offset, region->num_pages,
 				DRM_TTM_PAGE_UNCACHED, TRUE);
 	} else {
-		DRM_ERROR("Binding cached\n");
+		DRM_DEBUG("Binding cached\n");
 	}
 
 	if ((ret = be->bind(be, aper_offset))) {
@@ -1101,15 +1101,19 @@ int drm_add_ttm(drm_device_t * dev, unsigned size, drm_map_list_t ** maplist)
 
 /*
  * Fence all unfenced regions in the global lru list. 
+ * FIXME: This is exported until we have a scheduler built in.
+ * The driver's command dispatcher is responsible for calling
+ * this function.
  */
 
-static void drm_ttm_fence_regions(drm_device_t * dev, drm_ttm_mm_t * mm)
+void drm_ttm_fence_regions(drm_device_t * dev)
 {
 	int emitted[DRM_FENCE_TYPES];
 	uint32_t fence_seqs[DRM_FENCE_TYPES];
 	struct list_head *list;
 	uint32_t fence_type;
 	uint32_t fence;
+	drm_ttm_mm_t *mm = &dev->mm_driver->ttm_mm;
 
 	memset(emitted, 0, sizeof(int) * DRM_FENCE_TYPES);
 	spin_lock(&mm->mm.mm_lock);
@@ -1137,6 +1141,7 @@ static void drm_ttm_fence_regions(drm_device_t * dev, drm_ttm_mm_t * mm)
 
 	spin_unlock(&mm->mm.mm_lock);
 }
+EXPORT_SYMBOL(drm_ttm_fence_regions);
 
 /*
  * Evict the first (oldest) region on the lru list, after its fence
@@ -1569,7 +1574,7 @@ static void drm_ttm_handle_buf(drm_file_t * priv, drm_ttm_buf_arg_t * buf_p,
 		if (entry->owner) {
 			drm_destroy_ttm_region(entry);
 		} else {
-			list_del(&entry->head);
+			list_del_init(&entry->head);
 			drm_user_destroy_region(entry);
 		}
 		drm_ttm_destroy_delayed(ttm_mm, TRUE);
@@ -1641,7 +1646,6 @@ int drm_ttm_handle_bufs(drm_file_t * priv, drm_ttm_arg_t * ttm_arg)
 		if (!action.validated && (buf_p->op == ttm_validate ||
 					  buf_p->op == ttm_validate_user)) {
 			sa->validation_seq++;
-			drm_ttm_fence_regions(dev, &mm_driver->ttm_mm);
 			action.validated = TRUE;
 		}
 
@@ -1779,7 +1783,7 @@ int drm_ttm_ioctl(DRM_IOCTL_ARGS)
 		ret = drm_ttm_handle_remove(priv, ttm_arg.handle);
 		if (ret)
 			break;
-		return 0;
+		break;
 	}
 
 	up(&dev->ttm_sem);
@@ -1812,7 +1816,6 @@ int drm_mm_do_takedown(drm_device_t * dev)
 	return 0;
 }
 
-EXPORT_SYMBOL(drm_mm_do_takedown);
 
 /*
  * FIXME: Temporarily non-static to allow for intel initialization hack.

@@ -1134,6 +1134,7 @@ extern void drm_sysfs_device_remove(struct class_device *class_dev);
 
 extern int drm_add_ttm(drm_device_t *dev, unsigned size, drm_map_list_t **maplist);
 extern int drm_ttm_destroy_delayed(drm_ttm_mm_t *mm, int ret_if_busy);
+extern void drm_ttm_fence_regions(drm_device_t * dev);
 
 /* 
  * Basic memory manager support (drm_mm.c) 
