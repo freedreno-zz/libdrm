@@ -451,6 +451,7 @@ static void i915_emit_breadcrumb(drm_device_t *dev)
 	ADVANCE_LP_RING();
 	dev_priv->sarea_priv->last_dispatch = READ_BREADCRUMB(dev_priv);
 	dev_priv->sarea_priv->last_enqueue = dev_priv->counter;
+	drm_ttm_fence_regions(dev);
 	dev->mm_driver->mm_sarea->emitted[0] = dev_priv->counter;
 }
 
