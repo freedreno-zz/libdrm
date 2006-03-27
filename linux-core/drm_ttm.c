@@ -777,18 +777,14 @@ int drm_create_ttm_region(drm_ttm_t * ttm, unsigned long page_offset,
 	}
 
 	cur_page_flags = ttm->page_flags + page_offset;
-	for (i = 0; i < n_pages; ++i) {
-		if (*cur_page_flags++ & DRM_TTM_PAGE_USED) {
+	for (i = 0; i < n_pages; ++i, ++cur_page_flags) {
+		if (*cur_page_flags & DRM_TTM_PAGE_USED) {
 			DRM_ERROR("TTM region overlap\n");
 			return -EINVAL;
+		} else {
+			DRM_MASK_VAL(*cur_page_flags, DRM_TTM_PAGE_USED,
+				     DRM_TTM_PAGE_USED);
 		}
-	}
-
-	cur_page_flags = ttm->page_flags + page_offset;
-	for (i = 0; i < n_pages; ++i) {
-		DRM_MASK_VAL(*cur_page_flags, DRM_TTM_PAGE_USED,
-			     DRM_TTM_PAGE_USED);
-		cur_page_flags++;
 	}
 
 	entry = drm_calloc(1, sizeof(*entry), DRM_MEM_MAPS);

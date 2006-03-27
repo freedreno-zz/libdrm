@@ -113,6 +113,56 @@ typedef enum
     mmPoolManaged
 } MMPoolTypes;
 
+/*
+ * List macros heavily inspired by the Linux kernel
+ * list handling. No list looping yet.
+ */
+
+typedef struct _drmMMListHead
+{
+    struct _drmMMListHead *prev;
+    struct _drmMMListHead *next;
+} DrmMMListHead;
+
+#define DRMINITLISTHEAD(__item)		       \
+  do{					       \
+    (__item)->prev = (__item);		       \
+    (__item)->next = (__item);		       \
+  } while (0)
+
+#define DRMLISTADD(__item, __list)			\
+  do {						\
+    (__item)->prev = (__list);			\
+    (__item)->next = (__list)->next;		\
+    (__list)->next->prev = (__item);		\
+    (__list)->next = (__item);			\
+  } while (0)
+
+#define DRMLISTADDTAIL(__item, __list)		\
+  do {						\
+    (__item)->next = (__list);			\
+    (__item)->prev = (__list)->prev;		\
+    (__list)->prev->next = (__item);		\
+    (__list)->prev = (__item);			\
+  } while(0)
+
+#define DRMLISTDEL(__item)			\
+  do {						\
+    (__item)->prev->next = (__item)->next;	\
+    (__item)->next->prev = (__item)->prev;	\
+  } while(0)
+
+#define DRMLISTDELINIT(__item)			\
+  do {						\
+    (__item)->prev->next = (__item)->next;	\
+    (__item)->next->prev = (__item)->prev;	\
+    (__item)->next = (__item);			\
+    (__item)->prev = (__item);			\
+  } while(0)
+
+#define DRMLISTENTRY(__type, __item, __field)   \
+    ((__type *)(((char *) (__item)) - offsetof(__type, __field)))
+
 struct _drmMMBufInfo;
 
 typedef struct _drmMMPool
@@ -125,12 +175,11 @@ typedef struct _drmMMPool
     int pinned;
     drmSize bufSize;
     unsigned long size;
-    unsigned long head;
-    unsigned long tail;
-    unsigned long free;
     unsigned long numBufs;
     unsigned long offset;
     struct _drmMMBlock *blocks;
+    DrmMMListHead freeStack;
+    DrmMMListHead lruList;
 } drmMMPool;
 
 typedef struct _drmFence

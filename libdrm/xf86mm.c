@@ -64,6 +64,7 @@
 #include <string.h>
 #include <sys/ioctl.h>
 #include <errno.h>
+#include <stddef.h>
 #endif
 
 typedef struct _drmMMBlock
@@ -76,6 +77,7 @@ typedef struct _drmMMBlock
     int inUse;
     int fenced;
     drmFence fence;
+    DrmMMListHead listHead;
 } drmMMBlock;
 
 typedef struct _drmMMBufList
@@ -321,7 +323,7 @@ int
 drmMMAllocBufferPool(int drmFD, MMPoolTypes type, unsigned fence_type,
     unsigned flags, unsigned long size, drmSize bufferSize, drmMMPool * pool)
 {
-
+    int i;
     drm_ttm_arg_t arg;
 
     drmMMCheckInit(drmFD);
@@ -404,9 +406,14 @@ drmMMAllocBufferPool(int drmFD, MMPoolTypes type, unsigned fence_type,
 	drmMMDestroyBufferPool(drmFD, pool);
 	return -1;
     }
-    pool->head = 0;
-    pool->tail = 0;
-    pool->free = pool->numBufs;
+
+    DRMINITLISTHEAD(&pool->freeStack);
+    DRMINITLISTHEAD(&pool->lruList);
+
+    for (i = 0; i < pool->numBufs; ++i) {
+	DRMLISTADD(&(pool->blocks[i].listHead), &(pool->freeStack));
+    }
+
     return 0;
 }
 
@@ -532,7 +539,7 @@ drmMMUnmapBuffer(int drmFD, drmMMBuf * buf)
     int ret;
 
     if (buf->flags & DRM_MM_SHARED)
-        return 0;
+	return 0;
 
     if (buf->pool) {
 	buf->virtual = NULL;
@@ -549,53 +556,6 @@ drmMMUnmapBuffer(int drmFD, drmMMBuf * buf)
     return ret;
 }
 
-static int
-drmFreeRetired(int drmFD, drmMMPool * pool, int lookAhead)
-{
-    int retired = 1;
-    int ret;
-    drmMMBlock *curBlock;
-
-    curBlock = pool->blocks + pool->tail;
-
-    if (curBlock->fenced) {
-	ret = drmTestFence(drmFD, curBlock->fence, 0, &retired);
-	if (ret) {
-	    return ret;
-	}
-    }
-
-    if (curBlock->fenced && !retired) {
-	if (lookAhead > pool->numBufs - 1)
-	    lookAhead = pool->numBufs - 1;
-
-	if (pool->tail + lookAhead >= pool->numBufs)
-	    lookAhead -= pool->numBufs;
-
-	ret = drmWaitFence(drmFD, (curBlock + lookAhead)->fence);
-	retired = 1;
-	if (ret)
-	    return ret;
-    }
-
-    while (retired && (pool->free < pool->numBufs)) {
-	curBlock->fenced = 0;
-	pool->free++;
-	pool->tail++;
-	if (pool->tail >= pool->numBufs)
-	    pool->tail = 0;
-
-	curBlock = pool->blocks + pool->tail;
-	if (!curBlock->fenced) {
-	    retired = 1;
-	} else {
-	    if (drmTestFence(drmFD, curBlock->fence, 0, &retired))
-		retired = 0;
-	}
-    }
-    return 0;
-}
-
 int
 drmMMInitBuffer(int drmFD, unsigned flags, unsigned alignment, drmMMBuf * buf)
 {
@@ -604,11 +564,118 @@ drmMMInitBuffer(int drmFD, unsigned flags, unsigned alignment, drmMMBuf * buf)
     return 0;
 }
 
+static int
+drmMMFreeLRU(int drmFD, drmMMPool * pool, int mode)
+{
+    DrmMMListHead *list, *next;
+    drmMMBlock *block;
+    int ret;
+    int retired;
+
+    list = pool->lruList.next;
+    next = list->next;
+
+    if (mode == 1 && list != &pool->lruList) {
+	block = DRMLISTENTRY(drmMMBlock, list, listHead);
+	ret = drmWaitFence(drmFD, block->fence);
+	if (ret)
+	    return ret;
+    }
+
+    for (; list != &pool->lruList; list = next, next = list->next) {
+	block = DRMLISTENTRY(drmMMBlock, list, listHead);
+	ret = drmTestFence(drmFD, block->fence, 0, &retired);
+	if (ret)
+	    return ret;
+	if (!retired) {
+	  return 0;
+	}
+	DRMLISTDEL(list);
+	block->fenced = 0;
+	if (block->inUse) {
+	    DRMLISTADDTAIL(list, &pool->freeStack);
+	} else {
+	    DRMLISTADD(list, &pool->freeStack);
+	}
+    }
+    return 0;
+}
+
+static void
+drmMMFreePoolBuffer(drmMMBuf * buf)
+{
+    drmMMBlock *block = buf->block;
+
+    block->inUse = 0;
+    if (!block->fenced) {
+	DRMLISTDEL(&block->listHead);
+	DRMLISTADD(&block->listHead, &buf->pool->freeStack);
+    }
+    buf->block = NULL;
+}
+
+static int
+drmMMAllocPoolBuffer(int drmFD, unsigned size,
+    drmMMPool * pool, drmMMBuf * buf)
+{
+    drmMMBlock *block;
+    int ret;
+    DrmMMListHead *list;
+
+    if (size != pool->bufSize) {
+	drmMsg("drmMMAllocBuffer: Pool buffer size doesn't match "
+	    "requested size.\n");
+	return -1;
+    }
+
+    do {
+	ret = drmMMFreeLRU(drmFD, pool, 0);
+	if (ret)
+	    return ret;
+
+	list = pool->freeStack.next;
+
+	while (list == &pool->freeStack) {
+	    ret = drmMMFreeLRU(drmFD, pool, 1);
+	    if (ret)
+		return ret;
+	}
+
+	block = DRMLISTENTRY(drmMMBlock, list, listHead);
+    } while (block->inUse);
+
+    DRMLISTDELINIT(list);
+
+    block->kernelPool = pool->kernelPool;
+    block->fenced = 0;
+    block->inUse = 1;
+
+    buf->poolHandle = block - pool->blocks;
+    buf->block = block;
+    buf->size = pool->bufSize;
+    buf->mapped = 0;
+    buf->pool = pool;
+
+    if (pool->pinned) {
+	buf->flags = pool->flags & ~DRM_MM_NEW;
+	buf->offset = drmPoolOffs(pool, buf->poolHandle);
+    } else {
+	if (buf->block->hasKernelBuf) {
+	    buf->flags = pool->flags & ~DRM_MM_NEW;
+	    buf->offset = buf->block->offset;
+	} else {
+	    buf->flags = pool->flags | DRM_MM_NEW;
+	}
+    }
+    return 0;
+}
+
 int
 drmMMAllocBuffer(int drmFD, unsigned size,
     drmMMPool * pool, int lookAhead, drmMMBuf * buf)
 {
     drmMMBlock *block;
+    DrmMMListHead *head;
 
     buf->flags |= DRM_MM_NEW;
 
@@ -619,45 +686,8 @@ drmMMAllocBuffer(int drmFD, unsigned size,
     }
 
     if (pool) {
-	/*
-	 * FIXME: Move out and add multiple pool types. 
-	 */
 
-	if (size != pool->bufSize) {
-	    drmMsg("drmMMAllocBuffer: Pool buffer size doesn't match "
-		"requested size.\n");
-	    return -1;
-	}
-
-	while (!pool->free) {
-
-	    if (drmFreeRetired(drmFD, pool, lookAhead)) {
-		drmMsg
-		    ("drmMMAllocBuffer: Could not free retired buffers: %s\n",
-		    strerror(errno));
-		return -1;
-	    }
-	}
-
-	buf->poolHandle = pool->head;
-	buf->block = pool->blocks + pool->head;
-	buf->pool = pool;
-	buf->block->kernelPool = pool->kernelPool;
-	buf->size = pool->bufSize;
-
-	if (pool->pinned) {
-	    buf->flags = pool->flags & ~DRM_MM_NEW;
-	    buf->offset = drmPoolOffs(pool, buf->poolHandle);
-	} else {
-	    if (buf->block->hasKernelBuf) {
-		buf->flags = pool->flags & ~DRM_MM_NEW;
-		buf->offset = buf->block->offset;
-	    }
-	}
-	pool->free--;
-	if (++pool->head >= pool->numBufs) {
-	    pool->head = 0;
-	}
+	return drmMMAllocPoolBuffer(drmFD, size, pool, buf);
 
     } else if (!(buf->flags & DRM_MM_SHARED)) {
 	drm_ttm_arg_t arg;
@@ -707,6 +737,7 @@ drmMMAllocBuffer(int drmFD, unsigned size,
 int
 drmMMFreeBuffer(int drmFD, drmMMBuf * buf)
 {
+
     if (buf && !buf->block)
 	return 0;
 
@@ -725,8 +756,7 @@ drmMMFreeBuffer(int drmFD, drmMMBuf * buf)
 	    }
 	}
     } else if (buf->pool) {
-	buf->block->inUse = 0;
-	buf->block = NULL;
+        drmMMFreePoolBuffer(buf);
     }
     return 0;
 }
@@ -836,7 +866,7 @@ drmMMValidateBuffers(int drmFD, drmMMBufList * head)
 
     if (!doValid) {
 	drmMMReturnOffsets(head);
-	if (vl) 
+	if (vl)
 	    free(vl);
 	return 0;
     }
@@ -938,6 +968,10 @@ drmMMFenceBuffers(int drmFD, drmMMBufList * head)
 		buf->block->fence.fenceSeq =
 		    drmMMKI.sarea->emitted[fenceType];
 		buf->block->fenced = 1;
+		if (buf->pool) {
+		    DRMLISTADDTAIL(&buf->block->listHead,
+			&buf->pool->lruList);
+		}
 	    }
 	    list = list->next;
 	}
@@ -970,6 +1004,10 @@ drmMMFenceBuffers(int drmFD, drmMMBufList * head)
 		    buf->block->fence.fenceSeq = fenceSeqs[fenceType];
 		}
 		buf->block->fenced = 1;
+		if (buf->pool) {
+		    DRMLISTADDTAIL(&buf->block->listHead,
+			&buf->pool->lruList);
+		}
 	    }
 	    list = list->next;
 	}
