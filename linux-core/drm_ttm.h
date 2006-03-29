@@ -30,7 +30,7 @@ typedef struct drm_ttm_backend {
 #define DRM_FLUSH_EXE   (0x04)
 
 typedef struct drm_ttm_backend_list {
-        uint32_t flags;
+	uint32_t flags;
 	atomic_t refcount;
 	struct list_head head;
 	drm_ttm_backend_t *be;
@@ -43,7 +43,7 @@ typedef struct drm_ttm_backend_list {
 	uint32_t fence_type;
 	struct drm_mm_node *mm_node;
 	struct drm_ttm_mm *mm;
-        int pinned;
+	int pinned;
 	enum {
 		ttm_bound,
 		ttm_evicted,
@@ -59,10 +59,10 @@ typedef struct drm_ttm_vma_list {
 } drm_ttm_vma_list_t;
 
 typedef struct drm_ttm {
-        struct list_head p_mm_list;
-        atomic_t shared_count;
-        uint32_t mm_list_seq;
-        unsigned long aperture_base;
+	struct list_head p_mm_list;
+	atomic_t shared_count;
+	uint32_t mm_list_seq;
+	unsigned long aperture_base;
 	struct page **pages;
 	uint32_t *page_flags;
 	unsigned long lhandle;
@@ -74,7 +74,7 @@ typedef struct drm_ttm {
 	atomic_t unfinished_regions;
 	drm_file_t *owner;
 	int destroy;
-        int mmap_sem_locked;
+	int mmap_sem_locked;
 } drm_ttm_t;
 
 /*
@@ -128,10 +128,10 @@ int drm_rebind_ttm_region(drm_ttm_backend_list_t * entry,
 
 extern int drm_destroy_ttm(drm_ttm_t * ttm);
 extern void drm_user_destroy_region(drm_ttm_backend_list_t * entry);
-extern int drm_ttm_add_mm_to_list(drm_ttm_t *ttm, struct mm_struct *mm);
-extern void drm_ttm_delete_mm(drm_ttm_t *ttm, struct mm_struct *mm);
-extern void drm_ttm_fence_before_destroy(drm_ttm_t *ttm);
-extern void drm_fence_unfenced_region(drm_ttm_backend_list_t *entry);
+extern int drm_ttm_add_mm_to_list(drm_ttm_t * ttm, struct mm_struct *mm);
+extern void drm_ttm_delete_mm(drm_ttm_t * ttm, struct mm_struct *mm);
+extern void drm_ttm_fence_before_destroy(drm_ttm_t * ttm);
+extern void drm_fence_unfenced_region(drm_ttm_backend_list_t * entry);
 
 extern int drm_ttm_ioctl(DRM_IOCTL_ARGS);
 extern int drm_mm_init_ioctl(DRM_IOCTL_ARGS);

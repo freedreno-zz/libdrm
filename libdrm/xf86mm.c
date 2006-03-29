@@ -265,7 +265,7 @@ drmWaitFence(int drmFD, drmFence fence)
      * arbitration scheme. We need a scheduler!!.
      */
 
-#if 1
+#if 0
     sched_yield();
 
     if ((drmMMKI.sarea->retired[fence.fenceType & DRM_FENCE_MASK] -
@@ -588,7 +588,7 @@ drmMMFreeLRU(int drmFD, drmMMPool * pool, int mode)
 	if (ret)
 	    return ret;
 	if (!retired) {
-	  return 0;
+	    return 0;
 	}
 	DRMLISTDEL(list);
 	block->fenced = 0;
@@ -636,6 +636,10 @@ drmMMAllocPoolBuffer(int drmFD, unsigned size,
 	list = pool->freeStack.next;
 
 	while (list == &pool->freeStack) {
+	    if (pool->lruList.next == &pool->lruList) {
+		drmMsg("Lost all batchbuffers. You've encountered a bug.\n");
+		return -1;
+	    }
 	    ret = drmMMFreeLRU(drmFD, pool, 1);
 	    if (ret)
 		return ret;
@@ -756,7 +760,7 @@ drmMMFreeBuffer(int drmFD, drmMMBuf * buf)
 	    }
 	}
     } else if (buf->pool) {
-        drmMMFreePoolBuffer(buf);
+	drmMMFreePoolBuffer(buf);
     }
     return 0;
 }
@@ -784,7 +788,7 @@ drmCheckValidation(unsigned flags, drmMMBuf * buf)
 	return -1;
     if (buf->flags & DRM_MM_SHARED)
 	return -1;
-    if (buf->flags & DRM_MM_NEW) 
+    if (buf->flags & DRM_MM_NEW)
 	return 1;
     if (!FLAGS_COMPATIBLE(buf->flags, flags))
 	return 1;

@@ -37,7 +37,7 @@
 
 #define DRIVER_NAME		"i915"
 #define DRIVER_DESC		"Intel Graphics"
-#define DRIVER_DATE		"20060306"
+#define DRIVER_DATE		"20060329"
 
 /* Interface history:
  *
@@ -45,9 +45,10 @@
  * 1.2: Add Power Management
  * 1.3: Add vblank support
  * 1.4: Fix cmdbuffer path, add heap destroy
+ * 1.5: TTM support
  */
 #define DRIVER_MAJOR		1
-#define DRIVER_MINOR		4
+#define DRIVER_MINOR		5
 #define DRIVER_PATCHLEVEL	0
 
 typedef struct _drm_i915_ring_buffer {

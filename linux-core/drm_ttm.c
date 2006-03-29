@@ -621,8 +621,8 @@ static int remove_ttm_region(drm_ttm_backend_list_t * entry, int ret_if_busy)
 			DRM_DEBUG("Nope, buf busy.\n");
 			return ret;
 		}
-	} 
-	entry->mm_node  = NULL;
+	}
+	entry->mm_node = NULL;
 	mm_node->private = NULL;
 	spin_lock(&mm->mm.mm_lock);
 	list_del(&mm_priv->lru);
@@ -631,7 +631,6 @@ static int remove_ttm_region(drm_ttm_backend_list_t * entry, int ret_if_busy)
 	drm_free(mm_priv, sizeof(*mm_priv), DRM_MEM_MM);
 	return 0;
 }
-
 
 /*
  * Unbind a ttm region from the aperture and take it out of the
@@ -1095,8 +1094,7 @@ int drm_add_ttm(drm_device_t * dev, unsigned size, drm_map_list_t ** maplist)
 	return 0;
 }
 
-
-static int drm_ttm_evict_aged(drm_ttm_mm_t *mm)
+static int drm_ttm_evict_aged(drm_ttm_mm_t * mm)
 {
 	struct list_head *list;
 	spinlock_t *mm_lock = &mm->mm.mm_lock;
@@ -1110,20 +1108,20 @@ static int drm_ttm_evict_aged(drm_ttm_mm_t *mm)
 
 	do {
 		list = mm->lru_head.next;
-		
-		if (list == &mm->lru_head) 
+
+		if (list == &mm->lru_head)
 			break;
- 
+
 		evict_priv = list_entry(list, drm_ttm_mm_priv_t, lru);
-		if (!evict_priv->fence_valid) 
+		if (!evict_priv->fence_valid)
 			break;
 
 		evict_fence = evict_priv->fence;
 		if (!dev->mm_driver->
 		    test_fence(dev, evict_priv->region->fence_type,
-				evict_fence))
+			       evict_fence))
 			break;
-		
+
 		if (!dev->mm_driver->
 		    fence_aged(dev, evict_priv->region->fence_type,
 			       evict_fence))
@@ -1141,8 +1139,6 @@ static int drm_ttm_evict_aged(drm_ttm_mm_t *mm)
 
 	return evicted;
 }
-
-
 
 /*
  * Fence all unfenced regions in the global lru list. 
@@ -1188,12 +1184,12 @@ void drm_ttm_fence_regions(drm_device_t * dev)
 	spin_unlock(&mm->mm.mm_lock);
 
 	if (!(check_aged++ & 0x0F) && drm_ttm_evict_aged(mm)) {
-		dev->mm_driver->mm_sarea->evict_tt_seq = 
-			dev->mm_driver->mm_sarea->validation_seq + 1;
-	}	
+		dev->mm_driver->mm_sarea->evict_tt_seq =
+		    dev->mm_driver->mm_sarea->validation_seq + 1;
+	}
 }
-EXPORT_SYMBOL(drm_ttm_fence_regions);
 
+EXPORT_SYMBOL(drm_ttm_fence_regions);
 
 /*
  * Evict the first (oldest) region on the lru list, after its fence
@@ -1865,7 +1861,6 @@ int drm_mm_do_takedown(drm_device_t * dev)
 
 	return 0;
 }
-
 
 /*
  * FIXME: Temporarily non-static to allow for intel initialization hack.
