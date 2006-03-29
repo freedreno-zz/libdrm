@@ -621,9 +621,8 @@ static int remove_ttm_region(drm_ttm_backend_list_t * entry, int ret_if_busy)
 			DRM_DEBUG("Nope, buf busy.\n");
 			return ret;
 		}
-	}
-
-	entry->mm_node = NULL;
+	} 
+	entry->mm_node  = NULL;
 	mm_node->private = NULL;
 	spin_lock(&mm->mm.mm_lock);
 	list_del(&mm_priv->lru);
@@ -632,6 +631,7 @@ static int remove_ttm_region(drm_ttm_backend_list_t * entry, int ret_if_busy)
 	drm_free(mm_priv, sizeof(*mm_priv), DRM_MEM_MM);
 	return 0;
 }
+
 
 /*
  * Unbind a ttm region from the aperture and take it out of the
@@ -1095,6 +1095,55 @@ int drm_add_ttm(drm_device_t * dev, unsigned size, drm_map_list_t ** maplist)
 	return 0;
 }
 
+
+static int drm_ttm_evict_aged(drm_ttm_mm_t *mm)
+{
+	struct list_head *list;
+	spinlock_t *mm_lock = &mm->mm.mm_lock;
+	drm_ttm_mm_priv_t *evict_priv;
+	uint32_t evict_fence;
+	drm_device_t *dev = mm->dev;
+	drm_mm_node_t *evict_node;
+	int evicted = FALSE;
+
+	spin_lock(mm_lock);
+
+	do {
+		list = mm->lru_head.next;
+		
+		if (list == &mm->lru_head) 
+			break;
+ 
+		evict_priv = list_entry(list, drm_ttm_mm_priv_t, lru);
+		if (!evict_priv->fence_valid) 
+			break;
+
+		evict_fence = evict_priv->fence;
+		if (!dev->mm_driver->
+		    test_fence(dev, evict_priv->region->fence_type,
+				evict_fence))
+			break;
+		
+		if (!dev->mm_driver->
+		    fence_aged(dev, evict_priv->region->fence_type,
+			       evict_fence))
+			break;
+		evicted = TRUE;
+		evict_node = evict_priv->region->mm_node;
+		drm_evict_ttm_region(evict_priv->region);
+		list_del_init(list);
+		evict_node->private = NULL;
+		drm_mm_put_block_locked(&mm->mm, evict_node);
+		evict_priv->region->mm_node = NULL;
+		drm_free(evict_priv, sizeof(*evict_priv), DRM_MEM_MM);
+	} while (TRUE);
+	spin_unlock(mm_lock);
+
+	return evicted;
+}
+
+
+
 /*
  * Fence all unfenced regions in the global lru list. 
  * FIXME: This is exported until we have a scheduler built in.
@@ -1110,6 +1159,7 @@ void drm_ttm_fence_regions(drm_device_t * dev)
 	uint32_t fence_type;
 	uint32_t fence;
 	drm_ttm_mm_t *mm = &dev->mm_driver->ttm_mm;
+	static int check_aged = 0;
 
 	memset(emitted, 0, sizeof(int) * DRM_FENCE_TYPES);
 	spin_lock(&mm->mm.mm_lock);
@@ -1136,8 +1186,14 @@ void drm_ttm_fence_regions(drm_device_t * dev)
 	}
 
 	spin_unlock(&mm->mm.mm_lock);
+
+	if (!(check_aged++ & 0x0F) && drm_ttm_evict_aged(mm)) {
+		dev->mm_driver->mm_sarea->evict_tt_seq = 
+			dev->mm_driver->mm_sarea->validation_seq + 1;
+	}	
 }
 EXPORT_SYMBOL(drm_ttm_fence_regions);
+
 
 /*
  * Evict the first (oldest) region on the lru list, after its fence
@@ -1184,7 +1240,6 @@ static int drm_ttm_evict_lru_sl(drm_ttm_backend_list_t * entry)
 			break;
 
 		spin_unlock(mm_lock);
-		drm_ttm_destroy_delayed(entry->mm, TRUE);
 		up(&dev->struct_sem);
 
 		ret = drm_wait_buf_busy(evict_priv->region);
@@ -1198,7 +1253,6 @@ static int drm_ttm_evict_lru_sl(drm_ttm_backend_list_t * entry)
 		}
 
 	} while (TRUE);
-
 	evict_node = evict_priv->region->mm_node;
 	drm_evict_ttm_region(evict_priv->region);
 	list_del_init(list);

@@ -268,6 +268,21 @@ int i915_test_fence(drm_device_t *dev, uint32_t type, uint32_t fence)
 	return tmp;
 }
 
+int i915_fence_aged(drm_device_t *dev, uint32_t type, uint32_t fence)
+{
+	drm_i915_private_t *dev_priv = (drm_i915_private_t *) dev->dev_private;
+	uint32_t tmp;
+
+	if (!dev_priv) {
+		DRM_ERROR("called without initialization\n");
+		return TRUE;
+	}
+	
+	tmp = READ_BREADCRUMB(dev_priv);
+	return ((tmp - fence) > DRM_MM_CLEAN);
+}
+
+
 int i915_wait_fence(drm_device_t * dev, uint32_t type, uint32_t fence) 
 {
 

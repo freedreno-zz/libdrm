@@ -599,6 +599,8 @@ typedef struct drm_mm_driver {
 			   uint32_t fence);
 	int (*test_fence) (struct drm_device * dev, uint32_t type, 
 			   uint32_t fence);
+	int (*fence_aged) (struct drm_device * dev, uint32_t type, 
+			   uint32_t fence);
 	void (*flush_caches) (struct drm_device * dev, int access);
 	drm_ttm_backend_t *(*create_ttm_backend_entry) (struct drm_device * dev,
 							int cached);

@@ -784,7 +784,7 @@ drmCheckValidation(unsigned flags, drmMMBuf * buf)
 	return -1;
     if (buf->flags & DRM_MM_SHARED)
 	return -1;
-    if (buf->flags & DRM_MM_NEW)
+    if (buf->flags & DRM_MM_NEW) 
 	return 1;
     if (!FLAGS_COMPATIBLE(buf->flags, flags))
 	return 1;
@@ -794,7 +794,7 @@ drmCheckValidation(unsigned flags, drmMMBuf * buf)
     if ((drmMMKI.sarea->evict_tt_seq - buf->block->lastValSeq - 1) <=
 	DRM_MM_WRAP)
 	return 1;
-    return 0;
+    return 1;
 }
 
 static int
@@ -840,11 +840,13 @@ drmMMValidateBuffers(int drmFD, drmMMBufList * head)
     unsigned flags;
 
     drmMMCheckInit(drmFD);
+
     while (cur != head) {
 	buf = cur->buf;
 	flags = cur->flags;
 	if (buf->pool)
 	    flags = buf->pool->flags;
+
 	tmp = drmCheckValidation(flags, cur->buf);
 	if (tmp >= 0)
 	    needsValid++;
@@ -853,8 +855,12 @@ drmMMValidateBuffers(int drmFD, drmMMBufList * head)
 	cur = cur->next;
     }
 
-    vl = NULL;
+    if (!doValid) {
+	drmMMReturnOffsets(head);
+	return 0;
+    }
 
+    vl = NULL;
     if (needsValid) {
 	vl = (drm_ttm_buf_arg_t *) calloc(needsValid, sizeof(*vl));
 
@@ -864,16 +870,8 @@ drmMMValidateBuffers(int drmFD, drmMMBufList * head)
 	}
     }
 
-    if (!doValid) {
-	drmMMReturnOffsets(head);
-	if (vl)
-	    free(vl);
-	return 0;
-    }
-
     curBArg = vl;
     cur = head->next;
-
     while (cur != head) {
 	buf = cur->buf;
 	block = buf->block;

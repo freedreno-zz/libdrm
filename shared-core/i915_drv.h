@@ -124,6 +124,7 @@ extern void i915_driver_irq_uninstall(drm_device_t * dev);
 extern uint32_t i915_emit_fence(drm_device_t * dev, uint32_t type);
 extern int i915_wait_fence(drm_device_t * dev, uint32_t type, uint32_t fence);
 extern int i915_test_fence(drm_device_t * dev, uint32_t type, uint32_t fence);
+extern int i915_fence_aged(drm_device_t * dev, uint32_t type, uint32_t fence);
 
 
 /* i915_mem.c */
