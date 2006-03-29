@@ -278,7 +278,7 @@ drmWaitFence(int drmFD, drmFence fence)
 	arg.req.fence_type = fence.fenceType;
 	arg.req.fence_seq = fence.fenceSeq;
 	ret = ioctl(drmFD, DRM_IOCTL_FENCE, &arg);
-    } while (ret == -EAGAIN);
+    } while (ret != 0 && errno == EAGAIN);
 
     if (ret) {
 	drmMsg("drmWaitFence: failed: %s\n", strerror(errno));
