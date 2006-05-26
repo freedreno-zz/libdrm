@@ -42,6 +42,7 @@ static void drm_vm_close(struct vm_area_struct *vma);
 static void drm_vm_open(struct vm_area_struct *vma);
 static void drm_vm_ttm_close(struct vm_area_struct *vma);
 static int drm_vm_ttm_open(struct vm_area_struct *vma);
+static void drm_vm_ttm_open_wrapper(struct vm_area_struct *vma);
 
 /*
  * DAVE: The below definition is a duplication of the kernels protection_map, which is bad.
@@ -107,7 +108,7 @@ static __inline__ struct page *drm_do_vm_nopage(struct vm_area_struct *vma,
 	drm_map_t *map = NULL;
 	drm_map_list_t *r_list;
 	struct list_head *list;
-	void *hash_val;
+	drm_hash_item_t *hash;
 
 	/*
 	 * Find the right map
@@ -118,12 +119,13 @@ static __inline__ struct page *drm_do_vm_nopage(struct vm_area_struct *vma,
 	if (!dev->agp || !dev->agp->cant_use_aperture)
 		goto vm_nopage_error;
 
-	if (drm_get_ht_val(&dev->maphash, 
-			   (VM_OFFSET(vma) -DRM_MAP_HASH_OFFSET) >> PAGE_SHIFT,
-			   &hash_val)) {
+	if (drm_ht_find_item(&dev->maphash, 
+			     (VM_OFFSET(vma) -DRM_MAP_HASH_OFFSET) >> PAGE_SHIFT,
+			     &hash)) {
 		goto vm_nopage_error;
 	}
-	map = ((drm_map_list_t *) hash_val)->map;
+	r_list = list_entry(hash, drm_map_list_t, hash);
+	map = r_list->map;
 
 #ifdef DRM_LIST
 	list_for_each(list, &dev->maplist->head) {
@@ -628,7 +630,7 @@ static struct vm_operations_struct drm_vm_sg_ops = {
 
 static struct vm_operations_struct drm_vm_ttm_ops = {
 	.nopage = drm_vm_ttm_nopage,
-	.open = drm_vm_ttm_open,
+	.open = drm_vm_ttm_open_wrapper,
 	.close = drm_vm_ttm_close,
 };
 
@@ -696,6 +698,10 @@ static int drm_vm_ttm_open(struct vm_area_struct *vma) {
 	return ret;
 }
 
+static void drm_vm_ttm_open_wrapper(struct vm_area_struct *vma) 
+{
+  drm_vm_ttm_open(vma);
+}
 
 /**
  * \c close method for all virtual memory types.
@@ -849,7 +855,7 @@ int drm_mmap(struct file *filp, struct vm_area_struct *vma)
 	drm_map_list_t *r_list;
 	unsigned long offset = 0;
 	struct list_head *list;
-	void *hash_val;
+	drm_hash_item_t *hash;
 
 	DRM_DEBUG("start = 0x%lx, end = 0x%lx, offset = 0x%lx\n",
 		  vma->vm_start, vma->vm_end, VM_OFFSET(vma));
@@ -870,12 +876,18 @@ int drm_mmap(struct file *filp, struct vm_area_struct *vma)
 		return drm_mmap_dma(filp, vma);
 
 	
-	if (drm_get_ht_val(&dev->maphash, 
-			   (VM_OFFSET(vma) -DRM_MAP_HASH_OFFSET) >> PAGE_SHIFT,
-			   &hash_val)) {
+	if (drm_ht_find_item(&dev->maphash, 
+			     (VM_OFFSET(vma) -DRM_MAP_HASH_OFFSET) >> PAGE_SHIFT,
+			     &hash)) {
 		return -EINVAL;
 	}
-	map = ((drm_map_list_t *) hash_val)->map;
+
+	if (drm_ht_find_item(&dev->maphash, 
+			   (VM_OFFSET(vma) -DRM_MAP_HASH_OFFSET) >> PAGE_SHIFT,
+			   &hash)) {
+		return -EINVAL;
+	}
+	map = list_entry(hash,drm_map_list_t, hash)->map;
 
 #ifdef DRM_LIST
 

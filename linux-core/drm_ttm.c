@@ -313,7 +313,6 @@ int drm_destroy_ttm(drm_ttm_t * ttm)
 	int i;
 	struct list_head *list, *next;
 	struct page **cur_page;
-	unsigned hash;
 
 	if (!ttm)
 		return 0;
@@ -329,10 +328,8 @@ int drm_destroy_ttm(drm_ttm_t * ttm)
 		list_for_each_safe(list, next, &ttm->be_list->head) {
 			drm_ttm_backend_list_t *entry =
 			    list_entry(list, drm_ttm_backend_list_t, head);
-			if (!drm_find_ht_item(&ttm->dev->ttmreghash,
-					      entry, &hash)) {
-				drm_remove_ht_val(&ttm->dev->ttmreghash, hash);
-			}
+			drm_ht_remove_item(&ttm->dev->ttmreghash, 
+					   &entry->hash);
 			drm_destroy_ttm_region(entry);
 		}
 
@@ -1076,7 +1073,10 @@ int drm_add_ttm(drm_device_t * dev, unsigned size, drm_map_list_t ** maplist)
 	}
 	map->handle = (void *)list;
 
-	if (drm_insert_ht_val(&dev->maphash, map->handle, &list->user_token)) {
+
+	if (drm_ht_just_insert_please(&dev->maphash, &list->hash, 
+				      (unsigned long) map->handle, 
+				      32 - PAGE_SHIFT)) {
 		drm_destroy_ttm(ttm);
 		drm_free(map, sizeof(*map), DRM_MEM_MAPS);
 		drm_free(list, sizeof(*list), DRM_MEM_MAPS);
@@ -1084,7 +1084,7 @@ int drm_add_ttm(drm_device_t * dev, unsigned size, drm_map_list_t ** maplist)
 	}
 
 	list->user_token =
-	    (list->user_token << PAGE_SHIFT) + DRM_MAP_HASH_OFFSET;
+	    (list->hash.key << PAGE_SHIFT) + DRM_MAP_HASH_OFFSET;
 	list->map = map;
 
 	*maplist = list;
@@ -1346,16 +1346,16 @@ static int drm_ttm_from_handle(drm_handle_t handle, drm_file_t * priv,
 	drm_ttm_t *ttm;
 	drm_map_list_t *map_list;
 	drm_map_t *map = NULL;
-	void *hash_val;
+	drm_hash_item_t *hash;
 
-	if (drm_get_ht_val(&dev->maphash,
-			   (handle -
-			    DRM_MAP_HASH_OFFSET) >> PAGE_SHIFT, &hash_val)) {
+	if (drm_ht_find_item(&dev->maphash,
+			     (handle - DRM_MAP_HASH_OFFSET) >> PAGE_SHIFT, 
+			     &hash)) {
 		DRM_ERROR("Could not find TTM map.\n");
 		return -EINVAL;
 	}
 
-	map_list = (drm_map_list_t *) hash_val;
+	map_list = list_entry(hash, drm_map_list_t, hash);
 
 	map = map_list->map;
 
@@ -1378,7 +1378,6 @@ static int drm_ttm_create_buffer(drm_device_t * dev, drm_ttm_t * ttm,
 				 drm_ttm_buf_arg_t * buf,
 				 drm_ttm_backend_list_t ** created)
 {
-	unsigned region;
 	drm_ttm_backend_list_t *entry;
 	int ret;
 	int cached;
@@ -1389,11 +1388,14 @@ static int drm_ttm_create_buffer(drm_device_t * dev, drm_ttm_t * ttm,
 					 buf->num_pages, cached, &entry)))
 		return ret;
 
-	if ((ret = drm_insert_ht_val(&dev->ttmreghash, entry, &region))) {
+	if ((ret = drm_ht_just_insert_please(&dev->ttmreghash, 
+					     &entry->hash, 
+					     (unsigned long)entry, 
+					     32 - PAGE_SHIFT))) {
 		drm_destroy_ttm_region(entry);
 		return ret;
 	}
-	buf->region_handle = (drm_handle_t) region;
+	buf->region_handle = (drm_handle_t) entry->hash.key;
 
 	entry->pinned = 0;
 	*created = entry;
@@ -1405,13 +1407,13 @@ static int drm_ttm_region_from_handle(drm_handle_t handle, drm_file_t * priv,
 {
 	drm_device_t *dev = priv->head->dev;
 	drm_ttm_backend_list_t *entry;
-	void *hash_val;
+	drm_hash_item_t *hash;
 
-	if (drm_get_ht_val(&dev->ttmreghash, handle, &hash_val)) {
+	if (drm_ht_find_item(&dev->ttmreghash, handle, &hash)) {
 		DRM_ERROR("Could not find TTM region.\n");
 		return -EINVAL;
 	}
-	entry = (drm_ttm_backend_list_t *) hash_val;
+	entry = list_entry(hash, drm_ttm_backend_list_t, hash);
 	if (entry->owner && entry->owner->owner != priv) {
 		DRM_ERROR("Caller is not TTM region owner.\n");
 		return -EPERM;
@@ -1431,7 +1433,6 @@ static int drm_ttm_create_user_buf(drm_ttm_buf_arg_t * buf_p,
 {
 	unsigned long start, end;
 	int ret, len;
-	unsigned region;
 	drm_ttm_backend_list_t *entry;
 	drm_device_t *dev = priv->head->dev;
 
@@ -1451,13 +1452,15 @@ static int drm_ttm_create_user_buf(drm_ttm_buf_arg_t * buf_p,
 		return ret;
 
 	entry->anon_owner = priv;
-	ret = drm_insert_ht_val(&dev->ttmreghash, entry, &region);
+	ret = drm_ht_just_insert_please(&dev->ttmreghash, &entry->hash, 
+					(unsigned long) entry, 
+					32 - PAGE_SHIFT);
 	if (ret) {
 		drm_user_destroy_region(entry);
 		return ret;
 	}
 	list_add(&entry->head, &priv->anon_ttm_regs);
-	buf_p->region_handle = (drm_handle_t) region;
+	buf_p->region_handle = entry->hash.key;
 	entry->pinned = 0;
 	*created = entry;
 	return 0;
@@ -1597,7 +1600,7 @@ static void drm_ttm_handle_buf(drm_file_t * priv, drm_ttm_buf_arg_t * buf_p,
 		    drm_ttm_region_from_handle(buf_p->region_handle, priv,
 					       &entry);
 
-		drm_remove_ht_val(&dev->ttmreghash, buf_p->region_handle);
+		drm_ht_remove_key(&dev->ttmreghash, buf_p->region_handle);
 		ttm_mm = entry->mm;
 		if (buf_p->ret)
 			break;
@@ -1753,7 +1756,7 @@ static int drm_ttm_handle_remove(drm_file_t * priv, drm_handle_t handle)
 		return ret;
 	}
 	list_del(&map_list->head);
-	drm_remove_ht_val(&dev->maphash,
+	drm_ht_remove_key(&dev->maphash,
 			  (handle - DRM_MAP_HASH_OFFSET) >> PAGE_SHIFT);
 	ret = drm_destroy_ttm(ttm);
 	drm_ttm_destroy_delayed(&dev->mm_driver->ttm_mm, TRUE);

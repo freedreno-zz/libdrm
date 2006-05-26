@@ -81,6 +81,7 @@
 #include <linux/poll.h>
 #include <asm/pgalloc.h>
 #include "drm.h"
+#include "drm_hashtab.h"
 
 #define __OS_HAS_AGP (defined(CONFIG_AGP) || (defined(CONFIG_AGP_MODULE) && defined(MODULE)))
 #define __OS_HAS_MTRR (defined(CONFIG_MTRR))
@@ -506,6 +507,7 @@ typedef struct drm_dma_handle {
  */
 typedef struct drm_map_list {
 	struct list_head head;		/**< list head */
+        drm_hash_item_t hash;
 	drm_map_t *map;			/**< mapping */
 	unsigned int user_token;
         void *private;
@@ -681,13 +683,6 @@ typedef struct drm_head {
 	struct class_device *dev_class;
 } drm_head_t;
 
-typedef struct drm_closedhash {
-	unsigned int size;
-	unsigned int order;
-	unsigned int fill;
-	void **table;
-} drm_closedhash_t;
-
 /**
  * DRM device structure. This structure represent a complete card that
  * may contain multiple heads.
@@ -734,8 +729,8 @@ typedef struct drm_device {
 	/*@{ */
 	drm_map_list_t *maplist;	/**< Linked list of regions */
 	int map_count;			/**< Number of mappable regions */
-	drm_closedhash_t maphash;       /**< Hashed list of maps */
-	drm_closedhash_t ttmreghash;    /**< Hashed list of ttm regions */
+	drm_open_hash_t maphash;       /**< Hashed list of maps */
+	drm_open_hash_t ttmreghash;    /**< Hashed list of ttm regions */
 
 	/** \name Context handle management */
 	/*@{ */
@@ -1015,20 +1010,6 @@ extern unsigned long drm_get_resource_len(drm_device_t *dev,
 extern int drm_addmap_core(drm_device_t * dev, unsigned int offset,
 			   unsigned int size, drm_map_type_t type,
 			   drm_map_flags_t flags, drm_map_list_t ** maplist);
-
-
-/* 
- * Closed hash table support drm_hashtab.c
- */
-extern void drm_remove_hashtab(drm_closedhash_t *ht);
-extern int drm_remove_ht_val(drm_closedhash_t *ht, unsigned int hash);
-extern int drm_get_ht_val(drm_closedhash_t *ht, unsigned int hash, void **item);
-extern int drm_insert_ht_val(drm_closedhash_t *ht, void *item, unsigned int *hash);
-extern int drm_create_hashtab(drm_closedhash_t *ht, unsigned int order);
-extern int drm_find_ht_item(drm_closedhash_t *ht, void *item, unsigned int *hash);
-
-
-
 				/* DMA support (drm_dma.h) */
 extern int drm_dma_setup(drm_device_t * dev);
 extern void drm_dma_takedown(drm_device_t * dev);

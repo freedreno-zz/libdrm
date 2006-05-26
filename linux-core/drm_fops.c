@@ -353,7 +353,6 @@ int drm_release(struct inode *inode, struct file *filp)
 	drm_device_t *dev;
 	int retcode = 0;
 	struct list_head *list = NULL, *next = NULL;
-	unsigned hash;
 
 	lock_kernel();
 	dev = priv->head->dev;
@@ -488,9 +487,7 @@ int drm_release(struct inode *inode, struct file *filp)
 	list_for_each_safe(list, next, &priv->ttms) {
 		drm_map_list_t *entry = list_entry(list, drm_map_list_t, head);
 		list_del(list);
-		if (!drm_find_ht_item(&dev->maphash, entry, &hash)) {
-			drm_remove_ht_val(&dev->maphash, hash);
-		}
+		drm_ht_remove_item(&dev->maphash, &entry->hash);
 		if (-EBUSY != drm_destroy_ttm((drm_ttm_t *) entry->map->offset))
 			drm_free(entry->map, sizeof(*entry->map), 
 				 DRM_MEM_MAPS);
@@ -502,9 +499,7 @@ int drm_release(struct inode *inode, struct file *filp)
 		drm_ttm_backend_list_t *entry = 
 			list_entry(list, drm_ttm_backend_list_t, head);
  		list_del(list);
-		if (!drm_find_ht_item(&dev->ttmreghash, entry, &hash)) {
-			drm_remove_ht_val(&dev->ttmreghash, hash);
-		}
+		drm_ht_remove_item(&dev->ttmreghash, &entry->hash);
 		drm_user_destroy_region(entry);
  	
 	}

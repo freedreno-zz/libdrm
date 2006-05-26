@@ -369,8 +369,8 @@ static void __exit drm_cleanup(drm_device_t * dev)
 		dev->maplist = NULL;
 	}
 
-	drm_remove_hashtab(&dev->maphash);
-	drm_remove_hashtab(&dev->ttmreghash);
+	drm_ht_remove(&dev->maphash);
+	drm_ht_remove(&dev->ttmreghash);
 
 	if (!drm_fb_loaded)
 		pci_disable_device(dev->pdev);
