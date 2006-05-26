@@ -86,6 +86,31 @@ static int i915_emit_irq(drm_device_t * dev)
 	return ret;
 }
 
+
+
+static void i915_user_irq_on(drm_i915_private_t *dev_priv)
+{
+
+	spin_lock(&dev_priv->user_irq_lock);
+	if (++dev_priv->user_irq_refcount > 0){
+		dev_priv->irq_enable_reg |= USER_INT_FLAG;
+		I915_WRITE16(I915REG_INT_ENABLE_R, dev_priv->irq_enable_reg);
+	}
+	spin_unlock(&dev_priv->user_irq_lock);
+
+}
+		
+static void i915_user_irq_off(drm_i915_private_t *dev_priv)
+{
+	spin_lock(&dev_priv->user_irq_lock);
+	if (--dev_priv->user_irq_refcount == 0) {
+		dev_priv->irq_enable_reg &= ~USER_INT_FLAG;
+		I915_WRITE16(I915REG_INT_ENABLE_R, dev_priv->irq_enable_reg);
+	}
+	spin_unlock(&dev_priv->user_irq_lock);
+}
+		
+
 static int i915_wait_irq(drm_device_t * dev, int irq_nr)
 {
 	drm_i915_private_t *dev_priv = (drm_i915_private_t *) dev->dev_private;
@@ -100,8 +125,10 @@ static int i915_wait_irq(drm_device_t * dev, int irq_nr)
 
 	dev_priv->sarea_priv->perf_boxes |= I915_BOX_WAIT;
 
+	i915_user_irq_on(dev_priv);
 	DRM_WAIT_ON(ret, dev_priv->irq_queue, 3 * DRM_HZ,
 		    (((uint32_t)(READ_BREADCRUMB(dev_priv) - irq_nr)) <= (1 << 23)));
+	i915_user_irq_off(dev_priv);
 
 	if (ret == DRM_ERR(EBUSY)) {
 		DRM_ERROR("%s: EBUSY -- rec: %d emitted: %d\n",
@@ -161,6 +188,7 @@ int i915_irq_emit(DRM_IOCTL_ARGS)
 	return 0;
 }
 
+
 /* Doesn't need the hardware lock.
  */
 int i915_irq_wait(DRM_IOCTL_ARGS)
@@ -195,7 +223,10 @@ void i915_driver_irq_postinstall(drm_device_t * dev)
 {
 	drm_i915_private_t *dev_priv = (drm_i915_private_t *) dev->dev_private;
 
-	I915_WRITE16(I915REG_INT_ENABLE_R, USER_INT_FLAG | VSYNC_PIPEA_FLAG);
+	dev_priv->irq_enable_reg = VSYNC_PIPEA_FLAG;
+	dev_priv->user_irq_lock = SPIN_LOCK_UNLOCKED;
+	dev_priv->user_irq_refcount = 0;
+	I915_WRITE16(I915REG_INT_ENABLE_R, dev_priv->irq_enable_reg);
 	DRM_INIT_WAITQUEUE(&dev_priv->irq_queue);
 }
 

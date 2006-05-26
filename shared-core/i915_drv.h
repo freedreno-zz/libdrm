@@ -92,6 +92,10 @@ typedef struct drm_i915_private {
 	wait_queue_head_t irq_queue;
 	atomic_t irq_received;
 	atomic_t irq_emitted;
+          
+	int user_irq_refcount;
+        spinlock_t user_irq_lock;
+	uint32_t irq_enable_reg;
 
 	int tex_lru_log_granularity;
 	int allow_batchbuffer;
