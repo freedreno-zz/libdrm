@@ -563,7 +563,6 @@ typedef struct drm_mm_node {
 } drm_mm_node_t;
 
 typedef struct drm_mm {
-	spinlock_t mm_lock;
 	drm_mm_node_t root_node;
 } drm_mm_t;
 
@@ -1142,10 +1141,10 @@ extern void drm_ttm_fence_regions(drm_device_t * dev);
  * Basic memory manager support (drm_mm.c) 
  */
 
-extern drm_mm_node_t * drm_mm_get_block_locked(drm_mm_node_t * parent, unsigned long size,
-					       unsigned alignment);
-extern void drm_mm_put_block_locked(drm_mm_t *mm, drm_mm_node_t *cur);
-extern drm_mm_node_t *drm_mm_search_free_locked(const drm_mm_t *mm, unsigned long size, 
+extern drm_mm_node_t * drm_mm_get_block(drm_mm_node_t * parent, unsigned long size,
+					unsigned alignment);
+extern void drm_mm_put_block(drm_mm_t *mm, drm_mm_node_t *cur);
+extern drm_mm_node_t *drm_mm_search_free(const drm_mm_t *mm, unsigned long size, 
 						unsigned alignment, int best_match);
 extern int drm_mm_init(drm_mm_t *mm, unsigned long start, unsigned long size);
 extern void drm_mm_takedown(drm_mm_t *mm);

@@ -40,8 +40,8 @@
 
 #include "drmP.h"
 
-drm_mm_node_t *drm_mm_get_block_locked(drm_mm_node_t * parent,
-				       unsigned long size, unsigned alignment)
+drm_mm_node_t *drm_mm_get_block(drm_mm_node_t * parent,
+				unsigned long size, unsigned alignment)
 {
 
 	drm_mm_node_t *child;
@@ -77,7 +77,7 @@ drm_mm_node_t *drm_mm_get_block_locked(drm_mm_node_t * parent,
  * Otherwise add to the free stack.
  */
 
-void drm_mm_put_block_locked(drm_mm_t * mm, drm_mm_node_t * cur)
+void drm_mm_put_block(drm_mm_t * mm, drm_mm_node_t * cur)
 {
 
 	drm_mm_node_t *list_root = &mm->root_node;
@@ -120,9 +120,9 @@ void drm_mm_put_block_locked(drm_mm_t * mm, drm_mm_node_t * cur)
 	}
 }
 
-drm_mm_node_t *drm_mm_search_free_locked(const drm_mm_t * mm,
-					 unsigned long size,
-					 unsigned alignment, int best_match)
+drm_mm_node_t *drm_mm_search_free(const drm_mm_t * mm,
+				  unsigned long size,
+				  unsigned alignment, int best_match)
 {
 	struct list_head *list;
 	const struct list_head *free_stack = &mm->root_node.fl_entry;
@@ -168,14 +168,8 @@ int drm_mm_init(drm_mm_t * mm, unsigned long start, unsigned long size)
 	child->size = size;
 	child->free = TRUE;
 
-	mm->mm_lock = SPIN_LOCK_UNLOCKED;
-
-	spin_lock(&mm->mm_lock);
-
 	list_add(&child->fl_entry, &mm->root_node.fl_entry);
 	list_add(&child->ml_entry, &mm->root_node.ml_entry);
-
-	spin_unlock(&mm->mm_lock);
 
 	return 0;
 }

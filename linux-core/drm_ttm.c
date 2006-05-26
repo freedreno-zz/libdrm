@@ -624,10 +624,8 @@ static int remove_ttm_region(drm_ttm_backend_list_t * entry, int ret_if_busy)
 	}
 	entry->mm_node = NULL;
 	mm_node->private = NULL;
-	spin_lock(&mm->mm.mm_lock);
 	list_del(&mm_priv->lru);
-	drm_mm_put_block_locked(&mm->mm, mm_node);
-	spin_unlock(&mm->mm.mm_lock);
+	drm_mm_put_block(&mm->mm, mm_node);
 	drm_free(mm_priv, sizeof(*mm_priv), DRM_MEM_MM);
 	return 0;
 }
@@ -1097,14 +1095,11 @@ int drm_add_ttm(drm_device_t * dev, unsigned size, drm_map_list_t ** maplist)
 static int drm_ttm_evict_aged(drm_ttm_mm_t * mm)
 {
 	struct list_head *list;
-	spinlock_t *mm_lock = &mm->mm.mm_lock;
 	drm_ttm_mm_priv_t *evict_priv;
 	uint32_t evict_fence;
 	drm_device_t *dev = mm->dev;
 	drm_mm_node_t *evict_node;
 	int evicted = FALSE;
-
-	spin_lock(mm_lock);
 
 	do {
 		list = mm->lru_head.next;
@@ -1131,11 +1126,10 @@ static int drm_ttm_evict_aged(drm_ttm_mm_t * mm)
 		drm_evict_ttm_region(evict_priv->region);
 		list_del_init(list);
 		evict_node->private = NULL;
-		drm_mm_put_block_locked(&mm->mm, evict_node);
+		drm_mm_put_block(&mm->mm, evict_node);
 		evict_priv->region->mm_node = NULL;
 		drm_free(evict_priv, sizeof(*evict_priv), DRM_MEM_MM);
 	} while (TRUE);
-	spin_unlock(mm_lock);
 
 	return evicted;
 }
@@ -1158,7 +1152,6 @@ void drm_ttm_fence_regions(drm_device_t * dev)
 	static int check_aged = 0;
 
 	memset(emitted, 0, sizeof(int) * DRM_FENCE_TYPES);
-	spin_lock(&mm->mm.mm_lock);
 
 	list_for_each_prev(list, &mm->lru_head) {
 		drm_ttm_mm_priv_t *entry =
@@ -1181,8 +1174,6 @@ void drm_ttm_fence_regions(drm_device_t * dev)
 		entry->fence_valid = TRUE;
 	}
 
-	spin_unlock(&mm->mm.mm_lock);
-
 	if (!(check_aged++ & 0x0F) && drm_ttm_evict_aged(mm)) {
 		dev->mm_driver->mm_sarea->evict_tt_seq =
 		    dev->mm_driver->mm_sarea->validation_seq + 1;
@@ -1199,11 +1190,10 @@ EXPORT_SYMBOL(drm_ttm_fence_regions);
  * May sleep while waiting for a fence.
  */
 
-static int drm_ttm_evict_lru_sl(drm_ttm_backend_list_t * entry)
+static int drm_ttm_evict_lru(drm_ttm_backend_list_t * entry)
 {
 	struct list_head *list;
 	drm_ttm_mm_t *mm = entry->mm;
-	spinlock_t *mm_lock = &mm->mm.mm_lock;
 	drm_ttm_mm_priv_t *evict_priv;
 	uint32_t evict_fence;
 	drm_device_t *dev = mm->dev;
@@ -1235,13 +1225,11 @@ static int drm_ttm_evict_lru_sl(drm_ttm_backend_list_t * entry)
 			       evict_fence))
 			break;
 
-		spin_unlock(mm_lock);
 		up(&dev->struct_sem);
 
 		ret = drm_wait_buf_busy(evict_priv->region);
 
 		down(&dev->struct_sem);
-		spin_lock(mm_lock);
 
 		if (ret) {
 			DRM_ERROR("Evict wait timed out\n");
@@ -1253,7 +1241,7 @@ static int drm_ttm_evict_lru_sl(drm_ttm_backend_list_t * entry)
 	drm_evict_ttm_region(evict_priv->region);
 	list_del_init(list);
 	evict_node->private = NULL;
-	drm_mm_put_block_locked(&mm->mm, evict_node);
+	drm_mm_put_block(&mm->mm, evict_node);
 	evict_priv->region->mm_node = NULL;
 	drm_free(evict_priv, sizeof(*evict_priv), DRM_MEM_MM);
 
@@ -1267,7 +1255,6 @@ static int drm_validate_ttm_region(drm_ttm_backend_list_t * entry,
 {
 	drm_mm_node_t *mm_node = entry->mm_node;
 	drm_ttm_mm_t *mm = entry->mm;
-	spinlock_t *mm_lock = &mm->mm.mm_lock;
 	drm_ttm_mm_priv_t *mm_priv;
 	unsigned num_pages;
 	int ret;
@@ -1283,14 +1270,12 @@ static int drm_validate_ttm_region(drm_ttm_backend_list_t * entry,
 
 	num_pages = (entry->owner) ? entry->num_pages : entry->anon_locked;
 	drm_ttm_destroy_delayed(entry->mm, TRUE);
-	spin_lock(mm_lock);
 	while (!mm_node) {
 		mm_node =
-		    drm_mm_search_free_locked(&entry->mm->mm, num_pages, 0, 0);
+		    drm_mm_search_free(&entry->mm->mm, num_pages, 0, 0);
 		if (!mm_node) {
-			ret = drm_ttm_evict_lru_sl(entry);
+			ret = drm_ttm_evict_lru(entry);
 			if (ret) {
-				spin_unlock(mm_lock);
 				return ret;
 			}
 			action->evicted_tt = TRUE;
@@ -1298,7 +1283,7 @@ static int drm_validate_ttm_region(drm_ttm_backend_list_t * entry,
 	}
 
 	if (!entry->mm_node) {
-		mm_node = drm_mm_get_block_locked(mm_node, num_pages, 0);
+		mm_node = drm_mm_get_block(mm_node, num_pages, 0);
 		mm_node->private = mm_priv;
 		mm_priv->region = entry;
 		entry->mm_node = mm_node;
@@ -1326,7 +1311,6 @@ static int drm_validate_ttm_region(drm_ttm_backend_list_t * entry,
 		break;
 	}
 
-	spin_unlock(mm_lock);
 	*aper_offset = mm_node->start;
 	return 0;
 }
