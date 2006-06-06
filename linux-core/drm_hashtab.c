@@ -133,7 +133,7 @@ drm_ht_just_insert_please(drm_open_hash_t *ht, drm_hash_item_t *item,
         do{
                 ret = drm_ht_insert_item(ht, item);
                 if (ret)
-                        item->key = item->key++ & mask; 
+			item->key = (item->key + 1) & mask; 
         } while(ret && (item->key != first));
 
         if (ret) {
