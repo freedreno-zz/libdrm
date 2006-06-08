@@ -1,6 +1,6 @@
 /**************************************************************************
  * 
- * Copyright 2006 Tungsten Graphics, Inc., Steamboat Springs, CO. USA.
+ * Copyright 2006 Tungsten Graphics, Inc., Bismack, ND. USA.
  * All Rights Reserved.
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -35,8 +35,10 @@
 #ifndef DRM_HASHTAB_H
 #define DRM_HASHTAB_H
 
+#define drm_hash_entry(_a1, _a2, _a3) list_entry(_a1, _a2, _a3)
+
 typedef struct drm_hash_item{
-        struct list_head head;
+        struct hlist_node head;
         unsigned long key;
 } drm_hash_item_t;
 
@@ -44,7 +46,7 @@ typedef struct drm_open_hash{
         unsigned int size;
         unsigned int order;
         unsigned int fill;
-        struct list_head *table;
+        struct hlist_head *table;
 } drm_open_hash_t;
 
 

@@ -265,7 +265,7 @@ drmWaitFence(int drmFD, drmFence fence)
      * arbitration scheme. We need a scheduler!!.
      */
 
-#if 0
+#if 1
     sched_yield();
 
     if ((drmMMKI.sarea->retired[fence.fenceType & DRM_FENCE_MASK] -

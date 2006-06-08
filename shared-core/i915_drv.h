@@ -37,7 +37,7 @@
 
 #define DRIVER_NAME		"i915"
 #define DRIVER_DESC		"Intel Graphics"
-#define DRIVER_DATE		"20060329"
+#define DRIVER_DATE		"20060608"
 
 /* Interface history:
  *
@@ -49,7 +49,7 @@
  */
 #define DRIVER_MAJOR		1
 #define DRIVER_MINOR		5
-#define DRIVER_PATCHLEVEL	0
+#define DRIVER_PATCHLEVEL	1
 
 typedef struct _drm_i915_ring_buffer {
 	int tail_mask;
