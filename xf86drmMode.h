@@ -471,6 +471,26 @@ extern int drmModeObjectSetProperty(int fd, uint32_t object_id,
 				    uint32_t object_type, uint32_t property_id,
 				    uint64_t value);
 
+
+typedef struct _drmModePropertySet drmModePropertySet, *drmModePropertySetPtr;
+
+extern drmModePropertySetPtr drmModePropertySetAlloc(void);
+
+extern int drmModePropertySetAdd(drmModePropertySetPtr set,
+				 uint32_t object_id,
+				 uint32_t property_id,
+				 uint64_t value);
+extern int drmModePropertySetAddBlob(drmModePropertySetPtr set,
+				     uint32_t object_id,
+				     uint32_t property_id,
+				     uint64_t length,
+				     void *blob);
+
+extern int drmModePropertySetCommit(int fd, uint32_t flags,
+				    void *user_data, drmModePropertySetPtr set);
+
+extern void drmModePropertySetFree(drmModePropertySetPtr set);
+
 #if defined(__cplusplus) || defined(c_plusplus)
 }
 #endif
