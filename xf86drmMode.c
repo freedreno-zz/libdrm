@@ -1174,10 +1174,8 @@ int drmModePropertySetAdd(drmModePropertySetPtr set,
 
 	/* keep it sorted by object_id and property_id */
 	while (prev->next) {
-		if (prev->next->object_id > object_id) {
-			new_obj = true;
+		if (prev->next->object_id > object_id)
 			break;
-		}
 
 		if (prev->next->object_id == object_id &&
 		    prev->next->property_id >= property_id)
@@ -1186,8 +1184,8 @@ int drmModePropertySetAdd(drmModePropertySetPtr set,
 		prev = prev->next;
 	}
 
-	if (!prev->next &&
-	    (prev == &set->list || prev->object_id != object_id))
+	if ((prev == &set->list || prev->object_id != object_id) &&
+	    (!prev->next || prev->next->object_id != object_id))
 		new_obj = true;
 
 	/* replace or add? */
@@ -1236,10 +1234,8 @@ int drmModePropertySetAddBlob(drmModePropertySetPtr set,
 
 	/* keep it sorted by object_id and property_id */
 	while (prev->next) {
-		if (prev->next->object_id > object_id) {
-			new_obj = true;
+		if (prev->next->object_id > object_id)
 			break;
-		}
 
 		if (prev->next->object_id == object_id &&
 		    prev->next->property_id >= property_id)
@@ -1248,8 +1244,8 @@ int drmModePropertySetAddBlob(drmModePropertySetPtr set,
 		prev = prev->next;
 	}
 
-	if (!prev->next &&
-	    (prev == &set->list || prev->object_id != object_id))
+	if ((prev == &set->list || prev->object_id != object_id) &&
+	    (!prev->next || prev->next->object_id != object_id))
 		new_obj = true;
 
 	/* replace or add? */
