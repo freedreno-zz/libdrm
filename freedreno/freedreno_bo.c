@@ -34,12 +34,16 @@
 static struct fd_bo * bo_from_handle(struct fd_device *dev,
 		uint32_t size, uint32_t handle)
 {
+	unsigned i;
 	struct fd_bo *bo = calloc(1, sizeof(*bo));
 	if (!bo)
 		return NULL;
 	bo->dev = dev;
 	bo->size = size;
 	bo->handle = handle;
+	atomic_set(&bo->refcnt, 1);
+	for (i = 0; i < ARRAY_SIZE(bo->list); i++)
+		list_inithead(&bo->list[i]);
 	return bo;
 }
 
@@ -169,11 +173,19 @@ struct fd_bo * fd_bo_from_name(struct fd_device *dev, uint32_t name)
 	return bo_from_handle(dev, req.size, req.handle);
 }
 
+struct fd_bo * fd_bo_ref(struct fd_bo *bo)
+{
+	atomic_inc(&bo->refcnt);
+	return bo;
+}
+
 void fd_bo_del(struct fd_bo *bo)
 {
-	if (bo->map) {
+	if (!atomic_dec_and_test(&bo->refcnt))
+		return;
+
+	if (bo->map)
 		munmap(bo->map, bo->size);
-	}
 
 	if (bo->handle) {
 		struct drm_gem_close req = {

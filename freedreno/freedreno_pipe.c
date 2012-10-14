@@ -90,6 +90,9 @@ struct fd_pipe * fd_pipe_new(struct fd_device *dev, enum fd_pipe_id id)
 	pipe->fd = fd;
 	pipe->drawctxt_id = req.drawctxt_id;
 
+	list_inithead(&pipe->submit_list);
+	list_inithead(&pipe->pending_list);
+
 	GETPROP(fd, VERSION,     pipe->version);
 	GETPROP(fd, DEVICE_INFO, pipe->devinfo);
 
@@ -161,6 +164,64 @@ int fd_pipe_wait(struct fd_pipe *pipe, uint32_t timestamp)
 	} while ((ret == -1) && ((errno == EINTR) || (errno == EAGAIN)));
 	if (ret)
 		ERROR_MSG("waittimestamp failed! %d (%s)", ret, strerror(errno));
-
+	else
+		fd_pipe_process_pending(pipe, timestamp);
 	return ret;
+}
+
+int fd_pipe_timestamp(struct fd_pipe *pipe, uint32_t *timestamp)
+{
+	struct kgsl_cmdstream_readtimestamp req = {
+			.type = KGSL_TIMESTAMP_RETIRED
+	};
+	int ret = ioctl(pipe->fd, IOCTL_KGSL_CMDSTREAM_READTIMESTAMP, &req);
+	if (ret) {
+		ERROR_MSG("readtimestamp failed! %d (%s)",
+				ret, strerror(errno));
+		return ret;
+	}
+	*timestamp = req.timestamp;
+	return 0;
+}
+
+/* add buffer to submit list when it is referenced in cmdstream: */
+void fd_pipe_add_submit(struct fd_pipe *pipe, struct fd_bo *bo)
+{
+	struct list_head *list = &bo->list[pipe->id];
+	if (LIST_IS_EMPTY(list)) {
+		fd_bo_ref(bo);
+	} else {
+		list_del(list);
+	}
+	list_addtail(list, &pipe->submit_list);
+}
+
+/* process buffers on submit list after flush: */
+void fd_pipe_process_submit(struct fd_pipe *pipe, uint32_t timestamp)
+{
+	struct fd_bo *bo, *tmp;
+
+	LIST_FOR_EACH_ENTRY_SAFE(bo, tmp, &pipe->submit_list, list[pipe->id]) {
+		struct list_head *list = &bo->list[pipe->id];
+		list_del(list);
+		bo->timestamp[pipe->id] = timestamp;
+		list_addtail(list, &pipe->pending_list);
+	}
+
+	if (!fd_pipe_timestamp(pipe, &timestamp))
+		fd_pipe_process_pending(pipe, timestamp);
+}
+
+void fd_pipe_process_pending(struct fd_pipe *pipe, uint32_t timestamp)
+{
+	struct fd_bo *bo, *tmp;
+
+	LIST_FOR_EACH_ENTRY_SAFE(bo, tmp, &pipe->pending_list, list[pipe->id]) {
+		struct list_head *list = &bo->list[pipe->id];
+		if (bo->timestamp[pipe->id] > timestamp)
+			return;
+		list_delinit(list);
+		bo->timestamp[pipe->id] = 0;
+		fd_bo_del(bo);
+	}
 }

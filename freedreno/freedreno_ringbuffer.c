@@ -171,6 +171,8 @@ int fd_ringbuffer_flush(struct fd_ringbuffer *ring)
 	ring->last_timestamp = req.timestamp;
 	ring->last_start = ring->cur;
 
+	fd_pipe_process_submit(ring->pipe, req.timestamp);
+
 	return ret;
 }
 
@@ -199,4 +201,5 @@ void fd_ringbuffer_emit_reloc(struct fd_ringbuffer *ring,
 		struct fd_bo *bo, uint32_t offset)
 {
 	(*ring->cur++) = fd_bo_gpuaddr(bo, offset);
+	fd_pipe_add_submit(ring->pipe, bo);
 }

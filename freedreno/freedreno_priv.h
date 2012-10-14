@@ -38,6 +38,11 @@
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 
+#include "xf86drm.h"
+#include "xf86atomic.h"
+
+#include "list.h"
+
 #include "freedreno_drmif.h"
 #include "msm_kgsl.h"
 #include "kgsl_drm.h"
@@ -55,7 +60,21 @@ struct fd_pipe {
 	/* device properties: */
 	struct kgsl_version version;
 	struct kgsl_devinfo devinfo;
+
+	/* list of bo's that are referenced in ringbuffer but not
+	 * submitted yet:
+	 */
+	struct list_head submit_list;
+
+	/* list of bo's that have been submitted but timestamp has
+	 * not passed yet (so still ref'd in active cmdstream)
+	 */
+	struct list_head pending_list;
 };
+
+void fd_pipe_add_submit(struct fd_pipe *pipe, struct fd_bo *bo);
+void fd_pipe_process_submit(struct fd_pipe *pipe, uint32_t timestamp);
+void fd_pipe_process_pending(struct fd_pipe *pipe, uint32_t timestamp);
 
 struct fd_bo {
 	struct fd_device *dev;
@@ -65,6 +84,11 @@ struct fd_bo {
 	uint32_t gpuaddr;
 	void *map;
 	uint64_t offset;
+	/* timestamp (per pipe) for bo's in a pipe's pending_list: */
+	uint32_t timestamp[FD_PIPE_MAX];
+	/* list-node for pipe's submit_list or pending_list */
+	struct list_head list[FD_PIPE_MAX];
+	atomic_t refcnt;
 };
 
 /* not exposed publicly, because won't be needed when we have

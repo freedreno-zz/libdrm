@@ -78,6 +78,7 @@ void fd_pipe_del(struct fd_pipe *pipe);
 int fd_pipe_get_param(struct fd_pipe *pipe, enum fd_param param,
 		uint64_t *value);
 int fd_pipe_wait(struct fd_pipe *pipe, uint32_t timestamp);
+int fd_pipe_timestamp(struct fd_pipe *pipe, uint32_t *timestamp);
 
 
 /* buffer-object functions:
@@ -88,6 +89,7 @@ struct fd_bo * fd_bo_new(struct fd_device *dev,
 struct fd_bo * fd_bo_from_fbdev(struct fd_pipe *pipe,
 		int fbfd, uint32_t size);
 struct fd_bo * fd_bo_from_name(struct fd_device *dev, uint32_t name);
+struct fd_bo * fd_bo_ref(struct fd_bo *bo);
 void fd_bo_del(struct fd_bo *bo);
 int fd_bo_get_name(struct fd_bo *bo, uint32_t *name);
 uint32_t fd_bo_handle(struct fd_bo *bo);
