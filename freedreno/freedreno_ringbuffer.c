@@ -164,7 +164,9 @@ int fd_ringbuffer_flush(struct fd_ringbuffer *ring)
 		req.timestamp = (uint32_t)ring->bo->hostptr;
 	}
 
-	ret = ioctl(ring->pipe->fd, IOCTL_KGSL_RINGBUFFER_ISSUEIBCMDS, &req);
+	do {
+		ret = ioctl(ring->pipe->fd, IOCTL_KGSL_RINGBUFFER_ISSUEIBCMDS, &req);
+	} while ((ret == -1) && ((errno == EINTR) || (errno == EAGAIN)));
 	if (ret)
 		ERROR_MSG("issueibcmds failed!  %d (%s)", ret, strerror(errno));
 
