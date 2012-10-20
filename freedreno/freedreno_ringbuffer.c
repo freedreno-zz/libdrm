@@ -157,7 +157,8 @@ int fd_ringbuffer_flush(struct fd_ringbuffer *ring)
 	if (ring->pipe->id == FD_PIPE_2D) {
 		/* fix up size field in last cmd packet */
 		uint32_t last_size = (uint32_t)(ring->cur - ring->last_start);
-		ring->last_start[2] = last_size;
+		/* 5 is length of first packet, 2 for the two 7f000000's */
+		ring->last_start[2] = last_size - (5 + 2);
 		ibdesc.gpuaddr = ring->bo->gpuaddr;
 		ibdesc.hostptr = ring->bo->hostptr;
 		ibdesc.sizedwords = 0x145;
