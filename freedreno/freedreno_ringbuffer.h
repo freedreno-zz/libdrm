@@ -64,7 +64,6 @@ void fd_ringbuffer_del(struct fd_ringbuffer *ring);
 void fd_ringbuffer_reset(struct fd_ringbuffer *ring);
 int fd_ringbuffer_flush(struct fd_ringbuffer *ring);
 uint32_t fd_ringbuffer_timestamp(struct fd_ringbuffer *ring);
-int fd_ringbuffer_begin(struct fd_ringbuffer *ring, int ndwords);
 
 static inline void fd_ringbuffer_emit(struct fd_ringbuffer *ring,
 		uint32_t data)

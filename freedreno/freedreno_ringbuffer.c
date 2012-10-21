@@ -184,22 +184,6 @@ uint32_t fd_ringbuffer_timestamp(struct fd_ringbuffer *ring)
 	return ring->last_timestamp;
 }
 
-int fd_ringbuffer_begin(struct fd_ringbuffer *ring, int ndwords)
-{
-	int ret;
-	if ((ring->cur + ndwords) >= ring->end) {
-		/* this probably won't really work if we have multiple tiles..
-		 * but it is ok for 2d..  we might need different behavior
-		 * depending on 2d or 3d pipe.
-		 */
-		WARN_MSG("unexpected flush");
-		ret = fd_ringbuffer_flush(ring);
-		fd_ringbuffer_reset(ring);
-		return ret;
-	}
-	return 0;
-}
-
 void fd_ringbuffer_emit_reloc(struct fd_ringbuffer *ring,
 		struct fd_bo *bo, uint32_t offset)
 {
