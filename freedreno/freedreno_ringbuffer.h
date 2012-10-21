@@ -72,6 +72,6 @@ static inline void fd_ringbuffer_emit(struct fd_ringbuffer *ring,
 }
 
 void fd_ringbuffer_emit_reloc(struct fd_ringbuffer *ring,
-		struct fd_bo *bo, uint32_t offset);
+		struct fd_bo *bo, uint32_t offset, uint32_t or);
 
 #endif /* FREEDRENO_RINGBUFFER_H_ */
