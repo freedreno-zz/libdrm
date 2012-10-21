@@ -135,7 +135,7 @@ void fd_pipe_del(struct fd_pipe *pipe)
 	free(pipe);
 }
 
-int fd_pipe_get_param(struct fd_pipe *pipe, enum fd_param param,
+int fd_pipe_get_param(struct fd_pipe *pipe, enum fd_param_id param,
 		uint64_t *value)
 {
 	switch (param) {

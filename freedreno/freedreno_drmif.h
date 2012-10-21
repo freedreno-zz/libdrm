@@ -45,7 +45,7 @@ enum fd_pipe_id {
 	FD_PIPE_MAX
 };
 
-enum fd_param {
+enum fd_param_id {
 	FD_DEVICE_ID,
 	FD_GMEM_SIZE,
 };
@@ -75,7 +75,7 @@ void fd_device_del(struct fd_device *dev);
 
 struct fd_pipe * fd_pipe_new(struct fd_device *dev, enum fd_pipe_id id);
 void fd_pipe_del(struct fd_pipe *pipe);
-int fd_pipe_get_param(struct fd_pipe *pipe, enum fd_param param,
+int fd_pipe_get_param(struct fd_pipe *pipe, enum fd_param_id param,
 		uint64_t *value);
 int fd_pipe_wait(struct fd_pipe *pipe, uint32_t timestamp);
 int fd_pipe_timestamp(struct fd_pipe *pipe, uint32_t *timestamp);
