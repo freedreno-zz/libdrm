@@ -190,3 +190,9 @@ void fd_ringbuffer_emit_reloc(struct fd_ringbuffer *ring,
 	(*ring->cur++) = fd_bo_gpuaddr(bo, offset) | or;
 	fd_pipe_add_submit(ring->pipe, bo);
 }
+
+void fd_ringbuffer_emit_reloc_ring(struct fd_ringbuffer *ring,
+		struct fd_ringbuffer *dst_ring, uint32_t offset)
+{
+	(*ring->cur++) = dst_ring->bo->gpuaddr + offset;
+}
