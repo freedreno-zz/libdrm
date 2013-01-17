@@ -38,6 +38,7 @@
  */
 
 struct fd_rb_bo;
+struct fd_ringmarker;
 
 struct fd_ringbuffer {
 	int size;
@@ -74,6 +75,13 @@ static inline void fd_ringbuffer_emit(struct fd_ringbuffer *ring,
 void fd_ringbuffer_emit_reloc(struct fd_ringbuffer *ring,
 		struct fd_bo *bo, uint32_t offset, uint32_t or);
 void fd_ringbuffer_emit_reloc_ring(struct fd_ringbuffer *ring,
-		struct fd_ringbuffer *dst_ring, uint32_t offset);
+		struct fd_ringmarker *target);
+
+struct fd_ringmarker * fd_ringmarker_new(struct fd_ringbuffer *ring);
+void fd_ringmarker_del(struct fd_ringmarker *marker);
+void fd_ringmarker_mark(struct fd_ringmarker *marker);
+uint32_t fd_ringmarker_dwords(struct fd_ringmarker *start,
+		struct fd_ringmarker *end);
+int fd_ringmarker_flush(struct fd_ringmarker *marker);
 
 #endif /* FREEDRENO_RINGBUFFER_H_ */

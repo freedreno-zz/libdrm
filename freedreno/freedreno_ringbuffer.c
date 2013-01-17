@@ -42,6 +42,11 @@ struct fd_rb_bo {
 	uint32_t size;
 };
 
+struct fd_ringmarker {
+	struct fd_ringbuffer *ring;
+	uint32_t *cur;
+};
+
 static void fd_rb_bo_del(struct fd_rb_bo *bo)
 {
 	struct kgsl_sharedmem_free req = {
@@ -109,6 +114,7 @@ struct fd_ringbuffer * fd_ringbuffer_new(struct fd_pipe *pipe,
 		goto fail;
 	}
 
+	ring->size = size;
 	ring->pipe = pipe;
 	ring->start = ring->bo->hostptr;
 	ring->end = &(ring->start[size/4]);
@@ -137,13 +143,13 @@ void fd_ringbuffer_reset(struct fd_ringbuffer *ring)
 	ring->cur = ring->last_start = start;
 }
 
-int fd_ringbuffer_flush(struct fd_ringbuffer *ring)
+static int flush_impl(struct fd_ringbuffer *ring, uint32_t *last_start)
 {
-	uint32_t offset = ring->last_start - ring->start;
+	uint32_t offset = (uint8_t *)last_start - (uint8_t *)ring->start;
 	struct kgsl_ibdesc ibdesc = {
 			.gpuaddr     = ring->bo->gpuaddr + offset,
-			.hostptr     = ring->last_start,
-			.sizedwords  = ring->cur - ring->last_start,
+			.hostptr     = last_start,
+			.sizedwords  = ring->cur - last_start,
 	};
 	struct kgsl_ringbuffer_issueibcmds req = {
 			.drawctxt_id = ring->pipe->drawctxt_id,
@@ -156,9 +162,9 @@ int fd_ringbuffer_flush(struct fd_ringbuffer *ring)
 	/* z180_cmdstream_issueibcmds() is made of fail: */
 	if (ring->pipe->id == FD_PIPE_2D) {
 		/* fix up size field in last cmd packet */
-		uint32_t last_size = (uint32_t)(ring->cur - ring->last_start);
+		uint32_t last_size = (uint32_t)(ring->cur - last_start);
 		/* 5 is length of first packet, 2 for the two 7f000000's */
-		ring->last_start[2] = last_size - (5 + 2);
+		last_start[2] = last_size - (5 + 2);
 		ibdesc.gpuaddr = ring->bo->gpuaddr;
 		ibdesc.hostptr = ring->bo->hostptr;
 		ibdesc.sizedwords = 0x145;
@@ -179,6 +185,12 @@ int fd_ringbuffer_flush(struct fd_ringbuffer *ring)
 	return ret;
 }
 
+/* maybe get rid of this and use fd_ringmarker_flush() from DDX too? */
+int fd_ringbuffer_flush(struct fd_ringbuffer *ring)
+{
+	return flush_impl(ring, ring->last_start);
+}
+
 uint32_t fd_ringbuffer_timestamp(struct fd_ringbuffer *ring)
 {
 	return ring->last_timestamp;
@@ -192,7 +204,46 @@ void fd_ringbuffer_emit_reloc(struct fd_ringbuffer *ring,
 }
 
 void fd_ringbuffer_emit_reloc_ring(struct fd_ringbuffer *ring,
-		struct fd_ringbuffer *dst_ring, uint32_t offset)
+		struct fd_ringmarker *target)
 {
-	(*ring->cur++) = dst_ring->bo->gpuaddr + offset;
+	(*ring->cur++) = target->ring->bo->gpuaddr +
+			(uint8_t *)target->cur - (uint8_t *)target->ring->start;
+}
+
+struct fd_ringmarker * fd_ringmarker_new(struct fd_ringbuffer *ring)
+{
+	struct fd_ringmarker *marker = NULL;
+
+	marker = calloc(1, sizeof(*marker));
+	if (!marker) {
+		ERROR_MSG("allocation failed");
+		return NULL;
+	}
+
+	marker->ring = ring;
+
+	fd_ringmarker_mark(marker);
+
+	return marker;
+}
+
+void fd_ringmarker_del(struct fd_ringmarker *marker)
+{
+	free(marker);
+}
+
+void fd_ringmarker_mark(struct fd_ringmarker *marker)
+{
+	marker->cur = marker->ring->cur;
+}
+
+uint32_t fd_ringmarker_dwords(struct fd_ringmarker *start,
+		struct fd_ringmarker *end)
+{
+	return end->cur - start->cur;
+}
+
+int fd_ringmarker_flush(struct fd_ringmarker *marker)
+{
+	return flush_impl(marker->ring, marker->cur);
 }
