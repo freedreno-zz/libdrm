@@ -5,7 +5,7 @@ includedir=@includedir@
 
 Name: libdrm_freedreno
 Description: Userspace interface to freedreno kernel DRM services
-Version: 0.6
+Version: @PACKAGE_VERSION@
 Libs: -L${libdir} -ldrm_freedreno
 Cflags: -I${includedir} -I${includedir}/libdrm -I${includedir}/freedreno
 Requires.private: libdrm
