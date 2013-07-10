@@ -132,6 +132,8 @@ fail:
 
 void fd_ringbuffer_del(struct fd_ringbuffer *ring)
 {
+	if (ring->last_timestamp)
+		fd_pipe_wait(ring->pipe, ring->last_timestamp);
 	if (ring->bo)
 		fd_rb_bo_del(ring->bo);
 	free(ring);

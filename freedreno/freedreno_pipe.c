@@ -199,13 +199,18 @@ void fd_pipe_add_submit(struct fd_pipe *pipe, struct fd_bo *bo)
 	list_addtail(list, &pipe->submit_list);
 }
 
+void fd_pipe_bo_flush(struct fd_pipe *pipe, struct fd_bo *bo)
+{
+	uint32_t timestamp = fd_bo_get_timestamp(bo);
+	if (timestamp) {
+		fd_pipe_wait(pipe, timestamp);
+	}
+}
+
 /* prepare buffers on submit list before flush: */
 void fd_pipe_pre_submit(struct fd_pipe *pipe)
 {
 	struct fd_bo *bo;
-
-	if (pipe->id == FD_PIPE_3D)
-		return;
 
 	if (!pipe->p3d)
 		pipe->p3d = fd_pipe_new(pipe->dev, FD_PIPE_3D);
@@ -228,8 +233,7 @@ void fd_pipe_post_submit(struct fd_pipe *pipe, uint32_t timestamp)
 		bo->timestamp[pipe->id] = timestamp;
 		list_addtail(list, &pipe->pending_list);
 
-		if (pipe->id == FD_PIPE_3D)
-			fb_bo_set_timestamp(bo, timestamp);
+		fb_bo_set_timestamp(bo, timestamp);
 	}
 
 	if (!fd_pipe_timestamp(pipe, &timestamp))

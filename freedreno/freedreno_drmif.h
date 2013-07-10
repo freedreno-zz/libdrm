@@ -81,6 +81,7 @@ int fd_pipe_get_param(struct fd_pipe *pipe, enum fd_param_id param,
 		uint64_t *value);
 int fd_pipe_wait(struct fd_pipe *pipe, uint32_t timestamp);
 int fd_pipe_timestamp(struct fd_pipe *pipe, uint32_t *timestamp);
+void fd_pipe_bo_flush(struct fd_pipe *pipe, struct fd_bo *bo);
 
 
 /* buffer-object functions:
