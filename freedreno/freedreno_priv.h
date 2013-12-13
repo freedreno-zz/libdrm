@@ -167,4 +167,34 @@ struct fd_bo *fd_bo_from_handle(struct fd_device *dev,
 #define U642VOID(x) ((void *)(unsigned long)(x))
 #define VOID2U64(x) ((uint64_t)(unsigned long)(x))
 
+
+#if 0  /* stall profiling */
+#  include <sys/time.h>
+static inline int64_t timeval_to_us(const struct timeval *tv)
+{
+	return ((int64_t) tv->tv_sec * 1000000L) + tv->tv_usec;
+}
+
+static inline void __profile(struct timeval *then, const char *func)
+{
+	struct timeval now;
+	int64_t elapsed;
+	gettimeofday(&now, NULL);
+	elapsed = timeval_to_us(&now) - timeval_to_us(then);
+	if (elapsed > 1000)
+		printf("%s: stall %ld\n", func, (long)elapsed);
+}
+
+#  define PROFILE(_x) ({           \
+		struct timeval tv;         \
+		typeof(_x) _tmp;           \
+		gettimeofday(&tv, NULL);   \
+		_tmp = _x;                 \
+		__profile(&tv, __func__);  \
+		_tmp;                      \
+	})
+#else
+#  define PROFILE(_x)  _x
+#endif
+
 #endif /* FREEDRENO_PRIV_H_ */

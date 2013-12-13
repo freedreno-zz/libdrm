@@ -364,7 +364,7 @@ void * fd_bo_map(struct fd_bo *bo)
 /* a bit odd to take the pipe as an arg, but it's a, umm, quirk of kgsl.. */
 int fd_bo_cpu_prep(struct fd_bo *bo, struct fd_pipe *pipe, uint32_t op)
 {
-	return bo->funcs->cpu_prep(bo, pipe, op);
+	return PROFILE(bo->funcs->cpu_prep(bo, pipe, op));
 }
 
 void fd_bo_cpu_fini(struct fd_bo *bo)

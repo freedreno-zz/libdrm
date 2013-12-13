@@ -67,5 +67,5 @@ int fd_pipe_get_param(struct fd_pipe *pipe, enum fd_param_id param,
 
 int fd_pipe_wait(struct fd_pipe *pipe, uint32_t timestamp)
 {
-	return pipe->funcs->wait(pipe, timestamp);
+	return PROFILE(pipe->funcs->wait(pipe, timestamp));
 }
