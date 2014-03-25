@@ -173,13 +173,14 @@ struct fd_bo *fd_bo_from_handle(struct fd_device *dev,
 #define U642VOID(x) ((void *)(unsigned long)(x))
 #define VOID2U64(x) ((uint64_t)(unsigned long)(x))
 
-
-#if 0  /* stall profiling */
+#ifdef STALL_PROFILING  /* stall profiling */
 #  include <sys/time.h>
 static inline int64_t timeval_to_us(const struct timeval *tv)
 {
 	return ((int64_t) tv->tv_sec * 1000000L) + tv->tv_usec;
 }
+
+void print_stall(const char *func, long elapsed);
 
 static inline void __profile(struct timeval *then, const char *func)
 {
@@ -188,7 +189,7 @@ static inline void __profile(struct timeval *then, const char *func)
 	gettimeofday(&now, NULL);
 	elapsed = timeval_to_us(&now) - timeval_to_us(then);
 	if (elapsed > 1000)
-		printf("%s: stall %ld\n", func, (long)elapsed);
+		print_stall(func, (long)elapsed);
 }
 
 #  define PROFILE(_x) ({           \

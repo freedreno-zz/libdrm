@@ -154,3 +154,11 @@ void fd_device_del(struct fd_device *dev)
 	fd_device_del_impl(dev);
 	pthread_mutex_unlock(&table_lock);
 }
+
+#ifdef STALL_PROFILING  /* stall profiling */
+/* split out into here so we can more easily set a breakpoint on it */
+void print_stall(const char *func, long elapsed)
+{
+	printf("%s: stall %ld\n", func, elapsed);
+}
+#endif
