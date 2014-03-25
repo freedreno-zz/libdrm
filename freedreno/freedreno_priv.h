@@ -85,6 +85,9 @@ struct fd_device {
 	int num_buckets;
 	time_t time;
 
+	// memory tracking stats:
+	uint32_t allocated, wasted, cached;
+
 	int closefd;        /* call close(fd) upon destruction */
 };
 
@@ -141,6 +144,9 @@ struct fd_bo {
 	int bo_reuse;
 	struct list_head list;   /* bucket-list entry */
 	time_t free_time;        /* time when added to bucket-list */
+
+	// memory tracking stats:
+	uint32_t waste;
 };
 
 struct fd_bo *fd_bo_from_handle(struct fd_device *dev,

@@ -41,6 +41,52 @@ static void set_name(struct fd_bo *bo, uint32_t name)
 	drmHashInsert(bo->dev->name_table, name, bo);
 }
 
+/* memory stat updates: */
+static void print_stats(struct fd_device *dev)
+{
+	static unsigned cnt = 0;
+
+	if ((++cnt & 0x3f) == 0) {
+		fprintf(stderr, "alloc=%u\twaste=%u\tcache=%u\n",
+				dev->allocated, dev->wasted, dev->cached);
+	}
+}
+
+static void bo_allocated(struct fd_bo *bo)
+{
+	if (!bo)
+		return;
+
+	bo->dev->allocated += bo->size;
+	bo->dev->wasted += bo->waste;
+	print_stats(bo->dev);
+}
+
+static void bo_freed(struct fd_bo *bo)
+{
+	bo->dev->allocated -= bo->size;
+	bo->dev->wasted -= bo->waste;
+	print_stats(bo->dev);
+}
+
+static void bo_add_to_cache(struct fd_bo *bo)
+{
+	bo->dev->cached += bo->size;
+	/* remove from allocated stats: */
+	bo->dev->allocated -= bo->size;
+	bo->dev->wasted -= bo->waste;
+	print_stats(bo->dev);
+}
+
+static void bo_remove_from_cache(struct fd_bo *bo)
+{
+	bo->dev->cached -= bo->size;
+	/* add back to allocated stats: */
+	bo->dev->allocated += bo->size;
+	bo->dev->wasted += bo->waste;
+	print_stats(bo->dev);
+}
+
 /* lookup a buffer, call w/ table_lock held: */
 static struct fd_bo * lookup_bo(void *tbl, uint32_t key)
 {
@@ -96,6 +142,7 @@ void fd_cleanup_bo_cache(struct fd_device *dev, time_t time)
 				break;
 
 			list_del(&bo->list);
+			bo_remove_from_cache(bo);
 			bo_del(bo);
 		}
 	}
@@ -145,6 +192,7 @@ static struct fd_bo *find_in_bucket(struct fd_device *dev,
 		bo = LIST_ENTRY(struct fd_bo, bucket->list.next, list);
 		if (0 /* TODO: if madvise tells us bo is gone... */) {
 			list_del(&bo->list);
+			bo_remove_from_cache(bo);
 			bo_del(bo);
 			bo = NULL;
 			continue;
@@ -152,6 +200,7 @@ static struct fd_bo *find_in_bucket(struct fd_device *dev,
 		/* TODO check for compatible flags? */
 		if (is_idle(bo)) {
 			list_del(&bo->list);
+			bo_remove_from_cache(bo);
 			break;
 		}
 		bo = NULL;
@@ -169,6 +218,7 @@ struct fd_bo * fd_bo_new(struct fd_device *dev,
 	struct fd_bo *bo = NULL;
 	struct fd_bo_bucket *bucket;
 	uint32_t handle;
+	uint32_t origsize = size;
 	int ret;
 
 	size = ALIGN(size, 4096);
@@ -181,6 +231,11 @@ struct fd_bo * fd_bo_new(struct fd_device *dev,
 		if (bo) {
 			atomic_set(&bo->refcnt, 1);
 			fd_device_ref(bo->dev);
+
+			bo_freed(bo);
+			bo->waste = size - origsize;
+			bo_allocated(bo);
+
 			return bo;
 		}
 	}
@@ -192,6 +247,8 @@ struct fd_bo * fd_bo_new(struct fd_device *dev,
 	pthread_mutex_lock(&table_lock);
 	bo = bo_from_handle(dev, size, handle);
 	bo->bo_reuse = 1;
+	bo->waste = size - origsize;
+	bo_allocated(bo);
 	pthread_mutex_unlock(&table_lock);
 
 	return bo;
@@ -204,6 +261,7 @@ struct fd_bo *fd_bo_from_handle(struct fd_device *dev,
 
 	pthread_mutex_lock(&table_lock);
 	bo = bo_from_handle(dev, size, handle);
+	bo_allocated(bo);
 	pthread_mutex_unlock(&table_lock);
 
 	return bo;
@@ -233,6 +291,7 @@ struct fd_bo * fd_bo_from_name(struct fd_device *dev, uint32_t name)
 		goto out_unlock;
 
 	bo = bo_from_handle(dev, req.size, req.handle);
+	bo_allocated(bo);
 	if (bo)
 		set_name(bo, name);
 
@@ -267,6 +326,7 @@ void fd_bo_del(struct fd_bo *bo)
 			clock_gettime(CLOCK_MONOTONIC, &time);
 
 			bo->free_time = time.tv_sec;
+			bo_add_to_cache(bo);
 			list_addtail(&bo->list, &bucket->list);
 			fd_cleanup_bo_cache(dev, time.tv_sec);
 
@@ -304,6 +364,7 @@ static void bo_del(struct fd_bo *bo)
 		drmIoctl(bo->dev->fd, DRM_IOCTL_GEM_CLOSE, &req);
 	}
 
+	bo_freed(bo);
 	bo->funcs->destroy(bo);
 }
 
