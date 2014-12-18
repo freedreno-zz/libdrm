@@ -1385,7 +1385,8 @@ int drmModePropertySetCommit(int fd, uint32_t flags, void *user_data,
 	atomic.count_props_ptr = VOID2U64(count_props_ptr);
 	atomic.props_ptr = VOID2U64(props_ptr);
 	atomic.prop_values_ptr = VOID2U64(prop_values_ptr);
-	atomic.blob_values_ptr = VOID2U64(blob_values_ptr);
+// TODO:
+//	atomic.blob_values_ptr = VOID2U64(blob_values_ptr);
 	atomic.user_data = VOID2U64(user_data);
 
 	ret = DRM_IOCTL(fd, DRM_IOCTL_MODE_ATOMIC, &atomic);

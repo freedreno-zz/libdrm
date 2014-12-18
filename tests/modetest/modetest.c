@@ -563,6 +563,7 @@ static struct resources *get_resources(struct device *dev)
 	memset(res, 0, sizeof *res);
 
 	drmSetClientCap(dev->fd, DRM_CLIENT_CAP_UNIVERSAL_PLANES, 1);
+	drmSetClientCap(dev->fd, DRM_CLIENT_CAP_ATOMIC, 1);
 
 	res->res = drmModeGetResources(dev->fd);
 	if (!res->res) {
