@@ -47,6 +47,7 @@ struct fd_ringbuffer {
 	const struct fd_ringbuffer_funcs *funcs;
 	uint32_t last_timestamp;
 	struct fd_ringbuffer *parent;
+	void *data;
 };
 
 struct fd_ringbuffer * fd_ringbuffer_new(struct fd_pipe *pipe,
