@@ -222,7 +222,7 @@ static int msm_ringbuffer_flush(struct fd_ringbuffer *ring, uint32_t *last_start
 	struct msm_ringbuffer *msm_ring = to_msm_ringbuffer(ring);
 	struct fd_bo *ring_bo = msm_ring->ring_bo;
 	struct drm_msm_gem_submit req = {
-			.pipe = to_msm_pipe(ring->pipe)->pipe,
+			.flags = to_msm_pipe(ring->pipe)->pipe,
 	};
 	uint32_t i, j, submit_offset, size;
 	int ret;
@@ -254,7 +254,7 @@ static int msm_ringbuffer_flush(struct fd_ringbuffer *ring, uint32_t *last_start
 			&req, sizeof(req));
 	if (ret) {
 		ERROR_MSG("submit failed: %d (%s)", ret, strerror(errno));
-		ERROR_MSG("  pipe:  %u", req.pipe);
+		ERROR_MSG("  pipe:  %u", MSM_PIPE_ID(req.flags));
 		for (i = 0; i < msm_ring->submit.nr_bos; i++) {
 			struct drm_msm_gem_submit_bo *bo = &msm_ring->submit.bos[i];
 			ERROR_MSG("  bos[%d]: handle=%u, flags=%x", i, bo->handle, bo->flags);
