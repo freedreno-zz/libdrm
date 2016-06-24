@@ -621,13 +621,15 @@ struct drm_mode_destroy_dumb {
 #define DRM_MODE_ATOMIC_TEST_ONLY 0x0100
 #define DRM_MODE_ATOMIC_NONBLOCK  0x0200
 #define DRM_MODE_ATOMIC_ALLOW_MODESET 0x0400
+#define DRM_MODE_ATOMIC_OUT_FENCE 0x0800
 
 #define DRM_MODE_ATOMIC_FLAGS (\
 		DRM_MODE_PAGE_FLIP_EVENT |\
 		DRM_MODE_PAGE_FLIP_ASYNC |\
 		DRM_MODE_ATOMIC_TEST_ONLY |\
 		DRM_MODE_ATOMIC_NONBLOCK |\
-		DRM_MODE_ATOMIC_ALLOW_MODESET)
+		DRM_MODE_ATOMIC_ALLOW_MODESET|\
+		DRM_MODE_ATOMIC_OUT_FENCE)
 
 struct drm_mode_atomic {
 	__u32 flags;
@@ -638,6 +640,13 @@ struct drm_mode_atomic {
 	__u64 prop_values_ptr;
 	__u64 reserved;
 	__u64 user_data;
+	__u64 count_out_fences;
+	__u64 out_fences_ptr;
+};
+
+struct drm_out_fences {
+       __u32   crtc_id;
+       __s32   fd;
 };
 
 /**
