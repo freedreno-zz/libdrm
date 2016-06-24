@@ -1197,6 +1197,8 @@ struct _drmModeAtomicReqItem {
 };
 
 struct _drmModeAtomicReq {
+	void *out_fences_ptr;
+	uint32_t count_out_fences;
 	uint32_t cursor;
 	uint32_t size_items;
 	drmModeAtomicReqItemPtr items;
@@ -1213,6 +1215,8 @@ drmModeAtomicReqPtr drmModeAtomicAlloc(void)
 	req->items = NULL;
 	req->cursor = 0;
 	req->size_items = 0;
+	req->count_out_fences = 0;
+	req->out_fences_ptr = NULL;
 
 	return req;
 }
@@ -1314,6 +1318,19 @@ int drmModeAtomicAddProperty(drmModeAtomicReqPtr req,
 	req->cursor++;
 
 	return req->cursor;
+}
+
+int drmModeAtomicAddOutFences(drmModeAtomicReqPtr req,
+			      void *out_fences_ptr,
+			      uint32_t count_out_fences)
+{
+	if (!req)
+		return -EINVAL;
+
+	req->out_fences_ptr = out_fences_ptr;
+	req->count_out_fences = count_out_fences;
+
+	return 0;
 }
 
 void drmModeAtomicFree(drmModeAtomicReqPtr req)
@@ -1425,12 +1442,17 @@ int drmModeAtomicCommit(int fd, drmModeAtomicReqPtr req, uint32_t flags,
 
 	}
 
+	if (req->count_out_fences)
+		flags |= DRM_MODE_ATOMIC_OUT_FENCE;
+
 	atomic.flags = flags;
 	atomic.objs_ptr = VOID2U64(objs_ptr);
 	atomic.count_props_ptr = VOID2U64(count_props_ptr);
 	atomic.props_ptr = VOID2U64(props_ptr);
 	atomic.prop_values_ptr = VOID2U64(prop_values_ptr);
 	atomic.user_data = VOID2U64(user_data);
+	atomic.count_out_fences = req->count_out_fences;
+	atomic.out_fences_ptr = VOID2U64(req->out_fences_ptr);
 
 	ret = DRM_IOCTL(fd, DRM_IOCTL_MODE_ATOMIC, &atomic);
 

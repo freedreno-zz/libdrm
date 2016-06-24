@@ -508,6 +508,9 @@ extern int drmModeAtomicAddProperty(drmModeAtomicReqPtr req,
 				    uint32_t object_id,
 				    uint32_t property_id,
 				    uint64_t value);
+extern int drmModeAtomicAddOutFences(drmModeAtomicReqPtr req,
+				     void *out_fences_ptr,
+				     uint32_t count_out_fences);
 extern int drmModeAtomicCommit(int fd,
 			       drmModeAtomicReqPtr req,
 			       uint32_t flags,
