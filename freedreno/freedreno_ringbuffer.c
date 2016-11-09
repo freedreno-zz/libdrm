@@ -123,6 +123,8 @@ void fd_ringbuffer_emit_reloc_ring(struct fd_ringbuffer *ring,
 {
 	uint32_t submit_offset, size;
 
+	/* This function is deprecated and not supported on 64b devices: */
+	assert(ring->pipe->gpu_id < 500);
 	assert(target->ring == end->ring);
 
 	submit_offset = offset_bytes(target->cur, target->ring->start);
